@@ -7,9 +7,13 @@ import { QUEUE_DISPATCH } from '../common/queue/queue.constants';
 /**
  * Runs the dispatch offer-loop as a durable job. If this process dies mid-match,
  * BullMQ re-runs the job (the trip is still MATCHING, so runDispatch resumes).
- * `concurrency` lets several trips be matched at once.
+ *
+ * Concurrency is high because a dispatch job is almost entirely I/O-wait (it
+ * holds its slot while polling Redis for the offered driver's reply), not CPU.
+ * A small pool serializes under a burst of simultaneous ride requests; load
+ * testing showed 20 backing up at ~60 concurrent, so we run a wide pool.
  */
-@Processor(QUEUE_DISPATCH, { concurrency: 20 })
+@Processor(QUEUE_DISPATCH, { concurrency: 100 })
 export class DispatchProcessor extends WorkerHost {
   private readonly logger = new Logger('DispatchProcessor');
 

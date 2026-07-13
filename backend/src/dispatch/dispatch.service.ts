@@ -15,7 +15,9 @@ import {
 } from '../common/queue/queue.constants';
 
 const OFFER_TTL_MS = 15000;
-const RESPONSE_POLL_MS = 250;
+// Poll the response key fairly tightly: a driver auto-accepts in well under a
+// second, so this mostly sets the floor on match latency. Cheap Redis GETs.
+const RESPONSE_POLL_MS = 100;
 const START_RADIUS_KM = 3;
 const MAX_RADIUS_KM = 9;
 const RADIUS_STEP_KM = 2;

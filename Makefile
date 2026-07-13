@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help ci ci-fast test-backend test-e2e test-flutter analyze build-web shots up down logs migrate
+.PHONY: help ci ci-fast test-backend test-e2e test-flutter analyze build-web shots load-rest load-ride up down logs migrate
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -28,6 +28,12 @@ analyze: ## Flutter static analysis
 
 shots: ## Headless visual+health check — screenshots all 3 apps to tools/visual-check/shots/
 	cd tools/visual-check && node capture.mjs
+
+load-rest: ## REST hot-path load test (env: CONC, DURATION_S)
+	cd tools/load-test && npm install --silent && npm run rest
+
+load-ride: ## Realistic end-to-end ride load test (env: DRIVERS, CONC, RIDES)
+	cd tools/load-test && npm install --silent && npm run ride
 
 build-web: ## Release-build all three web apps
 	@for a in rider_app driver_app admin_app; do \

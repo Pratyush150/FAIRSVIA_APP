@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, ValidationPipe, RequestMethod } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -20,7 +20,9 @@ describe('UberNav API (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api/v1');
+    app.setGlobalPrefix('api/v1', {
+      exclude: [{ path: 'metrics', method: RequestMethod.GET }],
+    });
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -101,17 +103,20 @@ describe('UberNav API (e2e)', () => {
   });
 
   it('creates a trip in REQUESTED', async () => {
+    // Remote pickup (Delhi) so no local/sim driver matches it — keeps the
+    // create→cancel lifecycle assertions deterministic regardless of who is
+    // online.
     const res = await request(server)
       .post('/api/v1/trips')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        pickupLat: 12.9611,
-        pickupLng: 77.6387,
-        dropoffLat: 12.9674,
-        dropoffLng: 77.5904,
+        pickupLat: 28.6139,
+        pickupLng: 77.209,
+        dropoffLat: 28.62,
+        dropoffLng: 77.22,
         tier: 'economy',
-        pickupAddr: 'Indiranagar',
-        dropoffAddr: 'MG Road',
+        pickupAddr: 'Connaught Place',
+        dropoffAddr: 'India Gate',
       });
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('requested');
@@ -138,10 +143,19 @@ describe('UberNav API (e2e)', () => {
       .post(`/api/v1/trips/${tripId}/cancel`)
       .set('Authorization', `Bearer ${token}`)
       .send({ reason: 'e2e' });
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('cancelled');
-    // A requested trip with no assigned driver is free to cancel.
-    expect(res.body.fee).toBe(0);
+    // The trip has no available driver (remote pickup), so no fee applies. It's
+    // either still cancellable (→ cancelled, fee 0) or the async dispatch loop
+    // already finalized it to no_drivers — both are pre-commit, fee-free states.
+    if (res.status === 200) {
+      expect(res.body.status).toBe('cancelled');
+      expect(res.body.fee).toBe(0);
+    } else {
+      expect(res.status).toBe(400);
+      const view = await request(server)
+        .get(`/api/v1/trips/${tripId}`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(view.body.status).toBe('no_drivers');
+    }
   });
 
   it('rejects double-cancel (illegal transition)', async () => {
@@ -214,6 +228,95 @@ describe('UberNav API (e2e)', () => {
       .expect(403);
   });
 
+  describe('robustness & edge cases', () => {
+    async function freshUser() {
+      const p = `+9198${Math.floor(Math.random() * 1e8)}`;
+      const r1 = await request(server)
+        .post('/api/v1/auth/otp/request')
+        .send({ phone: p });
+      const r2 = await request(server)
+        .post('/api/v1/auth/otp/verify')
+        .send({ phone: p, code: r1.body.devCode });
+      return { phone: p, token: r2.body.accessToken as string,
+        refreshToken: r2.body.refreshToken as string };
+    }
+
+    it('rotates refresh tokens and rejects reuse of the old one', async () => {
+      const u = await freshUser();
+      const rotated = await request(server)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: u.refreshToken });
+      expect(rotated.status).toBe(200);
+      expect(rotated.body.accessToken).toBeDefined();
+      expect(rotated.body.refreshToken).not.toBe(u.refreshToken);
+
+      // Reusing the now-rotated (revoked) token must be rejected.
+      const reuse = await request(server)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: u.refreshToken });
+      expect(reuse.status).toBe(401);
+    });
+
+    // A remote pickup (Delhi) — far from any Bangalore test/sim driver — so the
+    // trip won't be matched mid-test and the access-control assertions hold in
+    // any state (a non-participant is always forbidden).
+    const remoteTrip = {
+      pickupLat: 28.6139, pickupLng: 77.209,
+      dropoffLat: 28.62, dropoffLng: 77.22,
+      tier: 'economy', pickupAddr: 'A', dropoffAddr: 'B',
+    };
+
+    it('forbids reading or cancelling another user\'s trip', async () => {
+      const a = await freshUser();
+      const b = await freshUser();
+      const created = await request(server)
+        .post('/api/v1/trips')
+        .set('Authorization', `Bearer ${a.token}`)
+        .send(remoteTrip);
+      expect(created.status).toBe(201);
+      const id = created.body.id;
+
+      await request(server)
+        .get(`/api/v1/trips/${id}`)
+        .set('Authorization', `Bearer ${b.token}`)
+        .expect(403);
+      await request(server)
+        .post(`/api/v1/trips/${id}/cancel`)
+        .set('Authorization', `Bearer ${b.token}`)
+        .send({})
+        .expect(403);
+    });
+
+    it('rejects accepting a trip with no live offer for this driver', async () => {
+      const a = await freshUser();
+      const created = await request(server)
+        .post('/api/v1/trips')
+        .set('Authorization', `Bearer ${a.token}`)
+        .send(remoteTrip);
+      const b = await freshUser();
+      // b was never offered this trip → 400.
+      await request(server)
+        .post(`/api/v1/trips/${created.body.id}/accept`)
+        .set('Authorization', `Bearer ${b.token}`)
+        .expect(400);
+    });
+
+    it('returns 404 for a missing trip', async () => {
+      const a = await freshUser();
+      await request(server)
+        .get('/api/v1/trips/00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${a.token}`)
+        .expect(404);
+    });
+
+    it('exposes Prometheus metrics at /metrics', async () => {
+      const res = await request(server).get('/metrics');
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('http_requests_total');
+      expect(res.text).toContain('process_cpu_seconds_total');
+    });
+  });
+
   describe('admin (role-gated)', () => {
     let adminToken: string;
     // Matches ADMIN_PHONES in the backend .env — promoted to admin on login.
@@ -238,6 +341,18 @@ describe('UberNav API (e2e)', () => {
       expect(typeof res.body.users).toBe('number');
       expect(res.body).toHaveProperty('onlineDrivers');
       expect(res.body).toHaveProperty('tripsByStatus');
+    });
+
+    it('returns an ops metrics snapshot', async () => {
+      const res = await request(server)
+        .get('/api/v1/admin/metrics')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.system).toHaveProperty('uptimeSec');
+      expect(res.body.http).toHaveProperty('requestsTotal');
+      expect(res.body.queues.dispatch).toHaveProperty('waiting');
+      expect(res.body.queues.notifications).toHaveProperty('active');
+      expect(res.body).toHaveProperty('tripFunnel');
     });
 
     it('lists trips and users', async () => {
