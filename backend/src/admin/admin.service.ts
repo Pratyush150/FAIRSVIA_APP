@@ -1,8 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { TripStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { RedisKeys } from '../common/redis/redis.keys';
+import { MetricsService } from '../common/metrics/metrics.service';
+import {
+  QUEUE_DISPATCH,
+  QUEUE_NOTIFICATIONS,
+} from '../common/queue/queue.constants';
 
 /** Trip statuses that count as "in flight" right now. */
 const ACTIVE_STATUSES: TripStatus[] = [
@@ -18,7 +25,59 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly metrics: MetricsService,
+    @InjectQueue(QUEUE_DISPATCH) private readonly dispatchQueue: Queue,
+    @InjectQueue(QUEUE_NOTIFICATIONS) private readonly notificationsQueue: Queue,
   ) {}
+
+  /**
+   * Operational snapshot for the monitoring dashboard: HTTP throughput, queue
+   * health, the trip funnel, live drivers, and process/system stats.
+   */
+  async opsMetrics() {
+    const [dispatchCounts, notifyCounts, byStatus, activeTrips, online] =
+      await Promise.all([
+        this.dispatchQueue.getJobCounts(
+          'waiting',
+          'active',
+          'completed',
+          'failed',
+          'delayed',
+        ),
+        this.notificationsQueue.getJobCounts(
+          'waiting',
+          'active',
+          'completed',
+          'failed',
+          'delayed',
+        ),
+        this.prisma.trip.groupBy({ by: ['status'], _count: { _all: true } }),
+        this.prisma.trip.count({ where: { status: { in: ACTIVE_STATUSES } } }),
+        this.countOnlineDrivers(),
+      ]);
+
+    const tripFunnel: Record<string, number> = {};
+    for (const row of byStatus) tripFunnel[row.status] = row._count._all;
+
+    const mem = process.memoryUsage();
+    return {
+      generatedAt: new Date().toISOString(),
+      system: {
+        uptimeSec: Math.floor(process.uptime()),
+        rssMb: Math.round(mem.rss / 1e6),
+        heapUsedMb: Math.round(mem.heapUsed / 1e6),
+        nodeVersion: process.version,
+      },
+      http: this.metrics.snapshot(),
+      queues: {
+        dispatch: dispatchCounts,
+        notifications: notifyCounts,
+      },
+      tripFunnel,
+      onlineDrivers: online,
+      activeTrips,
+    };
+  }
 
   /** Headline counters for the dashboard. */
   async stats() {

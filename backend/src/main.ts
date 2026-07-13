@@ -1,13 +1,20 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
-  // All routes are under /api/v1 per the API contract (spec §7.9).
-  app.setGlobalPrefix('api/v1');
+  // Route all Nest logging through pino.
+  app.useLogger(app.get(PinoLogger));
+
+  // All routes are under /api/v1 per the API contract (spec §7.9), except the
+  // Prometheus scrape endpoint which stays at the conventional /metrics.
+  app.setGlobalPrefix('api/v1', {
+    exclude: [{ path: 'metrics', method: RequestMethod.GET }],
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

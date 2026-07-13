@@ -150,6 +150,17 @@ make help      # list all targets
 The same checks run in GitHub Actions (`.github/workflows/ci.yml`) on every push/PR, plus a
 release web-build of all three apps. New tests are auto-discovered (jest/flutter globs).
 
+### Observability
+
+- **Structured logs** — pino JSON logs with a per-request correlation id
+  (`x-request-id`, echoed in the response). Pretty output in dev, raw JSON in prod.
+- **Prometheus metrics** — `GET /metrics` (outside the `/api/v1` prefix) exposes
+  default Node process metrics + `http_requests_total` / `http_request_duration_seconds`.
+  Point Prometheus/Grafana at it, or read the friendly rollup below.
+- **Monitoring dashboard** — the admin app's **Monitoring** tab renders
+  `GET /admin/metrics`: system (uptime/memory), HTTP throughput, BullMQ queue
+  health (dispatch + notifications), and the trip funnel. Auto-refreshes every 6s.
+
 ### Database migrations
 
 Schema is managed with **Prisma migrations** (not `db push`). On container start the entrypoint

@@ -9,6 +9,8 @@ export const NOTIFY_JOB = 'notify';
 export const DEFAULT_JOB_OPTS = {
   attempts: 3,
   backoff: { type: 'fixed' as const, delay: 2000 },
-  removeOnComplete: true,
-  removeOnFail: 100,
+  // Keep a bounded history so the monitoring dashboard can show throughput
+  // (completed) and recent failures instead of everything vanishing at once.
+  removeOnComplete: { age: 3600, count: 500 },
+  removeOnFail: { age: 86400, count: 500 },
 };

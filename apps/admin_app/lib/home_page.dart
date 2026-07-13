@@ -76,6 +76,11 @@ class _AdminScaffold extends StatelessWidget {
                     selectedIcon: Icon(Icons.directions_car),
                     label: Text('Drivers'),
                   ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.monitor_heart_outlined),
+                    selectedIcon: Icon(Icons.monitor_heart),
+                    label: Text('Monitoring'),
+                  ),
                 ],
               ),
               const VerticalDivider(width: 1),
@@ -106,6 +111,7 @@ class _AdminScaffold extends StatelessWidget {
         AdminTab.trips => 'Trips',
         AdminTab.users => 'Users',
         AdminTab.drivers => 'Drivers',
+        AdminTab.monitoring => 'Monitoring',
       };
 }
 
@@ -164,6 +170,7 @@ class _Body extends StatelessWidget {
       AdminTab.trips => _TripsView(trips: state.trips),
       AdminTab.users => const _UsersView(),
       AdminTab.drivers => _DriversView(drivers: state.drivers),
+      AdminTab.monitoring => _MonitoringView(ops: state.ops),
     };
   }
 }
@@ -431,6 +438,234 @@ class _DriversView extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// --- Monitoring -------------------------------------------------------------
+
+class _MonitoringView extends StatelessWidget {
+  const _MonitoringView({required this.ops});
+  final OpsMetrics? ops;
+
+  static String _uptime(int s) {
+    final h = s ~/ 3600, m = (s % 3600) ~/ 60, sec = s % 60;
+    if (h > 0) return '${h}h ${m}m';
+    if (m > 0) return '${m}m ${sec}s';
+    return '${sec}s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = ops;
+    if (o == null) return const Center(child: CircularProgressIndicator());
+    final theme = Theme.of(context);
+    final errPct = (o.errorRate * 100);
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      children: [
+        Text('System', style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.lg,
+          runSpacing: AppSpacing.lg,
+          children: [
+            _StatCard(
+                label: 'Uptime',
+                value: _uptime(o.uptimeSec),
+                icon: Icons.timer_outlined),
+            _StatCard(
+                label: 'Memory (RSS)',
+                value: '${o.rssMb} MB',
+                icon: Icons.memory),
+            _StatCard(
+                label: 'Heap used',
+                value: '${o.heapUsedMb} MB',
+                icon: Icons.data_usage),
+            _StatCard(
+                label: 'Node',
+                value: o.nodeVersion,
+                icon: Icons.terminal),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        Text('HTTP traffic (since boot)',
+            style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.lg,
+          runSpacing: AppSpacing.lg,
+          children: [
+            _StatCard(
+                label: 'Requests',
+                value: '${o.requestsTotal}',
+                icon: Icons.swap_vert),
+            _StatCard(
+                label: 'Errors (5xx)',
+                value: '${o.errorsTotal}',
+                icon: Icons.error_outline,
+                color: o.errorsTotal > 0 ? AppColors.error : AppColors.success),
+            _StatCard(
+                label: 'Error rate',
+                value: '${errPct.toStringAsFixed(errPct < 10 ? 1 : 0)}%',
+                icon: Icons.percent,
+                color: errPct > 1 ? AppColors.warning : AppColors.success),
+            _StatCard(
+                label: 'Avg latency',
+                value: '${o.avgLatencyMs} ms',
+                icon: Icons.speed),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        Text('Queues', style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.lg,
+          runSpacing: AppSpacing.lg,
+          children: [
+            _QueueCard(name: 'Dispatch', counts: o.dispatch),
+            _QueueCard(name: 'Notifications', counts: o.notifications),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        Row(
+          children: [
+            Text('Trip funnel', style: theme.textTheme.titleMedium),
+            const SizedBox(width: AppSpacing.md),
+            Text('${o.onlineDrivers} drivers online • ${o.activeTrips} active',
+                style: theme.textTheme.bodySmall),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _TripFunnel(funnel: o.tripFunnel),
+      ],
+    );
+  }
+}
+
+class _QueueCard extends StatelessWidget {
+  const _QueueCard({required this.name, required this.counts});
+  final String name;
+  final QueueCounts counts;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget row(String label, int value, {Color? color}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: theme.textTheme.bodySmall),
+              Text('$value',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: color, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        );
+    return Container(
+      width: 260,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.radius),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.layers_outlined,
+                  color: AppColors.accent, size: 18),
+              const SizedBox(width: AppSpacing.sm),
+              Text(name, style: theme.textTheme.titleSmall),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          row('Waiting', counts.waiting),
+          row('Active', counts.active,
+              color: counts.active > 0 ? AppColors.warning : null),
+          row('Completed', counts.completed),
+          row('Failed', counts.failed,
+              color: counts.failed > 0 ? AppColors.error : AppColors.success),
+          row('Delayed', counts.delayed),
+        ],
+      ),
+    );
+  }
+}
+
+class _TripFunnel extends StatelessWidget {
+  const _TripFunnel({required this.funnel});
+  final Map<String, int> funnel;
+
+  // Show statuses in lifecycle order, only those with a count.
+  static const _order = [
+    'requested',
+    'matching',
+    'accepted',
+    'arrived',
+    'in_progress',
+    'completed',
+    'cancelled',
+    'no_drivers',
+    'payment_failed',
+    'expired',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entries = [
+      for (final k in _order)
+        if ((funnel[k] ?? 0) > 0) MapEntry(k, funnel[k]!),
+    ];
+    if (entries.isEmpty) {
+      return const _Empty(text: 'No trips recorded yet.');
+    }
+    final max = entries.map((e) => e.value).reduce((a, b) => a > b ? a : b);
+    Color colorFor(String s) => switch (s) {
+          'completed' => AppColors.success,
+          'cancelled' || 'no_drivers' || 'payment_failed' || 'expired' =>
+            AppColors.error,
+          _ => AppColors.accent,
+        };
+    return Column(
+      children: [
+        for (final e in entries)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 110,
+                  child: Text(e.key.replaceAll('_', ' '),
+                      style: theme.textTheme.bodySmall),
+                ),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: max == 0 ? 0 : e.value / max,
+                      minHeight: 16,
+                      backgroundColor: theme.dividerColor.withValues(alpha: 0.3),
+                      valueColor:
+                          AlwaysStoppedAnimation(colorFor(e.key)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                SizedBox(
+                  width: 44,
+                  child: Text('${e.value}',
+                      textAlign: TextAlign.right,
+                      style: theme.textTheme.bodyMedium),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

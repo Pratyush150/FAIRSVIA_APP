@@ -4,6 +4,8 @@ import configuration from './common/config/configuration';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { QueueModule } from './common/queue/queue.module';
+import { LoggingModule } from './common/logging/logging.module';
+import { MetricsModule } from './common/metrics/metrics.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { GeoModule } from './geo/geo.module';
@@ -27,6 +29,8 @@ import { HealthController } from './health/health.controller';
       isGlobal: true,
       load: [configuration],
     }),
+    LoggingModule, // structured pino logging
+    MetricsModule, // Prometheus /metrics + request interceptor
     PrismaModule,
     RedisModule,
     QueueModule, // global BullMQ connection

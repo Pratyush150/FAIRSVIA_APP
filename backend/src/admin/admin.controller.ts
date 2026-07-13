@@ -25,6 +25,11 @@ export class AdminController {
     return this.admin.stats();
   }
 
+  @Get('metrics')
+  metrics() {
+    return this.admin.opsMetrics();
+  }
+
   @Get('trips')
   trips(@Query('status') status?: string, @Query('limit') limit?: string) {
     return this.admin.trips({

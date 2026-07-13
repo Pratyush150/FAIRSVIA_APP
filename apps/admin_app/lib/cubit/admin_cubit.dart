@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/admin_api.dart';
 
-enum AdminTab { overview, trips, users, drivers }
+enum AdminTab { overview, trips, users, drivers, monitoring }
 
 class AdminState extends Equatable {
   const AdminState({
@@ -14,6 +14,7 @@ class AdminState extends Equatable {
     this.loading = false,
     this.error,
     this.stats,
+    this.ops,
     this.trips = const [],
     this.users = const [],
     this.drivers = const [],
@@ -24,6 +25,7 @@ class AdminState extends Equatable {
   final bool loading;
   final String? error;
   final AdminStats? stats;
+  final OpsMetrics? ops;
   final List<AdminTrip> trips;
   final List<AdminUser> users;
   final List<AdminDriver> drivers;
@@ -35,6 +37,7 @@ class AdminState extends Equatable {
     String? error,
     bool clearError = false,
     AdminStats? stats,
+    OpsMetrics? ops,
     List<AdminTrip>? trips,
     List<AdminUser>? users,
     List<AdminDriver>? drivers,
@@ -45,6 +48,7 @@ class AdminState extends Equatable {
       loading: loading ?? this.loading,
       error: clearError ? null : (error ?? this.error),
       stats: stats ?? this.stats,
+      ops: ops ?? this.ops,
       trips: trips ?? this.trips,
       users: users ?? this.users,
       drivers: drivers ?? this.drivers,
@@ -54,7 +58,7 @@ class AdminState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [tab, loading, error, stats, trips, users, drivers, userQuery];
+      [tab, loading, error, stats, ops, trips, users, drivers, userQuery];
 }
 
 /// Drives the admin dashboard: loads each dataset on demand and auto-refreshes
@@ -96,6 +100,9 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.drivers:
           final drivers = await _api.drivers();
           emit(state.copyWith(loading: false, drivers: drivers));
+        case AdminTab.monitoring:
+          final ops = await _api.metrics();
+          emit(state.copyWith(loading: false, ops: ops));
       }
     } on ApiException catch (e) {
       emit(state.copyWith(loading: false, error: e.message));
@@ -107,14 +114,19 @@ class AdminCubit extends Cubit<AdminState> {
   /// Silent refresh for the timer — never flips the loading flag or clobbers
   /// the view with an error banner.
   Future<void> _refreshLive() async {
-    if (state.tab != AdminTab.overview && state.tab != AdminTab.trips) return;
     try {
-      if (state.tab == AdminTab.overview) {
-        final stats = await _api.stats();
-        final trips = await _api.trips(status: 'active', limit: 20);
-        emit(state.copyWith(stats: stats, trips: trips));
-      } else {
-        emit(state.copyWith(trips: await _api.trips(limit: 100)));
+      switch (state.tab) {
+        case AdminTab.overview:
+          final stats = await _api.stats();
+          final trips = await _api.trips(status: 'active', limit: 20);
+          emit(state.copyWith(stats: stats, trips: trips));
+        case AdminTab.trips:
+          emit(state.copyWith(trips: await _api.trips(limit: 100)));
+        case AdminTab.monitoring:
+          emit(state.copyWith(ops: await _api.metrics()));
+        case AdminTab.users:
+        case AdminTab.drivers:
+          return; // not live-refreshed
       }
     } catch (_) {
       // Ignore transient refresh failures; the next tick retries.

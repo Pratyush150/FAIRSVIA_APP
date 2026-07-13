@@ -38,6 +38,92 @@ class AdminStats {
       );
 }
 
+/// BullMQ job counts for one queue.
+class QueueCounts {
+  const QueueCounts({
+    required this.waiting,
+    required this.active,
+    required this.completed,
+    required this.failed,
+    required this.delayed,
+  });
+
+  final int waiting;
+  final int active;
+  final int completed;
+  final int failed;
+  final int delayed;
+
+  int get backlog => waiting + active + delayed;
+
+  factory QueueCounts.fromJson(Map<String, dynamic> j) => QueueCounts(
+        waiting: (j['waiting'] as num?)?.toInt() ?? 0,
+        active: (j['active'] as num?)?.toInt() ?? 0,
+        completed: (j['completed'] as num?)?.toInt() ?? 0,
+        failed: (j['failed'] as num?)?.toInt() ?? 0,
+        delayed: (j['delayed'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// Operational snapshot (`GET /admin/metrics`) for the monitoring dashboard.
+class OpsMetrics {
+  const OpsMetrics({
+    required this.uptimeSec,
+    required this.rssMb,
+    required this.heapUsedMb,
+    required this.nodeVersion,
+    required this.requestsTotal,
+    required this.errorsTotal,
+    required this.errorRate,
+    required this.avgLatencyMs,
+    required this.dispatch,
+    required this.notifications,
+    required this.tripFunnel,
+    required this.onlineDrivers,
+    required this.activeTrips,
+  });
+
+  final int uptimeSec;
+  final int rssMb;
+  final int heapUsedMb;
+  final String nodeVersion;
+  final int requestsTotal;
+  final int errorsTotal;
+  final double errorRate;
+  final int avgLatencyMs;
+  final QueueCounts dispatch;
+  final QueueCounts notifications;
+  final Map<String, int> tripFunnel;
+  final int onlineDrivers;
+  final int activeTrips;
+
+  factory OpsMetrics.fromJson(Map<String, dynamic> j) {
+    final sys = j['system'] as Map<String, dynamic>? ?? {};
+    final http = j['http'] as Map<String, dynamic>? ?? {};
+    final queues = j['queues'] as Map<String, dynamic>? ?? {};
+    return OpsMetrics(
+      uptimeSec: (sys['uptimeSec'] as num?)?.toInt() ?? 0,
+      rssMb: (sys['rssMb'] as num?)?.toInt() ?? 0,
+      heapUsedMb: (sys['heapUsedMb'] as num?)?.toInt() ?? 0,
+      nodeVersion: sys['nodeVersion'] as String? ?? '—',
+      requestsTotal: (http['requestsTotal'] as num?)?.toInt() ?? 0,
+      errorsTotal: (http['errorsTotal'] as num?)?.toInt() ?? 0,
+      errorRate: (http['errorRate'] as num?)?.toDouble() ?? 0,
+      avgLatencyMs: (http['avgLatencyMs'] as num?)?.toInt() ?? 0,
+      dispatch: QueueCounts.fromJson(
+          queues['dispatch'] as Map<String, dynamic>? ?? {}),
+      notifications: QueueCounts.fromJson(
+          queues['notifications'] as Map<String, dynamic>? ?? {}),
+      tripFunnel: {
+        for (final e in (j['tripFunnel'] as Map? ?? {}).entries)
+          e.key as String: (e.value as num).toInt(),
+      },
+      onlineDrivers: (j['onlineDrivers'] as num?)?.toInt() ?? 0,
+      activeTrips: (j['activeTrips'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 class AdminParty {
   const AdminParty({required this.id, this.name, this.phone});
   final String id;
@@ -175,6 +261,13 @@ class AdminApi {
       () => _dio.get<Map<String, dynamic>>('/admin/stats'),
     );
     return AdminStats.fromJson(res.data!);
+  }
+
+  Future<OpsMetrics> metrics() async {
+    final res = await _guard(
+      () => _dio.get<Map<String, dynamic>>('/admin/metrics'),
+    );
+    return OpsMetrics.fromJson(res.data!);
   }
 
   Future<List<AdminTrip>> trips({String? status, int limit = 50}) async {
