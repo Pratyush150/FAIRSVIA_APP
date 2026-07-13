@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe, RequestMethod } from '@nestjs/common'
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { RedisService } from '../src/common/redis/redis.service';
 
 /**
  * Full-stack e2e against the real Postgres + Redis (run inside the backend
@@ -10,10 +11,20 @@ import { AppModule } from '../src/app.module';
 describe('UberNav API (e2e)', () => {
   let app: INestApplication;
   let server: ReturnType<INestApplication['getHttpServer']>;
+  let redis: RedisService;
 
   const phone = `+9197${Date.now() % 100000000}`;
   let token: string;
   let tripId: string;
+
+  // The OTP endpoint rate-limits to 5 requests per phone per TTL window. The
+  // suite runs against a *persistent* dev Redis, so fixed phones (the admin)
+  // accumulate that counter across back-to-back runs and eventually get 429'd,
+  // failing login. Clearing the counter before login keeps the suite hermetic.
+  const resetOtpLimits = async (p: string) => {
+    await redis.del(`otp:rate:${p}`);
+    await redis.del(`otp:attempts:${p}`);
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -32,6 +43,7 @@ describe('UberNav API (e2e)', () => {
     );
     await app.init();
     server = app.getHttpServer();
+    redis = app.get(RedisService);
   });
 
   afterAll(async () => {
@@ -46,6 +58,7 @@ describe('UberNav API (e2e)', () => {
   });
 
   it('OTP login issues a token and creates the user', async () => {
+    await resetOtpLimits(phone);
     const r1 = await request(server)
       .post('/api/v1/auth/otp/request')
       .send({ phone });
@@ -323,6 +336,7 @@ describe('UberNav API (e2e)', () => {
     const adminPhone = '+919900000001';
 
     beforeAll(async () => {
+      await resetOtpLimits(adminPhone);
       const r1 = await request(server)
         .post('/api/v1/auth/otp/request')
         .send({ phone: adminPhone });

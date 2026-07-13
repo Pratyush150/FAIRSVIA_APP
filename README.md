@@ -150,6 +150,33 @@ make help      # list all targets
 The same checks run in GitHub Actions (`.github/workflows/ci.yml`) on every push/PR, plus a
 release web-build of all three apps. New tests are auto-discovered (jest/flutter globs).
 
+### Production deployment (opt-in, separate from dev)
+
+The dev stack above uses hot-reload with a source bind-mount and a single
+backend. For a production-style run there's a separate profile that builds a
+compiled image and runs **two load-balanced replicas behind nginx** — it does
+not touch the dev stack (own project name, own volumes, only nginx is published,
+on `:8088`).
+
+```bash
+cp backend/.env.prod.example backend/.env.prod   # then set real secrets
+cd infra
+docker compose -p ubernav_prod -f docker-compose.prod.yml up -d --build
+curl http://localhost:8088/api/v1/health          # served via nginx → a replica
+docker compose -p ubernav_prod -f docker-compose.prod.yml down
+```
+
+- **`backend/Dockerfile.prod`** — multi-stage, prod-deps only, runs `node dist/main.js`
+  as a non-root user; `migrate deploy` runs on start.
+- **`infra/nginx/nginx.conf`** — reverse proxy + load balancer with WebSocket
+  upgrade and `ip_hash` sticky sessions (so the Socket.IO handshake pins to one
+  replica; cross-replica broadcasts still work via the Redis adapter).
+- Multi-replica is safe because dispatch/notification work runs on BullMQ (each
+  job processed once) and realtime uses the Socket.IO Redis adapter.
+
+Still out of scope here: TLS termination (add certs at nginx) and real external
+provider keys (SMS/Stripe/FCM).
+
 ### Observability
 
 - **Structured logs** — pino JSON logs with a per-request correlation id

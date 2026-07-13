@@ -32,3 +32,6 @@ tools/visual-check/shots/
 
 # Simulator deps
 tools/fake-driver-simulator/node_modules/
+
+# Production env (secrets) — keep the .example tracked
+backend/.env.prod
