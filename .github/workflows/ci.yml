@@ -54,9 +54,8 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npx prisma generate
-      - name: Sync database schema
-        # Uses migrate deploy once migrations exist; falls back to db push today.
-        run: npx prisma migrate deploy || npx prisma db push
+      - name: Apply migrations
+        run: npx prisma migrate deploy
       - name: Type-check / build
         run: npm run build
       - name: Unit tests

@@ -131,12 +131,37 @@ The backend and rider app work with **no key** (deterministic stub geo). For rea
 ### Tests
 
 ```bash
-docker exec ubernav_backend npm test        # 39 unit tests (run inside the container)
-docker exec ubernav_backend npm run test:e2e # 14 e2e tests against real Postgres + Redis
+docker exec ubernav_backend npm test        # 44 unit tests (run inside the container)
+docker exec ubernav_backend npm run test:e2e # 19 e2e tests against real Postgres + Redis
 ```
 
 > Typecheck and test **inside the container** (`docker exec ubernav_backend ...`) — the bind-mounted
 > `dist/` is owned by the container's root, so a host-side `npm run build` hits `EACCES`.
+
+### CI/CD gate
+
+```bash
+make ci        # full local gate: backend build + unit + e2e, flutter analyze + tests
+make ci-fast   # same, minus e2e (quick inner loop)
+make shots     # headless-browser screenshots + health check of all 3 web apps
+make help      # list all targets
+```
+
+The same checks run in GitHub Actions (`.github/workflows/ci.yml`) on every push/PR, plus a
+release web-build of all three apps. New tests are auto-discovered (jest/flutter globs).
+
+### Database migrations
+
+Schema is managed with **Prisma migrations** (not `db push`). On container start the entrypoint
+runs `prisma migrate deploy`; CI does the same against a fresh DB.
+
+```bash
+# Change the schema:
+#   1. edit backend/prisma/schema.prisma
+#   2. generate + apply a migration (needs the running stack):
+make migrate NAME=add_surge_zones     # = prisma migrate dev --name add_surge_zones
+#   3. commit the new backend/prisma/migrations/<timestamp>_add_surge_zones/ folder
+```
 
 ## Running the Flutter apps
 
@@ -173,5 +198,6 @@ cd packages/core && dart run tool/backend_smoke.dart   # live client <-> backend
 
 ## Notes
 - Access tokens expire in 15m; refresh tokens rotate on use (reusing an old one is rejected).
-- Schema is applied via `prisma db push` on container start (Phase 0). Real migrations come later.
+- Schema is managed with Prisma **migrations** (`prisma migrate deploy` on container start); the
+  baseline is `backend/prisma/migrations/0_init/`. See "Database migrations" above.
 - Secrets live in `backend/.env` (dev defaults). Change them before any non-local use.
