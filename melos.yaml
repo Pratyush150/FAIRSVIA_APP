@@ -1,0 +1,18 @@
+# Melos config for running tasks across the workspace.
+# Bootstrap:  dart pub get   (workspace-aware)
+# Then:       dart run melos analyze   /   dart run melos test
+name: ubernav
+
+packages:
+  - packages/*
+  - apps/*
+
+scripts:
+  analyze:
+    description: Analyze all packages and apps.
+    exec: flutter analyze
+  test:
+    description: Run tests in every package that has them.
+    exec: flutter test
+    packageFilters:
+      dirExists: test

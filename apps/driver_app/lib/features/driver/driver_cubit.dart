@@ -1,0 +1,239 @@
+import 'dart:async';
+
+import 'package:bloc/bloc.dart';
+import 'package:core/core.dart';
+import 'package:equatable/equatable.dart';
+import 'package:shared_models/shared_models.dart';
+
+part 'driver_state.dart';
+
+/// Drives the driver experience: connect → go online → receive/accept offers →
+/// drive lifecycle. Location capture lives in the UI (geolocator) and is fed in
+/// via [sendLocation] so this cubit stays testable.
+class DriverCubit extends Cubit<DriverState> {
+  DriverCubit(this._realtime, this._remote, this._ratings)
+      : super(const DriverState());
+
+  final RealtimeClient _realtime;
+  final DriverRemoteDataSource _remote;
+  final RatingsRemoteDataSource _ratings;
+  final List<StreamSubscription<dynamic>> _subs = [];
+
+  Future<void> init(String token) async {
+    await _realtime.connect(token);
+    _subs
+      ..add(_realtime.on('trip:offer').listen(
+          (d) => _onOffer(RideOffer.fromJson(d))))
+      ..add(_realtime.on('trip:offer_expired').listen((_) => _onOfferExpired()))
+      ..add(_realtime.on('trip:assigned').listen(
+          (d) => _onAssigned(d['tripId'] as String)))
+      ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
+      // Reconnection resilience: re-announce presence and re-fetch the active
+      // trip after a dropped socket so the driver's screen stays truthful.
+      ..add(_realtime.reconnects.listen((_) => _onReconnect()));
+  }
+
+  Future<void> _onReconnect() async {
+    if (state.isOnline) {
+      _realtime.emit('driver:status', {'status': 'online'});
+    }
+    final trip = state.trip;
+    if (trip == null) return;
+    try {
+      final fresh = await _remote.getTrip(trip.id);
+      // If the rider cancelled while we were offline, drop back to online.
+      if (fresh.status == TripStatus.cancelled ||
+          fresh.status == TripStatus.completed) {
+        emit(state.copyWith(phase: DriverPhase.online, trip: null));
+      } else {
+        emit(state.copyWith(trip: fresh));
+      }
+    } catch (_) {
+      // Keep the last-known trip; the next event will correct us.
+    }
+  }
+
+  Future<void> goOnline() async {
+    emit(state.copyWith(busy: true, error: null));
+    try {
+      await _remote.setStatus('online');
+      _realtime.emit('driver:status', {'status': 'online'});
+      emit(state.copyWith(phase: DriverPhase.online, busy: false));
+    } on ApiException catch (e) {
+      final needsOnboarding = e.message.toLowerCase().contains('onboarding');
+      emit(state.copyWith(
+        busy: false,
+        error: e.message,
+        needsOnboarding: needsOnboarding,
+      ));
+    }
+  }
+
+  Future<void> goOffline() async {
+    try {
+      await _remote.setStatus('offline');
+    } catch (_) {/* best effort */}
+    _realtime.emit('driver:status', {'status': 'offline'});
+    emit(state.copyWith(phase: DriverPhase.offline, offer: null));
+  }
+
+  Future<void> onboard({
+    required String make,
+    required String model,
+    required String plate,
+    required String tier,
+    String? color,
+  }) async {
+    emit(state.copyWith(busy: true, error: null));
+    try {
+      await _remote.onboarding(
+        vehicleMake: make,
+        vehicleModel: model,
+        plateNumber: plate,
+        vehicleTier: tier,
+        vehicleColor: color,
+      );
+      emit(state.copyWith(busy: false, needsOnboarding: false));
+      await goOnline();
+    } on ApiException catch (e) {
+      emit(state.copyWith(busy: false, error: e.message));
+    }
+  }
+
+  /// Feed a GPS fix in; forwarded to the backend when online/on a trip.
+  void sendLocation(double lat, double lng, {double heading = 0, double speed = 0}) {
+    if (state.phase == DriverPhase.offline) return;
+    _realtime.emit('driver:location', {
+      'lat': lat,
+      'lng': lng,
+      'heading': heading,
+      'speed': speed,
+    });
+  }
+
+  void acceptOffer() {
+    final offer = state.offer;
+    if (offer == null) return;
+    _realtime.emit('trip:accept', {'tripId': offer.tripId});
+    emit(state.copyWith(busy: true));
+  }
+
+  void declineOffer() {
+    final offer = state.offer;
+    if (offer != null) {
+      _realtime.emit('trip:decline', {'tripId': offer.tripId});
+    }
+    emit(state.copyWith(phase: DriverPhase.online, offer: null, busy: false));
+  }
+
+  Future<void> markArrived() async {
+    final trip = state.trip;
+    if (trip == null) return;
+    emit(state.copyWith(busy: true, error: null));
+    try {
+      await _remote.arrived(trip.id);
+      emit(state.copyWith(phase: DriverPhase.arrived, busy: false));
+    } on ApiException catch (e) {
+      emit(state.copyWith(busy: false, error: e.message));
+    }
+  }
+
+  Future<void> startTrip(String otp) async {
+    final trip = state.trip;
+    if (trip == null) return;
+    emit(state.copyWith(busy: true, error: null));
+    try {
+      await _remote.start(trip.id, otp);
+      emit(state.copyWith(phase: DriverPhase.onTrip, busy: false));
+    } on ApiException catch (e) {
+      emit(state.copyWith(busy: false, error: e.message));
+    }
+  }
+
+  Future<void> completeTrip() async {
+    final trip = state.trip;
+    if (trip == null) return;
+    emit(state.copyWith(busy: true, error: null));
+    try {
+      await _remote.complete(trip.id);
+      final earnings = await _remote.earnings(range: 'today');
+      // Park in `completed` so the driver can rate the rider before returning
+      // to the available pool.
+      emit(state.copyWith(
+        phase: DriverPhase.completed,
+        trip: null,
+        busy: false,
+        lastEarned: earnings.total,
+        lastTripId: trip.id,
+        riderRating: null,
+      ));
+    } on ApiException catch (e) {
+      emit(state.copyWith(busy: false, error: e.message));
+    }
+  }
+
+  /// Rate the rider (1–5) for the just-completed trip.
+  Future<void> rateRider(int stars) async {
+    final tripId = state.lastTripId;
+    if (tripId == null || state.riderRating != null) return;
+    try {
+      await _ratings.rate(tripId, stars: stars);
+      emit(state.copyWith(riderRating: stars));
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+    }
+  }
+
+  /// Dismiss the completion sheet and go back online.
+  void dismissCompleted() {
+    emit(state.copyWith(
+      phase: DriverPhase.online,
+      lastTripId: null,
+      riderRating: null,
+    ));
+  }
+
+  void _onOffer(RideOffer offer) {
+    // Only surface offers while idle-online.
+    if (state.phase != DriverPhase.online) return;
+    emit(state.copyWith(phase: DriverPhase.offered, offer: offer));
+  }
+
+  void _onOfferExpired() {
+    if (state.phase == DriverPhase.offered) {
+      emit(state.copyWith(phase: DriverPhase.online, offer: null, busy: false));
+    }
+  }
+
+  Future<void> _onAssigned(String tripId) async {
+    try {
+      final trip = await _remote.getTrip(tripId);
+      emit(state.copyWith(
+        phase: DriverPhase.enRoute,
+        trip: trip,
+        offer: null,
+        busy: false,
+      ));
+    } on ApiException catch (e) {
+      emit(state.copyWith(busy: false, error: e.message));
+    }
+  }
+
+  void _onCancelledByRider() {
+    emit(state.copyWith(
+      phase: DriverPhase.online,
+      trip: null,
+      offer: null,
+      busy: false,
+      error: 'The rider cancelled the trip',
+    ));
+  }
+
+  @override
+  Future<void> close() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    return super.close();
+  }
+}

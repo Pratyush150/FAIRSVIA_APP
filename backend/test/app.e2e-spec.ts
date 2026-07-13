@@ -1,0 +1,276 @@
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { AppModule } from '../src/app.module';
+
+/**
+ * Full-stack e2e against the real Postgres + Redis (run inside the backend
+ * container). Exercises the auth + trip flow through the HTTP layer.
+ */
+describe('UberNav API (e2e)', () => {
+  let app: INestApplication;
+  let server: ReturnType<INestApplication['getHttpServer']>;
+
+  const phone = `+9197${Date.now() % 100000000}`;
+  let token: string;
+  let tripId: string;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = moduleRef.createNestApplication();
+    app.setGlobalPrefix('api/v1');
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    await app.init();
+    server = app.getHttpServer();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('GET /health -> ok', async () => {
+    const res = await request(server).get('/api/v1/health');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.services).toMatchObject({ database: 'up', redis: 'up' });
+  });
+
+  it('OTP login issues a token and creates the user', async () => {
+    const r1 = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone });
+    expect(r1.status).toBe(200);
+    const code = r1.body.devCode as string;
+    expect(code).toMatch(/^\d{4}$/);
+
+    const r2 = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone, code });
+    expect(r2.status).toBe(200);
+    token = r2.body.accessToken;
+    expect(token).toBeDefined();
+    expect(r2.body.user.phone).toBe(phone);
+  });
+
+  it('rejects a protected route without a token', async () => {
+    await request(server).get('/api/v1/users/me').expect(401);
+  });
+
+  it('rejects a wrong OTP', async () => {
+    const p = `+9196${Date.now() % 100000000}`;
+    const r1 = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone: p });
+    const wrong = r1.body.devCode === '0000' ? '1111' : '0000';
+    await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone: p, code: wrong })
+      .expect(400);
+  });
+
+  it('estimates a trip across all tiers', async () => {
+    const res = await request(server)
+      .post('/api/v1/trips/estimate')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        pickupLat: 12.9611,
+        pickupLng: 77.6387,
+        dropoffLat: 12.9674,
+        dropoffLng: 77.5904,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.tiers).toHaveLength(4);
+    expect(res.body.distanceM).toBeGreaterThan(0);
+    expect(typeof res.body.polyline).toBe('string');
+  });
+
+  it('validates bad estimate input (out-of-range lat)', async () => {
+    await request(server)
+      .post('/api/v1/trips/estimate')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ pickupLat: 999, pickupLng: 0, dropoffLat: 0, dropoffLng: 0 })
+      .expect(400);
+  });
+
+  it('creates a trip in REQUESTED', async () => {
+    const res = await request(server)
+      .post('/api/v1/trips')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        pickupLat: 12.9611,
+        pickupLng: 77.6387,
+        dropoffLat: 12.9674,
+        dropoffLng: 77.5904,
+        tier: 'economy',
+        pickupAddr: 'Indiranagar',
+        dropoffAddr: 'MG Road',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe('requested');
+    expect(res.body.fareEstimate).toBeGreaterThan(0);
+    tripId = res.body.id;
+  });
+
+  it('rejects an invalid tier', async () => {
+    await request(server)
+      .post('/api/v1/trips')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        pickupLat: 12.96,
+        pickupLng: 77.64,
+        dropoffLat: 12.97,
+        dropoffLng: 77.59,
+        tier: 'gold',
+      })
+      .expect(400);
+  });
+
+  it('cancels the trip via the state machine (no fee before a driver commits)', async () => {
+    const res = await request(server)
+      .post(`/api/v1/trips/${tripId}/cancel`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ reason: 'e2e' });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('cancelled');
+    // A requested trip with no assigned driver is free to cancel.
+    expect(res.body.fee).toBe(0);
+  });
+
+  it('rejects double-cancel (illegal transition)', async () => {
+    await request(server)
+      .post(`/api/v1/trips/${tripId}/cancel`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ reason: 'again' })
+      .expect(400);
+  });
+
+  it('lists trip history', async () => {
+    const res = await request(server)
+      .get('/api/v1/trips/history')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('starts with no payment methods, then adds one as default', async () => {
+    const empty = await request(server)
+      .get('/api/v1/payments/methods')
+      .set('Authorization', `Bearer ${token}`);
+    expect(empty.status).toBe(200);
+    expect(empty.body).toEqual([]);
+
+    const added = await request(server)
+      .post('/api/v1/payments/methods')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ brand: 'visa', last4: '4242' });
+    expect(added.status).toBe(201);
+    expect(added.body.isDefault).toBe(true);
+    expect(added.body.last4).toBe('4242');
+
+    const list = await request(server)
+      .get('/api/v1/payments/methods')
+      .set('Authorization', `Bearer ${token}`);
+    expect(list.body).toHaveLength(1);
+  });
+
+  it('refuses to rate a trip that is not completed', async () => {
+    // tripId was cancelled above — rating must be rejected.
+    await request(server)
+      .post(`/api/v1/trips/${tripId}/rating`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ stars: 5 })
+      .expect(400);
+  });
+
+  it('rejects an out-of-range star rating', async () => {
+    await request(server)
+      .post(`/api/v1/trips/${tripId}/rating`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ stars: 9 })
+      .expect(400);
+  });
+
+  it('registers a device token for push', async () => {
+    const res = await request(server)
+      .post('/api/v1/notifications/devices')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ token: `dev-${Date.now()}`, platform: 'android' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('forbids a non-admin from the admin API', async () => {
+    await request(server)
+      .get('/api/v1/admin/stats')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403);
+  });
+
+  describe('admin (role-gated)', () => {
+    let adminToken: string;
+    // Matches ADMIN_PHONES in the backend .env — promoted to admin on login.
+    const adminPhone = '+919900000001';
+
+    beforeAll(async () => {
+      const r1 = await request(server)
+        .post('/api/v1/auth/otp/request')
+        .send({ phone: adminPhone });
+      const r2 = await request(server)
+        .post('/api/v1/auth/otp/verify')
+        .send({ phone: adminPhone, code: r1.body.devCode });
+      adminToken = r2.body.accessToken;
+      expect(r2.body.user.role).toBe('admin');
+    });
+
+    it('returns dashboard stats', async () => {
+      const res = await request(server)
+        .get('/api/v1/admin/stats')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.users).toBe('number');
+      expect(res.body).toHaveProperty('onlineDrivers');
+      expect(res.body).toHaveProperty('tripsByStatus');
+    });
+
+    it('lists trips and users', async () => {
+      const trips = await request(server)
+        .get('/api/v1/admin/trips?limit=10')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(trips.status).toBe(200);
+      expect(Array.isArray(trips.body)).toBe(true);
+
+      const users = await request(server)
+        .get('/api/v1/admin/users?limit=10')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(users.status).toBe(200);
+      expect(users.body.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('deactivates and reactivates a user', async () => {
+      const users = await request(server)
+        .get('/api/v1/admin/users?q=97')
+        .set('Authorization', `Bearer ${adminToken}`);
+      const target = users.body[0];
+      const off = await request(server)
+        .patch(`/api/v1/admin/users/${target.id}/active`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ isActive: false });
+      expect(off.status).toBe(200);
+      expect(off.body.isActive).toBe(false);
+
+      await request(server)
+        .patch(`/api/v1/admin/users/${target.id}/active`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ isActive: true })
+        .expect(200);
+    });
+  });
+});

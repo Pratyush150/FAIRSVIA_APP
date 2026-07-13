@@ -1,0 +1,126 @@
+part of 'trip_cubit.dart';
+
+/// Where the rider is in the request/ride flow.
+enum TripPhase {
+  idle, // map + "Where to?"
+  loadingEstimate, // fetching route + fares
+  choosingRide, // tier selection sheet
+  requesting, // creating the trip
+  searching, // trip created (REQUESTED/MATCHING) — finding a driver
+  driverEnRoute, // matched; driver heading to pickup
+  driverArrived, // driver at pickup
+  onTrip, // trip in progress
+  completed, // trip finished (fare shown)
+  error,
+}
+
+class TripState extends Equatable {
+  const TripState({
+    this.phase = TripPhase.idle,
+    this.pickup,
+    this.pickupAddr,
+    this.dropoff,
+    this.dropoffAddr,
+    this.estimate,
+    this.selectedTier,
+    this.trip,
+    this.driver,
+    this.driverLocation,
+    this.fareFinal,
+    this.receipt,
+    this.tipAmount,
+    this.tipping = false,
+    this.rating,
+    this.error,
+  });
+
+  final TripPhase phase;
+  final GeoPoint? pickup;
+  final String? pickupAddr;
+  final GeoPoint? dropoff;
+  final String? dropoffAddr;
+  final TripEstimate? estimate;
+  final String? selectedTier;
+  final Trip? trip;
+  final AssignedDriver? driver;
+  final GeoPoint? driverLocation;
+  final double? fareFinal;
+  final Receipt? receipt;
+  final double? tipAmount;
+  final bool tipping;
+  final int? rating;
+  final String? error;
+
+  FareTier? get selectedFare {
+    final tiers = estimate?.tiers;
+    if (tiers == null || selectedTier == null) return null;
+    for (final t in tiers) {
+      if (t.tier == selectedTier) return t;
+    }
+    return null;
+  }
+
+  static const Object _s = Object();
+
+  TripState copyWith({
+    TripPhase? phase,
+    Object? pickup = _s,
+    Object? pickupAddr = _s,
+    Object? dropoff = _s,
+    Object? dropoffAddr = _s,
+    Object? estimate = _s,
+    Object? selectedTier = _s,
+    Object? trip = _s,
+    Object? driver = _s,
+    Object? driverLocation = _s,
+    Object? fareFinal = _s,
+    Object? receipt = _s,
+    Object? tipAmount = _s,
+    bool? tipping,
+    Object? rating = _s,
+    Object? error = _s,
+  }) {
+    return TripState(
+      phase: phase ?? this.phase,
+      pickup: pickup == _s ? this.pickup : pickup as GeoPoint?,
+      pickupAddr: pickupAddr == _s ? this.pickupAddr : pickupAddr as String?,
+      dropoff: dropoff == _s ? this.dropoff : dropoff as GeoPoint?,
+      dropoffAddr:
+          dropoffAddr == _s ? this.dropoffAddr : dropoffAddr as String?,
+      estimate: estimate == _s ? this.estimate : estimate as TripEstimate?,
+      selectedTier:
+          selectedTier == _s ? this.selectedTier : selectedTier as String?,
+      trip: trip == _s ? this.trip : trip as Trip?,
+      driver: driver == _s ? this.driver : driver as AssignedDriver?,
+      driverLocation: driverLocation == _s
+          ? this.driverLocation
+          : driverLocation as GeoPoint?,
+      fareFinal: fareFinal == _s ? this.fareFinal : fareFinal as double?,
+      receipt: receipt == _s ? this.receipt : receipt as Receipt?,
+      tipAmount: tipAmount == _s ? this.tipAmount : tipAmount as double?,
+      tipping: tipping ?? this.tipping,
+      rating: rating == _s ? this.rating : rating as int?,
+      error: error == _s ? this.error : error as String?,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        phase,
+        pickup,
+        pickupAddr,
+        dropoff,
+        dropoffAddr,
+        estimate,
+        selectedTier,
+        trip,
+        driver,
+        driverLocation,
+        fareFinal,
+        receipt,
+        tipAmount,
+        tipping,
+        rating,
+        error,
+      ];
+}

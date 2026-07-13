@@ -1,0 +1,34 @@
+# Node / backend
+node_modules/
+dist/
+coverage/
+*.log
+
+# Env & secrets
+.env
+.env.local
+*.key
+
+# Flutter / Dart (added in Phase 0 app scaffold)
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/ios/Pods/
+**/android/.gradle/
+
+# Editor
+.idea/
+.vscode/
+.DS_Store
+
+# Generated Flutter plugin registrants
+**/generated_plugin_registrant.dart
+
+# Visual-check tooling (headless browser deps + screenshot output)
+tools/visual-check/node_modules/
+tools/visual-check/shots/
+
+# Simulator deps
+tools/fake-driver-simulator/node_modules/

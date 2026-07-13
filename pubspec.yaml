@@ -1,0 +1,19 @@
+# Pub workspace root. Ties the shared packages and three apps into a single
+# resolution so they share one lockfile and .dart_tool. Run `flutter pub get`
+# here to bootstrap everything.
+name: ubernav_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+workspace:
+  - packages/shared_models
+  - packages/design_system
+  - packages/core
+  - apps/rider_app
+  - apps/driver_app
+  - apps/admin_app
+
+dev_dependencies:
+  melos: ^6.3.0

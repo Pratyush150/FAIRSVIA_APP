@@ -1,0 +1,120 @@
+name: CI
+
+# Runs on every push and PR. New features are picked up automatically:
+# jest globs **/*.spec.ts and flutter test globs **/*_test.dart, so adding a
+# module or a widget test needs no changes here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Backend: type-check (tsc), unit tests, and e2e against real Postgres+Redis.
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend (NestJS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: ubernav
+          POSTGRES_PASSWORD: ubernav
+          POSTGRES_DB: ubernav
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ubernav"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ubernav:ubernav@localhost:5432/ubernav?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Sync database schema
+        # Uses migrate deploy once migrations exist; falls back to db push today.
+        run: npx prisma migrate deploy || npx prisma db push
+      - name: Type-check / build
+        run: npm run build
+      - name: Unit tests
+        run: npx jest --ci
+      - name: E2E tests
+        run: npm run test:e2e
+
+  # ---------------------------------------------------------------------------
+  # Flutter: static analysis + widget/bloc tests across the whole workspace.
+  # ---------------------------------------------------------------------------
+  flutter:
+    name: Flutter (apps + packages)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+      - name: Resolve workspace deps
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        # Only packages/apps that ship a test/ dir; skips the rest cleanly.
+        run: |
+          set -e
+          shopt -s globstar nullglob
+          for d in packages/* apps/*; do
+            tests=("$d"/test/**/*_test.dart)
+            if [ ${#tests[@]} -gt 0 ]; then
+              echo "::group::flutter test $d"
+              (cd "$d" && flutter test --reporter expanded)
+              echo "::endgroup::"
+            fi
+          done
+
+  # ---------------------------------------------------------------------------
+  # Web build: proves all three apps compile for release (artifact of record).
+  # ---------------------------------------------------------------------------
+  web-build:
+    name: Web build (release)
+    runs-on: ubuntu-latest
+    needs: flutter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build all three web apps
+        run: |
+          set -e
+          for app in rider_app driver_app admin_app; do
+            echo "::group::build $app"
+            (cd "apps/$app" && flutter build web --release --pwa-strategy=none)
+            echo "::endgroup::"
+          done

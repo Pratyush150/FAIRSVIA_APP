@@ -1,0 +1,46 @@
+import 'package:equatable/equatable.dart';
+
+import 'fare_tier.dart';
+import 'geo_point.dart';
+
+/// The response to POST /trips/estimate: route + a fare option per tier.
+class TripEstimate extends Equatable {
+  const TripEstimate({
+    required this.distanceM,
+    required this.durationS,
+    required this.polyline,
+    required this.surge,
+    required this.currency,
+    required this.pickup,
+    required this.dropoff,
+    required this.tiers,
+  });
+
+  final int distanceM;
+  final int durationS;
+  final String polyline;
+  final double surge;
+  final String currency;
+  final GeoPoint pickup;
+  final GeoPoint dropoff;
+  final List<FareTier> tiers;
+
+  double get distanceKm => distanceM / 1000;
+
+  factory TripEstimate.fromJson(Map<String, dynamic> json) => TripEstimate(
+        distanceM: (json['distanceM'] as num).toInt(),
+        durationS: (json['durationS'] as num).toInt(),
+        polyline: json['polyline'] as String? ?? '',
+        surge: (json['surge'] as num?)?.toDouble() ?? 1.0,
+        currency: json['currency'] as String? ?? 'INR',
+        pickup: GeoPoint.fromJson(json['pickup'] as Map<String, dynamic>),
+        dropoff: GeoPoint.fromJson(json['dropoff'] as Map<String, dynamic>),
+        tiers: (json['tiers'] as List<dynamic>)
+            .map((t) => FareTier.fromJson(t as Map<String, dynamic>))
+            .toList(),
+      );
+
+  @override
+  List<Object?> get props =>
+      [distanceM, durationS, polyline, surge, currency, pickup, dropoff, tiers];
+}

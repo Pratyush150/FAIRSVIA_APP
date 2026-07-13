@@ -1,0 +1,14 @@
+{
+  "name": "ubernav-fake-driver-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Simulated drivers + a scripted full-ride verification for UberNav dispatch/realtime.",
+  "scripts": {
+    "full-ride": "node full-ride.mjs",
+    "simulate": "node simulate.mjs"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

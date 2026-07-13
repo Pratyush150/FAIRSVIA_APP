@@ -1,0 +1,13 @@
+{
+  "name": "ubernav-visual-check",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Headless-browser smoke test: loads each app, logs in with the dev OTP, and screenshots key screens.",
+  "scripts": {
+    "shots": "node capture.mjs"
+  },
+  "dependencies": {
+    "puppeteer": "^23.0.0"
+  }
+}

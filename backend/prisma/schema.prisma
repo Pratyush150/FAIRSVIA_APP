@@ -1,0 +1,246 @@
+// UberNav Prisma schema.
+// Phase 0: users + refresh tokens. Geo/trip tables arrive in later phases.
+// Note: PostGIS is enabled via infra/postgres-init/ and used through raw SQL
+// in later phases (Prisma has limited native support for the geography type).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  rider
+  driver
+  admin
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  phone       String   @unique @db.VarChar(20)
+  email       String?  @db.VarChar(255)
+  fullName    String?  @map("full_name") @db.VarChar(120)
+  photoUrl    String?  @map("photo_url")
+  role        UserRole @default(rider)
+  ratingAvg   Decimal  @default(5.00) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount Int      @default(0) @map("rating_count")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  refreshTokens  RefreshToken[]
+  riderTrips     Trip[]          @relation("RiderTrips")
+  driverTrips    Trip[]          @relation("DriverTrips")
+  savedPlaces    SavedPlace[]
+  driverProfile  DriverProfile?
+  paymentMethods PaymentMethod[]
+  deviceTokens   DeviceToken[]
+
+  @@map("users")
+}
+
+/// A registered push-notification target (one per device). The provider token
+/// is opaque (FCM/APNs); we mock the actual send until a real key is set.
+model DeviceToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique @db.VarChar(255)
+  platform  String   @default("android") @db.VarChar(12)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+/// 1:1 with a user who is a driver. Live online/offline status is tracked in
+/// Redis (hot path); this row holds the durable vehicle + verification data.
+model DriverProfile {
+  userId       String   @id @map("user_id") @db.Uuid
+  status       String   @default("offline") @db.VarChar(12)
+  vehicleMake  String?  @map("vehicle_make") @db.VarChar(60)
+  vehicleModel String?  @map("vehicle_model") @db.VarChar(60)
+  vehicleColor String?  @map("vehicle_color") @db.VarChar(30)
+  plateNumber  String?  @map("plate_number") @db.VarChar(20)
+  vehicleTier  RideTier @default(economy) @map("vehicle_tier")
+  licenseNo    String?  @map("license_no") @db.VarChar(60)
+  docsVerified Boolean  @default(false) @map("docs_verified")
+  totalTrips   Int      @default(0) @map("total_trips")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("driver_profiles")
+}
+
+enum TripStatus {
+  requested
+  matching
+  accepted
+  arrived
+  in_progress
+  completed
+  cancelled
+  no_drivers
+  payment_failed
+  expired
+}
+
+enum RideTier {
+  economy
+  comfort
+  xl
+  premium
+}
+
+/// A ride. Pickup/dropoff are stored as lat/lng floats in Phase 1; a PostGIS
+/// geography column can be added later for analytics/replay (matching in
+/// Phase 2 uses Redis GEO, not Postgres).
+model Trip {
+  id              String     @id @default(uuid()) @db.Uuid
+  riderId         String     @map("rider_id") @db.Uuid
+  driverId        String?    @map("driver_id") @db.Uuid
+  status          TripStatus @default(requested)
+  tier            RideTier   @default(economy)
+
+  pickupAddr      String?    @map("pickup_addr")
+  pickupLat       Float      @map("pickup_lat")
+  pickupLng       Float      @map("pickup_lng")
+  dropoffAddr     String?    @map("dropoff_addr")
+  dropoffLat      Float      @map("dropoff_lat")
+  dropoffLng      Float      @map("dropoff_lng")
+
+  routePolyline   String?    @map("route_polyline")
+  distanceM       Int?       @map("distance_m")
+  durationS       Int?       @map("duration_s")
+  fareEstimate    Decimal?   @map("fare_estimate") @db.Decimal(10, 2)
+  fareFinal       Decimal?   @map("fare_final") @db.Decimal(10, 2)
+  surgeMultiplier Decimal    @default(1.0) @map("surge_multiplier") @db.Decimal(3, 2)
+  currency        String     @default("INR") @db.VarChar(3)
+  startOtp        String?    @map("start_otp") @db.VarChar(4)
+
+  cancelReason    String?    @map("cancel_reason")
+  cancelledBy     String?    @map("cancelled_by") @db.VarChar(10)
+
+  requestedAt     DateTime   @default(now()) @map("requested_at") @db.Timestamptz(6)
+  acceptedAt      DateTime?  @map("accepted_at") @db.Timestamptz(6)
+  arrivedAt       DateTime?  @map("arrived_at") @db.Timestamptz(6)
+  startedAt       DateTime?  @map("started_at") @db.Timestamptz(6)
+  completedAt     DateTime?  @map("completed_at") @db.Timestamptz(6)
+
+  rider   User        @relation("RiderTrips", fields: [riderId], references: [id])
+  driver  User?       @relation("DriverTrips", fields: [driverId], references: [id])
+  events  TripEvent[]
+  payment Payment?
+  ratings Rating[]
+
+  @@index([riderId, requestedAt(sort: Desc)])
+  @@index([driverId, requestedAt(sort: Desc)])
+  @@index([status])
+  @@map("trips")
+}
+
+/// A saved card (or other method). We store only a provider reference, never
+/// raw card data. `provider` is `mock` until Stripe is configured.
+model PaymentMethod {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  provider   String   @default("mock") @db.VarChar(12)
+  externalId String?  @map("external_id")
+  brand      String?  @db.VarChar(20)
+  last4      String?  @db.VarChar(4)
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("payment_methods")
+}
+
+/// One payment per trip (the ride charge, or a cancellation fee for a cancelled
+/// trip). Holds the platform-fee / driver-payout split.
+model Payment {
+  id               String   @id @default(uuid()) @db.Uuid
+  tripId           String   @unique @map("trip_id") @db.Uuid
+  amount           Decimal  @db.Decimal(10, 2)
+  currency         String   @default("INR") @db.VarChar(3)
+  status           String   @default("pending") @db.VarChar(12) // pending|authorized|captured|failed|refunded
+  kind             String   @default("ride") @db.VarChar(12) // ride|cancellation
+  externalIntentId String?  @map("external_intent_id")
+  driverPayout     Decimal? @map("driver_payout") @db.Decimal(10, 2)
+  platformFee      Decimal? @map("platform_fee") @db.Decimal(10, 2)
+  tip              Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+/// Two-way rating: one per (trip, rater).
+model Rating {
+  id        String   @id @default(uuid()) @db.Uuid
+  tripId    String   @map("trip_id") @db.Uuid
+  fromUser  String   @map("from_user") @db.Uuid
+  toUser    String   @map("to_user") @db.Uuid
+  stars     Int
+  comment   String?
+  tags      String[]
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, fromUser])
+  @@index([toUser])
+  @@map("ratings")
+}
+
+/// Append-only audit log of every trip state transition.
+model TripEvent {
+  id         BigInt   @id @default(autoincrement())
+  tripId     String   @map("trip_id") @db.Uuid
+  fromStatus String?  @map("from_status") @db.VarChar(16)
+  toStatus   String   @map("to_status") @db.VarChar(16)
+  actor      String?  @db.VarChar(10)
+  meta       Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("trip_events")
+}
+
+model SavedPlace {
+  id      String  @id @default(uuid()) @db.Uuid
+  userId  String  @map("user_id") @db.Uuid
+  label   String  @db.VarChar(40)
+  address String?
+  lat     Float
+  lng     Float
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_places")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
