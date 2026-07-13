@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import configuration from './common/config/configuration';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
+import { QueueModule } from './common/queue/queue.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { GeoModule } from './geo/geo.module';
@@ -28,6 +29,7 @@ import { HealthController } from './health/health.controller';
     }),
     PrismaModule,
     RedisModule,
+    QueueModule, // global BullMQ connection
     RealtimeModule, // global RealtimeService
     TripStateModule, // global TripStateMachine
     NotificationsModule, // global NotificationsService

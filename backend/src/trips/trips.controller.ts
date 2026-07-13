@@ -62,8 +62,8 @@ export class TripsController {
 
   @Post(':id/accept')
   @HttpCode(HttpStatus.OK)
-  accept(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    if (!this.dispatch.respondToOffer(user.userId, id, true)) {
+  async accept(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    if (!(await this.dispatch.respondToOffer(user.userId, id, true))) {
       throw new BadRequestException('Offer expired or not found');
     }
     return { ok: true };
@@ -71,8 +71,8 @@ export class TripsController {
 
   @Post(':id/decline')
   @HttpCode(HttpStatus.OK)
-  decline(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    this.dispatch.respondToOffer(user.userId, id, false);
+  async decline(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.dispatch.respondToOffer(user.userId, id, false);
     return { ok: true };
   }
 

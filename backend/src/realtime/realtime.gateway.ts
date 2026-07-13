@@ -109,23 +109,23 @@ export class RealtimeGateway
   }
 
   @SubscribeMessage('trip:accept')
-  onAccept(
+  async onAccept(
     @ConnectedSocket() client: AuthedSocket,
     @MessageBody() body: { tripId: string },
-  ): void {
+  ): Promise<void> {
     const userId = client.data.userId;
     if (!userId) return;
-    this.dispatch.respondToOffer(userId, body.tripId, true);
+    await this.dispatch.respondToOffer(userId, body.tripId, true);
   }
 
   @SubscribeMessage('trip:decline')
-  onDecline(
+  async onDecline(
     @ConnectedSocket() client: AuthedSocket,
     @MessageBody() body: { tripId: string },
-  ): void {
+  ): Promise<void> {
     const userId = client.data.userId;
     if (!userId) return;
-    this.dispatch.respondToOffer(userId, body.tripId, false);
+    await this.dispatch.respondToOffer(userId, body.tripId, false);
   }
 
   @SubscribeMessage('trip:sync')

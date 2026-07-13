@@ -1,10 +1,17 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../common/prisma/prisma.service';
 import {
   PUSH_PROVIDER,
   PushMessage,
   PushProvider,
 } from './push-provider.interface';
+import {
+  QUEUE_NOTIFICATIONS,
+  NOTIFY_JOB,
+  DEFAULT_JOB_OPTS,
+} from '../common/queue/queue.constants';
 
 /** The trip milestones we push a notification for, with their copy. */
 export type TripNotificationKind =
@@ -31,6 +38,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(PUSH_PROVIDER) private readonly provider: PushProvider,
+    @InjectQueue(QUEUE_NOTIFICATIONS) private readonly queue: Queue,
   ) {}
 
   /** Register (or refresh) a device's push token. */
@@ -50,8 +58,17 @@ export class NotificationsService {
     return { ok: true };
   }
 
-  /** Send a raw push to every device a user has registered. */
+  /**
+   * Enqueue a push to every device a user has registered. Durable: the actual
+   * send happens in the worker ([deliver]) with retries, so a transient
+   * provider failure or a backend restart doesn't drop the notification.
+   */
   async notify(userId: string, message: PushMessage): Promise<void> {
+    await this.queue.add(NOTIFY_JOB, { userId, message }, DEFAULT_JOB_OPTS);
+  }
+
+  /** The actual fan-out send — invoked by the notifications queue worker. */
+  async deliver(userId: string, message: PushMessage): Promise<void> {
     const targets = await this.prisma.deviceToken.findMany({
       where: { userId },
     });
@@ -62,9 +79,7 @@ export class NotificationsService {
     }
     await Promise.all(
       targets.map((t) =>
-        this.provider
-          .send({ token: t.token, platform: t.platform }, message)
-          .catch((e) => this.logger.warn(`push failed: ${String(e)}`)),
+        this.provider.send({ token: t.token, platform: t.platform }, message),
       ),
     );
   }
