@@ -14,3 +14,4 @@ export 'src/assigned_driver.dart';
 export 'src/saved_place.dart';
 export 'src/chat_message.dart';
 export 'src/promo_quote.dart';
+export 'src/trip_stop.dart';

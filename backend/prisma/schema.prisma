@@ -115,6 +115,7 @@ model Trip {
   dropoffLng      Float      @map("dropoff_lng")
 
   routePolyline   String?    @map("route_polyline")
+  stops           Json?      // ordered intermediate stops: [{lat,lng,addr?}]
   distanceM       Int?       @map("distance_m")
   durationS       Int?       @map("duration_s")
   fareEstimate    Decimal?   @map("fare_estimate") @db.Decimal(10, 2)

@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsIn,
   IsISO8601,
   IsNumber,
@@ -6,8 +8,11 @@ import {
   IsString,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { TIER_KEYS } from '../../pricing/fare-config';
+import { MAX_STOPS, StopDto } from './stop.dto';
 
 export class CreateTripDto {
   @IsNumber() @Min(-90) @Max(90)
@@ -48,4 +53,12 @@ export class CreateTripDto {
   // the trip is created as `scheduled` and promoted to a live request then.
   @IsOptional() @IsISO8601()
   scheduledAt?: string;
+
+  // Optional ordered intermediate stops (pickup → stops… → dropoff).
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_STOPS)
+  @ValidateNested({ each: true })
+  @Type(() => StopDto)
+  stops?: StopDto[];
 }

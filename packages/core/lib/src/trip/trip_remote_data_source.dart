@@ -8,7 +8,11 @@ class TripRemoteDataSource {
 
   final Dio _dio;
 
-  Future<TripEstimate> estimate(GeoPoint pickup, GeoPoint dropoff) async {
+  Future<TripEstimate> estimate(
+    GeoPoint pickup,
+    GeoPoint dropoff, {
+    List<TripStop> stops = const [],
+  }) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/trips/estimate',
@@ -17,6 +21,7 @@ class TripRemoteDataSource {
           'pickupLng': pickup.lng,
           'dropoffLat': dropoff.lat,
           'dropoffLng': dropoff.lng,
+          if (stops.isNotEmpty) 'stops': stops.map((s) => s.toJson()).toList(),
         },
       );
       return TripEstimate.fromJson(res.data!);
@@ -34,6 +39,7 @@ class TripRemoteDataSource {
     String? promoCode,
     String? paymentMode,
     DateTime? scheduledAt,
+    List<TripStop> stops = const [],
   }) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
@@ -49,6 +55,7 @@ class TripRemoteDataSource {
           'promoCode': ?promoCode,
           'paymentMode': ?paymentMode,
           'scheduledAt': ?scheduledAt?.toUtc().toIso8601String(),
+          if (stops.isNotEmpty) 'stops': stops.map((s) => s.toJson()).toList(),
         },
       );
       return Trip.fromJson(res.data!);

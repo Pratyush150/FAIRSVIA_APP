@@ -167,6 +167,58 @@ describe('UberNav API (e2e)', () => {
       .expect(400);
   });
 
+  it('supports multi-stop rides (adds distance, stores stops, caps at 3)', async () => {
+    const base = {
+      pickupLat: 28.6139,
+      pickupLng: 77.209,
+      dropoffLat: 28.62,
+      dropoffLng: 77.22,
+    };
+    // Direct estimate.
+    const direct = await request(server)
+      .post('/api/v1/trips/estimate')
+      .set('Authorization', `Bearer ${token}`)
+      .send(base);
+    const directDist = direct.body.distanceM as number;
+
+    // Same trip with a detour stop well off the direct line.
+    const withStop = await request(server)
+      .post('/api/v1/trips/estimate')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...base, stops: [{ lat: 28.70, lng: 77.30, addr: 'Detour' }] });
+    expect(withStop.status).toBe(200);
+    expect(withStop.body.distanceM).toBeGreaterThan(directDist);
+    expect(withStop.body.stops).toHaveLength(1);
+
+    // Create a multi-stop trip; the stop is persisted and the fare reflects it.
+    const created = await request(server)
+      .post('/api/v1/trips')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        ...base,
+        tier: 'economy',
+        stops: [{ lat: 28.70, lng: 77.30, addr: 'Detour' }],
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.stops).toHaveLength(1);
+    expect(created.body.stops[0].addr).toBe('Detour');
+
+    // More than 3 stops is rejected.
+    await request(server)
+      .post('/api/v1/trips/estimate')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        ...base,
+        stops: [
+          { lat: 28.7, lng: 77.3 },
+          { lat: 28.71, lng: 77.31 },
+          { lat: 28.72, lng: 77.32 },
+          { lat: 28.73, lng: 77.33 },
+        ],
+      })
+      .expect(400);
+  });
+
   it('schedules a ride for later, lists it, and cancels it', async () => {
     const when = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // +1h
     const created = await request(server)

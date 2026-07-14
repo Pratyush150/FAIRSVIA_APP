@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'geo_point.dart';
+import 'trip_stop.dart';
 
 enum TripStatus {
   scheduled,
@@ -81,6 +82,7 @@ class Trip extends Equatable {
     required this.pickup,
     required this.dropoff,
     this.routePolyline,
+    this.stops = const [],
     this.distanceM,
     this.durationS,
     this.fareEstimate,
@@ -100,6 +102,9 @@ class Trip extends Equatable {
   final String tier;
   final TripEndpoint pickup;
   final TripEndpoint dropoff;
+
+  /// Ordered intermediate stops (empty for a direct trip).
+  final List<TripStop> stops;
   final String? routePolyline;
   final int? distanceM;
   final int? durationS;
@@ -135,6 +140,9 @@ class Trip extends Equatable {
         tier: json['tier'] as String? ?? 'economy',
         pickup: TripEndpoint.fromJson(json['pickup'] as Map<String, dynamic>),
         dropoff: TripEndpoint.fromJson(json['dropoff'] as Map<String, dynamic>),
+        stops: (json['stops'] as List<dynamic>? ?? const [])
+            .map((s) => TripStop.fromJson(s as Map<String, dynamic>))
+            .toList(),
         routePolyline: json['routePolyline'] as String?,
         distanceM: (json['distanceM'] as num?)?.toInt(),
         durationS: (json['durationS'] as num?)?.toInt(),
@@ -160,6 +168,7 @@ class Trip extends Equatable {
         tier,
         pickup,
         dropoff,
+        stops,
         routePolyline,
         distanceM,
         durationS,

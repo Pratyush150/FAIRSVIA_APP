@@ -381,8 +381,10 @@ class _RideOptions extends StatelessWidget {
             ),
           ),
         const SizedBox(height: AppSpacing.sm),
+        _StopsSection(state: state),
+        const SizedBox(height: AppSpacing.sm),
         ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 240),
+          constraints: const BoxConstraints(maxHeight: 220),
           child: ListView(
             shrinkWrap: true,
             children: [
@@ -410,6 +412,67 @@ class _RideOptions extends StatelessWidget {
         TextButton(
           onPressed: () => cubit.reset(),
           child: const Text('Change destination'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Multi-stop editor: lists current stops with remove buttons and an "Add stop"
+/// action (opens the destination search) up to the backend cap.
+class _StopsSection extends StatelessWidget {
+  const _StopsSection({required this.state});
+  final TripState state;
+
+  Future<void> _addStop(BuildContext context) async {
+    final cubit = context.read<TripCubit>();
+    final details = await Navigator.of(context).push<PlaceDetails>(
+      MaterialPageRoute(builder: (_) => const DestinationSearchPage()),
+    );
+    if (details != null) {
+      await cubit.addStop(
+        TripStop(point: details.location, address: details.address),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cubit = context.read<TripCubit>();
+    final canAdd = state.stops.length < TripCubit.maxStops;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < state.stops.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+            child: Row(
+              children: [
+                const Icon(Icons.trip_origin, size: 16),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    state.stops[i].address ?? 'Stop ${i + 1}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+                InkWell(
+                  onTap: () => cubit.removeStop(i),
+                  child: const Icon(Icons.close, size: 16),
+                ),
+              ],
+            ),
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: canAdd ? () => _addStop(context) : null,
+            icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+            label: Text(canAdd ? 'Add stop' : 'Max 3 stops'),
+          ),
         ),
       ],
     );

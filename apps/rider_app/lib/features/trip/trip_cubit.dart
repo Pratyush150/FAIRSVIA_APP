@@ -168,6 +168,7 @@ class TripCubit extends Cubit<TripState> {
         selectedTier: estimate.tiers.isNotEmpty ? estimate.tiers.first.tier : null,
         appliedPromo: null,
         promoError: null,
+        stops: const [],
       ));
     } on ApiException catch (e) {
       emit(state.copyWith(phase: TripPhase.error, error: e.message));
@@ -175,6 +176,47 @@ class TripCubit extends Cubit<TripState> {
   }
 
   void selectTier(String tier) => emit(state.copyWith(selectedTier: tier));
+
+  /// Max intermediate stops (mirrors the backend cap).
+  static const int maxStops = 3;
+
+  /// Add an intermediate stop and re-estimate the (now longer) route. A promo
+  /// is cleared since the fare changes.
+  Future<void> addStop(TripStop stop) async {
+    final s = state;
+    if (s.pickup == null || s.dropoff == null || s.stops.length >= maxStops) {
+      return;
+    }
+    final stops = [...s.stops, stop];
+    await _reestimateWithStops(stops);
+  }
+
+  Future<void> removeStop(int index) async {
+    final s = state;
+    if (index < 0 || index >= s.stops.length) return;
+    final stops = [...s.stops]..removeAt(index);
+    await _reestimateWithStops(stops);
+  }
+
+  Future<void> _reestimateWithStops(List<TripStop> stops) async {
+    final s = state;
+    if (s.pickup == null || s.dropoff == null) return;
+    emit(state.copyWith(phase: TripPhase.loadingEstimate, stops: stops));
+    try {
+      final estimate =
+          await _repository.estimate(s.pickup!, s.dropoff!, stops: stops);
+      emit(state.copyWith(
+        phase: TripPhase.choosingRide,
+        estimate: estimate,
+        selectedTier:
+            estimate.tiers.isNotEmpty ? estimate.tiers.first.tier : null,
+        appliedPromo: null,
+        promoError: null,
+      ));
+    } on ApiException catch (e) {
+      emit(state.copyWith(phase: TripPhase.choosingRide, error: e.message));
+    }
+  }
 
   /// Validates and applies a promo code against the selected tier's fare.
   /// On rejection, keeps the flow on the ride sheet and surfaces the reason.
@@ -223,6 +265,7 @@ class TripCubit extends Cubit<TripState> {
         promoCode: s.appliedPromo?.code,
         paymentMode: s.paymentMode,
         scheduledAt: s.scheduledAt,
+        stops: s.stops,
       );
       // A scheduled ride isn't dispatched now — confirm it and return to idle
       // (it will surface again from the scheduled-rides list at its time).

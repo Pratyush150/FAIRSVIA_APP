@@ -11,7 +11,14 @@ import { randomInt } from 'node:crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { RedisKeys } from '../common/redis/redis.keys';
-import { GEO_PROVIDER, GeoProvider, LatLng } from '../geo/geo-provider.interface';
+import {
+  GEO_PROVIDER,
+  GeoProvider,
+  LatLng,
+  RouteResult,
+} from '../geo/geo-provider.interface';
+import { encodePolyline } from '../geo/geo.util';
+import { StopDto } from './dto/stop.dto';
 import { CURRENCY } from '../pricing/fare-config';
 import { PricingService } from '../pricing/pricing.service';
 import { SurgeService } from '../surge/surge.service';
@@ -59,7 +66,7 @@ export class TripsService {
   async estimate(dto: EstimateDto) {
     const pickup: LatLng = { lat: dto.pickupLat, lng: dto.pickupLng };
     const dropoff: LatLng = { lat: dto.dropoffLat, lng: dto.dropoffLng };
-    const route = await this.geo.route(pickup, dropoff);
+    const route = await this.routeFor(pickup, dropoff, dto.stops);
     const surge = await this.surge.multiplierFor(pickup.lat, pickup.lng);
     return {
       distanceM: route.distanceM,
@@ -69,8 +76,38 @@ export class TripsService {
       currency: CURRENCY,
       pickup,
       dropoff,
+      stops: dto.stops ?? [],
       tiers: this.pricing.estimateAllTiers(route.distanceM, route.durationS, surge),
     };
+  }
+
+  /**
+   * Route for a trip: a direct pickup→dropoff route when there are no stops
+   * (keeps the provider's real polyline), otherwise the summed legs through
+   * every waypoint (distance/duration are the totals; the polyline is a
+   * multi-segment line through the waypoints).
+   */
+  private async routeFor(
+    pickup: LatLng,
+    dropoff: LatLng,
+    stops?: StopDto[],
+  ): Promise<RouteResult> {
+    if (!stops || stops.length === 0) {
+      return this.geo.route(pickup, dropoff);
+    }
+    const points: LatLng[] = [
+      pickup,
+      ...stops.map((s) => ({ lat: s.lat, lng: s.lng })),
+      dropoff,
+    ];
+    let distanceM = 0;
+    let durationS = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const leg = await this.geo.route(points[i], points[i + 1]);
+      distanceM += leg.distanceM;
+      durationS += leg.durationS;
+    }
+    return { distanceM, durationS, polyline: encodePolyline(points) };
   }
 
   /**
@@ -82,7 +119,7 @@ export class TripsService {
     const scheduledAt = this.parseSchedule(dto.scheduledAt);
     const pickup: LatLng = { lat: dto.pickupLat, lng: dto.pickupLng };
     const dropoff: LatLng = { lat: dto.dropoffLat, lng: dto.dropoffLng };
-    const route = await this.geo.route(pickup, dropoff);
+    const route = await this.routeFor(pickup, dropoff, dto.stops);
     const surge = await this.surge.multiplierFor(pickup.lat, pickup.lng);
     const est = this.pricing.estimateForTier(
       dto.tier,
@@ -107,6 +144,7 @@ export class TripsService {
         dropoffLat: dto.dropoffLat,
         dropoffLng: dto.dropoffLng,
         routePolyline: route.polyline,
+        stops: dto.stops && dto.stops.length > 0 ? (dto.stops as object[]) : undefined,
         distanceM: route.distanceM,
         durationS: route.durationS,
         fareEstimate: est.fare,
@@ -471,6 +509,7 @@ export class TripsService {
       tier: t.tier,
       pickup: { lat: t.pickupLat, lng: t.pickupLng, address: t.pickupAddr },
       dropoff: { lat: t.dropoffLat, lng: t.dropoffLng, address: t.dropoffAddr },
+      stops: (t.stops as unknown[]) ?? [],
       routePolyline: t.routePolyline,
       distanceM: t.distanceM,
       durationS: t.durationS,

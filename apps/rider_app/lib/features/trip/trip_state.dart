@@ -37,6 +37,7 @@ class TripState extends Equatable {
     this.promoError,
     this.paymentMode = 'card',
     this.scheduledAt,
+    this.stops = const [],
     this.error,
   });
 
@@ -70,6 +71,9 @@ class TripState extends Equatable {
 
   /// A future time to schedule the ride for; null means ride now.
   final DateTime? scheduledAt;
+
+  /// Ordered intermediate stops for a multi-stop ride.
+  final List<TripStop> stops;
   final String? error;
 
   FareTier? get selectedFare {
@@ -114,6 +118,7 @@ class TripState extends Equatable {
     Object? promoError = _s,
     String? paymentMode,
     Object? scheduledAt = _s,
+    List<TripStop>? stops,
     Object? error = _s,
   }) {
     return TripState(
@@ -144,6 +149,7 @@ class TripState extends Equatable {
       paymentMode: paymentMode ?? this.paymentMode,
       scheduledAt:
           scheduledAt == _s ? this.scheduledAt : scheduledAt as DateTime?,
+      stops: stops ?? this.stops,
       error: error == _s ? this.error : error as String?,
     );
   }
@@ -170,6 +176,7 @@ class TripState extends Equatable {
         promoError,
         paymentMode,
         scheduledAt,
+        stops,
         error,
       ];
 }

@@ -17,8 +17,12 @@ class TripRepository {
   Future<PlaceDetails> placeDetails(String placeId) =>
       _places.details(placeId);
 
-  Future<TripEstimate> estimate(GeoPoint pickup, GeoPoint dropoff) =>
-      _trips.estimate(pickup, dropoff);
+  Future<TripEstimate> estimate(
+    GeoPoint pickup,
+    GeoPoint dropoff, {
+    List<TripStop> stops = const [],
+  }) =>
+      _trips.estimate(pickup, dropoff, stops: stops);
 
   Future<Trip> createTrip({
     required GeoPoint pickup,
@@ -29,6 +33,7 @@ class TripRepository {
     String? promoCode,
     String? paymentMode,
     DateTime? scheduledAt,
+    List<TripStop> stops = const [],
   }) =>
       _trips.create(
         pickup: pickup,
@@ -39,6 +44,7 @@ class TripRepository {
         promoCode: promoCode,
         paymentMode: paymentMode,
         scheduledAt: scheduledAt,
+        stops: stops,
       );
 
   /// The rider's upcoming scheduled rides.
