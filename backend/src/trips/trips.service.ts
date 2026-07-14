@@ -143,6 +143,16 @@ export class TripsService {
       actor: 'driver',
       data: { startedAt: new Date() },
     });
+    // Seed the trip odometer so LocationService starts metering driven distance.
+    // Seeded from the driver's current position so the first segment counts.
+    const loc = await this.redis.client.hgetall(RedisKeys.driverLoc(driverId));
+    await this.redis.client.set(RedisKeys.tripDriven(tripId), '0');
+    if (loc?.lat && loc?.lng) {
+      await this.redis.client.hset(RedisKeys.tripMeterLast(tripId), {
+        lat: loc.lat,
+        lng: loc.lng,
+      });
+    }
     // Auth-hold the estimated fare when the ride starts (manual capture).
     await this.payments.authorizeForTrip(tripId).catch((e) =>
       // Don't block the ride on a payment hiccup; capture will retry on complete.
@@ -162,14 +172,16 @@ export class TripsService {
       tripId,
       TripStatus.in_progress,
     );
-    // Phase 1/2: final fare = estimate. Phase 3 recomputes from actual route.
-    const fareFinal = trip.fareEstimate ?? 0;
+    // Recompute the final fare from the actually-driven distance (the trip
+    // odometer accumulated by LocationService), falling back to the estimate
+    // when there's no usable GPS trail (e.g. simulator with sparse pings).
+    const { fareFinal, distanceM, durationS } = await this.settleFare(trip);
     await this.stateMachine.transition({
       tripId,
       from: TripStatus.in_progress,
       to: TripStatus.completed,
       actor: 'driver',
-      data: { completedAt: new Date(), fareFinal },
+      data: { completedAt: new Date(), fareFinal, distanceM, durationS },
     });
 
     // Release the driver back to the available pool.
@@ -204,14 +216,57 @@ export class TripsService {
       platformFee: split.platformFee,
       driverPayout: split.driverPayout,
       currency: trip.currency,
-      distanceM: trip.distanceM,
-      durationS: trip.durationS,
+      distanceM,
+      durationS,
     };
     this.realtime.emitToUser(trip.riderId, 'trip:completed', receipt);
     this.realtime.emitToUser(driverId, 'trip:completed', receipt);
     void this.notifications.notifyTrip(trip.riderId, 'completed', { tripId });
     void this.notifications.notifyTrip(driverId, 'completed', { tripId });
     return receipt;
+  }
+
+  /**
+   * Determines the final fare at completion. Reads the trip odometer (actual
+   * driven meters accumulated by LocationService) and, if it's usable,
+   * recomputes the fare from real distance + wall-clock duration via pricing.
+   * Falls back to the up-front estimate when there's no meaningful GPS trail.
+   * Always clears the odometer keys.
+   */
+  private async settleFare(trip: Trip): Promise<{
+    fareFinal: number;
+    distanceM: number | null;
+    durationS: number | null;
+  }> {
+    const drivenRaw = await this.redis.client.get(RedisKeys.tripDriven(trip.id));
+    await this.redis.client.del(
+      RedisKeys.tripDriven(trip.id),
+      RedisKeys.tripMeterLast(trip.id),
+    );
+    const estimate = trip.fareEstimate ? Number(trip.fareEstimate) : 0;
+    const driven = drivenRaw ? Number(drivenRaw) : 0;
+
+    // Need a meaningful trail (>= 50 m) to trust the odometer over the estimate.
+    if (!Number.isFinite(driven) || driven < 50) {
+      return {
+        fareFinal: estimate,
+        distanceM: trip.distanceM,
+        durationS: trip.durationS,
+      };
+    }
+
+    const distanceM = Math.round(driven);
+    const durationS = trip.startedAt
+      ? Math.max(1, Math.round((Date.now() - trip.startedAt.getTime()) / 1000))
+      : trip.durationS;
+    const surge = trip.surgeMultiplier ? Number(trip.surgeMultiplier) : 1;
+    const fareFinal = this.pricing.estimateForTier(
+      trip.tier,
+      distanceM,
+      durationS ?? 0,
+      surge,
+    ).fare;
+    return { fareFinal, distanceM, durationS };
   }
 
   private async assertDriverTrip(

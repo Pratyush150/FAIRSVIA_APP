@@ -7,6 +7,10 @@ export const RedisKeys = {
   driverActiveTrip: (id: string) => `driver:${id}:activeTrip`,
   driverActiveRider: (id: string) => `driver:${id}:activeRider`,
   tripLock: (id: string) => `trip:${id}:lock`,
+  // Trip odometer: accumulated driven meters (present only while in_progress)
+  // and the last metered GPS point, used to recompute the final fare.
+  tripDriven: (id: string) => `trip:${id}:driven`,
+  tripMeterLast: (id: string) => `trip:${id}:meterLast`,
   driverOfferLock: (id: string) => `driver:${id}:offerlock`,
   // Cross-process offer signalling: the dispatch worker records who a trip is
   // currently offered to, and a driver's accept/decline lands here so the
