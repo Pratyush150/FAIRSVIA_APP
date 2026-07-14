@@ -5,6 +5,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/auth_bloc.dart';
 
+/// Length of the login OTP. Must match the backend's OTP_LENGTH (default 6).
+const int _otpLength = 6;
+
 /// OTP entry — step 2 of the login flow. Shared across apps.
 class OtpPage extends StatefulWidget {
   const OtpPage({super.key});
@@ -53,29 +56,29 @@ class _OtpPageState extends State<OtpPage> {
                   const SizedBox(height: AppSpacing.xxl),
                   // A single centered field: reliable on web and mobile alike
                   // (the segmented boxes' focus auto-advance is flaky in
-                  // browsers). Auto-submits when 4 digits are entered.
+                  // browsers). Auto-submits when all digits are entered.
                   TextField(
                     enabled: !state.busy,
                     autofocus: true,
                     textAlign: TextAlign.center,
                     keyboardType: TextInputType.number,
-                    maxLength: 4,
+                    maxLength: _otpLength,
                     style: const TextStyle(
-                      fontSize: 30,
+                      fontSize: 28,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 12,
+                      letterSpacing: 8,
                     ),
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(4),
+                      LengthLimitingTextInputFormatter(_otpLength),
                     ],
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       counterText: '',
-                      hintText: '••••',
+                      hintText: '•' * _otpLength,
                     ),
                     onChanged: (v) {
                       setState(() => _code = v);
-                      if (v.length == 4) _submit(context);
+                      if (v.length == _otpLength) _submit(context);
                     },
                   ),
                   if (state.devCode != null) ...[
@@ -103,7 +106,7 @@ class _OtpPageState extends State<OtpPage> {
                   PrimaryButton(
                     label: 'Verify',
                     loading: state.busy,
-                    onPressed: _code.length == 4 && !state.busy
+                    onPressed: _code.length == _otpLength && !state.busy
                         ? () => _submit(context)
                         : null,
                   ),
