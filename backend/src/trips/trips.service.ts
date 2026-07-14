@@ -15,6 +15,7 @@ import { GEO_PROVIDER, GeoProvider, LatLng } from '../geo/geo-provider.interface
 import { CURRENCY } from '../pricing/fare-config';
 import { PricingService } from '../pricing/pricing.service';
 import { SurgeService } from '../surge/surge.service';
+import { PromoService } from '../promo/promo.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -36,6 +37,7 @@ export class TripsService {
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
     private readonly surge: SurgeService,
+    private readonly promo: PromoService,
     private readonly stateMachine: TripStateMachine,
     private readonly redis: RedisService,
     private readonly realtime: RealtimeService,
@@ -77,7 +79,7 @@ export class TripsService {
       surge,
     );
 
-    const trip = await this.prisma.trip.create({
+    let trip = await this.prisma.trip.create({
       data: {
         riderId,
         status: TripStatus.requested,
@@ -97,6 +99,29 @@ export class TripsService {
         startOtp: this.generateOtp(),
       },
     });
+
+    // Apply a promo code (if supplied) against the gross estimate. Redemption is
+    // atomic and linked to this trip; the discount is stored so settleFare can
+    // subtract it from the final recomputed fare too. A bad/expired code yields
+    // no discount rather than failing the ride.
+    if (dto.promoCode) {
+      const discount = await this.promo.redeem(
+        dto.promoCode,
+        est.fare,
+        riderId,
+        trip.id,
+      );
+      if (discount > 0) {
+        trip = await this.prisma.trip.update({
+          where: { id: trip.id },
+          data: {
+            promoCode: dto.promoCode.trim().toUpperCase(),
+            promoDiscount: discount,
+            fareEstimate: Math.max(est.fare - discount, 0),
+          },
+        });
+      }
+    }
 
     // This request now contributes to local demand (raising surge for the next
     // riders in the same area until it decays).
@@ -267,12 +292,15 @@ export class TripsService {
       ? Math.max(1, Math.round((Date.now() - trip.startedAt.getTime()) / 1000))
       : trip.durationS;
     const surge = trip.surgeMultiplier ? Number(trip.surgeMultiplier) : 1;
-    const fareFinal = this.pricing.estimateForTier(
+    const gross = this.pricing.estimateForTier(
       trip.tier,
       distanceM,
       durationS ?? 0,
       surge,
     ).fare;
+    // Carry the up-front promo discount onto the final (odometer-based) fare.
+    const discount = trip.promoDiscount ? Number(trip.promoDiscount) : 0;
+    const fareFinal = Math.max(gross - discount, 0);
     return { fareFinal, distanceM, durationS };
   }
 
@@ -393,6 +421,8 @@ export class TripsService {
       durationS: t.durationS,
       fareEstimate: t.fareEstimate ? Number(t.fareEstimate) : null,
       fareFinal: t.fareFinal ? Number(t.fareFinal) : null,
+      promoCode: t.promoCode,
+      promoDiscount: Number(t.promoDiscount),
       surgeMultiplier: Number(t.surgeMultiplier),
       currency: t.currency,
       startOtp: showOtp ? t.startOtp : null,

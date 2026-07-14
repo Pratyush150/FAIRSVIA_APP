@@ -26,6 +26,7 @@ class TripRepository {
     required String tier,
     String? pickupAddr,
     String? dropoffAddr,
+    String? promoCode,
   }) =>
       _trips.create(
         pickup: pickup,
@@ -33,7 +34,12 @@ class TripRepository {
         tier: tier,
         pickupAddr: pickupAddr,
         dropoffAddr: dropoffAddr,
+        promoCode: promoCode,
       );
+
+  /// Prices a promo code against a fare subtotal (rejection reason on failure).
+  Future<PromoQuote> quotePromo(String code, num subtotal) =>
+      _trips.quotePromo(code, subtotal);
 
   Future<Trip> getTrip(String id) => _trips.getById(id);
 

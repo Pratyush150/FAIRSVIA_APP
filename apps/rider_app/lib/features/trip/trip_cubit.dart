@@ -166,6 +166,8 @@ class TripCubit extends Cubit<TripState> {
         phase: TripPhase.choosingRide,
         estimate: estimate,
         selectedTier: estimate.tiers.isNotEmpty ? estimate.tiers.first.tier : null,
+        appliedPromo: null,
+        promoError: null,
       ));
     } on ApiException catch (e) {
       emit(state.copyWith(phase: TripPhase.error, error: e.message));
@@ -173,6 +175,32 @@ class TripCubit extends Cubit<TripState> {
   }
 
   void selectTier(String tier) => emit(state.copyWith(selectedTier: tier));
+
+  /// Validates and applies a promo code against the selected tier's fare.
+  /// On rejection, keeps the flow on the ride sheet and surfaces the reason.
+  Future<void> applyPromo(String code) async {
+    final trimmed = code.trim();
+    final fare = state.selectedFare?.fare;
+    if (trimmed.isEmpty || fare == null) return;
+    emit(state.copyWith(applyingPromo: true, promoError: null));
+    try {
+      final quote = await _repository.quotePromo(trimmed, fare);
+      emit(state.copyWith(
+        applyingPromo: false,
+        appliedPromo: quote,
+        promoError: null,
+      ));
+    } on ApiException catch (e) {
+      emit(state.copyWith(
+        applyingPromo: false,
+        appliedPromo: null,
+        promoError: e.message,
+      ));
+    }
+  }
+
+  void removePromo() =>
+      emit(state.copyWith(appliedPromo: null, promoError: null));
 
   Future<void> confirmRide() async {
     final s = state;
@@ -185,6 +213,7 @@ class TripCubit extends Cubit<TripState> {
         tier: s.selectedTier!,
         pickupAddr: s.pickupAddr,
         dropoffAddr: s.dropoffAddr,
+        promoCode: s.appliedPromo?.code,
       );
       emit(state.copyWith(phase: TripPhase.searching, trip: trip));
     } on ApiException catch (e) {

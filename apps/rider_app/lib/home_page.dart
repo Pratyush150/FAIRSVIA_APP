@@ -328,12 +328,11 @@ class _RideOptions extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: AppSpacing.sm),
+        _PromoField(state: state),
         const SizedBox(height: AppSpacing.md),
         PrimaryButton(
-          label: state.selectedFare != null
-              ? 'Confirm ${state.selectedFare!.label} · '
-                  '₹${state.selectedFare!.fare.toStringAsFixed(0)}'
-              : 'Confirm',
+          label: _confirmLabel(state),
           onPressed:
               state.selectedTier != null ? () => cubit.confirmRide() : null,
         ),
@@ -341,6 +340,118 @@ class _RideOptions extends StatelessWidget {
           onPressed: () => cubit.reset(),
           child: const Text('Change destination'),
         ),
+      ],
+    );
+  }
+}
+
+String _confirmLabel(TripState state) {
+  final fare = state.selectedFare;
+  if (fare == null) return 'Confirm';
+  final net = state.discountedFare ?? fare.fare;
+  if (state.appliedPromo != null && net != fare.fare) {
+    return 'Confirm ${fare.label} · ₹${net.toStringAsFixed(0)}';
+  }
+  return 'Confirm ${fare.label} · ₹${fare.fare.toStringAsFixed(0)}';
+}
+
+/// Promo-code entry for the ride-options sheet. Shows an input + Apply button
+/// until a code is accepted, then a green applied-chip with a remove action.
+class _PromoField extends StatefulWidget {
+  const _PromoField({required this.state});
+  final TripState state;
+
+  @override
+  State<_PromoField> createState() => _PromoFieldState();
+}
+
+class _PromoFieldState extends State<_PromoField> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cubit = context.read<TripCubit>();
+    final promo = widget.state.appliedPromo;
+
+    if (promo != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          color: AppColors.success.withValues(alpha: 0.12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.local_offer, size: 18, color: AppColors.success),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                '${promo.code} applied · −₹${promo.discount.toStringAsFixed(0)}',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: AppColors.success),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 18),
+              tooltip: 'Remove promo',
+              onPressed: cubit.removePromo,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  hintText: 'Promo code',
+                  prefixIcon: Icon(Icons.local_offer_outlined),
+                  isDense: true,
+                ),
+                onSubmitted: (v) => cubit.applyPromo(v),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            TextButton(
+              onPressed: widget.state.applyingPromo
+                  ? null
+                  : () => cubit.applyPromo(_controller.text),
+              child: widget.state.applyingPromo
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Apply'),
+            ),
+          ],
+        ),
+        if (widget.state.promoError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(
+              widget.state.promoError!,
+              style:
+                  theme.textTheme.bodySmall?.copyWith(color: AppColors.error),
+            ),
+          ),
       ],
     );
   }

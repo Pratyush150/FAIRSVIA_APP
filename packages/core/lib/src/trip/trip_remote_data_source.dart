@@ -31,6 +31,7 @@ class TripRemoteDataSource {
     required String tier,
     String? pickupAddr,
     String? dropoffAddr,
+    String? promoCode,
   }) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
@@ -43,9 +44,24 @@ class TripRemoteDataSource {
           'tier': tier,
           'pickupAddr': ?pickupAddr,
           'dropoffAddr': ?dropoffAddr,
+          'promoCode': ?promoCode,
         },
       );
       return Trip.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Prices a promo code against a fare subtotal. Returns the quote on success;
+  /// throws [ApiException] whose message is the rider-facing rejection reason.
+  Future<PromoQuote> quotePromo(String code, num subtotal) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/promos/quote',
+        data: {'code': code, 'subtotal': subtotal},
+      );
+      return PromoQuote.fromJson(res.data!);
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }

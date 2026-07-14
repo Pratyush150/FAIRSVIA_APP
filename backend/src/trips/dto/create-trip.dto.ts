@@ -33,4 +33,8 @@ export class CreateTripDto {
   // Accepted now but unused until Phase 3 (payments).
   @IsOptional() @IsString()
   paymentMethodId?: string;
+
+  // Optional promo code; applied at creation if valid for this rider/fare.
+  @IsOptional() @IsString()
+  promoCode?: string;
 }

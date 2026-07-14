@@ -121,6 +121,8 @@ model Trip {
   surgeMultiplier Decimal    @default(1.0) @map("surge_multiplier") @db.Decimal(3, 2)
   currency        String     @default("INR") @db.VarChar(3)
   startOtp        String?    @map("start_otp") @db.VarChar(4)
+  promoCode       String?    @map("promo_code") @db.VarChar(24)
+  promoDiscount   Decimal    @default(0) @map("promo_discount") @db.Decimal(10, 2)
 
   cancelReason    String?    @map("cancel_reason")
   cancelledBy     String?    @map("cancelled_by") @db.VarChar(10)
@@ -257,4 +259,43 @@ model FareConfig {
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("fare_config")
+}
+
+/// A promotional discount code. `kind` is `flat` (fixed currency amount off) or
+/// `percent` (percentage off, optionally capped by `maxDiscount`). Usage is
+/// bounded globally (`usageLimit`/`usedCount`) and per-rider (`perUserLimit`).
+model PromoCode {
+  id           String    @id @default(uuid()) @db.Uuid
+  code         String    @unique @db.VarChar(24)
+  kind         String    @default("flat") @db.VarChar(8)
+  value        Decimal   @db.Decimal(10, 2)
+  maxDiscount  Decimal?  @map("max_discount") @db.Decimal(10, 2)
+  minSubtotal  Decimal   @default(0) @map("min_subtotal") @db.Decimal(10, 2)
+  usageLimit   Int?      @map("usage_limit")
+  usedCount    Int       @default(0) @map("used_count")
+  perUserLimit Int       @default(1) @map("per_user_limit")
+  active       Boolean   @default(true)
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  redemptions PromoRedemption[]
+
+  @@map("promo_codes")
+}
+
+/// A single redemption of a promo code by a rider on a trip. Used to enforce
+/// per-user limits and to audit discounts granted.
+model PromoRedemption {
+  id        String   @id @default(uuid()) @db.Uuid
+  promoId   String   @map("promo_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tripId    String?  @map("trip_id") @db.Uuid
+  discount  Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  promo PromoCode @relation(fields: [promoId], references: [id], onDelete: Cascade)
+
+  @@index([promoId])
+  @@index([userId])
+  @@map("promo_redemptions")
 }

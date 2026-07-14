@@ -630,6 +630,61 @@ describe('UberNav API (e2e)', () => {
         .expect(200);
     });
 
+    it('promo: admin creates a code, rider quotes it and rides with a discount', async () => {
+      const code = `E2E${Date.now().toString().slice(-8)}`;
+
+      // Admin creates a 20% promo capped at 40 off.
+      const created = await request(server)
+        .post('/api/v1/admin/promos')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ code, kind: 'percent', value: 20, maxDiscount: 40 });
+      expect(created.status).toBe(201);
+      expect(created.body.code).toBe(code);
+
+      // Rider prices it against a 200 subtotal: 20% = 40, at the cap.
+      const quote = await request(server)
+        .post('/api/v1/promos/quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code, subtotal: 200 });
+      expect(quote.status).toBe(200);
+      expect(quote.body.discount).toBe(40);
+      expect(quote.body.net).toBe(160);
+
+      // Gross fare for this exact route (estimate does not add demand, so it
+      // matches the surge the trip create will read a moment later).
+      const route = {
+        pickupLat: 19.076,
+        pickupLng: 72.8777,
+        dropoffLat: 19.12,
+        dropoffLng: 72.9,
+      };
+      const gross = await request(server)
+        .post('/api/v1/trips/estimate')
+        .set('Authorization', `Bearer ${token}`)
+        .send(route);
+      const grossFare = gross.body.tiers[0].fare as number;
+
+      // Rider requests the ride with the code; the stored estimate is discounted.
+      const withPromo = await request(server)
+        .post('/api/v1/trips')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ ...route, tier: 'economy', promoCode: code.toLowerCase() });
+      expect(withPromo.status).toBe(201);
+      expect(withPromo.body.promoCode).toBe(code);
+      expect(withPromo.body.promoDiscount).toBeGreaterThan(0);
+      expect(withPromo.body.fareEstimate).toBeCloseTo(
+        grossFare - withPromo.body.promoDiscount,
+        2,
+      );
+
+      // Per-user limit is 1 by default: a second quote is rejected.
+      await request(server)
+        .post('/api/v1/promos/quote')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code, subtotal: 200 })
+        .expect(400);
+    });
+
     it('lists recent SOS alerts for admins', async () => {
       const res = await request(server)
         .get('/api/v1/admin/safety')

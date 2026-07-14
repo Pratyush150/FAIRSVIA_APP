@@ -31,6 +31,9 @@ class TripState extends Equatable {
     this.tipAmount,
     this.tipping = false,
     this.rating,
+    this.appliedPromo,
+    this.applyingPromo = false,
+    this.promoError,
     this.error,
   });
 
@@ -49,6 +52,15 @@ class TripState extends Equatable {
   final double? tipAmount;
   final bool tipping;
   final int? rating;
+
+  /// A promo code the rider has applied (server-priced); null when none.
+  final PromoQuote? appliedPromo;
+
+  /// True while a promo code is being validated.
+  final bool applyingPromo;
+
+  /// The last promo rejection reason (cleared on a successful apply/remove).
+  final String? promoError;
   final String? error;
 
   FareTier? get selectedFare {
@@ -58,6 +70,16 @@ class TripState extends Equatable {
       if (t.tier == selectedTier) return t;
     }
     return null;
+  }
+
+  /// The selected tier's fare after the applied promo discount (if any).
+  double? get discountedFare {
+    final fare = selectedFare?.fare;
+    if (fare == null) return null;
+    final promo = appliedPromo;
+    if (promo == null) return fare;
+    final net = fare - promo.discount;
+    return net < 0 ? 0 : net;
   }
 
   static const Object _s = Object();
@@ -78,6 +100,9 @@ class TripState extends Equatable {
     Object? tipAmount = _s,
     bool? tipping,
     Object? rating = _s,
+    Object? appliedPromo = _s,
+    bool? applyingPromo,
+    Object? promoError = _s,
     Object? error = _s,
   }) {
     return TripState(
@@ -100,6 +125,11 @@ class TripState extends Equatable {
       tipAmount: tipAmount == _s ? this.tipAmount : tipAmount as double?,
       tipping: tipping ?? this.tipping,
       rating: rating == _s ? this.rating : rating as int?,
+      appliedPromo: appliedPromo == _s
+          ? this.appliedPromo
+          : appliedPromo as PromoQuote?,
+      applyingPromo: applyingPromo ?? this.applyingPromo,
+      promoError: promoError == _s ? this.promoError : promoError as String?,
       error: error == _s ? this.error : error as String?,
     );
   }
@@ -121,6 +151,9 @@ class TripState extends Equatable {
         tipAmount,
         tipping,
         rating,
+        appliedPromo,
+        applyingPromo,
+        promoError,
         error,
       ];
 }

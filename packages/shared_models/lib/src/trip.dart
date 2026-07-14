@@ -84,6 +84,8 @@ class Trip extends Equatable {
     this.fareFinal,
     this.currency = 'INR',
     this.startOtp,
+    this.promoCode,
+    this.promoDiscount = 0,
     this.requestedAt,
     this.completedAt,
   });
@@ -100,6 +102,12 @@ class Trip extends Equatable {
   final double? fareFinal;
   final String currency;
   final String? startOtp;
+
+  /// The promo code applied to this trip, if any.
+  final String? promoCode;
+
+  /// Amount discounted by the promo code (0 when none applied).
+  final double promoDiscount;
 
   /// When the trip was requested (present on history responses).
   final DateTime? requestedAt;
@@ -123,6 +131,8 @@ class Trip extends Equatable {
         fareFinal: (json['fareFinal'] as num?)?.toDouble(),
         currency: json['currency'] as String? ?? 'INR',
         startOtp: json['startOtp'] as String?,
+        promoCode: json['promoCode'] as String?,
+        promoDiscount: (json['promoDiscount'] as num?)?.toDouble() ?? 0,
         requestedAt: _parseDate(json['requestedAt']),
         completedAt: _parseDate(json['completedAt']),
       );
@@ -144,6 +154,8 @@ class Trip extends Equatable {
         fareFinal,
         currency,
         startOtp,
+        promoCode,
+        promoDiscount,
         requestedAt,
         completedAt,
       ];
