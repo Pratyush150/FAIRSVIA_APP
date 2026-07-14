@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { RedisService } from '../src/common/redis/redis.service';
+import { RedisKeys } from '../src/common/redis/redis.keys';
 
 /**
  * Full-stack e2e against the real Postgres + Redis (run inside the backend
@@ -16,6 +17,9 @@ describe('UberNav API (e2e)', () => {
   const phone = `+9197${Date.now() % 100000000}`;
   let token: string;
   let tripId: string;
+  // A deterministically-cancellable trip (parked on a non-responsive driver).
+  let parkedTripId: string;
+  let parkedRiderToken: string;
 
   // The OTP endpoint rate-limits to 5 requests per phone per TTL window. The
   // suite runs against a *persistent* dev Redis, so fixed phones (the admin)
@@ -363,34 +367,80 @@ describe('UberNav API (e2e)', () => {
       .expect(400);
   });
 
-  it('cancels the trip via the state machine (no fee before a driver commits)', async () => {
-    const res = await request(server)
-      .post(`/api/v1/trips/${tripId}/cancel`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ reason: 'e2e' });
-    // The trip has no available driver (remote pickup), so no fee applies. It's
-    // either still cancellable (→ cancelled, fee 0) or the async dispatch loop
-    // already finalized it to no_drivers — both are pre-commit, fee-free states.
-    if (res.status === 200) {
-      expect(res.body.status).toBe('cancelled');
-      expect(res.body.fee).toBe(0);
-    } else {
-      // The dispatch loop finalized the trip to no_drivers first. That's either
-      // caught by the pre-check (400) or by the atomic state-machine transition
-      // losing the compare-and-set race (409) — both mean the same terminal,
-      // fee-free state, so accept either.
-      expect([400, 409]).toContain(res.status);
-      const view = await request(server)
-        .get(`/api/v1/trips/${tripId}`)
-        .set('Authorization', `Bearer ${token}`);
-      expect(view.body.status).toBe('no_drivers');
+  it('cancels a matching trip with no fee before a driver commits', async () => {
+    // Determinism: the earlier remote-pickup trip races the async dispatch loop
+    // (still cancellable vs already finalized to no_drivers). Instead we PARK a
+    // single non-responsive driver at a unique, remote coordinate. Dispatch
+    // offers to it and blocks in the 15s offer loop, so the trip stays in
+    // MATCHING and the cancel lands deterministically as fee-free (the driver
+    // was offered but never committed).
+    const pin = { lat: 5.001, lng: 5.001 };
+    const driverId = `e2e-cancel-drv-${Date.now()}`;
+    await redis.client.geoadd('drivers:geo:economy', pin.lng, pin.lat, driverId);
+    await redis.client.set(RedisKeys.driverStatus(driverId), 'online');
+
+    // A dedicated rider so the test is order-independent.
+    const rPhone = `+9194${Date.now() % 100000000}`;
+    await resetOtpLimits(rPhone);
+    const r1 = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone: rPhone });
+    const rv = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone: rPhone, code: r1.body.devCode });
+    parkedRiderToken = rv.body.accessToken as string;
+
+    const created = await request(server)
+      .post('/api/v1/trips')
+      .set('Authorization', `Bearer ${parkedRiderToken}`)
+      .send({
+        pickupLat: pin.lat,
+        pickupLng: pin.lng,
+        dropoffLat: 5.02,
+        dropoffLng: 5.02,
+        tier: 'economy',
+      });
+    expect(created.status).toBe(201);
+    parkedTripId = created.body.id;
+
+    // Wait until dispatch has offered to the parked driver (trip → matching).
+    let status = created.body.status as string;
+    for (let i = 0; i < 50 && status !== 'matching'; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      const v = await request(server)
+        .get(`/api/v1/trips/${parkedTripId}`)
+        .set('Authorization', `Bearer ${parkedRiderToken}`);
+      status = v.body.status;
     }
+    expect(status).toBe('matching');
+
+    const cancelled = await request(server)
+      .post(`/api/v1/trips/${parkedTripId}/cancel`)
+      .set('Authorization', `Bearer ${parkedRiderToken}`)
+      .send({ reason: 'e2e' });
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body.status).toBe('cancelled');
+    expect(cancelled.body.fee).toBe(0);
+
+    // Release the parked dispatch loop (send a decline) and remove the seeded
+    // driver so nothing leaks into other tests or the next run.
+    await redis.client.set(
+      RedisKeys.dispatchResponse(parkedTripId),
+      `0:${driverId}`,
+      'PX',
+      30000,
+    );
+    await redis.client.zrem('drivers:geo:economy', driverId);
+    await redis.client.del(
+      RedisKeys.driverStatus(driverId),
+      RedisKeys.driverOfferLock(driverId),
+    );
   });
 
   it('rejects double-cancel (illegal transition)', async () => {
     await request(server)
-      .post(`/api/v1/trips/${tripId}/cancel`)
-      .set('Authorization', `Bearer ${token}`)
+      .post(`/api/v1/trips/${parkedTripId}/cancel`)
+      .set('Authorization', `Bearer ${parkedRiderToken}`)
       .send({ reason: 'again' })
       .expect(400);
   });
@@ -510,7 +560,8 @@ describe('UberNav API (e2e)', () => {
   });
 
   it('refuses to rate a trip that is not completed', async () => {
-    // tripId was cancelled above — rating must be rejected.
+    // tripId never reached completed (remote pickup, no match) — rating must
+    // be rejected.
     await request(server)
       .post(`/api/v1/trips/${tripId}/rating`)
       .set('Authorization', `Bearer ${token}`)
