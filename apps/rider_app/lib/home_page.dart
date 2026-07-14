@@ -913,27 +913,53 @@ class _FindingDriver extends StatelessWidget {
       children: [
         Row(
           children: [
-            const SizedBox(
-              height: 22,
-              width: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.4),
+            SizedBox(
+              height: 48,
+              width: 48,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const SizedBox(
+                    height: 48,
+                    width: 48,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                  Container(
+                    height: 32,
+                    width: 32,
+                    decoration: const BoxDecoration(
+                      color: AppColors.accentSoft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.local_taxi_rounded,
+                        size: 18, color: AppColors.accent),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: Text('Connecting you with a driver…',
-                  style: theme.textTheme.titleMedium),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Finding your driver',
+                      style: theme.textTheme.titleLarge),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Trip to ${state.dropoffAddr ?? 'your destination'}',
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          'Trip to ${state.dropoffAddr ?? 'your destination'}',
-          style: theme.textTheme.bodyMedium,
-        ),
         const SizedBox(height: AppSpacing.lg),
-        OutlinedButton(
+        SecondaryButton(
+          label: 'Cancel ride',
           onPressed: () => context.read<TripCubit>().cancelTrip(),
-          child: const Text('Cancel ride'),
         ),
       ],
     );
@@ -955,64 +981,105 @@ class _DriverInfoSheet extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Text(
-                arrived ? 'Your driver has arrived' : 'Driver on the way',
-                style: theme.textTheme.headlineSmall,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppStatusChip(
+                    label: arrived ? 'Arrived' : 'On the way',
+                    tone: arrived ? StatusTone.success : StatusTone.accent,
+                    icon: arrived
+                        ? Icons.check_circle_rounded
+                        : Icons.directions_car_rounded,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    arrived
+                        ? 'Your driver is here'
+                        : 'Your driver is on the way',
+                    style: theme.textTheme.headlineSmall,
+                  ),
+                ],
               ),
             ),
             _sosButton(context, state),
           ],
         ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            const CircleAvatar(radius: 24, child: Icon(Icons.person)),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: AppSpacing.lg),
+        AppCard(
+          child: Row(
+            children: [
+              AppAvatar(name: driver?.name, size: 52),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(driver?.name ?? 'Your driver',
+                        style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(Icons.star_rounded,
+                            size: 15, color: AppColors.star),
+                        const SizedBox(width: 3),
+                        Text((driver?.rating ?? 5).toStringAsFixed(1),
+                            style: theme.textTheme.labelLarge),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(driver?.name ?? 'Your driver',
-                      style: theme.textTheme.titleMedium),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, size: 14, color: AppColors.warning),
-                      const SizedBox(width: 2),
-                      Text((driver?.rating ?? 5).toStringAsFixed(1),
-                          style: theme.textTheme.bodySmall),
-                    ],
-                  ),
+                  Text(driver?.vehicleLabel ?? '',
+                      style: theme.textTheme.bodyMedium),
+                  if (driver?.plate != null) ...[
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMutedLight,
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.radiusSm),
+                        border: Border.all(color: AppColors.borderLight),
+                      ),
+                      child: Text(driver!.plate!,
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(letterSpacing: 1)),
+                    ),
+                  ],
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(driver?.vehicleLabel ?? '',
-                    style: theme.textTheme.bodyMedium),
-                if (driver?.plate != null)
-                  Text(driver!.plate!, style: theme.textTheme.titleMedium),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
         if (otp != null) ...[
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.md),
           Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg, vertical: AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              color: AppColors.accentSoft,
+              borderRadius: BorderRadius.circular(AppSpacing.radius),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('Start code:  ', style: theme.textTheme.bodyMedium),
+                const Icon(Icons.lock_rounded,
+                    size: 18, color: AppColors.accent),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text('Share this start code with your driver',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.accentPressed)),
+                ),
                 Text(otp,
-                    style: theme.textTheme.headlineSmall
-                        ?.copyWith(letterSpacing: 4)),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                        letterSpacing: 6, color: AppColors.accentPressed)),
               ],
             ),
           ),
@@ -1021,17 +1088,18 @@ class _DriverInfoSheet extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: OutlinedButton.icon(
+              child: SecondaryButton(
+                label: 'Message',
+                icon: Icons.chat_bubble_rounded,
                 onPressed: () => _openTripChat(context, state),
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: const Text('Message'),
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
-              child: OutlinedButton(
+              child: SecondaryButton(
+                label: 'Cancel',
+                danger: true,
                 onPressed: () => context.read<TripCubit>().cancelTrip(),
-                child: const Text('Cancel ride'),
               ),
             ),
           ],

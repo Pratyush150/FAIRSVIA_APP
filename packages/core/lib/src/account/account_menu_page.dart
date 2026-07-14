@@ -70,105 +70,162 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Account')),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xxl),
         children: [
           _ProfileHeader(user: user, onEdit: _editProfile),
-          const Divider(height: 1),
-          _tile(
-            icon: Icons.notifications_none,
-            title: 'Notifications',
-            onTap: () =>
-                _open(InboxPage(inbox: sl<InboxRemoteDataSource>())),
-          ),
-          _tile(
-            icon: Icons.receipt_long_outlined,
-            title: 'Your trips',
-            onTap: () => _open(TripHistoryPage(
-              trips: sl<TripRemoteDataSource>(),
-              payments: sl<PaymentsRemoteDataSource>(),
-              isDriver: widget.isDriver,
-            )),
-          ),
-          if (widget.isDriver) ...[
-            _tile(
-              icon: Icons.account_balance_wallet_outlined,
-              title: 'Earnings',
-              onTap: () => _open(
-                  DriverEarningsPage(driver: sl<DriverRemoteDataSource>())),
+          const SizedBox(height: AppSpacing.xl),
+          _group([
+            _Item(
+              icon: Icons.notifications_none_rounded,
+              title: 'Notifications',
+              onTap: () =>
+                  _open(InboxPage(inbox: sl<InboxRemoteDataSource>())),
             ),
-            _tile(
-              icon: Icons.payments_outlined,
-              title: 'Payouts',
-              onTap: () => _open(
-                  DriverPayoutsPage(driver: sl<DriverRemoteDataSource>())),
-            ),
-          ],
-          if (!widget.isDriver) ...[
-            _tile(
-              icon: Icons.schedule,
-              title: 'Scheduled rides',
-              onTap: () => _open(ScheduledRidesPage(
+            _Item(
+              icon: Icons.receipt_long_rounded,
+              title: 'Your trips',
+              onTap: () => _open(TripHistoryPage(
                 trips: sl<TripRemoteDataSource>(),
-              )),
-            ),
-            _tile(
-              icon: Icons.star_border,
-              title: 'Saved places',
-              onTap: () => _open(SavedPlacesPage(
-                users: sl<UsersRemoteDataSource>(),
-                places: sl<PlacesRemoteDataSource>(),
-              )),
-            ),
-            _tile(
-              icon: Icons.credit_card,
-              title: 'Payment methods',
-              onTap: () => _open(PaymentMethodsPage(
                 payments: sl<PaymentsRemoteDataSource>(),
+                isDriver: widget.isDriver,
               )),
             ),
-            _tile(
-              icon: Icons.favorite_border,
-              title: 'Favourite drivers',
-              onTap: () => _open(FavoriteDriversPage(
-                favorites: sl<FavoritesRemoteDataSource>(),
+          ]),
+          const SizedBox(height: AppSpacing.lg),
+          if (widget.isDriver)
+            _group([
+              _Item(
+                icon: Icons.account_balance_wallet_rounded,
+                title: 'Earnings',
+                onTap: () => _open(
+                    DriverEarningsPage(driver: sl<DriverRemoteDataSource>())),
+              ),
+              _Item(
+                icon: Icons.payments_rounded,
+                title: 'Payouts',
+                onTap: () => _open(
+                    DriverPayoutsPage(driver: sl<DriverRemoteDataSource>())),
+              ),
+            ]),
+          if (!widget.isDriver)
+            _group([
+              _Item(
+                icon: Icons.schedule_rounded,
+                title: 'Scheduled rides',
+                onTap: () => _open(ScheduledRidesPage(
+                  trips: sl<TripRemoteDataSource>(),
+                )),
+              ),
+              _Item(
+                icon: Icons.star_rounded,
+                title: 'Saved places',
+                onTap: () => _open(SavedPlacesPage(
+                  users: sl<UsersRemoteDataSource>(),
+                  places: sl<PlacesRemoteDataSource>(),
+                )),
+              ),
+              _Item(
+                icon: Icons.credit_card_rounded,
+                title: 'Payment methods',
+                onTap: () => _open(PaymentMethodsPage(
+                  payments: sl<PaymentsRemoteDataSource>(),
+                )),
+              ),
+              _Item(
+                icon: Icons.favorite_rounded,
+                title: 'Favourite drivers',
+                onTap: () => _open(FavoriteDriversPage(
+                  favorites: sl<FavoritesRemoteDataSource>(),
+                )),
+              ),
+            ]),
+          const SizedBox(height: AppSpacing.lg),
+          _group([
+            _Item(
+              icon: Icons.support_agent_rounded,
+              title: 'Help & support',
+              onTap: () => _open(SupportPage(
+                support: sl<SupportRemoteDataSource>(),
               )),
             ),
-          ],
-          const Divider(height: 1),
-          _tile(
-            icon: Icons.support_agent,
-            title: 'Help & support',
-            onTap: () => _open(SupportPage(
-              support: sl<SupportRemoteDataSource>(),
-            )),
-          ),
-          const Divider(height: 1),
-          _tile(
-            icon: Icons.logout,
-            title: 'Sign out',
-            danger: true,
-            onTap: () => context.read<AuthBloc>().add(const AuthSignedOut()),
-          ),
+          ]),
+          const SizedBox(height: AppSpacing.lg),
+          _group([
+            _Item(
+              icon: Icons.logout_rounded,
+              title: 'Sign out',
+              danger: true,
+              onTap: () =>
+                  context.read<AuthBloc>().add(const AuthSignedOut()),
+            ),
+          ]),
         ],
       ),
     );
   }
 
-  Widget _tile({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    bool danger = false,
-  }) {
-    final color = danger ? AppColors.error : null;
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(title, style: TextStyle(color: color)),
-      trailing: danger
-          ? null
-          : const Icon(Icons.chevron_right, size: 20),
-      onTap: onTap,
+  Widget _group(List<_Item> items) {
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              const Divider(height: 1, indent: 60, endIndent: AppSpacing.md),
+            _tile(items[i]),
+          ],
+        ],
+      ),
     );
   }
+
+  Widget _tile(_Item item) {
+    final color = item.danger ? AppColors.error : null;
+    return Builder(builder: (context) {
+      final theme = Theme.of(context);
+      return InkWell(
+        onTap: item.onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.radius),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.md,
+          ),
+          child: Row(
+            children: [
+              Icon(item.icon,
+                  size: 22,
+                  color: color ?? AppColors.textSecondaryLight),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: theme.textTheme.titleSmall?.copyWith(color: color),
+                ),
+              ),
+              if (!item.danger)
+                const Icon(Icons.chevron_right_rounded,
+                    size: 22, color: AppColors.textTertiaryLight),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class _Item {
+  const _Item({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.danger = false,
+  });
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  final bool danger;
 }
 
 class _ProfileHeader extends StatelessWidget {
@@ -179,43 +236,40 @@ class _ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final name = (user?.fullName?.trim().isNotEmpty ?? false)
-        ? user!.fullName!
-        : 'Add your name';
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+    final hasName = user?.fullName?.trim().isNotEmpty ?? false;
+    final name = hasName ? user!.fullName! : 'Add your name';
+    return AppCard(
+      onTap: onEdit,
       child: Row(
         children: [
-          const CircleAvatar(radius: 28, child: Icon(Icons.person, size: 30)),
-          const SizedBox(width: AppSpacing.lg),
+          AppAvatar(name: hasName ? name : null, size: 56),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(name, style: theme.textTheme.titleLarge),
                 const SizedBox(height: 2),
-                Text(user?.phone ?? '', style: theme.textTheme.bodyMedium),
+                Text(user?.phone ?? '',
+                    style: theme.textTheme.bodyMedium),
                 if ((user?.ratingCount ?? 0) > 0)
                   Padding(
-                    padding: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
                     child: Row(
                       children: [
-                        const Icon(Icons.star,
-                            size: 14, color: AppColors.warning),
-                        const SizedBox(width: 2),
+                        const Icon(Icons.star_rounded,
+                            size: 15, color: AppColors.star),
+                        const SizedBox(width: 3),
                         Text(user!.ratingAvg.toStringAsFixed(1),
-                            style: theme.textTheme.bodySmall),
+                            style: theme.textTheme.labelLarge),
                       ],
                     ),
                   ),
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Edit profile',
-            onPressed: onEdit,
-          ),
+          const Icon(Icons.edit_rounded,
+              size: 20, color: AppColors.textTertiaryLight),
         ],
       ),
     );

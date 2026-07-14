@@ -79,58 +79,138 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Where to?')),
+      appBar: AppBar(
+        title: const Text('Where to?'),
+        titleTextStyle: theme.textTheme.titleLarge,
+      ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
             child: TextField(
               controller: _controller,
               autofocus: true,
+              style: theme.textTheme.bodyLarge,
               decoration: InputDecoration(
                 hintText: 'Search destination',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: _loading
                     ? const Padding(
                         padding: EdgeInsets.all(14),
                         child: SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
                         ),
                       )
-                    : null,
+                    : (_controller.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () {
+                              _controller.clear();
+                              _onChanged('');
+                              setState(() {});
+                            },
+                          )
+                        : null),
               ),
-              onChanged: _onChanged,
+              onChanged: (v) {
+                _onChanged(v);
+                setState(() {});
+              },
             ),
           ),
           if (_error != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: Text(_error!,
-                  style: const TextStyle(color: AppColors.error)),
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded,
+                      size: 18, color: AppColors.error),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(_error!,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: AppColors.error)),
+                  ),
+                ],
+              ),
             ),
           Expanded(
             child: Stack(
               children: [
-                ListView.separated(
-                  itemCount: _predictions.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final p = _predictions[i];
-                    return ListTile(
-                      leading: const Icon(Icons.location_on_outlined),
-                      title: Text(p.primaryText),
-                      subtitle: p.secondaryText.isEmpty
-                          ? null
-                          : Text(p.secondaryText),
-                      onTap: _resolving ? null : () => _select(p),
-                    );
-                  },
-                ),
+                if (_predictions.isEmpty && !_loading && _error == null)
+                  EmptyState(
+                    icon: Icons.explore_outlined,
+                    title: 'Search for a destination',
+                    message:
+                        'Type an address, landmark, or place to see suggestions.',
+                  )
+                else
+                  ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                    itemCount: _predictions.length,
+                    separatorBuilder: (_, _) => const Divider(
+                        height: 1, indent: 72, endIndent: AppSpacing.lg),
+                    itemBuilder: (context, i) {
+                      final p = _predictions[i];
+                      return InkWell(
+                        onTap: _resolving ? null : () => _select(p),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                            vertical: AppSpacing.md,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                height: 40,
+                                width: 40,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.surfaceMutedLight,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.location_on_rounded,
+                                    size: 20,
+                                    color: AppColors.textSecondaryLight),
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(p.primaryText,
+                                        style: theme.textTheme.titleSmall,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                    if (p.secondaryText.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(p.secondaryText,
+                                          style: theme.textTheme.bodyMedium,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.north_east_rounded,
+                                  size: 18,
+                                  color: AppColors.textTertiaryLight),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 if (_resolving)
-                  const Center(child: CircularProgressIndicator()),
+                  Container(
+                    color: AppColors.scrim,
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
               ],
             ),
           ),

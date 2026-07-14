@@ -26,7 +26,7 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
   }
 
   void _submit(BuildContext context) {
-    final phone = _controller.text.trim();
+    final phone = _controller.text.replaceAll(' ', '').trim();
     context.read<AuthBloc>().add(AuthOtpRequested(phone));
   }
 
@@ -48,31 +48,60 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: AppSpacing.xxl),
-                  Text(widget.title, style: theme.textTheme.displaySmall),
+                  const SizedBox(height: AppSpacing.huge),
+                  Container(
+                    height: 64,
+                    width: 64,
+                    decoration: BoxDecoration(
+                      color: AppColors.accentSoft,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                    ),
+                    child: const Icon(
+                      Icons.navigation_rounded,
+                      color: AppColors.accent,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  Text('Welcome to ${widget.title}',
+                      style: theme.textTheme.displaySmall),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Enter your phone number to get started',
-                    style: theme.textTheme.bodyMedium,
+                    'Enter your phone number and we\'ll text you a\ncode to sign in.',
+                    style: theme.textTheme.bodyLarge
+                        ?.copyWith(color: AppColors.textSecondaryLight),
                   ),
                   const SizedBox(height: AppSpacing.xxl),
+                  Text('Phone number',
+                      style: theme.textTheme.labelLarge
+                          ?.copyWith(color: AppColors.textSecondaryLight)),
+                  const SizedBox(height: AppSpacing.sm),
                   TextField(
                     controller: _controller,
                     keyboardType: TextInputType.phone,
                     autofocus: true,
+                    style: theme.textTheme.titleMedium,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
                     ],
                     decoration: const InputDecoration(
                       hintText: '+1 305 555 0137',
-                      prefixIcon: Icon(Icons.phone_outlined),
+                      prefixIcon: Icon(Icons.phone_rounded),
                     ),
                     onChanged: (v) => setState(
-                      () => _valid = RegExp(r'^\+?[1-9]\d{7,14}$').hasMatch(v.trim()),
+                      () => _valid = RegExp(r'^\+?[1-9]\d{7,14}$')
+                          .hasMatch(v.replaceAll(' ', '').trim()),
                     ),
                     onSubmitted: _valid ? (_) => _submit(context) : null,
                   ),
                   const Spacer(),
+                  Text(
+                    'By continuing you agree to our Terms and Privacy Policy.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AppColors.textTertiaryLight),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   PrimaryButton(
                     label: 'Continue',
                     loading: state.busy,

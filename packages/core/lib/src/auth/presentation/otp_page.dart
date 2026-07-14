@@ -47,11 +47,24 @@ class _OtpPageState extends State<OtpPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: AppSpacing.lg),
-                  Text('Enter the code', style: theme.textTheme.headlineMedium),
+                  Text('Enter the code', style: theme.textTheme.displaySmall),
                   const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'Sent to ${state.phone ?? 'your phone'}',
-                    style: theme.textTheme.bodyMedium,
+                  Text.rich(
+                    TextSpan(
+                      style: theme.textTheme.bodyLarge
+                          ?.copyWith(color: AppColors.textSecondaryLight),
+                      children: [
+                        const TextSpan(text: 'We sent a 6-digit code to '),
+                        TextSpan(
+                          text: state.phone ?? 'your phone',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimaryLight,
+                          ),
+                        ),
+                        const TextSpan(text: '.'),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xxl),
                   // A single centered field: reliable on web and mobile alike
@@ -87,17 +100,27 @@ class _OtpPageState extends State<OtpPage> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.md,
-                          vertical: AppSpacing.sm,
+                          vertical: AppSpacing.sm + 2,
                         ),
                         decoration: BoxDecoration(
                           color: AppColors.warning.withValues(alpha: 0.12),
                           borderRadius:
-                              BorderRadius.circular(AppSpacing.radiusSm),
+                              BorderRadius.circular(AppSpacing.pill),
                         ),
-                        child: Text(
-                          'DEV code: ${state.devCode}',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: AppColors.warning),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.construction_rounded,
+                                size: 16, color: AppColors.warning),
+                            const SizedBox(width: AppSpacing.xs),
+                            Text(
+                              'Dev code: ${state.devCode}',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
