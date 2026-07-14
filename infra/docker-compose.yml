@@ -68,7 +68,42 @@ services:
       postgres:
         condition: service_healthy
 
+  # Self-hosted OpenStreetMap routing — road-following routes, no API key.
+  # Preprocess the Florida extract once before first start:
+  #   cd infra/osm-data
+  #   docker run --rm -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend \
+  #     osrm-extract -p /opt/car.lua /data/florida-latest.osm.pbf
+  #   ...osrm-partition /data/florida-latest.osrm
+  #   ...osrm-customize /data/florida-latest.osrm
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend
+    container_name: ubernav_osrm
+    restart: unless-stopped
+    command: ["osrm-routed", "--algorithm", "mld", "/data/florida-latest.osrm"]
+    volumes:
+      - ./osm-data:/data
+    ports:
+      - "5000:5000"
+
+  # Self-hosted OpenStreetMap geocoding — real place search + reverse geocode.
+  # First start imports the Florida extract (several minutes, one-time).
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: ubernav_nominatim
+    restart: unless-stopped
+    environment:
+      PBF_PATH: /nominatim/data/florida-latest.osm.pbf
+      NOMINATIM_PASSWORD: nominatim
+      IMPORT_STYLE: address
+    volumes:
+      - ./osm-data:/nominatim/data
+      - nominatimdata:/var/lib/postgresql/14/main
+    shm_size: 1g
+    ports:
+      - "8081:8080"
+
 volumes:
   pgdata:
   redisdata:
   backend_node_modules:
+  nominatimdata:

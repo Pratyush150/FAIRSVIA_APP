@@ -37,3 +37,7 @@ tools/fake-driver-simulator/node_modules/
 backend/.env.prod
 apk-dist/
 .worklog/
+
+# OSM extracts + OSRM/Nominatim generated data (large binaries, rebuildable)
+infra/osm-data/
+infra/nominatim-data/

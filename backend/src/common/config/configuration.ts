@@ -36,6 +36,10 @@ export interface AppConfig {
   /** Allowed browser origins for CORS. Empty = reflect any origin (dev only). */
   corsOrigins: string[];
   googleMapsApiKey: string;
+  /** Self-hosted OpenStreetMap routing (OSRM) + geocoding (Nominatim) base
+   *  URLs. When both are set (and no Google key), the OSM provider is used. */
+  osrmBaseUrl: string;
+  nominatimBaseUrl: string;
   stripeSecretKey: string;
   /** Stripe API host; overridable to a local mock endpoint for testing. */
   stripeApiBaseUrl: string;
@@ -135,6 +139,8 @@ export default (): AppConfig => {
     .map((o) => o.trim())
     .filter((o) => o.length > 0),
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
+  osrmBaseUrl: process.env.OSRM_BASE_URL ?? '',
+  nominatimBaseUrl: process.env.NOMINATIM_BASE_URL ?? '',
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
   stripeApiBaseUrl: process.env.STRIPE_API_BASE_URL ?? 'https://api.stripe.com/v1',
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '0.20'),
