@@ -1,5 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { CURRENCY, FARE_CONFIG, TIER_KEYS, TierFareConfig } from './fare-config';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
+import { PrismaService } from '../common/prisma/prisma.service';
+import { CURRENCY, FARE_CONFIG, TierFareConfig } from './fare-config';
 
 export interface FareBreakdown {
   baseFare: number;
@@ -20,7 +26,97 @@ export interface FareEstimate {
 }
 
 @Injectable()
-export class PricingService {
+export class PricingService implements OnModuleInit {
+  private readonly logger = new Logger('Pricing');
+
+  // In-memory cache of the DB fare config so the estimate methods stay
+  // synchronous (they're on the hot path). Refreshed on admin edits; falls back
+  // to the hardcoded defaults if the DB is somehow empty.
+  private cache: Record<string, TierFareConfig> = { ...FARE_CONFIG };
+  private order: string[] = Object.keys(FARE_CONFIG);
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    await this.seedIfEmpty();
+    await this.refresh();
+  }
+
+  /** Seed the fare_config table from the code defaults on first boot. */
+  private async seedIfEmpty() {
+    const count = await this.prisma.fareConfig.count();
+    if (count > 0) return;
+    await this.prisma.fareConfig.createMany({
+      data: Object.values(FARE_CONFIG).map((c) => ({
+        tier: c.tier,
+        label: c.label,
+        baseFare: c.baseFare,
+        perKm: c.perKm,
+        perMin: c.perMin,
+        bookingFee: c.bookingFee,
+        minFare: c.minFare,
+        capacity: c.capacity,
+      })),
+      skipDuplicates: true,
+    });
+    this.logger.log('Seeded fare_config from defaults');
+  }
+
+  /** Reload the cache from the DB. */
+  async refresh() {
+    try {
+      const rows = await this.prisma.fareConfig.findMany();
+      if (rows.length === 0) return;
+      const next: Record<string, TierFareConfig> = {};
+      for (const r of rows) {
+        next[r.tier] = {
+          tier: r.tier,
+          label: r.label,
+          baseFare: r.baseFare,
+          perKm: r.perKm,
+          perMin: r.perMin,
+          bookingFee: r.bookingFee,
+          minFare: r.minFare,
+          capacity: r.capacity,
+        };
+      }
+      this.cache = next;
+      // Preserve the canonical tier ordering (cheapest → premium).
+      this.order = Object.keys(FARE_CONFIG).filter((t) => next[t]);
+    } catch (e) {
+      this.logger.warn(`fare_config refresh failed, keeping cache: ${String(e)}`);
+    }
+  }
+
+  /** Admin: list the current fare config. */
+  listConfig(): TierFareConfig[] {
+    return this.order.map((t) => this.cache[t]);
+  }
+
+  /** Admin: update one tier's fare config, then refresh the cache. */
+  async updateTier(
+    tier: string,
+    patch: Partial<Omit<TierFareConfig, 'tier'>>,
+  ): Promise<TierFareConfig> {
+    if (!this.cache[tier]) {
+      throw new BadRequestException(`Unknown tier: ${tier}`);
+    }
+    await this.prisma.fareConfig.update({
+      where: { tier },
+      data: {
+        label: patch.label,
+        baseFare: patch.baseFare,
+        perKm: patch.perKm,
+        perMin: patch.perMin,
+        bookingFee: patch.bookingFee,
+        minFare: patch.minFare,
+        capacity: patch.capacity,
+      },
+    });
+    await this.refresh();
+    return this.cache[tier];
+  }
+
   /**
    * fare = (base + perKm*km + perMin*min) * surge + bookingFee, floored at minFare.
    */
@@ -30,7 +126,7 @@ export class PricingService {
     durationS: number,
     surge = 1,
   ): FareEstimate {
-    const cfg = FARE_CONFIG[tier];
+    const cfg = this.cache[tier];
     if (!cfg) {
       throw new BadRequestException(`Unknown tier: ${tier}`);
     }
@@ -43,8 +139,8 @@ export class PricingService {
     durationS: number,
     surge = 1,
   ): FareEstimate[] {
-    return TIER_KEYS.map((tier) =>
-      this.compute(FARE_CONFIG[tier], distanceM, durationS, surge),
+    return this.order.map((tier) =>
+      this.compute(this.cache[tier], distanceM, durationS, surge),
     );
   }
 

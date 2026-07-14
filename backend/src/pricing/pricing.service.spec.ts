@@ -1,7 +1,10 @@
 import { PricingService } from './pricing.service';
+import { PrismaService } from '../common/prisma/prisma.service';
 
 describe('PricingService', () => {
-  const pricing = new PricingService();
+  // No DB in this unit test — the service's cache defaults to the code config,
+  // so the pure fare math is exercised without touching Prisma.
+  const pricing = new PricingService({} as unknown as PrismaService);
 
   it('computes economy fare = (base + perKm*km + perMin*min)*surge + bookingFee', () => {
     // 5 km, 10 min, economy: (30 + 12*5 + 1.5*10)*1 + 10 = 115

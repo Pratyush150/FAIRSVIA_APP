@@ -554,6 +554,34 @@ describe('UberNav API (e2e)', () => {
         .expect(200);
     });
 
+    it('fare config: admin lists tiers and edits a fare, then restores it', async () => {
+      const list = await request(server)
+        .get('/api/v1/admin/fares')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(list.status).toBe(200);
+      expect(list.body.map((f: { tier: string }) => f.tier)).toEqual([
+        'economy',
+        'comfort',
+        'xl',
+        'premium',
+      ]);
+      const original = list.body[0].baseFare as number;
+
+      const bumped = await request(server)
+        .patch('/api/v1/admin/fares/economy')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ baseFare: original + 25 });
+      expect(bumped.status).toBe(200);
+      expect(bumped.body.baseFare).toBe(original + 25);
+
+      // Restore so later runs / tests see the seeded value.
+      await request(server)
+        .patch('/api/v1/admin/fares/economy')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ baseFare: original })
+        .expect(200);
+    });
+
     it('surge: admin override raises the fare estimate, then clears', async () => {
       // Baseline estimate (organic surge is 1 with no local demand/drivers).
       const base = await request(server)

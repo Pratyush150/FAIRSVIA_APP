@@ -244,3 +244,17 @@ model RefreshToken {
   @@index([tokenHash])
   @@map("refresh_tokens")
 }
+
+model FareConfig {
+  tier       String   @id @db.VarChar(12)
+  label      String   @db.VarChar(30)
+  baseFare   Float    @map("base_fare")
+  perKm      Float    @map("per_km")
+  perMin     Float    @map("per_min")
+  bookingFee Float    @map("booking_fee")
+  minFare    Float    @map("min_fare")
+  capacity   Int
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("fare_config")
+}
