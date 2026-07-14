@@ -8,6 +8,7 @@ export class UpdatePlaceDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   address?: string;
 
   @IsOptional()

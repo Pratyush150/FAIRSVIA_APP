@@ -68,7 +68,7 @@ describe('UberNav API (e2e)', () => {
       .send({ phone });
     expect(r1.status).toBe(200);
     const code = r1.body.devCode as string;
-    expect(code).toMatch(/^\d{4}$/);
+    expect(code).toMatch(/^\d{6}$/);
 
     const r2 = await request(server)
       .post('/api/v1/auth/otp/verify')
@@ -88,7 +88,7 @@ describe('UberNav API (e2e)', () => {
     const r1 = await request(server)
       .post('/api/v1/auth/otp/request')
       .send({ phone: p });
-    const wrong = r1.body.devCode === '0000' ? '1111' : '0000';
+    const wrong = r1.body.devCode === '000000' ? '111111' : '000000';
     await request(server)
       .post('/api/v1/auth/otp/verify')
       .send({ phone: p, code: wrong })

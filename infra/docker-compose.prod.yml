@@ -17,8 +17,10 @@ x-backend: &backend
   env_file:
     - ../backend/.env.prod
   environment:
-    DATABASE_URL: postgresql://ubernav:ubernav@postgres:5432/ubernav?schema=public
-    REDIS_URL: redis://redis:6379
+    # Credentials come from infra/.env (see infra/.env.example). No hardcoded
+    # defaults so a deploy can't silently ship with weak, public passwords.
+    DATABASE_URL: postgresql://ubernav:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}@postgres:5432/ubernav?schema=public
+    REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/.env}@redis:6379
     NODE_ENV: production
   depends_on:
     postgres:
@@ -34,7 +36,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ubernav
-      POSTGRES_PASSWORD: ubernav
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
       POSTGRES_DB: ubernav
     volumes:
       - prod_pgdata:/var/lib/postgresql/data
@@ -48,11 +50,13 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    # Require a password so a compromised container can't freely read/write the
+    # hot store (driver locations, offers, sessions).
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in infra/.env}"]
     volumes:
       - prod_redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5

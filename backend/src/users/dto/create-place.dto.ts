@@ -7,6 +7,7 @@ export class CreatePlaceDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   address?: string;
 
   @IsNumber() @Min(-90) @Max(90)

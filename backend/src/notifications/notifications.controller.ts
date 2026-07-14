@@ -26,7 +26,7 @@ export class NotificationsController {
 
   @Delete()
   @HttpCode(HttpStatus.OK)
-  unregister(@Body() dto: RegisterDeviceDto) {
-    return this.notifications.unregister(dto.token);
+  unregister(@CurrentUser() user: AuthUser, @Body() dto: RegisterDeviceDto) {
+    return this.notifications.unregister(user.userId, dto.token);
   }
 }

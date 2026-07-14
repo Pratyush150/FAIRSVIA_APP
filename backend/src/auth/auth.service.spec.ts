@@ -58,7 +58,7 @@ describe('AuthService', () => {
     get: jest.fn((key: string) => {
       switch (key) {
         case 'otp':
-          return { ttlSeconds: 300, length: 4, maxAttempts: 5 };
+          return { ttlSeconds: 300, length: 6, maxAttempts: 5, devEcho: true };
         case 'jwt':
           return {
             accessSecret: 'a',
@@ -95,11 +95,11 @@ describe('AuthService', () => {
   });
 
   describe('requestOtp', () => {
-    it('generates a 4-digit code, stores its hash, and sends it', async () => {
+    it('generates a 6-digit code, stores its hash, and sends it', async () => {
       const res = await service.requestOtp('+919876543210');
 
       expect(sentOtp).not.toBeNull();
-      expect(sentOtp!.code).toMatch(/^\d{4}$/);
+      expect(sentOtp!.code).toMatch(/^\d{6}$/);
       // Dev mode echoes the code back.
       expect(res.devCode).toBe(sentOtp!.code);
       // Stored value is the hash, never the plaintext.

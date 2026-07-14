@@ -273,7 +273,7 @@ export class TripsService {
       // Don't block the ride on a payment hiccup; capture will retry on complete.
       this.realtime.emitToUser(trip.riderId, 'trip:payment_warning', {
         tripId,
-        message: String(e),
+        message: 'Payment could not be processed',
       }),
     );
     this.realtime.emitToUser(trip.riderId, 'trip:started', { tripId });
@@ -321,7 +321,7 @@ export class TripsService {
     } catch (e) {
       this.realtime.emitToUser(trip.riderId, 'trip:payment_warning', {
         tripId,
-        message: String(e),
+        message: 'Payment could not be processed',
       });
     }
 
@@ -467,7 +467,7 @@ export class TripsService {
       } catch (e) {
         this.realtime.emitToUser(userId, 'trip:payment_warning', {
           tripId,
-          message: String(e),
+          message: 'Payment could not be processed',
         });
       }
     }

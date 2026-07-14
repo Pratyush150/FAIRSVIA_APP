@@ -10,6 +10,16 @@ export class MockSmsProvider implements SmsProvider {
   private readonly logger = new Logger('MockSMS');
 
   async sendOtp(phone: string, code: string): Promise<void> {
-    this.logger.log(`📱  OTP for ${phone} is ${code}  (dev mock — no real SMS sent)`);
+    // Only ever reveal the code outside production (this provider is barred from
+    // production by the config guard, but never print a live OTP just in case a
+    // staging/aggregated log pipeline is watching). Use debug level so default
+    // production log levels wouldn't capture it even if it slipped through.
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.debug(
+        `📱  OTP for ${phone} is ${code}  (dev mock — no real SMS sent)`,
+      );
+    } else {
+      this.logger.log(`OTP dispatched to ${phone} (mock provider)`);
+    }
   }
 }

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Logger as PinoLogger } from 'nestjs-pino';
+import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
@@ -24,10 +25,27 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  // Permissive CORS for local dev (rider/driver/admin apps on various origins).
-  app.enableCors({ origin: true, credentials: true });
+  // Baseline security headers (dependency-free — the app also sits behind nginx
+  // in prod, which adds transport-level headers/HSTS).
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-DNS-Prefetch-Control', 'off');
+    next();
+  });
 
   const config = app.get(ConfigService);
+
+  // CORS: reflect any origin only in dev. In production require an explicit
+  // allow-list (CORS_ORIGINS) so a hostile site can't make credentialed calls.
+  const corsOrigins = config.get<string[]>('corsOrigins') ?? [];
+  const isProd = config.get<string>('nodeEnv') === 'production';
+  app.enableCors({
+    origin: isProd ? (corsOrigins.length > 0 ? corsOrigins : false) : true,
+    credentials: true,
+  });
+
   const port = config.get<number>('port') ?? 3000;
   await app.listen(port, '0.0.0.0');
   Logger.log(`UberNav backend listening on http://0.0.0.0:${port}/api/v1`, 'Bootstrap');

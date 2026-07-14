@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -11,6 +11,12 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import {
+  DriverStatusDto,
+  LocationPingDto,
+  TripIdDto,
+  TripMessageDto,
+} from './dto/ws-messages.dto';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { Server, Socket } from 'socket.io';
 import { RedisService } from '../common/redis/redis.service';
@@ -32,6 +38,10 @@ interface AuthedSocket extends Socket {
  * Redis adapter so any node can emit to any room.
  */
 @WebSocketGateway({ cors: { origin: true } })
+// The global HTTP ValidationPipe does not cover WS payloads, so validate them
+// here. Lenient (strips unknown fields rather than erroring) to stay tolerant of
+// client version drift, but enforces types + geographic/length bounds.
+@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class RealtimeGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
@@ -99,7 +109,7 @@ export class RealtimeGateway
   @SubscribeMessage('driver:location')
   onLocation(
     @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() body: { lat: number; lng: number; heading?: number; speed?: number },
+    @MessageBody() body: LocationPingDto,
   ): void {
     const userId = client.data.userId;
     if (!userId) return;
@@ -109,7 +119,7 @@ export class RealtimeGateway
   @SubscribeMessage('driver:status')
   async onStatus(
     @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() body: { status: 'online' | 'offline' },
+    @MessageBody() body: DriverStatusDto,
   ): Promise<{ status: string } | void> {
     const userId = client.data.userId;
     if (!userId) return;
@@ -119,7 +129,7 @@ export class RealtimeGateway
   @SubscribeMessage('trip:accept')
   async onAccept(
     @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() body: { tripId: string },
+    @MessageBody() body: TripIdDto,
   ): Promise<void> {
     const userId = client.data.userId;
     if (!userId) return;
@@ -129,7 +139,7 @@ export class RealtimeGateway
   @SubscribeMessage('trip:decline')
   async onDecline(
     @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() body: { tripId: string },
+    @MessageBody() body: TripIdDto,
   ): Promise<void> {
     const userId = client.data.userId;
     if (!userId) return;
@@ -139,20 +149,22 @@ export class RealtimeGateway
   @SubscribeMessage('trip:message')
   async onMessage(
     @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() body: { tripId: string; text: string },
+    @MessageBody() body: TripMessageDto,
   ): Promise<void> {
     const userId = client.data.userId;
     if (!userId) return;
     // ChatService validates participation and broadcasts to both parties.
-    await this.chat.postMessage(userId, body.tripId, body.text).catch((e) => {
-      client.emit('trip:message_error', { message: String(e?.message ?? e) });
+    await this.chat.postMessage(userId, body.tripId, body.text).catch(() => {
+      // Never surface the raw error (could leak internals); a generic cue is
+      // enough for the client to show "couldn't send".
+      client.emit('trip:message_error', { message: 'Message could not be sent' });
     });
   }
 
   @SubscribeMessage('trip:sync')
   async onSync(
     @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() body: { tripId: string },
+    @MessageBody() body: TripIdDto,
   ): Promise<void> {
     const userId = client.data.userId;
     if (!userId) return;

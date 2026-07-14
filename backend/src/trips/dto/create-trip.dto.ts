@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -30,18 +31,18 @@ export class CreateTripDto {
   @IsIn(TIER_KEYS)
   tier!: string;
 
-  @IsOptional() @IsString()
+  @IsOptional() @IsString() @MaxLength(200)
   pickupAddr?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional() @IsString() @MaxLength(200)
   dropoffAddr?: string;
 
   // Accepted now but unused until Phase 3 (payments).
-  @IsOptional() @IsString()
+  @IsOptional() @IsString() @MaxLength(128)
   paymentMethodId?: string;
 
   // Optional promo code; applied at creation if valid for this rider/fare.
-  @IsOptional() @IsString()
+  @IsOptional() @IsString() @MaxLength(40)
   promoCode?: string;
 
   // How the rider pays: 'card' (default, auth-hold + capture) or 'cash'

@@ -56,9 +56,11 @@ export class NotificationsService {
     return { ok: true };
   }
 
-  async unregister(token: string) {
+  /** Remove a push token, scoped to its owner so one user can't unregister
+   *  another user's device (push-notification denial of service). */
+  async unregister(userId: string, token: string) {
     await this.prisma.deviceToken
-      .delete({ where: { token } })
+      .deleteMany({ where: { token, userId } })
       .catch(() => undefined);
     return { ok: true };
   }

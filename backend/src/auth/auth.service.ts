@@ -65,7 +65,11 @@ export class AuthService {
 
   /** Step 1: generate + "send" an OTP. Rate-limited per phone. */
   async requestOtp(phone: string): Promise<{ requestId: string; devCode?: string }> {
-    const otpCfg = this.config.get<{ ttlSeconds: number; length: number }>('otp')!;
+    const otpCfg = this.config.get<{
+      ttlSeconds: number;
+      length: number;
+      devEcho: boolean;
+    }>('otp')!;
 
     // Rate limit: at most 5 requests per OTP TTL window per phone.
     const attempts = await this.redis.incrWithTtl(this.otpRateKey(phone), otpCfg.ttlSeconds);
@@ -83,9 +87,9 @@ export class AuthService {
     await this.sms.sendOtp(phone, code);
 
     const requestId = randomUUID();
-    const isDev = this.config.get<string>('nodeEnv') !== 'production';
-    // In dev we echo the code back so you can test without reading logs.
-    return isDev ? { requestId, devCode: code } : { requestId };
+    // Echo the code back only when explicitly allowed (mock provider + non-prod)
+    // so tests can log in without reading logs; never in production.
+    return otpCfg.devEcho ? { requestId, devCode: code } : { requestId };
   }
 
   private generateNumericCode(length: number): string {
