@@ -6,6 +6,7 @@ enum TripPhase {
   loadingEstimate, // fetching route + fares
   choosingRide, // tier selection sheet
   requesting, // creating the trip
+  scheduled, // a future ride was booked (not dispatched yet)
   searching, // trip created (REQUESTED/MATCHING) — finding a driver
   driverEnRoute, // matched; driver heading to pickup
   driverArrived, // driver at pickup
@@ -35,6 +36,7 @@ class TripState extends Equatable {
     this.applyingPromo = false,
     this.promoError,
     this.paymentMode = 'card',
+    this.scheduledAt,
     this.error,
   });
 
@@ -65,6 +67,9 @@ class TripState extends Equatable {
 
   /// Rider's chosen payment mode for the next ride: `card` or `cash`.
   final String paymentMode;
+
+  /// A future time to schedule the ride for; null means ride now.
+  final DateTime? scheduledAt;
   final String? error;
 
   FareTier? get selectedFare {
@@ -108,6 +113,7 @@ class TripState extends Equatable {
     bool? applyingPromo,
     Object? promoError = _s,
     String? paymentMode,
+    Object? scheduledAt = _s,
     Object? error = _s,
   }) {
     return TripState(
@@ -136,6 +142,8 @@ class TripState extends Equatable {
       applyingPromo: applyingPromo ?? this.applyingPromo,
       promoError: promoError == _s ? this.promoError : promoError as String?,
       paymentMode: paymentMode ?? this.paymentMode,
+      scheduledAt:
+          scheduledAt == _s ? this.scheduledAt : scheduledAt as DateTime?,
       error: error == _s ? this.error : error as String?,
     );
   }
@@ -161,6 +169,7 @@ class TripState extends Equatable {
         applyingPromo,
         promoError,
         paymentMode,
+        scheduledAt,
         error,
       ];
 }

@@ -16,6 +16,11 @@ import { CURRENCY } from '../pricing/fare-config';
 import { PricingService } from '../pricing/pricing.service';
 import { SurgeService } from '../surge/surge.service';
 import { PromoService } from '../promo/promo.service';
+import {
+  MAX_LEAD_MS,
+  MIN_LEAD_MS,
+  ScheduledService,
+} from '../scheduled/scheduled.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -25,6 +30,7 @@ import { EstimateDto } from './dto/estimate.dto';
 import { TripStateMachine } from './trip-state-machine';
 
 const CANCELLABLE: TripStatus[] = [
+  TripStatus.scheduled,
   TripStatus.requested,
   TripStatus.matching,
   TripStatus.accepted,
@@ -38,6 +44,7 @@ export class TripsService {
     private readonly pricing: PricingService,
     private readonly surge: SurgeService,
     private readonly promo: PromoService,
+    private readonly scheduled: ScheduledService,
     private readonly stateMachine: TripStateMachine,
     private readonly redis: RedisService,
     private readonly realtime: RealtimeService,
@@ -66,8 +73,13 @@ export class TripsService {
     };
   }
 
-  /** Create a trip in REQUESTED. Dispatch/matching arrives in Phase 2. */
+  /**
+   * Create a trip. Normally lands in REQUESTED and dispatches immediately; when
+   * `scheduledAt` is set (and far enough ahead), it lands in SCHEDULED and a
+   * delayed job promotes it to a live request at the scheduled time.
+   */
   async createTrip(riderId: string, dto: CreateTripDto) {
+    const scheduledAt = this.parseSchedule(dto.scheduledAt);
     const pickup: LatLng = { lat: dto.pickupLat, lng: dto.pickupLng };
     const dropoff: LatLng = { lat: dto.dropoffLat, lng: dto.dropoffLng };
     const route = await this.geo.route(pickup, dropoff);
@@ -79,10 +91,14 @@ export class TripsService {
       surge,
     );
 
+    const initialStatus = scheduledAt
+      ? TripStatus.scheduled
+      : TripStatus.requested;
+
     let trip = await this.prisma.trip.create({
       data: {
         riderId,
-        status: TripStatus.requested,
+        status: initialStatus,
         tier: dto.tier as RideTier,
         pickupAddr: dto.pickupAddr,
         pickupLat: dto.pickupLat,
@@ -98,6 +114,7 @@ export class TripsService {
         currency: CURRENCY,
         startOtp: this.generateOtp(),
         paymentMode: dto.paymentMode ?? 'card',
+        scheduledAt,
       },
     });
 
@@ -124,20 +141,26 @@ export class TripsService {
       }
     }
 
-    // This request now contributes to local demand (raising surge for the next
-    // riders in the same area until it decays).
-    await this.surge.recordDemand(dto.pickupLat, dto.pickupLng);
-
-    // Initial audit event (creation: null -> requested).
+    // Initial audit event (creation: null -> scheduled|requested).
     await this.prisma.tripEvent.create({
       data: {
         tripId: trip.id,
         fromStatus: null,
-        toStatus: TripStatus.requested,
+        toStatus: initialStatus,
         actor: 'rider',
-        meta: { tier: dto.tier },
+        meta: { tier: dto.tier, scheduledAt: scheduledAt?.toISOString() ?? null },
       },
     });
+
+    if (scheduledAt) {
+      // Defer matching until the scheduled time; demand is recorded then, not now.
+      await this.scheduled.enqueue(trip.id, scheduledAt);
+      return this.serialize(trip);
+    }
+
+    // This request now contributes to local demand (raising surge for the next
+    // riders in the same area until it decays).
+    await this.surge.recordDemand(dto.pickupLat, dto.pickupLng);
 
     // Kick off matching without blocking the response (rider sees REQUESTED,
     // then MATCHING/ACCEPTED arrive over the socket).
@@ -146,6 +169,27 @@ export class TripsService {
       .catch(() => undefined);
 
     return this.serialize(trip);
+  }
+
+  /**
+   * Validates and parses a requested schedule time. Returns null for an
+   * on-demand ride, or throws if the time is too soon or too far ahead.
+   */
+  private parseSchedule(iso?: string): Date | null {
+    if (!iso) return null;
+    const when = new Date(iso);
+    const lead = when.getTime() - Date.now();
+    if (!Number.isFinite(when.getTime()) || lead < MIN_LEAD_MS) {
+      throw new BadRequestException(
+        'Scheduled rides must be at least 5 minutes ahead.',
+      );
+    }
+    if (lead > MAX_LEAD_MS) {
+      throw new BadRequestException(
+        'Rides can be scheduled up to 30 days ahead.',
+      );
+    }
+    return when;
   }
 
   // --- Driver-side lifecycle (Phase 2) ---
@@ -402,6 +446,15 @@ export class TripsService {
     return trips.map((t) => this.serialize(t, userId));
   }
 
+  /** The rider's upcoming scheduled rides, soonest first. */
+  async listScheduled(userId: string) {
+    const trips = await this.prisma.trip.findMany({
+      where: { riderId: userId, status: TripStatus.scheduled },
+      orderBy: { scheduledAt: 'asc' },
+    });
+    return trips.map((t) => this.serialize(t, userId));
+  }
+
   private generateOtp(): string {
     return Array.from({ length: 4 }, () => randomInt(0, 10)).join('');
   }
@@ -426,6 +479,7 @@ export class TripsService {
       promoCode: t.promoCode,
       promoDiscount: Number(t.promoDiscount),
       paymentMode: t.paymentMode,
+      scheduledAt: t.scheduledAt,
       surgeMultiplier: Number(t.surgeMultiplier),
       currency: t.currency,
       startOtp: showOtp ? t.startOtp : null,

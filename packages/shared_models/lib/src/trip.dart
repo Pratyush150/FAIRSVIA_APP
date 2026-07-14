@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 import 'geo_point.dart';
 
 enum TripStatus {
+  scheduled,
   requested,
   matching,
   accepted,
@@ -17,6 +18,8 @@ enum TripStatus {
 
   static TripStatus fromString(String? value) {
     switch (value) {
+      case 'scheduled':
+        return TripStatus.scheduled;
       case 'requested':
         return TripStatus.requested;
       case 'matching':
@@ -87,6 +90,7 @@ class Trip extends Equatable {
     this.promoCode,
     this.promoDiscount = 0,
     this.paymentMode = 'card',
+    this.scheduledAt,
     this.requestedAt,
     this.completedAt,
   });
@@ -113,6 +117,9 @@ class Trip extends Equatable {
   /// How the rider pays: `card` or `cash`.
   final String paymentMode;
 
+  /// When a scheduled ride is set to begin (null for on-demand rides).
+  final DateTime? scheduledAt;
+
   /// When the trip was requested (present on history responses).
   final DateTime? requestedAt;
 
@@ -138,6 +145,7 @@ class Trip extends Equatable {
         promoCode: json['promoCode'] as String?,
         promoDiscount: (json['promoDiscount'] as num?)?.toDouble() ?? 0,
         paymentMode: json['paymentMode'] as String? ?? 'card',
+        scheduledAt: _parseDate(json['scheduledAt']),
         requestedAt: _parseDate(json['requestedAt']),
         completedAt: _parseDate(json['completedAt']),
       );
@@ -162,6 +170,7 @@ class Trip extends Equatable {
         promoCode,
         promoDiscount,
         paymentMode,
+        scheduledAt,
         requestedAt,
         completedAt,
       ];

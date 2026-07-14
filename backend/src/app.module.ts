@@ -25,6 +25,7 @@ import { ChatModule } from './chat/chat.module';
 import { SafetyModule } from './safety/safety.module';
 import { SurgeModule } from './surge/surge.module';
 import { PromoModule } from './promo/promo.module';
+import { ScheduledModule } from './scheduled/scheduled.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -57,6 +58,7 @@ import { HealthController } from './health/health.controller';
     SafetyModule,
     SurgeModule,
     PromoModule,
+    ScheduledModule,
   ],
   controllers: [HealthController],
 })

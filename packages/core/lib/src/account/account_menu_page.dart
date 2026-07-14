@@ -13,6 +13,7 @@ import 'driver_earnings_page.dart';
 import 'payment_methods_page.dart';
 import 'profile_edit_page.dart';
 import 'saved_places_page.dart';
+import 'scheduled_rides_page.dart';
 import 'trip_history_page.dart';
 import 'users_remote_data_source.dart';
 
@@ -82,6 +83,13 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                   DriverEarningsPage(driver: sl<DriverRemoteDataSource>())),
             ),
           if (!widget.isDriver) ...[
+            _tile(
+              icon: Icons.schedule,
+              title: 'Scheduled rides',
+              onTap: () => _open(ScheduledRidesPage(
+                trips: sl<TripRemoteDataSource>(),
+              )),
+            ),
             _tile(
               icon: Icons.star_border,
               title: 'Saved places',

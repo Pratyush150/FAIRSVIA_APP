@@ -1,0 +1,80 @@
+import 'package:design_system/design_system.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_models/shared_models.dart';
+
+import '../network/api_exception.dart';
+import '../trip/trip_remote_data_source.dart';
+import 'format.dart';
+import 'widgets/async_content.dart';
+
+/// The rider's upcoming scheduled rides (`GET /trips/scheduled`). Each can be
+/// cancelled before its time; the list reloads after a cancellation.
+class ScheduledRidesPage extends StatefulWidget {
+  const ScheduledRidesPage({super.key, required this.trips});
+
+  final TripRemoteDataSource trips;
+
+  @override
+  State<ScheduledRidesPage> createState() => _ScheduledRidesPageState();
+}
+
+class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
+  // Bump to force AsyncContent to reload after a cancellation.
+  int _reloadKey = 0;
+
+  Future<void> _cancel(BuildContext context, Trip trip) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.trips.cancel(trip.id, reason: 'Cancelled by rider');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Scheduled ride cancelled')),
+      );
+      if (mounted) setState(() => _reloadKey++);
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Scheduled rides')),
+      body: AsyncContent<List<Trip>>(
+        key: ValueKey(_reloadKey),
+        load: widget.trips.scheduled,
+        isEmpty: (list) => list.isEmpty,
+        emptyIcon: Icons.event_available_outlined,
+        emptyTitle: 'No scheduled rides',
+        emptyMessage: 'Rides you book for later will appear here.',
+        builder: (context, list, _) => ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          itemCount: list.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, i) {
+            final trip = list[i];
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: AppColors.accent.withValues(alpha: 0.15),
+                child: const Icon(Icons.schedule, color: AppColors.accent),
+              ),
+              title: Text(
+                trip.dropoff.address ?? 'Destination',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                trip.scheduledAt != null
+                    ? Fmt.dateTime(trip.scheduledAt!)
+                    : 'Scheduled',
+              ),
+              trailing: TextButton(
+                onPressed: () => _cancel(context, trip),
+                child: const Text('Cancel'),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}

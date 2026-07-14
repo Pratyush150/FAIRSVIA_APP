@@ -205,6 +205,10 @@ class TripCubit extends Cubit<TripState> {
   void setPaymentMode(String mode) =>
       emit(state.copyWith(paymentMode: mode));
 
+  /// Set (or clear, with null) the future time to schedule the ride for.
+  void setScheduledAt(DateTime? when) =>
+      emit(state.copyWith(scheduledAt: when));
+
   Future<void> confirmRide() async {
     final s = state;
     if (s.pickup == null || s.dropoff == null || s.selectedTier == null) return;
@@ -218,7 +222,14 @@ class TripCubit extends Cubit<TripState> {
         dropoffAddr: s.dropoffAddr,
         promoCode: s.appliedPromo?.code,
         paymentMode: s.paymentMode,
+        scheduledAt: s.scheduledAt,
       );
+      // A scheduled ride isn't dispatched now — confirm it and return to idle
+      // (it will surface again from the scheduled-rides list at its time).
+      if (trip.status == TripStatus.scheduled) {
+        emit(state.copyWith(phase: TripPhase.scheduled, trip: trip));
+        return;
+      }
       emit(state.copyWith(phase: TripPhase.searching, trip: trip));
     } on ApiException catch (e) {
       emit(state.copyWith(phase: TripPhase.choosingRide, error: e.message));

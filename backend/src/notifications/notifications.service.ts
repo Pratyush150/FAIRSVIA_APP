@@ -20,7 +20,8 @@ export type TripNotificationKind =
   | 'started'
   | 'completed'
   | 'cancelled'
-  | 'no_drivers';
+  | 'no_drivers'
+  | 'scheduled_started';
 
 const TRIP_COPY: Record<TripNotificationKind, PushMessage> = {
   accepted: { title: 'Driver on the way', body: 'Your driver is heading to the pickup.' },
@@ -29,6 +30,10 @@ const TRIP_COPY: Record<TripNotificationKind, PushMessage> = {
   completed: { title: 'Trip completed', body: 'Thanks for riding. Rate your driver.' },
   cancelled: { title: 'Trip cancelled', body: 'This trip was cancelled.' },
   no_drivers: { title: 'No drivers available', body: 'We couldn’t find a driver nearby.' },
+  scheduled_started: {
+    title: 'Finding your driver',
+    body: 'Your scheduled ride is now being matched.',
+  },
 };
 
 @Injectable()

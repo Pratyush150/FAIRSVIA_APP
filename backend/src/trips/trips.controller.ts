@@ -43,6 +43,12 @@ export class TripsController {
     return this.trips.history(user.userId);
   }
 
+  // Must precede the `:id` route so "scheduled" isn't parsed as a trip id.
+  @Get('scheduled')
+  scheduled(@CurrentUser() user: AuthUser) {
+    return this.trips.listScheduled(user.userId);
+  }
+
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.trips.getTrip(user.userId, id);

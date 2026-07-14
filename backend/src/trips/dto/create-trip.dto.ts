@@ -1,5 +1,6 @@
 import {
   IsIn,
+  IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
@@ -42,4 +43,9 @@ export class CreateTripDto {
   // (collected in person on completion).
   @IsOptional() @IsIn(['card', 'cash'])
   paymentMode?: 'card' | 'cash';
+
+  // ISO-8601 time to schedule the ride for. When set (and far enough ahead),
+  // the trip is created as `scheduled` and promoted to a live request then.
+  @IsOptional() @IsISO8601()
+  scheduledAt?: string;
 }

@@ -28,6 +28,7 @@ class TripRepository {
     String? dropoffAddr,
     String? promoCode,
     String? paymentMode,
+    DateTime? scheduledAt,
   }) =>
       _trips.create(
         pickup: pickup,
@@ -37,7 +38,11 @@ class TripRepository {
         dropoffAddr: dropoffAddr,
         promoCode: promoCode,
         paymentMode: paymentMode,
+        scheduledAt: scheduledAt,
       );
+
+  /// The rider's upcoming scheduled rides.
+  Future<List<Trip>> scheduled() => _trips.scheduled();
 
   /// Prices a promo code against a fare subtotal (rejection reason on failure).
   Future<PromoQuote> quotePromo(String code, num subtotal) =>

@@ -28,6 +28,7 @@ export 'src/account/trip_history_page.dart';
 export 'src/account/receipt_page.dart';
 export 'src/account/profile_edit_page.dart';
 export 'src/account/saved_places_page.dart';
+export 'src/account/scheduled_rides_page.dart';
 export 'src/account/payment_methods_page.dart';
 export 'src/account/driver_earnings_page.dart';
 // In-trip chat.

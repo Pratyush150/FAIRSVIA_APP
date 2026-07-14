@@ -202,6 +202,7 @@ class _BottomSheetForPhase extends StatelessWidget {
       TripPhase.choosingRide => _RideOptions(state: state),
       TripPhase.requesting =>
         const _InfoCard(child: _Busy(label: 'Requesting your ride…')),
+      TripPhase.scheduled => _ScheduledConfirmation(state: state),
       TripPhase.searching => _FindingDriver(state: state),
       TripPhase.driverEnRoute => _DriverInfoSheet(state: state, arrived: false),
       TripPhase.driverArrived => _DriverInfoSheet(state: state, arrived: true),
@@ -331,6 +332,8 @@ class _RideOptions extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         _PaymentModeToggle(state: state),
         const SizedBox(height: AppSpacing.sm),
+        _ScheduleRow(state: state),
+        const SizedBox(height: AppSpacing.sm),
         _PromoField(state: state),
         const SizedBox(height: AppSpacing.md),
         PrimaryButton(
@@ -351,10 +354,137 @@ String _confirmLabel(TripState state) {
   final fare = state.selectedFare;
   if (fare == null) return 'Confirm';
   final net = state.discountedFare ?? fare.fare;
-  if (state.appliedPromo != null && net != fare.fare) {
-    return 'Confirm ${fare.label} · ₹${net.toStringAsFixed(0)}';
+  final amount = (state.appliedPromo != null && net != fare.fare)
+      ? net
+      : fare.fare;
+  final verb = state.scheduledAt != null ? 'Schedule' : 'Confirm';
+  return '$verb ${fare.label} · ₹${amount.toStringAsFixed(0)}';
+}
+
+String _formatSchedule(DateTime when) {
+  final local = when.toLocal();
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final ampm = local.hour < 12 ? 'AM' : 'PM';
+  final min = local.minute.toString().padLeft(2, '0');
+  return '${months[local.month - 1]} ${local.day}, $h:$min $ampm';
+}
+
+/// "Ride now" vs "Schedule for …" row with a date/time picker.
+class _ScheduleRow extends StatelessWidget {
+  const _ScheduleRow({required this.state});
+  final TripState state;
+
+  Future<void> _pick(BuildContext context) async {
+    final cubit = context.read<TripCubit>();
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 30)),
+      initialDate: now.add(const Duration(hours: 1)),
+    );
+    if (date == null || !context.mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+    );
+    if (time == null) return;
+    final when = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    // Must be at least 5 minutes ahead (backend rule).
+    if (when.isBefore(now.add(const Duration(minutes: 5)))) {
+      cubit.setScheduledAt(now.add(const Duration(minutes: 5)));
+    } else {
+      cubit.setScheduledAt(when);
+    }
   }
-  return 'Confirm ${fare.label} · ₹${fare.fare.toStringAsFixed(0)}';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cubit = context.read<TripCubit>();
+    final when = state.scheduledAt;
+    return InkWell(
+      onTap: () => _pick(context),
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          border: Border.all(color: theme.dividerColor),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.schedule, size: 18),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                when == null ? 'Ride now' : 'For ${_formatSchedule(when)}',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+            if (when != null)
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Ride now instead',
+                onPressed: () => cubit.setScheduledAt(null),
+              )
+            else
+              Text('Schedule',
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(color: AppColors.accent)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown after a future ride is booked.
+class _ScheduledConfirmation extends StatelessWidget {
+  const _ScheduledConfirmation({required this.state});
+  final TripState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cubit = context.read<TripCubit>();
+    final when = state.trip?.scheduledAt ?? state.scheduledAt;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Icon(Icons.event_available, color: AppColors.accent, size: 48),
+        const SizedBox(height: AppSpacing.sm),
+        Center(
+          child: Text('Ride scheduled', style: theme.textTheme.headlineSmall),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (when != null)
+          Center(
+            child: Text(
+              'We’ll find you a driver around\n${_formatSchedule(when)}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        const SizedBox(height: AppSpacing.lg),
+        PrimaryButton(label: 'Done', onPressed: () => cubit.reset()),
+      ],
+    );
+  }
 }
 
 /// Card / Cash selector for the ride-options sheet.

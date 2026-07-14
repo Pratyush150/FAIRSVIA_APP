@@ -33,6 +33,7 @@ class TripRemoteDataSource {
     String? dropoffAddr,
     String? promoCode,
     String? paymentMode,
+    DateTime? scheduledAt,
   }) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
@@ -47,6 +48,7 @@ class TripRemoteDataSource {
           'dropoffAddr': ?dropoffAddr,
           'promoCode': ?promoCode,
           'paymentMode': ?paymentMode,
+          'scheduledAt': ?scheduledAt?.toUtc().toIso8601String(),
         },
       );
       return Trip.fromJson(res.data!);
@@ -64,6 +66,19 @@ class TripRemoteDataSource {
         data: {'code': code, 'subtotal': subtotal},
       );
       return PromoQuote.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// The rider's upcoming scheduled rides, soonest first.
+  Future<List<Trip>> scheduled() async {
+    try {
+      final res = await _dio.get<List<dynamic>>('/trips/scheduled');
+      return (res.data ?? const [])
+          .cast<Map<String, dynamic>>()
+          .map(Trip.fromJson)
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }

@@ -167,6 +167,57 @@ describe('UberNav API (e2e)', () => {
       .expect(400);
   });
 
+  it('schedules a ride for later, lists it, and cancels it', async () => {
+    const when = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // +1h
+    const created = await request(server)
+      .post('/api/v1/trips')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        pickupLat: 28.6139,
+        pickupLng: 77.209,
+        dropoffLat: 28.62,
+        dropoffLng: 77.22,
+        tier: 'economy',
+        scheduledAt: when,
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.status).toBe('scheduled');
+    expect(created.body.scheduledAt).toBeTruthy();
+    const scheduledId = created.body.id;
+
+    // It shows up in the rider's scheduled list.
+    const list = await request(server)
+      .get('/api/v1/trips/scheduled')
+      .set('Authorization', `Bearer ${token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.some((t: { id: string }) => t.id === scheduledId)).toBe(
+      true,
+    );
+
+    // A ride too soon (< 5 min lead) is rejected.
+    await request(server)
+      .post('/api/v1/trips')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        pickupLat: 28.6139,
+        pickupLng: 77.209,
+        dropoffLat: 28.62,
+        dropoffLng: 77.22,
+        tier: 'economy',
+        scheduledAt: new Date(Date.now() + 60 * 1000).toISOString(),
+      })
+      .expect(400);
+
+    // A scheduled ride can be cancelled with no fee (no driver committed).
+    const cancelled = await request(server)
+      .post(`/api/v1/trips/${scheduledId}/cancel`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ reason: 'e2e schedule' });
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body.status).toBe('cancelled');
+    expect(cancelled.body.fee).toBe(0);
+  });
+
   it('rejects an invalid tier', async () => {
     await request(server)
       .post('/api/v1/trips')
@@ -613,17 +664,28 @@ describe('UberNav API (e2e)', () => {
     });
 
     it('surge: admin override raises the fare estimate, then clears', async () => {
-      // Baseline estimate (organic surge is 1 with no local demand/drivers).
+      // A pristine cell (Chennai) that no other test sends trips to, so organic
+      // surge stays 1 and the admin override floor is the only multiplier —
+      // isolating this assertion from cross-test/cross-run Redis demand.
+      const chennai = {
+        pickupLat: 13.0827,
+        pickupLng: 80.2707,
+        dropoffLat: 13.11,
+        dropoffLng: 80.29,
+      };
+      // Self-heal: clear any override left by a prior failed run so the baseline
+      // is truly organic (surge 1) before we measure the override's effect.
+      await request(server)
+        .patch('/api/v1/admin/surge')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ multiplier: 1 })
+        .expect(200);
       const base = await request(server)
         .post('/api/v1/trips/estimate')
         .set('Authorization', `Bearer ${token}`)
-        .send({
-          pickupLat: 19.076,
-          pickupLng: 72.8777,
-          dropoffLat: 19.2,
-          dropoffLng: 72.9,
-        });
+        .send(chennai);
       const baseFare = base.body.tiers[0].fare;
+      expect(base.body.surge).toBe(1);
 
       // Admin forces a 1.5x surge floor.
       const set = await request(server)
@@ -636,12 +698,7 @@ describe('UberNav API (e2e)', () => {
       const surged = await request(server)
         .post('/api/v1/trips/estimate')
         .set('Authorization', `Bearer ${token}`)
-        .send({
-          pickupLat: 19.076,
-          pickupLng: 72.8777,
-          dropoffLat: 19.2,
-          dropoffLng: 72.9,
-        });
+        .send(chennai);
       expect(surged.body.surge).toBe(1.5);
       expect(surged.body.tiers[0].fare).toBeGreaterThan(baseFare);
 

@@ -77,6 +77,7 @@ model DriverProfile {
 }
 
 enum TripStatus {
+  scheduled
   requested
   matching
   accepted
@@ -128,6 +129,7 @@ model Trip {
   cancelReason    String?    @map("cancel_reason")
   cancelledBy     String?    @map("cancelled_by") @db.VarChar(10)
 
+  scheduledAt     DateTime?  @map("scheduled_at") @db.Timestamptz(6)
   requestedAt     DateTime   @default(now()) @map("requested_at") @db.Timestamptz(6)
   acceptedAt      DateTime?  @map("accepted_at") @db.Timestamptz(6)
   arrivedAt       DateTime?  @map("arrived_at") @db.Timestamptz(6)

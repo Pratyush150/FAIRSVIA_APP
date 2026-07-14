@@ -7,6 +7,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
  * idempotent, optimistic-concurrency update guarded by the current status.
  */
 export const ALLOWED_TRANSITIONS: Record<TripStatus, TripStatus[]> = {
+  scheduled: [TripStatus.requested, TripStatus.cancelled, TripStatus.expired],
   requested: [TripStatus.matching, TripStatus.cancelled, TripStatus.expired],
   matching: [TripStatus.accepted, TripStatus.no_drivers, TripStatus.cancelled],
   accepted: [TripStatus.arrived, TripStatus.cancelled],
