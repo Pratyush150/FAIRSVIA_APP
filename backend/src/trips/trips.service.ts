@@ -14,6 +14,7 @@ import { RedisKeys } from '../common/redis/redis.keys';
 import { GEO_PROVIDER, GeoProvider, LatLng } from '../geo/geo-provider.interface';
 import { CURRENCY } from '../pricing/fare-config';
 import { PricingService } from '../pricing/pricing.service';
+import { SurgeService } from '../surge/surge.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -34,6 +35,7 @@ export class TripsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
+    private readonly surge: SurgeService,
     private readonly stateMachine: TripStateMachine,
     private readonly redis: RedisService,
     private readonly realtime: RealtimeService,
@@ -49,7 +51,7 @@ export class TripsService {
     const pickup: LatLng = { lat: dto.pickupLat, lng: dto.pickupLng };
     const dropoff: LatLng = { lat: dto.dropoffLat, lng: dto.dropoffLng };
     const route = await this.geo.route(pickup, dropoff);
-    const surge = 1;
+    const surge = await this.surge.multiplierFor(pickup.lat, pickup.lng);
     return {
       distanceM: route.distanceM,
       durationS: route.durationS,
@@ -67,11 +69,12 @@ export class TripsService {
     const pickup: LatLng = { lat: dto.pickupLat, lng: dto.pickupLng };
     const dropoff: LatLng = { lat: dto.dropoffLat, lng: dto.dropoffLng };
     const route = await this.geo.route(pickup, dropoff);
+    const surge = await this.surge.multiplierFor(pickup.lat, pickup.lng);
     const est = this.pricing.estimateForTier(
       dto.tier,
       route.distanceM,
       route.durationS,
-      1,
+      surge,
     );
 
     const trip = await this.prisma.trip.create({
@@ -89,11 +92,15 @@ export class TripsService {
         distanceM: route.distanceM,
         durationS: route.durationS,
         fareEstimate: est.fare,
-        surgeMultiplier: 1,
+        surgeMultiplier: surge,
         currency: CURRENCY,
         startOtp: this.generateOtp(),
       },
     });
+
+    // This request now contributes to local demand (raising surge for the next
+    // riders in the same area until it decays).
+    await this.surge.recordDemand(dto.pickupLat, dto.pickupLng);
 
     // Initial audit event (creation: null -> requested).
     await this.prisma.tripEvent.create({

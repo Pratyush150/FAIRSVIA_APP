@@ -554,6 +554,54 @@ describe('UberNav API (e2e)', () => {
         .expect(200);
     });
 
+    it('surge: admin override raises the fare estimate, then clears', async () => {
+      // Baseline estimate (organic surge is 1 with no local demand/drivers).
+      const base = await request(server)
+        .post('/api/v1/trips/estimate')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          pickupLat: 19.076,
+          pickupLng: 72.8777,
+          dropoffLat: 19.2,
+          dropoffLng: 72.9,
+        });
+      const baseFare = base.body.tiers[0].fare;
+
+      // Admin forces a 1.5x surge floor.
+      const set = await request(server)
+        .patch('/api/v1/admin/surge')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ multiplier: 1.5 });
+      expect(set.status).toBe(200);
+      expect(set.body.override).toBe(1.5);
+
+      const surged = await request(server)
+        .post('/api/v1/trips/estimate')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          pickupLat: 19.076,
+          pickupLng: 72.8777,
+          dropoffLat: 19.2,
+          dropoffLng: 72.9,
+        });
+      expect(surged.body.surge).toBe(1.5);
+      expect(surged.body.tiers[0].fare).toBeGreaterThan(baseFare);
+
+      // Snapshot is visible to admins.
+      const snap = await request(server)
+        .get('/api/v1/admin/surge')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(snap.status).toBe(200);
+      expect(snap.body.override).toBe(1.5);
+
+      // Clear the override so other tests / runs see organic surge.
+      await request(server)
+        .patch('/api/v1/admin/surge')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ multiplier: 1 })
+        .expect(200);
+    });
+
     it('lists recent SOS alerts for admins', async () => {
       const res = await request(server)
         .get('/api/v1/admin/safety')
