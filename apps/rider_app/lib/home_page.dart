@@ -512,9 +512,23 @@ class _DriverInfoSheet extends StatelessWidget {
           ),
         ],
         const SizedBox(height: AppSpacing.md),
-        OutlinedButton(
-          onPressed: () => context.read<TripCubit>().cancelTrip(),
-          child: const Text('Cancel ride'),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _openTripChat(context, state),
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text('Message'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => context.read<TripCubit>().cancelTrip(),
+                child: const Text('Cancel ride'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -540,6 +554,11 @@ class _OnTripSheet extends StatelessWidget {
               child: Text('On the way to your destination',
                   style: theme.textTheme.titleMedium),
             ),
+            IconButton(
+              tooltip: 'Message driver',
+              icon: const Icon(Icons.chat_bubble_outline),
+              onPressed: () => _openTripChat(context, state),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -547,6 +566,24 @@ class _OnTripSheet extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Opens the in-trip chat with the assigned driver.
+void _openTripChat(BuildContext context, TripState state) {
+  final tripId = state.trip?.id;
+  final userId = context.read<AuthBloc>().state.user?.id;
+  if (tripId == null || userId == null) return;
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => ChatPage(
+        tripId: tripId,
+        currentUserId: userId,
+        title: state.driver?.name ?? 'Driver',
+        chat: sl<ChatRemoteDataSource>(),
+        realtime: sl<RealtimeClient>(),
+      ),
+    ),
+  );
 }
 
 class _CompletedSheet extends StatelessWidget {

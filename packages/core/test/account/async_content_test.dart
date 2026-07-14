@@ -13,7 +13,7 @@ void main() {
   testWidgets('shows a spinner while the future is pending', (tester) async {
     await tester.pumpWidget(_host(AsyncContent<int>(
       load: () => Future.delayed(const Duration(seconds: 1), () => 1),
-      builder: (_, __, ___) => const Text('done'),
+      builder: (_, _, _) => const Text('done'),
     )));
     await tester.pump(); // let the FutureBuilder subscribe
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -24,7 +24,7 @@ void main() {
   testWidgets('renders builder content once loaded', (tester) async {
     await tester.pumpWidget(_host(AsyncContent<String>(
       load: () async => 'hello',
-      builder: (_, data, __) => ListView(children: [Text(data)]),
+      builder: (_, data, _) => ListView(children: [Text(data)]),
     )));
     await tester.pumpAndSettle();
     expect(find.text('hello'), findsOneWidget);
@@ -35,7 +35,7 @@ void main() {
       load: () async => <int>[],
       isEmpty: (l) => l.isEmpty,
       emptyTitle: 'Nothing yet',
-      builder: (_, __, ___) => const Text('should not show'),
+      builder: (_, _, _) => const Text('should not show'),
     )));
     await tester.pumpAndSettle();
     expect(find.text('Nothing yet'), findsOneWidget);
@@ -52,7 +52,7 @@ void main() {
         }
         return 'recovered';
       },
-      builder: (_, data, __) => ListView(children: [Text(data)]),
+      builder: (_, data, _) => ListView(children: [Text(data)]),
     )));
     await tester.pumpAndSettle();
 

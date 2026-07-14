@@ -240,9 +240,14 @@ class _BottomSheet extends StatelessWidget {
           actionLabel: 'Arrived',
           busy: state.busy,
           onAction: () => cubit.markArrived(),
+          tripId: state.trip?.id,
         );
       case DriverPhase.arrived:
-        child = _StartTripSheet(cubit: cubit, busy: state.busy);
+        child = _StartTripSheet(
+          cubit: cubit,
+          busy: state.busy,
+          tripId: state.trip?.id,
+        );
       case DriverPhase.onTrip:
         child = _LifecycleSheet(
           title: 'On trip',
@@ -250,6 +255,7 @@ class _BottomSheet extends StatelessWidget {
           actionLabel: 'Complete trip',
           busy: state.busy,
           onAction: () => cubit.completeTrip(),
+          tripId: state.trip?.id,
         );
       case DriverPhase.completed:
         child = _CompletedSheet(state: state, cubit: cubit);
@@ -320,6 +326,7 @@ class _LifecycleSheet extends StatelessWidget {
     required this.actionLabel,
     required this.onAction,
     required this.busy,
+    this.tripId,
   });
 
   final String title;
@@ -327,6 +334,7 @@ class _LifecycleSheet extends StatelessWidget {
   final String actionLabel;
   final VoidCallback onAction;
   final bool busy;
+  final String? tripId;
 
   @override
   Widget build(BuildContext context) {
@@ -335,7 +343,19 @@ class _LifecycleSheet extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(title, style: theme.textTheme.headlineSmall),
+        Row(
+          children: [
+            Expanded(
+              child: Text(title, style: theme.textTheme.headlineSmall),
+            ),
+            if (tripId != null)
+              IconButton(
+                tooltip: 'Message rider',
+                icon: const Icon(Icons.chat_bubble_outline),
+                onPressed: () => openDriverChat(context, tripId!),
+              ),
+          ],
+        ),
         const SizedBox(height: AppSpacing.xs),
         Text(subtitle, style: theme.textTheme.bodyMedium),
         const SizedBox(height: AppSpacing.md),
@@ -349,10 +369,28 @@ class _LifecycleSheet extends StatelessWidget {
   }
 }
 
+/// Opens the in-trip chat with the rider.
+void openDriverChat(BuildContext context, String tripId) {
+  final userId = context.read<AuthBloc>().state.user?.id;
+  if (userId == null) return;
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => ChatPage(
+        tripId: tripId,
+        currentUserId: userId,
+        title: 'Rider',
+        chat: sl<ChatRemoteDataSource>(),
+        realtime: sl<RealtimeClient>(),
+      ),
+    ),
+  );
+}
+
 class _StartTripSheet extends StatefulWidget {
-  const _StartTripSheet({required this.cubit, required this.busy});
+  const _StartTripSheet({required this.cubit, required this.busy, this.tripId});
   final DriverCubit cubit;
   final bool busy;
+  final String? tripId;
 
   @override
   State<_StartTripSheet> createState() => _StartTripSheetState();
@@ -368,7 +406,19 @@ class _StartTripSheetState extends State<_StartTripSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Confirm rider', style: theme.textTheme.headlineSmall),
+        Row(
+          children: [
+            Expanded(
+              child: Text('Confirm rider', style: theme.textTheme.headlineSmall),
+            ),
+            if (widget.tripId != null)
+              IconButton(
+                tooltip: 'Message rider',
+                icon: const Icon(Icons.chat_bubble_outline),
+                onPressed: () => openDriverChat(context, widget.tripId!),
+              ),
+          ],
+        ),
         const SizedBox(height: AppSpacing.xs),
         Text('Ask the rider for their 4-digit start code',
             style: theme.textTheme.bodyMedium),

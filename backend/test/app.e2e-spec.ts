@@ -323,6 +323,45 @@ describe('UberNav API (e2e)', () => {
     expect(res.body.ok).toBe(true);
   });
 
+  it('in-trip chat: send, list, reject empty + non-participants', async () => {
+    const send = await request(server)
+      .post(`/api/v1/trips/${tripId}/messages`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ text: 'On my way!' });
+    expect(send.status).toBe(201);
+    expect(send.body.text).toBe('On my way!');
+    expect(send.body.from).toBeDefined();
+
+    const list = await request(server)
+      .get(`/api/v1/trips/${tripId}/messages`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.some((m: { text: string }) => m.text === 'On my way!')).toBe(
+      true,
+    );
+
+    // whitespace-only is rejected
+    await request(server)
+      .post(`/api/v1/trips/${tripId}/messages`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ text: '   ' })
+      .expect(400);
+
+    // a non-participant cannot read the thread
+    const otherPhone = `+9195${Date.now() % 100000000}`;
+    await resetOtpLimits(otherPhone);
+    const o1 = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone: otherPhone });
+    const o2 = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone: otherPhone, code: o1.body.devCode });
+    await request(server)
+      .get(`/api/v1/trips/${tripId}/messages`)
+      .set('Authorization', `Bearer ${o2.body.accessToken}`)
+      .expect(403);
+  });
+
   it('forbids a non-admin from the admin API', async () => {
     await request(server)
       .get('/api/v1/admin/stats')

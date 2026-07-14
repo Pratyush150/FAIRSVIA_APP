@@ -30,3 +30,6 @@ export 'src/account/profile_edit_page.dart';
 export 'src/account/saved_places_page.dart';
 export 'src/account/payment_methods_page.dart';
 export 'src/account/driver_earnings_page.dart';
+// In-trip chat.
+export 'src/chat/chat_remote_data_source.dart';
+export 'src/chat/chat_page.dart';

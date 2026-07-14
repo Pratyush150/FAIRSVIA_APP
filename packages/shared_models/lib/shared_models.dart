@@ -12,3 +12,4 @@ export 'src/trip.dart';
 export 'src/ride_offer.dart';
 export 'src/assigned_driver.dart';
 export 'src/saved_place.dart';
+export 'src/chat_message.dart';

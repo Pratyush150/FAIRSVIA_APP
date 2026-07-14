@@ -19,6 +19,7 @@ import { DispatchService } from '../dispatch/dispatch.service';
 import { DriversService } from '../drivers/drivers.service';
 import { LocationService } from '../location/location.service';
 import { TripsService } from '../trips/trips.service';
+import { ChatService } from '../chat/chat.service';
 import { RealtimeService } from './realtime.service';
 
 interface AuthedSocket extends Socket {
@@ -47,6 +48,7 @@ export class RealtimeGateway
     private readonly dispatch: DispatchService,
     private readonly trips: TripsService,
     private readonly drivers: DriversService,
+    private readonly chat: ChatService,
   ) {}
 
   afterInit(server: Server): void {
@@ -126,6 +128,19 @@ export class RealtimeGateway
     const userId = client.data.userId;
     if (!userId) return;
     await this.dispatch.respondToOffer(userId, body.tripId, false);
+  }
+
+  @SubscribeMessage('trip:message')
+  async onMessage(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() body: { tripId: string; text: string },
+  ): Promise<void> {
+    const userId = client.data.userId;
+    if (!userId) return;
+    // ChatService validates participation and broadcasts to both parties.
+    await this.chat.postMessage(userId, body.tripId, body.text).catch((e) => {
+      client.emit('trip:message_error', { message: String(e?.message ?? e) });
+    });
   }
 
   @SubscribeMessage('trip:sync')

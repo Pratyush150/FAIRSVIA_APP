@@ -11,6 +11,8 @@ export const RedisKeys = {
   // and the last metered GPS point, used to recompute the final fare.
   tripDriven: (id: string) => `trip:${id}:driven`,
   tripMeterLast: (id: string) => `trip:${id}:meterLast`,
+  // In-trip chat: a capped list of messages, TTL'd after the ride.
+  tripChat: (id: string) => `trip:${id}:chat`,
   driverOfferLock: (id: string) => `driver:${id}:offerlock`,
   // Cross-process offer signalling: the dispatch worker records who a trip is
   // currently offered to, and a driver's accept/decline lands here so the

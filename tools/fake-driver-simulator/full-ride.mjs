@@ -75,6 +75,17 @@ async function main() {
     `• rider ← trip:accepted  car=${accepted.vehicle.make} ${accepted.vehicle.model} plate=${accepted.vehicle.plate}`,
   );
 
+  // --- In-trip chat: rider ↔ driver, both directions over WS ---
+  const toDriverP = once(dSock, 'trip:message');
+  rSock.emit('trip:message', { tripId: trip.id, text: 'Hi, at the black gate' });
+  const toDriver = await toDriverP;
+  assert(toDriver.text === 'Hi, at the black gate', 'driver receives rider message');
+  const toRiderP = once(rSock, 'trip:message');
+  dSock.emit('trip:message', { tripId: trip.id, text: 'On my way, 2 min' });
+  const toRider = await toRiderP;
+  assert(toRider.text === 'On my way, 2 min', 'rider receives driver message');
+  console.log('• chat round-trip ok (rider↔driver)');
+
   // --- Driver drives to pickup; rider receives live location ---
   const locP = once(rSock, 'trip:driver_location');
   dSock.emit('driver:location', { lat: pickup.lat, lng: pickup.lng, heading: 90, speed: 12 });
