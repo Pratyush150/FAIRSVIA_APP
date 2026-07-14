@@ -155,8 +155,8 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
                     children: [
                       _StatusPill(online: state.isOnline),
                       const Spacer(),
-                      _CircleButton(
-                        icon: Icons.menu,
+                      AppCircleButton(
+                        icon: Icons.menu_rounded,
                         tooltip: 'Account menu',
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
@@ -206,14 +206,38 @@ class _BottomSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text("You're offline", style: theme.textTheme.headlineSmall),
-            if (state.lastEarned != null)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: Text('Today: \$${state.lastEarned!.toStringAsFixed(0)}',
-                    style: theme.textTheme.bodyMedium),
-              ),
-            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Container(
+                  height: 46,
+                  width: 46,
+                  decoration: const BoxDecoration(
+                    color: AppColors.surfaceMutedLight,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.bedtime_rounded,
+                      color: AppColors.textTertiaryLight, size: 24),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("You're offline",
+                          style: theme.textTheme.titleLarge),
+                      const SizedBox(height: 2),
+                      Text(
+                        state.lastEarned != null
+                            ? 'Earned today · \$${state.lastEarned!.toStringAsFixed(0)}'
+                            : 'Go online to start earning',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
             PrimaryButton(
               label: 'Go online',
               loading: state.busy,
@@ -229,18 +253,40 @@ class _BottomSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.wifi_tethering, color: AppColors.accent),
-                const SizedBox(width: AppSpacing.sm),
+                Container(
+                  height: 46,
+                  width: 46,
+                  decoration: const BoxDecoration(
+                    color: AppColors.accentSoft,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.wifi_tethering_rounded,
+                      color: AppColors.accent, size: 24),
+                ),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: Text("You're online — looking for trips",
-                      style: theme.textTheme.titleMedium),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("You're online",
+                          style: theme.textTheme.titleLarge),
+                      const SizedBox(height: 2),
+                      Text('Looking for trips nearby…',
+                          style: theme.textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+                const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.md),
-            OutlinedButton(
+            const SizedBox(height: AppSpacing.lg),
+            SecondaryButton(
+              label: 'Go offline',
               onPressed: () => cubit.goOffline(),
-              child: const Text('Go offline'),
             ),
           ],
         );
@@ -271,7 +317,7 @@ class _BottomSheet extends StatelessWidget {
       case DriverPhase.completed:
         child = _CompletedSheet(state: state, cubit: cubit);
     }
-    return _SheetContainer(child: child);
+    return AppSheet(child: child);
   }
 }
 
@@ -287,29 +333,41 @@ class _CompletedSheet extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.check_circle, color: AppColors.accent),
-            const SizedBox(width: AppSpacing.sm),
-            Text('Trip complete', style: theme.textTheme.headlineSmall),
-          ],
+        Center(
+          child: Container(
+            width: 60,
+            height: 60,
+            decoration: const BoxDecoration(
+              color: AppColors.accentSoft,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check_rounded,
+                color: AppColors.accent, size: 34),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Center(
+          child: Text('Trip complete', style: theme.textTheme.headlineSmall),
         ),
         if (state.lastEarned != null) ...[
           const SizedBox(height: AppSpacing.xs),
-          Text("Today's earnings: \$${state.lastEarned!.toStringAsFixed(0)}",
-              style: theme.textTheme.bodyMedium),
+          Center(
+            child: Text(
+                "Today's earnings · \$${state.lastEarned!.toStringAsFixed(0)}",
+                style: theme.textTheme.bodyMedium),
+          ),
         ],
         if (state.cashToCollect != null) ...[
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.md),
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-              color: AppColors.warning.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppSpacing.radius),
+              color: AppColors.warning.withValues(alpha: 0.12),
             ),
             child: Row(
               children: [
-                const Icon(Icons.payments, color: AppColors.warning),
+                const Icon(Icons.payments_rounded, color: AppColors.warning),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -322,28 +380,20 @@ class _CompletedSheet extends StatelessWidget {
             ),
           ),
         ],
-        const SizedBox(height: AppSpacing.md),
-        Text('Rate your rider', style: theme.textTheme.titleMedium),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (var i = 1; i <= 5; i++)
-              IconButton(
-                iconSize: 32,
-                tooltip: '$i',
-                onPressed: state.riderRating == null
-                    ? () => cubit.rateRider(i)
-                    : null,
-                icon: Icon(
-                  i <= (state.riderRating ?? 0)
-                      ? Icons.star
-                      : Icons.star_border,
-                  color: AppColors.warning,
-                ),
-              ),
-          ],
+        const SizedBox(height: AppSpacing.lg),
+        Center(
+          child: Text('Rate your rider', style: theme.textTheme.titleMedium),
         ),
         const SizedBox(height: AppSpacing.sm),
+        Center(
+          child: StarRating(
+            value: state.riderRating ?? 0,
+            onRate: state.riderRating == null
+                ? (v) => cubit.rateRider(v)
+                : null,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
         PrimaryButton(
           label: 'Done',
           onPressed: () => cubit.dismissCompleted(),
@@ -385,7 +435,7 @@ class _LifecycleSheet extends StatelessWidget {
             if (tripId != null)
               IconButton(
                 tooltip: 'Message rider',
-                icon: const Icon(Icons.chat_bubble_outline),
+                icon: const Icon(Icons.chat_bubble_rounded),
                 onPressed: () => openDriverChat(context, tripId!),
               ),
           ],
@@ -448,21 +498,21 @@ class _StartTripSheetState extends State<_StartTripSheet> {
             if (widget.tripId != null)
               IconButton(
                 tooltip: 'Message rider',
-                icon: const Icon(Icons.chat_bubble_outline),
+                icon: const Icon(Icons.chat_bubble_rounded),
                 onPressed: () => openDriverChat(context, widget.tripId!),
               ),
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text('Ask the rider for their 4-digit start code',
+        Text('Ask the rider for their 6-digit start code',
             style: theme.textTheme.bodyMedium),
-        const SizedBox(height: AppSpacing.md),
-        OtpInput(length: 4, onChanged: (v) => setState(() => _otp = v)),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.lg),
+        OtpInput(length: 6, onChanged: (v) => setState(() => _otp = v)),
+        const SizedBox(height: AppSpacing.lg),
         PrimaryButton(
           label: 'Start trip',
           loading: widget.busy,
-          onPressed: _otp.length == 4 && !widget.busy
+          onPressed: _otp.length == 6 && !widget.busy
               ? () => widget.cubit.startTrip(_otp)
               : null,
         ),
@@ -509,54 +559,92 @@ class _OfferOverlayState extends State<_OfferOverlay> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final offer = widget.offer;
+    final miles = (offer.distanceM / 1609.34).toStringAsFixed(1);
     return Positioned.fill(
       child: Container(
-        color: Colors.black.withValues(alpha: 0.55),
+        color: AppColors.scrim,
         alignment: Alignment.center,
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Material(
-          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
           color: theme.colorScheme.surface,
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.xl),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Stack(
-                  alignment: Alignment.center,
+                Row(
                   children: [
-                    SizedBox(
-                      height: 72,
-                      width: 72,
-                      child: CircularProgressIndicator(
-                        value: _total == 0 ? 0 : _remaining / _total,
-                        strokeWidth: 6,
-                        valueColor:
-                            const AlwaysStoppedAnimation(AppColors.accent),
-                      ),
+                    Expanded(
+                      child: Text('New ride request',
+                          style: theme.textTheme.titleLarge),
                     ),
-                    Text('$_remaining', style: theme.textTheme.headlineSmall),
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          height: 44,
+                          width: 44,
+                          child: CircularProgressIndicator(
+                            value: _total == 0 ? 0 : _remaining / _total,
+                            strokeWidth: 4,
+                            backgroundColor: AppColors.borderLight,
+                            valueColor: const AlwaysStoppedAnimation(
+                                AppColors.accent),
+                          ),
+                        ),
+                        Text('$_remaining',
+                            style: theme.textTheme.titleMedium),
+                      ],
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                Text('New ride request', style: theme.textTheme.headlineSmall),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  '\$${offer.fare.toStringAsFixed(0)} · '
-                  '${(offer.distanceM / 1609.34).toStringAsFixed(1)} mi',
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(offer.pickup.address ?? 'Pickup',
+                Text('\$${offer.fare.toStringAsFixed(2)}',
+                    style: theme.textTheme.displaySmall),
+                Text('Est. fare · $miles mi trip',
                     style: theme.textTheme.bodyMedium),
+                const SizedBox(height: AppSpacing.lg),
+                AppCard(
+                  child: Row(
+                    children: [
+                      Container(
+                        height: 36,
+                        width: 36,
+                        decoration: const BoxDecoration(
+                          color: AppColors.accentSoft,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.trip_origin_rounded,
+                            size: 18, color: AppColors.accent),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Pickup',
+                                style: theme.textTheme.labelMedium),
+                            const SizedBox(height: 2),
+                            Text(offer.pickup.address ?? 'Pickup location',
+                                style: theme.textTheme.titleSmall,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.xl),
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
+                      child: SecondaryButton(
+                        label: 'Decline',
                         onPressed: () =>
                             context.read<DriverCubit>().declineOffer(),
-                        child: const Text('Decline'),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.md),
@@ -588,8 +676,8 @@ class _OnboardingDialog extends StatefulWidget {
 
 class _OnboardingDialogState extends State<_OnboardingDialog> {
   final _make = TextEditingController(text: 'Toyota');
-  final _model = TextEditingController(text: 'Etios');
-  final _plate = TextEditingController(text: 'KA01AB1234');
+  final _model = TextEditingController(text: 'Camry');
+  final _plate = TextEditingController(text: 'FLA 1234');
   String _tier = 'economy';
 
   @override
@@ -646,84 +734,34 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
   }
 }
 
-class _SheetContainer extends StatelessWidget {
-  const _SheetContainer({required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.all(AppSpacing.md),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.radius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: SafeArea(top: false, child: child),
-    );
-  }
-}
-
 class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.online});
   final bool online;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = online ? AppColors.success : AppColors.textTertiaryLight;
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm + 2),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.radius),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
-        ],
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.pill),
+        boxShadow: AppElevation.float,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.circle,
-              size: 10, color: online ? AppColors.success : Colors.grey),
+          Container(
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           const SizedBox(width: AppSpacing.sm),
-          Text(online ? 'Online' : 'Offline'),
+          Text(online ? 'Online' : 'Offline',
+              style: theme.textTheme.labelLarge?.copyWith(color: color)),
         ],
-      ),
-    );
-  }
-}
-
-class _CircleButton extends StatelessWidget {
-  const _CircleButton({
-    required this.icon,
-    required this.onPressed,
-    this.tooltip,
-  });
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  /// Accessible label / hover hint for this icon-only control.
-  final String? tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      shape: const CircleBorder(),
-      elevation: 3,
-      child: IconButton(
-        icon: Icon(icon),
-        tooltip: tooltip,
-        onPressed: onPressed,
       ),
     );
   }

@@ -725,21 +725,35 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tint = color ?? AppColors.accent;
     return Container(
-      width: 200,
+      width: 208,
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.radius),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
         border: Border.all(color: theme.dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color ?? AppColors.accent),
-          const SizedBox(height: AppSpacing.md),
-          Text(value, style: theme.textTheme.headlineMedium),
-          Text(label, style: theme.textTheme.bodySmall),
+          Container(
+            height: 40,
+            width: 40,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            ),
+            child: Icon(icon, color: tint, size: 22),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(value, style: theme.textTheme.displaySmall),
+          const SizedBox(height: 2),
+          Text(label.toUpperCase(),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: AppColors.textTertiaryLight,
+                letterSpacing: 0.6,
+              )),
         ],
       ),
     );
