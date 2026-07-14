@@ -84,6 +84,8 @@ class Trip extends Equatable {
     this.fareFinal,
     this.currency = 'INR',
     this.startOtp,
+    this.requestedAt,
+    this.completedAt,
   });
 
   final String id;
@@ -99,6 +101,15 @@ class Trip extends Equatable {
   final String currency;
   final String? startOtp;
 
+  /// When the trip was requested (present on history responses).
+  final DateTime? requestedAt;
+
+  /// When the trip reached a terminal completed state, if it did.
+  final DateTime? completedAt;
+
+  /// The fare to display: final if settled, else the estimate.
+  double? get fareDisplay => fareFinal ?? fareEstimate;
+
   factory Trip.fromJson(Map<String, dynamic> json) => Trip(
         id: json['id'] as String,
         status: TripStatus.fromString(json['status'] as String?),
@@ -112,7 +123,12 @@ class Trip extends Equatable {
         fareFinal: (json['fareFinal'] as num?)?.toDouble(),
         currency: json['currency'] as String? ?? 'INR',
         startOtp: json['startOtp'] as String?,
+        requestedAt: _parseDate(json['requestedAt']),
+        completedAt: _parseDate(json['completedAt']),
       );
+
+  static DateTime? _parseDate(dynamic v) =>
+      v is String ? DateTime.tryParse(v)?.toLocal() : null;
 
   @override
   List<Object?> get props => [
@@ -128,5 +144,7 @@ class Trip extends Equatable {
         fareFinal,
         currency,
         startOtp,
+        requestedAt,
+        completedAt,
       ];
 }

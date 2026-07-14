@@ -163,10 +163,13 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
                     child: Align(
                       alignment: Alignment.topRight,
                       child: _CircleButton(
-                        icon: Icons.logout,
-                        onPressed: () => context
-                            .read<AuthBloc>()
-                            .add(const AuthSignedOut()),
+                        icon: Icons.menu,
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const AccountMenuPage(isDriver: false),
+                          ),
+                        ),
                       ),
                     ),
                   ),

@@ -51,6 +51,19 @@ class TripRemoteDataSource {
     }
   }
 
+  /// The signed-in user's recent trips (rider or driver side), newest first.
+  Future<List<Trip>> history() async {
+    try {
+      final res = await _dio.get<List<dynamic>>('/trips/history');
+      return (res.data ?? const [])
+          .cast<Map<String, dynamic>>()
+          .map(Trip.fromJson)
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   Future<Trip> getById(String id) async {
     try {
       final res = await _dio.get<Map<String, dynamic>>('/trips/$id');

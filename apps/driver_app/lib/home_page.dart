@@ -146,10 +146,13 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
                       _StatusPill(online: state.isOnline),
                       const Spacer(),
                       _CircleButton(
-                        icon: Icons.logout,
-                        onPressed: () => context
-                            .read<AuthBloc>()
-                            .add(const AuthSignedOut()),
+                        icon: Icons.menu,
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const AccountMenuPage(isDriver: true),
+                          ),
+                        ),
                       ),
                     ],
                   ),

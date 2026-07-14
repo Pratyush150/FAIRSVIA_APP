@@ -16,6 +16,7 @@ import '../trip/trip_remote_data_source.dart';
 import '../trip/trip_repository.dart';
 import '../trip/payments_remote_data_source.dart';
 import '../trip/ratings_remote_data_source.dart';
+import '../account/users_remote_data_source.dart';
 
 /// Shared service locator.
 final GetIt sl = GetIt.instance;
@@ -68,5 +69,9 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
     )
     ..registerSingleton<RatingsRemoteDataSource>(
       RatingsRemoteDataSource(sl<DioClient>().authenticatedDio),
+    )
+    // Account (profile + saved places) for the menu hub screens.
+    ..registerSingleton<UsersRemoteDataSource>(
+      UsersRemoteDataSource(sl<DioClient>().authenticatedDio),
     );
 }

@@ -208,6 +208,91 @@ describe('UberNav API (e2e)', () => {
     expect(list.body).toHaveLength(1);
   });
 
+  it('updates the profile (name + email) via PATCH /users/me', async () => {
+    const res = await request(server)
+      .patch('/api/v1/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ fullName: 'Test Rider', email: 'rider@example.com' });
+    expect(res.status).toBe(200);
+    expect(res.body.fullName).toBe('Test Rider');
+    expect(res.body.email).toBe('rider@example.com');
+  });
+
+  it('rejects an invalid email on profile update', async () => {
+    await request(server)
+      .patch('/api/v1/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ email: 'not-an-email' })
+      .expect(400);
+  });
+
+  it('saved places: add, list, edit, delete (full CRUD)', async () => {
+    // add
+    const added = await request(server)
+      .post('/api/v1/users/me/places')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ label: 'Home', address: 'MG Road', lat: 12.97, lng: 77.59 });
+    expect(added.status).toBe(201);
+    const id = added.body.id as string;
+    expect(id).toBeDefined();
+
+    // list
+    const list = await request(server)
+      .get('/api/v1/users/me/places')
+      .set('Authorization', `Bearer ${token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.some((p: { id: string }) => p.id === id)).toBe(true);
+
+    // edit
+    const edited = await request(server)
+      .patch(`/api/v1/users/me/places/${id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ label: 'Work' });
+    expect(edited.status).toBe(200);
+    expect(edited.body.label).toBe('Work');
+
+    // delete
+    const removed = await request(server)
+      .delete(`/api/v1/users/me/places/${id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(removed.status).toBe(200);
+
+    // gone
+    const after = await request(server)
+      .get('/api/v1/users/me/places')
+      .set('Authorization', `Bearer ${token}`);
+    expect(after.body.some((p: { id: string }) => p.id === id)).toBe(false);
+  });
+
+  it("forbids editing another user's saved place", async () => {
+    const mine = await request(server)
+      .post('/api/v1/users/me/places')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ label: 'Gym', lat: 12.9, lng: 77.6 });
+    const id = mine.body.id as string;
+
+    // a second, unrelated user
+    const otherPhone = `+9198${Date.now() % 100000000}`;
+    await resetOtpLimits(otherPhone);
+    const o1 = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone: otherPhone });
+    const o2 = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone: otherPhone, code: o1.body.devCode });
+    const otherToken = o2.body.accessToken as string;
+
+    await request(server)
+      .patch(`/api/v1/users/me/places/${id}`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ label: 'Hacked' })
+      .expect(404);
+    await request(server)
+      .delete(`/api/v1/users/me/places/${id}`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .expect(404);
+  });
+
   it('refuses to rate a trip that is not completed', async () => {
     // tripId was cancelled above — rating must be rejected.
     await request(server)

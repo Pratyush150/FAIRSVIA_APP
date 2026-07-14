@@ -1,10 +1,21 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CreatePlaceDto } from './dto/create-place.dto';
+import { UpdatePlaceDto } from './dto/update-place.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -29,5 +40,22 @@ export class UsersController {
   @Post('me/places')
   addPlace(@CurrentUser() user: AuthUser, @Body() dto: CreatePlaceDto) {
     return this.users.addPlace(user.userId, dto);
+  }
+
+  @Patch('me/places/:id')
+  updatePlace(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePlaceDto,
+  ) {
+    return this.users.updatePlace(user.userId, id, dto);
+  }
+
+  @Delete('me/places/:id')
+  removePlace(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.users.removePlace(user.userId, id);
   }
 }

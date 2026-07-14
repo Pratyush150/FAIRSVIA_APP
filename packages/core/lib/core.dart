@@ -21,3 +21,12 @@ export 'src/trip/ratings_remote_data_source.dart';
 export 'src/router/app_router.dart';
 export 'src/di/injector.dart';
 export 'src/debug/error_overlay.dart';
+// Account feature: profile hub + history/receipt/places/payments/earnings.
+export 'src/account/users_remote_data_source.dart';
+export 'src/account/account_menu_page.dart';
+export 'src/account/trip_history_page.dart';
+export 'src/account/receipt_page.dart';
+export 'src/account/profile_edit_page.dart';
+export 'src/account/saved_places_page.dart';
+export 'src/account/payment_methods_page.dart';
+export 'src/account/driver_earnings_page.dart';
