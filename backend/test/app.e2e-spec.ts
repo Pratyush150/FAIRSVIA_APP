@@ -219,6 +219,44 @@ describe('UberNav API (e2e)', () => {
       .expect(400);
   });
 
+  it('notification inbox: fresh user is empty, endpoints behave', async () => {
+    // A brand-new user never triggers an (async) notification, so its inbox
+    // stays deterministically empty — no cross-test push can race in.
+    const nPhone = `+9197${Date.now() % 100000000}`;
+    await resetOtpLimits(nPhone);
+    const r1 = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone: nPhone });
+    const r2 = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone: nPhone, code: r1.body.devCode });
+    const nToken = r2.body.accessToken as string;
+
+    const list = await request(server)
+      .get('/api/v1/me/notifications')
+      .set('Authorization', `Bearer ${nToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual([]);
+
+    const count = await request(server)
+      .get('/api/v1/me/notifications/unread-count')
+      .set('Authorization', `Bearer ${nToken}`);
+    expect(count.body.unread).toBe(0);
+
+    // read-all on an empty inbox marks nothing and stays at zero.
+    const readAll = await request(server)
+      .post('/api/v1/me/notifications/read-all')
+      .set('Authorization', `Bearer ${nToken}`);
+    expect(readAll.status).toBe(200);
+    expect(readAll.body.marked).toBe(0);
+
+    // Marking an unknown id is a harmless no-op.
+    await request(server)
+      .post('/api/v1/me/notifications/00000000-0000-0000-0000-000000000000/read')
+      .set('Authorization', `Bearer ${nToken}`)
+      .expect(200);
+  });
+
   it('favorite drivers: add, list, remove', async () => {
     const driverId = '11111111-1111-1111-1111-111111111111';
     const add = await request(server)

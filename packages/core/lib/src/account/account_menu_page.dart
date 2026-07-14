@@ -14,6 +14,8 @@ import 'payment_methods_page.dart';
 import 'driver_payouts_page.dart';
 import 'favorite_drivers_page.dart';
 import 'favorites_remote_data_source.dart';
+import 'inbox_page.dart';
+import 'inbox_remote_data_source.dart';
 import 'profile_edit_page.dart';
 import 'saved_places_page.dart';
 import 'scheduled_rides_page.dart';
@@ -69,6 +71,12 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
         children: [
           _ProfileHeader(user: user, onEdit: _editProfile),
           const Divider(height: 1),
+          _tile(
+            icon: Icons.notifications_none,
+            title: 'Notifications',
+            onTap: () =>
+                _open(InboxPage(inbox: sl<InboxRemoteDataSource>())),
+          ),
           _tile(
             icon: Icons.receipt_long_outlined,
             title: 'Your trips',

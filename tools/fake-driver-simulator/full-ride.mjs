@@ -246,6 +246,27 @@ async function main() {
   assert(over.status === 400, 'over-withdrawal rejected (400)');
   console.log(`• withdrew ₹${withdrawAmt}, balance now ₹${afterBal.balance}`);
 
+  // --- Notification inbox (C4): the ride milestones were persisted ---
+  const inbox = await api('/me/notifications', { token: rider.token });
+  assert(Array.isArray(inbox) && inbox.length > 0, 'rider inbox has milestones');
+  assert(
+    inbox.some((n) => n.data?.kind === 'completed'),
+    'inbox contains the trip-completed notification',
+  );
+  const unread = await api('/me/notifications/unread-count', {
+    token: rider.token,
+  });
+  assert(unread.unread > 0, 'inbox reports unread notifications');
+  await api('/me/notifications/read-all', {
+    method: 'POST',
+    token: rider.token,
+  });
+  const unread2 = await api('/me/notifications/unread-count', {
+    token: rider.token,
+  });
+  assert(unread2.unread === 0, 'mark-all-read cleared the unread count');
+  console.log(`• inbox: ${inbox.length} milestones, unread cleared to 0`);
+
   // --- Admin refund (B2) ---
   const admin = await login('+919900000001');
   assert(admin.user.role === 'admin', 'admin login');

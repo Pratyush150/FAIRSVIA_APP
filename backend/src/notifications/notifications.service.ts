@@ -69,7 +69,66 @@ export class NotificationsService {
    * provider failure or a backend restart doesn't drop the notification.
    */
   async notify(userId: string, message: PushMessage): Promise<void> {
+    // Persist to the in-app inbox (best-effort — never block the push on it),
+    // then enqueue the durable push fan-out.
+    await this.prisma.notification
+      .create({
+        data: {
+          userId,
+          title: message.title,
+          body: message.body,
+          kind: message.data?.kind ?? null,
+          data: message.data ?? undefined,
+        },
+      })
+      .catch((e) => this.logger.warn(`inbox persist failed: ${e}`));
     await this.queue.add(NOTIFY_JOB, { userId, message }, DEFAULT_JOB_OPTS);
+  }
+
+  // --- In-app inbox ---
+
+  /** The user's notifications, newest first. */
+  async listInbox(userId: string, take = 50) {
+    const rows = await this.prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+    return rows.map((n) => ({
+      id: n.id,
+      title: n.title,
+      body: n.body,
+      kind: n.kind,
+      data: n.data,
+      read: n.readAt != null,
+      createdAt: n.createdAt,
+    }));
+  }
+
+  /** Count of unread notifications (for the badge). */
+  async unreadCount(userId: string): Promise<{ unread: number }> {
+    const unread = await this.prisma.notification.count({
+      where: { userId, readAt: null },
+    });
+    return { unread };
+  }
+
+  /** Mark one notification read (only the owner's). */
+  async markRead(userId: string, id: string) {
+    await this.prisma.notification.updateMany({
+      where: { id, userId, readAt: null },
+      data: { readAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  /** Mark all of the user's notifications read. */
+  async markAllRead(userId: string) {
+    const res = await this.prisma.notification.updateMany({
+      where: { userId, readAt: null },
+      data: { readAt: new Date() },
+    });
+    return { ok: true, marked: res.count };
   }
 
   /** The actual fan-out send — invoked by the notifications queue worker. */

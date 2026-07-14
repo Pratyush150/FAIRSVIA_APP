@@ -207,6 +207,22 @@ model LedgerEntry {
   @@map("ledger_entries")
 }
 
+/// A persisted in-app notification (the inbox). Mirrors every push we send so
+/// the user can review milestones later. `readAt` is null until acknowledged.
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  title     String
+  body      String
+  kind      String?   @db.VarChar(24)
+  data      Json?
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
 /// A rider's favourite driver. Dispatch offers a rider's favourites first when
 /// they are among the nearby available drivers.
 model FavoriteDriver {

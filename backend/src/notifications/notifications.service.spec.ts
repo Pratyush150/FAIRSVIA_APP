@@ -25,10 +25,15 @@ describe('NotificationsService', () => {
     });
   });
 
+  // notify() also persists to the inbox before enqueuing the push.
+  const inboxPrisma = {
+    notification: { create: jest.fn().mockResolvedValue({}) },
+  } as never;
+
   it('notify enqueues a job rather than sending inline (durable)', async () => {
     const queue = makeQueue();
     const provider = makeProvider();
-    const svc = new NotificationsService({} as never, provider, queue);
+    const svc = new NotificationsService(inboxPrisma, provider, queue);
 
     await svc.notify('u1', { title: 'Hi', body: 'there' });
 
@@ -41,7 +46,7 @@ describe('NotificationsService', () => {
 
   it('notifyTrip enqueues the canonical copy for a milestone with kind in data', async () => {
     const queue = makeQueue();
-    const svc = new NotificationsService({} as never, makeProvider(), queue);
+    const svc = new NotificationsService(inboxPrisma, makeProvider(), queue);
 
     await svc.notifyTrip('u1', 'arrived', { tripId: 't1' });
 

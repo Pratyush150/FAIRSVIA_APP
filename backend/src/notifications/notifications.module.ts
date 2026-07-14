@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
+import { InboxController } from './inbox.controller';
 import { NotificationsProcessor } from './notifications.processor';
 import { PUSH_PROVIDER } from './push-provider.interface';
 import { MockPushProvider } from './mock-push.provider';
@@ -11,7 +12,7 @@ import { QUEUE_NOTIFICATIONS } from '../common/queue/queue.constants';
 @Global()
 @Module({
   imports: [BullModule.registerQueue({ name: QUEUE_NOTIFICATIONS })],
-  controllers: [NotificationsController],
+  controllers: [NotificationsController, InboxController],
   providers: [
     NotificationsService,
     NotificationsProcessor,
