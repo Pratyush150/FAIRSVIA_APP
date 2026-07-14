@@ -8,6 +8,7 @@ import { RedisKeys } from '../common/redis/redis.keys';
 import { RealtimeService } from '../realtime/realtime.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TripStateMachine } from '../trips/trip-state-machine';
+import { FavoritesService } from '../favorites/favorites.service';
 import {
   QUEUE_DISPATCH,
   DISPATCH_JOB,
@@ -41,6 +42,7 @@ export class DispatchService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly stateMachine: TripStateMachine,
+    private readonly favorites: FavoritesService,
     @InjectQueue(QUEUE_DISPATCH) private readonly queue: Queue,
   ) {}
 
@@ -83,12 +85,19 @@ export class DispatchService {
     }
 
     const tried = new Set<string>();
+    // The rider's favourite drivers jump the queue when they're nearby.
+    const favorites = await this.favorites
+      .favoriteDriverIds(trip.riderId)
+      .catch(() => new Set<string>());
     for (
       let radiusKm = START_RADIUS_KM;
       radiusKm <= MAX_RADIUS_KM;
       radiusKm += RADIUS_STEP_KM
     ) {
-      const candidates = await this.nearestDrivers(trip, radiusKm);
+      const candidates = this.favoritesFirst(
+        await this.nearestDrivers(trip, radiusKm),
+        favorites,
+      );
       for (const driverId of candidates) {
         if (tried.has(driverId)) continue;
         tried.add(driverId);
@@ -120,6 +129,23 @@ export class DispatchService {
     } catch {
       // Trip left MATCHING (cancelled) — nothing to do.
     }
+  }
+
+  /**
+   * Stable-partition the distance-sorted candidates so the rider's favourites
+   * come first, each group still in nearest-first order.
+   */
+  private favoritesFirst(
+    candidates: string[],
+    favorites: Set<string>,
+  ): string[] {
+    if (favorites.size === 0) return candidates;
+    const fav: string[] = [];
+    const rest: string[] = [];
+    for (const id of candidates) {
+      (favorites.has(id) ? fav : rest).push(id);
+    }
+    return [...fav, ...rest];
   }
 
   private async nearestDrivers(trip: Trip, radiusKm: number): Promise<string[]> {

@@ -5,12 +5,15 @@ class AssignedDriver extends Equatable {
   const AssignedDriver({
     required this.name,
     required this.rating,
+    this.id,
     this.vehicleMake,
     this.vehicleModel,
     this.vehicleColor,
     this.plate,
   });
 
+  /// The driver's user id (used to favourite them). Null on older payloads.
+  final String? id;
   final String name;
   final double rating;
   final String? vehicleMake;
@@ -28,6 +31,7 @@ class AssignedDriver extends Equatable {
     final driver = (json['driver'] as Map?)?.cast<String, dynamic>() ?? {};
     final vehicle = (json['vehicle'] as Map?)?.cast<String, dynamic>() ?? {};
     return AssignedDriver(
+      id: driver['id'] as String?,
       name: driver['name'] as String? ?? 'Your driver',
       rating: (driver['rating'] as num?)?.toDouble() ?? 5.0,
       vehicleMake: vehicle['make'] as String?,
@@ -39,5 +43,5 @@ class AssignedDriver extends Equatable {
 
   @override
   List<Object?> get props =>
-      [name, rating, vehicleMake, vehicleModel, vehicleColor, plate];
+      [id, name, rating, vehicleMake, vehicleModel, vehicleColor, plate];
 }

@@ -12,6 +12,8 @@ import '../trip/trip_remote_data_source.dart';
 import 'driver_earnings_page.dart';
 import 'payment_methods_page.dart';
 import 'driver_payouts_page.dart';
+import 'favorite_drivers_page.dart';
+import 'favorites_remote_data_source.dart';
 import 'profile_edit_page.dart';
 import 'saved_places_page.dart';
 import 'scheduled_rides_page.dart';
@@ -111,6 +113,13 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               title: 'Payment methods',
               onTap: () => _open(PaymentMethodsPage(
                 payments: sl<PaymentsRemoteDataSource>(),
+              )),
+            ),
+            _tile(
+              icon: Icons.favorite_border,
+              title: 'Favourite drivers',
+              onTap: () => _open(FavoriteDriversPage(
+                favorites: sl<FavoritesRemoteDataSource>(),
               )),
             ),
           ],

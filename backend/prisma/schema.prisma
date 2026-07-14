@@ -207,6 +207,19 @@ model LedgerEntry {
   @@map("ledger_entries")
 }
 
+/// A rider's favourite driver. Dispatch offers a rider's favourites first when
+/// they are among the nearby available drivers.
+model FavoriteDriver {
+  id        String   @id @default(uuid()) @db.Uuid
+  riderId   String   @map("rider_id") @db.Uuid
+  driverId  String   @map("driver_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([riderId, driverId])
+  @@index([riderId])
+  @@map("favorite_drivers")
+}
+
 /// Two-way rating: one per (trip, rater).
 model Rating {
   id        String   @id @default(uuid()) @db.Uuid

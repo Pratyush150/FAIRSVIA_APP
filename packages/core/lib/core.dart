@@ -28,6 +28,8 @@ export 'src/account/trip_history_page.dart';
 export 'src/account/receipt_page.dart';
 export 'src/account/profile_edit_page.dart';
 export 'src/account/driver_payouts_page.dart';
+export 'src/account/favorite_drivers_page.dart';
+export 'src/account/favorites_remote_data_source.dart';
 export 'src/account/saved_places_page.dart';
 export 'src/account/scheduled_rides_page.dart';
 export 'src/account/payment_methods_page.dart';

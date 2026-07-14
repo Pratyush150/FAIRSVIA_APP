@@ -1067,6 +1067,59 @@ void _openTripChat(BuildContext context, TripState state) {
   );
 }
 
+/// A toggle to add/remove the just-completed trip's driver as a favourite.
+class _FavoriteDriverButton extends StatefulWidget {
+  const _FavoriteDriverButton({required this.driverId, this.driverName});
+  final String driverId;
+  final String? driverName;
+
+  @override
+  State<_FavoriteDriverButton> createState() => _FavoriteDriverButtonState();
+}
+
+class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
+  final _favorites = sl<FavoritesRemoteDataSource>();
+  bool _favorited = false;
+  bool _busy = false;
+
+  Future<void> _toggle() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final next = !_favorited;
+    try {
+      if (next) {
+        await _favorites.add(widget.driverId);
+      } else {
+        await _favorites.remove(widget.driverId);
+      }
+      if (mounted) setState(() => _favorited = next);
+      messenger.showSnackBar(SnackBar(
+        content: Text(next
+            ? 'Added ${widget.driverName ?? 'driver'} to favourites'
+            : 'Removed from favourites'),
+      ));
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _busy ? null : _toggle,
+      icon: Icon(
+        _favorited ? Icons.favorite : Icons.favorite_border,
+        color: _favorited ? AppColors.error : null,
+        size: 18,
+      ),
+      label: Text(_favorited ? 'Favourited' : 'Add to favourites'),
+    );
+  }
+}
+
 class _CompletedSheet extends StatelessWidget {
   const _CompletedSheet({required this.state});
   final TripState state;
@@ -1122,6 +1175,13 @@ class _CompletedSheet extends StatelessWidget {
               child: Text('Thanks for your feedback!',
                   style: theme.textTheme.bodySmall),
             ),
+          if (state.driver?.id != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _FavoriteDriverButton(
+              driverId: state.driver!.id!,
+              driverName: state.driver!.name,
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
           // Tips
           Text('Add a tip', style: theme.textTheme.titleMedium),

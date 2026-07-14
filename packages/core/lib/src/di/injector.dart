@@ -16,6 +16,7 @@ import '../trip/trip_remote_data_source.dart';
 import '../trip/trip_repository.dart';
 import '../trip/payments_remote_data_source.dart';
 import '../trip/ratings_remote_data_source.dart';
+import '../account/favorites_remote_data_source.dart';
 import '../account/users_remote_data_source.dart';
 import '../chat/chat_remote_data_source.dart';
 import '../safety/safety_remote_data_source.dart';
@@ -75,6 +76,10 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
     // Account (profile + saved places) for the menu hub screens.
     ..registerSingleton<UsersRemoteDataSource>(
       UsersRemoteDataSource(sl<DioClient>().authenticatedDio),
+    )
+    // Favourite drivers (rider).
+    ..registerSingleton<FavoritesRemoteDataSource>(
+      FavoritesRemoteDataSource(sl<DioClient>().authenticatedDio),
     )
     // In-trip chat (history + send; live delivery over the socket).
     ..registerSingleton<ChatRemoteDataSource>(

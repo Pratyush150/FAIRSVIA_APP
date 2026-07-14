@@ -219,6 +219,47 @@ describe('UberNav API (e2e)', () => {
       .expect(400);
   });
 
+  it('favorite drivers: add, list, remove', async () => {
+    const driverId = '11111111-1111-1111-1111-111111111111';
+    const add = await request(server)
+      .post(`/api/v1/drivers/${driverId}/favorite`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(add.status).toBe(200);
+    expect(add.body.favorited).toBe(true);
+
+    const list = await request(server)
+      .get('/api/v1/me/favorites')
+      .set('Authorization', `Bearer ${token}`);
+    expect(list.status).toBe(200);
+    expect(list.body.some((f: { driverId: string }) => f.driverId === driverId))
+      .toBe(true);
+
+    // Adding again is idempotent (no duplicate).
+    await request(server)
+      .post(`/api/v1/drivers/${driverId}/favorite`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const list2 = await request(server)
+      .get('/api/v1/me/favorites')
+      .set('Authorization', `Bearer ${token}`);
+    expect(
+      list2.body.filter((f: { driverId: string }) => f.driverId === driverId)
+        .length,
+    ).toBe(1);
+
+    const remove = await request(server)
+      .delete(`/api/v1/drivers/${driverId}/favorite`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(remove.status).toBe(200);
+    expect(remove.body.favorited).toBe(false);
+
+    const list3 = await request(server)
+      .get('/api/v1/me/favorites')
+      .set('Authorization', `Bearer ${token}`);
+    expect(list3.body.some((f: { driverId: string }) => f.driverId === driverId))
+      .toBe(false);
+  });
+
   it('schedules a ride for later, lists it, and cancels it', async () => {
     const when = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // +1h
     const created = await request(server)
