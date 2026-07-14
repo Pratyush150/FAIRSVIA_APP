@@ -86,6 +86,11 @@ class _AdminScaffold extends StatelessWidget {
                     selectedIcon: Icon(Icons.map),
                     label: Text('Live'),
                   ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.support_agent_outlined),
+                    selectedIcon: Icon(Icons.support_agent),
+                    label: Text('Support'),
+                  ),
                 ],
               ),
               const VerticalDivider(width: 1),
@@ -118,6 +123,7 @@ class _AdminScaffold extends StatelessWidget {
         AdminTab.drivers => 'Drivers',
         AdminTab.monitoring => 'Monitoring',
         AdminTab.live => 'Live map',
+        AdminTab.support => 'Support',
       };
 }
 
@@ -178,7 +184,315 @@ class _Body extends StatelessWidget {
       AdminTab.drivers => _DriversView(drivers: state.drivers),
       AdminTab.monitoring => _MonitoringView(ops: state.ops),
       AdminTab.live => _LiveView(live: state.live),
+      AdminTab.support => _SupportView(state: state),
     };
+  }
+}
+
+// --- Support ----------------------------------------------------------------
+
+const _ticketFilters = <String, String>{
+  'open': 'Open',
+  'active': 'Active',
+  'resolved': 'Resolved',
+  'closed': 'Closed',
+  '': 'All',
+};
+
+Color _ticketStatusColor(String status) => switch (status) {
+      'open' => AppColors.warning,
+      'active' => AppColors.accent,
+      'resolved' => AppColors.success,
+      _ => Colors.grey,
+    };
+
+class _SupportView extends StatelessWidget {
+  const _SupportView({required this.state});
+  final AdminState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<AdminCubit>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.sm),
+          child: Wrap(
+            spacing: AppSpacing.sm,
+            children: [
+              for (final e in _ticketFilters.entries)
+                ChoiceChip(
+                  label: Text(e.value),
+                  selected: state.ticketFilter == e.key,
+                  onSelected: (_) => cubit.setTicketFilter(e.key),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: state.tickets.isEmpty
+              ? const _Empty(text: 'No tickets in this view.')
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                  itemCount: state.tickets.length,
+                  itemBuilder: (_, i) => _TicketTile(ticket: state.tickets[i]),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TicketTile extends StatelessWidget {
+  const _TicketTile({required this.ticket});
+  final AdminSupportTicket ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = _ticketStatusColor(ticket.status);
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            ticket.status,
+            style: TextStyle(
+                color: color, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ),
+        title: Text(
+          ticket.subject,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(ticket.category, style: theme.textTheme.bodySmall),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (_) => BlocProvider.value(
+            value: context.read<AdminCubit>(),
+            child: _TicketDialog(ticketId: ticket.id, subject: ticket.subject),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A modal thread view: loads the full conversation, lets the agent reply and
+/// change status.
+class _TicketDialog extends StatefulWidget {
+  const _TicketDialog({required this.ticketId, required this.subject});
+  final String ticketId;
+  final String subject;
+
+  @override
+  State<_TicketDialog> createState() => _TicketDialogState();
+}
+
+class _TicketDialogState extends State<_TicketDialog> {
+  final _reply = TextEditingController();
+  AdminSupportTicket? _ticket;
+  bool _loading = true;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _reply.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final cubit = context.read<AdminCubit>();
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final t = await cubit.ticketThread(widget.ticketId);
+      if (mounted) setState(() => _ticket = t);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _send() async {
+    final body = _reply.text.trim();
+    if (body.isEmpty) return;
+    final cubit = context.read<AdminCubit>();
+    setState(() => _busy = true);
+    try {
+      final t = await cubit.replyTicket(widget.ticketId, body);
+      if (!mounted) return;
+      _reply.clear();
+      setState(() => _ticket = t);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _setStatus(String status) async {
+    final cubit = context.read<AdminCubit>();
+    setState(() => _busy = true);
+    try {
+      await cubit.setTicketStatus(widget.ticketId, status);
+      await _load();
+    } catch (_) {
+      // error surfaced via cubit banner
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final t = _ticket;
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 640),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(widget.subject,
+                        style: theme.textTheme.titleLarge),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              if (t != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: AppSpacing.sm,
+                    children: [
+                      for (final s in const ['active', 'resolved', 'closed'])
+                        if (s != t.status)
+                          OutlinedButton(
+                            onPressed: _busy ? null : () => _setStatus(s),
+                            child: Text('Mark $s'),
+                          ),
+                    ],
+                  ),
+                ),
+              const Divider(),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                        ? Center(child: Text(_error!))
+                        : ListView(
+                            children: [
+                              for (final m in t?.messages ?? const [])
+                                _AdminBubble(message: m),
+                            ],
+                          ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _reply,
+                      enabled: !_busy,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        hintText: 'Reply as support…',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  FilledButton(
+                    onPressed: _busy ? null : _send,
+                    child: _busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Send'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminBubble extends StatelessWidget {
+  const _AdminBubble({required this.message});
+  final AdminSupportMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final admin = message.isFromAdmin;
+    final theme = Theme.of(context);
+    return Align(
+      alignment: admin ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        constraints: const BoxConstraints(maxWidth: 380),
+        decoration: BoxDecoration(
+          color: admin
+              ? AppColors.accent
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment:
+              admin ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Text(
+              admin ? 'Support' : 'User',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: admin ? Colors.white70 : null,
+              ),
+            ),
+            Text(
+              message.body,
+              style: TextStyle(color: admin ? Colors.white : null),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

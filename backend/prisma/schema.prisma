@@ -207,6 +207,40 @@ model LedgerEntry {
   @@map("ledger_entries")
 }
 
+/// A support ticket raised by a rider or driver. `status` is open|active|
+/// resolved|closed. Optionally references the trip it's about.
+model SupportTicket {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  subject   String   @db.VarChar(140)
+  category  String   @default("other") @db.VarChar(20)
+  status    String   @default("open") @db.VarChar(12)
+  tripId    String?  @map("trip_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  messages SupportMessage[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+/// One message in a support ticket thread. `authorRole` is user|admin.
+model SupportMessage {
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @map("ticket_id") @db.Uuid
+  authorId   String   @map("author_id") @db.Uuid
+  authorRole String   @map("author_role") @db.VarChar(8)
+  body       String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
+}
+
 /// A persisted in-app notification (the inbox). Mirrors every push we send so
 /// the user can review milestones later. `readAt` is null until acknowledged.
 model Notification {

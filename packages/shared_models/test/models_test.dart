@@ -70,4 +70,39 @@ void main() {
       expect(t.completedAt, isNull);
     });
   });
+
+  group('SupportTicket', () {
+    test('parses a ticket with its thread', () {
+      final t = SupportTicket.fromJson({
+        'id': 'tk1',
+        'subject': 'Charged twice',
+        'category': 'payment',
+        'status': 'active',
+        'tripId': 'trip-9',
+        'messages': [
+          {'id': 'm1', 'authorRole': 'user', 'body': 'Help', 'createdAt': null},
+          {'id': 'm2', 'authorRole': 'admin', 'body': 'On it', 'createdAt': null},
+        ],
+      });
+      expect(t.id, 'tk1');
+      expect(t.subject, 'Charged twice');
+      expect(t.status, 'active');
+      expect(t.tripId, 'trip-9');
+      expect(t.isClosed, isFalse);
+      expect(t.messages, hasLength(2));
+      expect(t.messages[0].isFromAdmin, isFalse);
+      expect(t.messages[1].isFromAdmin, isTrue);
+    });
+
+    test('list view leaves messages empty and flags closed', () {
+      final t = SupportTicket.fromJson({
+        'id': 'tk2',
+        'subject': 'Lost phone',
+        'category': 'lost_item',
+        'status': 'closed',
+      });
+      expect(t.messages, isEmpty);
+      expect(t.isClosed, isTrue);
+    });
+  });
 }

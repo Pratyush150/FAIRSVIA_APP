@@ -28,6 +28,7 @@ import { PromoModule } from './promo/promo.module';
 import { ScheduledModule } from './scheduled/scheduled.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { SupportModule } from './support/support.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -63,6 +64,7 @@ import { HealthController } from './health/health.controller';
     ScheduledModule,
     LedgerModule,
     FavoritesModule,
+    SupportModule,
   ],
   controllers: [HealthController],
 })

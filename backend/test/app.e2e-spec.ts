@@ -940,6 +940,85 @@ describe('UberNav API (e2e)', () => {
         .expect(403);
     });
 
+    it('support tickets: rider opens, admin replies + resolves, rider reopens', async () => {
+      // Mint a dedicated rider token so the test is order-independent.
+      const rPhone = `+9195${Date.now() % 100000000}`;
+      await resetOtpLimits(rPhone);
+      const r1 = await request(server)
+        .post('/api/v1/auth/otp/request')
+        .send({ phone: rPhone });
+      const rv = await request(server)
+        .post('/api/v1/auth/otp/verify')
+        .send({ phone: rPhone, code: r1.body.devCode });
+      const riderToken = rv.body.accessToken as string;
+
+      // Rider opens a ticket.
+      const created = await request(server)
+        .post('/api/v1/support/tickets')
+        .set('Authorization', `Bearer ${riderToken}`)
+        .send({
+          subject: 'Charged twice',
+          message: 'I was billed two times for one ride.',
+          category: 'payment',
+        });
+      expect(created.status).toBe(201);
+      expect(created.body.status).toBe('open');
+      const ticketId = created.body.id;
+
+      // It shows in the rider's list and its thread has the opening message.
+      const mine = await request(server)
+        .get('/api/v1/support/tickets')
+        .set('Authorization', `Bearer ${riderToken}`);
+      expect(mine.body.some((t: { id: string }) => t.id === ticketId)).toBe(true);
+      const thread = await request(server)
+        .get(`/api/v1/support/tickets/${ticketId}`)
+        .set('Authorization', `Bearer ${riderToken}`);
+      expect(thread.body.messages).toHaveLength(1);
+      expect(thread.body.messages[0].authorRole).toBe('user');
+
+      // Admin sees it in the queue and replies (→ active).
+      const queue = await request(server)
+        .get('/api/v1/admin/support/tickets')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(queue.body.some((t: { id: string }) => t.id === ticketId)).toBe(true);
+      const adminReply = await request(server)
+        .post(`/api/v1/support/tickets/${ticketId}/messages`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ body: 'Looking into the double charge now.' });
+      expect(adminReply.status).toBe(201);
+      expect(adminReply.body.status).toBe('active');
+      expect(adminReply.body.messages).toHaveLength(2);
+
+      // Admin resolves it.
+      const resolved = await request(server)
+        .patch(`/api/v1/admin/support/tickets/${ticketId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ status: 'resolved' });
+      expect(resolved.status).toBe(200);
+      expect(resolved.body.status).toBe('resolved');
+
+      // A rider reply reopens the ticket (→ active).
+      const reopen = await request(server)
+        .post(`/api/v1/support/tickets/${ticketId}/messages`)
+        .set('Authorization', `Bearer ${riderToken}`)
+        .send({ body: 'Still not refunded.' });
+      expect(reopen.body.status).toBe('active');
+
+      // A different rider cannot read this ticket.
+      const oPhone = `+9196${Date.now() % 100000000}`;
+      await resetOtpLimits(oPhone);
+      const o1 = await request(server)
+        .post('/api/v1/auth/otp/request')
+        .send({ phone: oPhone });
+      const o2 = await request(server)
+        .post('/api/v1/auth/otp/verify')
+        .send({ phone: oPhone, code: o1.body.devCode });
+      await request(server)
+        .get(`/api/v1/support/tickets/${ticketId}`)
+        .set('Authorization', `Bearer ${o2.body.accessToken}`)
+        .expect(403);
+    });
+
     it('lists recent SOS alerts for admins', async () => {
       const res = await request(server)
         .get('/api/v1/admin/safety')

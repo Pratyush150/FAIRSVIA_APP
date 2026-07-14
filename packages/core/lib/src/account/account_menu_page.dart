@@ -19,6 +19,8 @@ import 'inbox_remote_data_source.dart';
 import 'profile_edit_page.dart';
 import 'saved_places_page.dart';
 import 'scheduled_rides_page.dart';
+import 'support_page.dart';
+import 'support_remote_data_source.dart';
 import 'trip_history_page.dart';
 import 'users_remote_data_source.dart';
 
@@ -131,6 +133,14 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               )),
             ),
           ],
+          const Divider(height: 1),
+          _tile(
+            icon: Icons.support_agent,
+            title: 'Help & support',
+            onTap: () => _open(SupportPage(
+              support: sl<SupportRemoteDataSource>(),
+            )),
+          ),
           const Divider(height: 1),
           _tile(
             icon: Icons.logout,

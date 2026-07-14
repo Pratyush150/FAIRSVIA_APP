@@ -17,3 +17,4 @@ export 'src/promo_quote.dart';
 export 'src/trip_stop.dart';
 export 'src/favorite_driver.dart';
 export 'src/inbox_notification.dart';
+export 'src/support_ticket.dart';

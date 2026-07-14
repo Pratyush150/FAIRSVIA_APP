@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/admin_api.dart';
 
-enum AdminTab { overview, trips, users, drivers, monitoring, live }
+enum AdminTab { overview, trips, users, drivers, monitoring, live, support }
 
 class AdminState extends Equatable {
   const AdminState({
@@ -20,6 +20,8 @@ class AdminState extends Equatable {
     this.drivers = const [],
     this.live = LiveSnapshot.empty,
     this.userQuery = '',
+    this.tickets = const [],
+    this.ticketFilter = 'open',
   });
 
   final AdminTab tab;
@@ -32,6 +34,10 @@ class AdminState extends Equatable {
   final List<AdminDriver> drivers;
   final LiveSnapshot live;
   final String userQuery;
+  final List<AdminSupportTicket> tickets;
+
+  /// '' means "all statuses".
+  final String ticketFilter;
 
   AdminState copyWith({
     AdminTab? tab,
@@ -45,6 +51,8 @@ class AdminState extends Equatable {
     List<AdminDriver>? drivers,
     LiveSnapshot? live,
     String? userQuery,
+    List<AdminSupportTicket>? tickets,
+    String? ticketFilter,
   }) {
     return AdminState(
       tab: tab ?? this.tab,
@@ -57,12 +65,26 @@ class AdminState extends Equatable {
       drivers: drivers ?? this.drivers,
       live: live ?? this.live,
       userQuery: userQuery ?? this.userQuery,
+      tickets: tickets ?? this.tickets,
+      ticketFilter: ticketFilter ?? this.ticketFilter,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [tab, loading, error, stats, ops, trips, users, drivers, live, userQuery];
+  List<Object?> get props => [
+        tab,
+        loading,
+        error,
+        stats,
+        ops,
+        trips,
+        users,
+        drivers,
+        live,
+        userQuery,
+        tickets,
+        ticketFilter,
+      ];
 }
 
 /// Drives the admin dashboard: loads each dataset on demand and auto-refreshes
@@ -110,6 +132,11 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.live:
           final live = await _api.live();
           emit(state.copyWith(loading: false, live: live));
+        case AdminTab.support:
+          final tickets = await _api.supportTickets(
+            status: state.ticketFilter.isEmpty ? null : state.ticketFilter,
+          );
+          emit(state.copyWith(loading: false, tickets: tickets));
       }
     } on ApiException catch (e) {
       emit(state.copyWith(loading: false, error: e.message));
@@ -135,6 +162,7 @@ class AdminCubit extends Cubit<AdminState> {
           emit(state.copyWith(live: await _api.live()));
         case AdminTab.users:
         case AdminTab.drivers:
+        case AdminTab.support:
           return; // not live-refreshed
       }
     } catch (_) {
@@ -160,6 +188,27 @@ class AdminCubit extends Cubit<AdminState> {
   Future<void> refundTrip(String tripId, {double? amount, String? reason}) async {
     try {
       await _api.refund(tripId, amount: amount, reason: reason);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+      rethrow;
+    }
+  }
+
+  void setTicketFilter(String filter) {
+    emit(state.copyWith(ticketFilter: filter));
+    unawaited(refresh());
+  }
+
+  Future<AdminSupportTicket> ticketThread(String id) => _api.supportThread(id);
+
+  Future<AdminSupportTicket> replyTicket(String id, String body) =>
+      _api.supportReply(id, body);
+
+  /// Change a ticket's status and refresh the queue.
+  Future<void> setTicketStatus(String id, String status) async {
+    try {
+      await _api.supportSetStatus(id, status);
       await refresh();
     } on ApiException catch (e) {
       emit(state.copyWith(error: e.message));

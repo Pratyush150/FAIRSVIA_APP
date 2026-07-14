@@ -320,6 +320,63 @@ class AdminDriver {
   }
 }
 
+/// A support ticket in the admin queue. [messages] is populated only when a
+/// single thread is fetched.
+class AdminSupportMessage {
+  const AdminSupportMessage({
+    required this.authorRole,
+    required this.body,
+    this.createdAt,
+  });
+
+  final String authorRole;
+  final String body;
+  final DateTime? createdAt;
+
+  bool get isFromAdmin => authorRole == 'admin';
+
+  factory AdminSupportMessage.fromJson(Map<String, dynamic> j) =>
+      AdminSupportMessage(
+        authorRole: j['authorRole'] as String? ?? 'user',
+        body: j['body'] as String? ?? '',
+        createdAt: j['createdAt'] == null
+            ? null
+            : DateTime.tryParse(j['createdAt'] as String),
+      );
+}
+
+class AdminSupportTicket {
+  const AdminSupportTicket({
+    required this.id,
+    required this.subject,
+    required this.category,
+    required this.status,
+    this.updatedAt,
+    this.messages = const [],
+  });
+
+  final String id;
+  final String subject;
+  final String category;
+  final String status;
+  final DateTime? updatedAt;
+  final List<AdminSupportMessage> messages;
+
+  factory AdminSupportTicket.fromJson(Map<String, dynamic> j) =>
+      AdminSupportTicket(
+        id: j['id'] as String,
+        subject: j['subject'] as String? ?? '',
+        category: j['category'] as String? ?? 'other',
+        status: j['status'] as String? ?? 'open',
+        updatedAt: j['updatedAt'] == null
+            ? null
+            : DateTime.tryParse(j['updatedAt'] as String),
+        messages: (j['messages'] as List<dynamic>? ?? const [])
+            .map((m) => AdminSupportMessage.fromJson(m as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
 /// REST calls for the admin dashboard (all role-gated on the backend).
 class AdminApi {
   AdminApi(this._dio);
@@ -387,6 +444,43 @@ class AdminApi {
     );
     return LiveSnapshot.fromJson(res.data ?? const {});
   }
+
+  /// Support queue (`GET /admin/support/tickets`), optionally filtered.
+  Future<List<AdminSupportTicket>> supportTickets({String? status}) async {
+    final res = await _guard(
+      () => _dio.get<List<dynamic>>('/admin/support/tickets', queryParameters: {
+        'status': ?status,
+      }),
+    );
+    return res.data!
+        .map((e) => AdminSupportTicket.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// A single ticket's thread (via the shared `/support/tickets/:id` — admins
+  /// bypass the ownership check on the backend).
+  Future<AdminSupportTicket> supportThread(String id) async {
+    final res = await _guard(
+      () => _dio.get<Map<String, dynamic>>('/support/tickets/$id'),
+    );
+    return AdminSupportTicket.fromJson(res.data!);
+  }
+
+  /// Post an admin reply; returns the refreshed thread.
+  Future<AdminSupportTicket> supportReply(String id, String body) async {
+    final res = await _guard(
+      () => _dio.post<Map<String, dynamic>>(
+        '/support/tickets/$id/messages',
+        data: {'body': body},
+      ),
+    );
+    return AdminSupportTicket.fromJson(res.data!);
+  }
+
+  /// Change a ticket's status (`PATCH /admin/support/tickets/:id`).
+  Future<void> supportSetStatus(String id, String status) => _guard(
+        () => _dio.patch('/admin/support/tickets/$id', data: {'status': status}),
+      );
 
   /// Refund a trip's payment (full when [amount] is null).
   Future<void> refund(String tripId, {double? amount, String? reason}) => _guard(
