@@ -202,6 +202,9 @@ class TripCubit extends Cubit<TripState> {
   void removePromo() =>
       emit(state.copyWith(appliedPromo: null, promoError: null));
 
+  void setPaymentMode(String mode) =>
+      emit(state.copyWith(paymentMode: mode));
+
   Future<void> confirmRide() async {
     final s = state;
     if (s.pickup == null || s.dropoff == null || s.selectedTier == null) return;
@@ -214,6 +217,7 @@ class TripCubit extends Cubit<TripState> {
         pickupAddr: s.pickupAddr,
         dropoffAddr: s.dropoffAddr,
         promoCode: s.appliedPromo?.code,
+        paymentMode: s.paymentMode,
       );
       emit(state.copyWith(phase: TripPhase.searching, trip: trip));
     } on ApiException catch (e) {

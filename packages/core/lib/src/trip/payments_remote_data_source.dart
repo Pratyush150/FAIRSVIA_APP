@@ -12,6 +12,7 @@ class Receipt {
     this.tip = 0,
     this.platformFee,
     this.driverPayout,
+    this.method = 'card',
   });
 
   final String tripId;
@@ -21,6 +22,11 @@ class Receipt {
   final double tip;
   final double? platformFee;
   final double? driverPayout;
+
+  /// How the ride settled: `card` or `cash`.
+  final String method;
+
+  bool get isCash => method == 'cash';
 
   factory Receipt.fromJson(Map<String, dynamic> j) {
     final p = j['payment'] as Map<String, dynamic>?;
@@ -32,6 +38,7 @@ class Receipt {
       tip: (p?['tip'] as num?)?.toDouble() ?? 0,
       platformFee: (p?['platformFee'] as num?)?.toDouble(),
       driverPayout: (p?['driverPayout'] as num?)?.toDouble(),
+      method: p?['method'] as String? ?? 'card',
     );
   }
 }

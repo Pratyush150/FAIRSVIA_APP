@@ -123,6 +123,7 @@ model Trip {
   startOtp        String?    @map("start_otp") @db.VarChar(4)
   promoCode       String?    @map("promo_code") @db.VarChar(24)
   promoDiscount   Decimal    @default(0) @map("promo_discount") @db.Decimal(10, 2)
+  paymentMode     String     @default("card") @map("payment_mode") @db.VarChar(4) // card|cash
 
   cancelReason    String?    @map("cancel_reason")
   cancelledBy     String?    @map("cancelled_by") @db.VarChar(10)
@@ -170,8 +171,9 @@ model Payment {
   tripId           String   @unique @map("trip_id") @db.Uuid
   amount           Decimal  @db.Decimal(10, 2)
   currency         String   @default("INR") @db.VarChar(3)
-  status           String   @default("pending") @db.VarChar(12) // pending|authorized|captured|failed|refunded
+  status           String   @default("pending") @db.VarChar(12) // pending|authorized|captured|collected|failed|refunded
   kind             String   @default("ride") @db.VarChar(12) // ride|cancellation
+  method           String   @default("card") @db.VarChar(4) // card|cash
   externalIntentId String?  @map("external_intent_id")
   driverPayout     Decimal? @map("driver_payout") @db.Decimal(10, 2)
   platformFee      Decimal? @map("platform_fee") @db.Decimal(10, 2)

@@ -155,8 +155,13 @@ class DriverCubit extends Cubit<DriverState> {
     if (trip == null) return;
     emit(state.copyWith(busy: true, error: null));
     try {
-      await _remote.complete(trip.id);
+      final receipt = await _remote.complete(trip.id);
       final earnings = await _remote.earnings(range: 'today');
+      // On a cash ride the driver collects the fare in person.
+      final isCash = receipt['paymentMode'] == 'cash';
+      final cash = isCash
+          ? (receipt['fareFinal'] as num?)?.toDouble()
+          : null;
       // Park in `completed` so the driver can rate the rider before returning
       // to the available pool.
       emit(state.copyWith(
@@ -166,6 +171,7 @@ class DriverCubit extends Cubit<DriverState> {
         lastEarned: earnings.total,
         lastTripId: trip.id,
         riderRating: null,
+        cashToCollect: cash,
       ));
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));

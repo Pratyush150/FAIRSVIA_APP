@@ -45,6 +45,8 @@ async function main() {
   const offerP = once(dSock, 'trip:offer');
   const acceptedP = once(rSock, 'trip:accepted');
 
+  // Optionally exercise the cash-settlement path (PAYMENT_MODE=cash).
+  const paymentMode = process.env.PAYMENT_MODE === 'cash' ? 'cash' : 'card';
   const trip = await api('/trips', {
     method: 'POST',
     token: rider.token,
@@ -56,10 +58,12 @@ async function main() {
       tier: 'economy',
       pickupAddr: 'Indiranagar',
       dropoffAddr: 'MG Road',
+      paymentMode,
     },
   });
   assert(trip.status === 'requested', 'trip created in requested');
-  console.log(`• trip created ${trip.id} (${trip.status})`);
+  assert(trip.paymentMode === paymentMode, `trip paymentMode is ${paymentMode}`);
+  console.log(`• trip created ${trip.id} (${trip.status}, ${paymentMode})`);
 
   await matchingP;
   console.log('• rider ← trip:matching');
@@ -123,6 +127,7 @@ async function main() {
   });
   await completedP;
   console.log(`• rider ← trip:completed  ₹${receipt.fareFinal}`);
+  assert(receipt.paymentMode === paymentMode, `receipt paymentMode ${paymentMode}`);
 
   const final = await api(`/trips/${trip.id}`, { token: rider.token });
   assert(final.status === 'completed', 'final status completed');
@@ -148,9 +153,18 @@ async function main() {
     token: rider.token,
   });
   assert(receiptDoc.payment, 'receipt has a payment record');
-  assert(receiptDoc.payment.status === 'captured', 'payment captured');
+  // Card rides are captured through the provider; cash rides are collected in
+  // person (no provider charge), so their payment settles as `collected`.
+  const expectedStatus = paymentMode === 'cash' ? 'collected' : 'captured';
+  assert(
+    receiptDoc.payment.status === expectedStatus,
+    `payment ${expectedStatus} (${paymentMode})`,
+  );
+  assert(receiptDoc.payment.method === paymentMode, `payment method ${paymentMode}`);
   assert(receiptDoc.payment.kind === 'ride', 'payment kind is ride');
-  console.log(`• receipt  status=${receiptDoc.payment.status}  kind=${receiptDoc.payment.kind}`);
+  console.log(
+    `• receipt  status=${receiptDoc.payment.status}  method=${receiptDoc.payment.method}  kind=${receiptDoc.payment.kind}`,
+  );
 
   // --- Tip: goes 100% to the driver payout ---
   const tipRes = await api(`/payments/${trip.id}/tip`, {

@@ -37,4 +37,9 @@ export class CreateTripDto {
   // Optional promo code; applied at creation if valid for this rider/fare.
   @IsOptional() @IsString()
   promoCode?: string;
+
+  // How the rider pays: 'card' (default, auth-hold + capture) or 'cash'
+  // (collected in person on completion).
+  @IsOptional() @IsIn(['card', 'cash'])
+  paymentMode?: 'card' | 'cash';
 }

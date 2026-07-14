@@ -288,6 +288,29 @@ class _CompletedSheet extends StatelessWidget {
           Text("Today's earnings: ₹${state.lastEarned!.toStringAsFixed(0)}",
               style: theme.textTheme.bodyMedium),
         ],
+        if (state.cashToCollect != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              color: AppColors.warning.withValues(alpha: 0.14),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.payments, color: AppColors.warning),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Collect ₹${state.cashToCollect!.toStringAsFixed(0)} in cash from the rider',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: AppColors.warning),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.md),
         Text('Rate your rider', style: theme.textTheme.titleMedium),
         Row(

@@ -329,6 +329,8 @@ class _RideOptions extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
+        _PaymentModeToggle(state: state),
+        const SizedBox(height: AppSpacing.sm),
         _PromoField(state: state),
         const SizedBox(height: AppSpacing.md),
         PrimaryButton(
@@ -353,6 +355,84 @@ String _confirmLabel(TripState state) {
     return 'Confirm ${fare.label} · ₹${net.toStringAsFixed(0)}';
   }
   return 'Confirm ${fare.label} · ₹${fare.fare.toStringAsFixed(0)}';
+}
+
+/// Card / Cash selector for the ride-options sheet.
+class _PaymentModeToggle extends StatelessWidget {
+  const _PaymentModeToggle({required this.state});
+  final TripState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<TripCubit>();
+    return Row(
+      children: [
+        Expanded(
+          child: _PayChip(
+            icon: Icons.credit_card,
+            label: 'Card',
+            selected: state.paymentMode == 'card',
+            onTap: () => cubit.setPaymentMode('card'),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _PayChip(
+            icon: Icons.payments_outlined,
+            label: 'Cash',
+            selected: state.paymentMode == 'cash',
+            onTap: () => cubit.setPaymentMode('cash'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PayChip extends StatelessWidget {
+  const _PayChip({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          border: Border.all(
+            color: selected ? AppColors.accent : theme.dividerColor,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: selected ? AppColors.accent : null),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              label,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: selected ? AppColors.accent : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Promo-code entry for the ride-options sheet. Shows an input + Apply button
@@ -753,6 +833,22 @@ class _CompletedSheet extends StatelessWidget {
           if (tip > 0) _ReceiptRow(label: 'Tip', value: tip),
           const Divider(height: AppSpacing.xl),
           _ReceiptRow(label: 'Total', value: fare + tip, bold: true),
+          if (state.receipt?.isCash ?? false)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: Row(
+                children: [
+                  const Icon(Icons.payments_outlined,
+                      size: 16, color: AppColors.warning),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Pay ₹${(fare + tip).toStringAsFixed(0)} in cash to your driver',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AppColors.warning),
+                  ),
+                ],
+              ),
+            ),
           const SizedBox(height: AppSpacing.lg),
           // Rating
           Text('Rate your driver', style: theme.textTheme.titleMedium),

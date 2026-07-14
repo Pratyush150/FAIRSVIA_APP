@@ -20,6 +20,7 @@ class DriverState extends Equatable {
     this.lastEarned,
     this.lastTripId,
     this.riderRating,
+    this.cashToCollect,
     this.needsOnboarding = false,
   });
 
@@ -31,6 +32,9 @@ class DriverState extends Equatable {
   final double? lastEarned;
   final String? lastTripId;
   final int? riderRating;
+
+  /// Cash the driver must collect for the just-completed trip (null for card).
+  final double? cashToCollect;
   final bool needsOnboarding;
 
   bool get isOnline => phase != DriverPhase.offline;
@@ -46,6 +50,7 @@ class DriverState extends Equatable {
     Object? lastEarned = _s,
     Object? lastTripId = _s,
     Object? riderRating = _s,
+    Object? cashToCollect = _s,
     bool? needsOnboarding,
   }) {
     return DriverState(
@@ -57,6 +62,8 @@ class DriverState extends Equatable {
       lastEarned: lastEarned == _s ? this.lastEarned : lastEarned as double?,
       lastTripId: lastTripId == _s ? this.lastTripId : lastTripId as String?,
       riderRating: riderRating == _s ? this.riderRating : riderRating as int?,
+      cashToCollect:
+          cashToCollect == _s ? this.cashToCollect : cashToCollect as double?,
       needsOnboarding: needsOnboarding ?? this.needsOnboarding,
     );
   }
@@ -71,6 +78,7 @@ class DriverState extends Equatable {
         lastEarned,
         lastTripId,
         riderRating,
+        cashToCollect,
         needsOnboarding,
       ];
 }

@@ -97,6 +97,7 @@ export class TripsService {
         surgeMultiplier: surge,
         currency: CURRENCY,
         startOtp: this.generateOtp(),
+        paymentMode: dto.paymentMode ?? 'card',
       },
     });
 
@@ -250,6 +251,7 @@ export class TripsService {
       currency: trip.currency,
       distanceM,
       durationS,
+      paymentMode: trip.paymentMode,
     };
     this.realtime.emitToUser(trip.riderId, 'trip:completed', receipt);
     this.realtime.emitToUser(driverId, 'trip:completed', receipt);
@@ -423,6 +425,7 @@ export class TripsService {
       fareFinal: t.fareFinal ? Number(t.fareFinal) : null,
       promoCode: t.promoCode,
       promoDiscount: Number(t.promoDiscount),
+      paymentMode: t.paymentMode,
       surgeMultiplier: Number(t.surgeMultiplier),
       currency: t.currency,
       startOtp: showOtp ? t.startOtp : null,

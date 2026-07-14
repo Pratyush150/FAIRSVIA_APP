@@ -27,6 +27,7 @@ class TripRepository {
     String? pickupAddr,
     String? dropoffAddr,
     String? promoCode,
+    String? paymentMode,
   }) =>
       _trips.create(
         pickup: pickup,
@@ -35,6 +36,7 @@ class TripRepository {
         pickupAddr: pickupAddr,
         dropoffAddr: dropoffAddr,
         promoCode: promoCode,
+        paymentMode: paymentMode,
       );
 
   /// Prices a promo code against a fare subtotal (rejection reason on failure).

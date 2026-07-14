@@ -39,6 +39,24 @@ export class PaymentsService {
     const amount = Number(trip.fareEstimate ?? 0);
     if (amount <= 0) return;
 
+    // Cash rides are settled in person on completion — there is nothing to
+    // auth-hold. Record a pending cash payment so the trip has a payment row.
+    if (trip.paymentMode === 'cash') {
+      await this.prisma.payment.upsert({
+        where: { tripId },
+        create: {
+          tripId,
+          amount,
+          currency: trip.currency,
+          status: 'pending',
+          kind: 'ride',
+          method: 'cash',
+        },
+        update: { amount, method: 'cash' },
+      });
+      return;
+    }
+
     const method = await this.defaultMethod(trip.riderId);
     const intent = await this.provider.authorize({
       amount,
@@ -73,6 +91,33 @@ export class PaymentsService {
     const final = Number(trip.fareFinal ?? trip.fareEstimate ?? 0);
     const platformFee = round2(final * this.feePercent);
     const driverPayout = round2(final - platformFee);
+
+    // Cash: the driver collects the fare in person, so there is no provider
+    // charge. We still record the split — the platform fee is what the driver
+    // owes on this ride (reconciled against their payout ledger).
+    if (trip.paymentMode === 'cash') {
+      await this.prisma.payment.upsert({
+        where: { tripId },
+        create: {
+          tripId,
+          amount: final,
+          currency: trip.currency,
+          status: 'collected',
+          kind: 'ride',
+          method: 'cash',
+          platformFee,
+          driverPayout,
+        },
+        update: {
+          status: 'collected',
+          method: 'cash',
+          amount: final,
+          platformFee,
+          driverPayout,
+        },
+      });
+      return { fareFinal: final, platformFee, driverPayout };
+    }
 
     const existing = await this.prisma.payment.findUnique({ where: { tripId } });
     // If a hold exists, capture it; otherwise charge directly.
@@ -212,10 +257,12 @@ export class PaymentsService {
       durationS: trip.durationS,
       currency: trip.currency,
       fare: Number(trip.fareFinal ?? trip.fareEstimate ?? 0),
+      paymentMode: trip.paymentMode,
       payment: p
         ? {
             status: p.status,
             kind: p.kind,
+            method: p.method,
             amount: Number(p.amount),
             tip: Number(p.tip),
             platformFee: p.platformFee ? Number(p.platformFee) : null,

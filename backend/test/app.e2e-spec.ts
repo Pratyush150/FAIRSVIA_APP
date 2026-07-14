@@ -137,6 +137,36 @@ describe('UberNav API (e2e)', () => {
     tripId = res.body.id;
   });
 
+  it('records the payment mode (defaults to card, accepts cash)', async () => {
+    const cash = await request(server)
+      .post('/api/v1/trips')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        pickupLat: 28.6139,
+        pickupLng: 77.209,
+        dropoffLat: 28.62,
+        dropoffLng: 77.22,
+        tier: 'economy',
+        paymentMode: 'cash',
+      });
+    expect(cash.status).toBe(201);
+    expect(cash.body.paymentMode).toBe('cash');
+
+    // An unknown payment mode is rejected by validation.
+    await request(server)
+      .post('/api/v1/trips')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        pickupLat: 28.6139,
+        pickupLng: 77.209,
+        dropoffLat: 28.62,
+        dropoffLng: 77.22,
+        tier: 'economy',
+        paymentMode: 'bitcoin',
+      })
+      .expect(400);
+  });
+
   it('rejects an invalid tier', async () => {
     await request(server)
       .post('/api/v1/trips')

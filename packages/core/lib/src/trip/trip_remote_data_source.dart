@@ -32,6 +32,7 @@ class TripRemoteDataSource {
     String? pickupAddr,
     String? dropoffAddr,
     String? promoCode,
+    String? paymentMode,
   }) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
@@ -45,6 +46,7 @@ class TripRemoteDataSource {
           'pickupAddr': ?pickupAddr,
           'dropoffAddr': ?dropoffAddr,
           'promoCode': ?promoCode,
+          'paymentMode': ?paymentMode,
         },
       );
       return Trip.fromJson(res.data!);

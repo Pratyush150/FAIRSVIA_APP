@@ -34,6 +34,7 @@ class TripState extends Equatable {
     this.appliedPromo,
     this.applyingPromo = false,
     this.promoError,
+    this.paymentMode = 'card',
     this.error,
   });
 
@@ -61,6 +62,9 @@ class TripState extends Equatable {
 
   /// The last promo rejection reason (cleared on a successful apply/remove).
   final String? promoError;
+
+  /// Rider's chosen payment mode for the next ride: `card` or `cash`.
+  final String paymentMode;
   final String? error;
 
   FareTier? get selectedFare {
@@ -103,6 +107,7 @@ class TripState extends Equatable {
     Object? appliedPromo = _s,
     bool? applyingPromo,
     Object? promoError = _s,
+    String? paymentMode,
     Object? error = _s,
   }) {
     return TripState(
@@ -130,6 +135,7 @@ class TripState extends Equatable {
           : appliedPromo as PromoQuote?,
       applyingPromo: applyingPromo ?? this.applyingPromo,
       promoError: promoError == _s ? this.promoError : promoError as String?,
+      paymentMode: paymentMode ?? this.paymentMode,
       error: error == _s ? this.error : error as String?,
     );
   }
@@ -154,6 +160,7 @@ class TripState extends Equatable {
         appliedPromo,
         applyingPromo,
         promoError,
+        paymentMode,
         error,
       ];
 }

@@ -86,6 +86,7 @@ class Trip extends Equatable {
     this.startOtp,
     this.promoCode,
     this.promoDiscount = 0,
+    this.paymentMode = 'card',
     this.requestedAt,
     this.completedAt,
   });
@@ -108,6 +109,9 @@ class Trip extends Equatable {
 
   /// Amount discounted by the promo code (0 when none applied).
   final double promoDiscount;
+
+  /// How the rider pays: `card` or `cash`.
+  final String paymentMode;
 
   /// When the trip was requested (present on history responses).
   final DateTime? requestedAt;
@@ -133,6 +137,7 @@ class Trip extends Equatable {
         startOtp: json['startOtp'] as String?,
         promoCode: json['promoCode'] as String?,
         promoDiscount: (json['promoDiscount'] as num?)?.toDouble() ?? 0,
+        paymentMode: json['paymentMode'] as String? ?? 'card',
         requestedAt: _parseDate(json['requestedAt']),
         completedAt: _parseDate(json['completedAt']),
       );
@@ -156,6 +161,7 @@ class Trip extends Equatable {
         startOtp,
         promoCode,
         promoDiscount,
+        paymentMode,
         requestedAt,
         completedAt,
       ];
