@@ -158,8 +158,8 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
                     padding: const EdgeInsets.all(AppSpacing.md),
                     child: Align(
                       alignment: Alignment.topRight,
-                      child: _CircleButton(
-                        icon: Icons.menu,
+                      child: AppCircleButton(
+                        icon: Icons.menu_rounded,
                         tooltip: 'Account menu',
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
@@ -225,34 +225,7 @@ class _BottomSheetForPhase extends StatelessWidget {
           onRetry: onSearch,
         ),
     };
-    return _SheetContainer(child: child);
-  }
-}
-
-class _SheetContainer extends StatelessWidget {
-  const _SheetContainer({required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.all(AppSpacing.md),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.radius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: SafeArea(top: false, child: child),
-    );
+    return AppSheet(child: child);
   }
 }
 
@@ -277,47 +250,124 @@ class _WhereToCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Where to?', style: theme.textTheme.headlineSmall),
-        const SizedBox(height: AppSpacing.md),
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+        Text('Where to?', style: theme.textTheme.headlineMedium),
+        const SizedBox(height: AppSpacing.lg),
+        // Search pill.
+        Material(
+          color: Colors.transparent,
+          child: Ink(
             decoration: BoxDecoration(
-              color: theme.scaffoldBackgroundColor,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              color: isDark
+                  ? AppColors.surfaceMutedDark
+                  : AppColors.surfaceMutedLight,
+              borderRadius: BorderRadius.circular(AppSpacing.radius),
+              border: Border.all(
+                color: isDark ? AppColors.borderDark : AppColors.borderLight,
+              ),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.search, color: AppColors.accent),
-                const SizedBox(width: AppSpacing.md),
-                Text('Enter your destination',
-                    style: theme.textTheme.bodyLarge),
-              ],
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(AppSpacing.radius),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.lg,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search_rounded,
+                        color: AppColors.accent, size: 22),
+                    const SizedBox(width: AppSpacing.md),
+                    Text('Enter your destination',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurface,
+                        )),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
         if (savedPlaces.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final place in savedPlaces)
-                ActionChip(
-                  avatar: Icon(_iconFor(place.label), size: 18),
-                  label: Text(place.label),
-                  onPressed: () => onPickSaved(place),
-                ),
-            ],
-          ),
+          const SizedBox(height: AppSpacing.lg),
+          for (final place in savedPlaces) ...[
+            _QuickDestination(
+              icon: _iconFor(place.label),
+              label: place.label,
+              subtitle: place.address,
+              onTap: () => onPickSaved(place),
+            ),
+            if (place != savedPlaces.last)
+              Divider(height: 1, color: theme.dividerColor),
+          ],
         ],
       ],
+    );
+  }
+}
+
+/// A saved-place row (Home / Work / …) shown under the search pill.
+class _QuickDestination extends StatelessWidget {
+  const _QuickDestination({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.surfaceMutedDark
+                    : AppColors.surfaceMutedLight,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 20, color: theme.colorScheme.onSurface),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: theme.textTheme.titleSmall),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                color: theme.colorScheme.onSurfaceVariant),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -359,7 +409,7 @@ class _RideOptions extends StatelessWidget {
         _StopsSection(state: state),
         const SizedBox(height: AppSpacing.sm),
         ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 220),
+          constraints: const BoxConstraints(maxHeight: 264),
           child: ListView(
             shrinkWrap: true,
             children: [
@@ -782,34 +832,58 @@ class _RideTierTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  IconData get _icon {
+    switch (tier.tier) {
+      case 'comfort':
+        return Icons.local_taxi_rounded;
+      case 'xl':
+        return Icons.airport_shuttle_rounded;
+      case 'premium':
+        return Icons.auto_awesome_rounded;
+      default:
+        return Icons.directions_car_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-          border: Border.all(
-            color: selected ? AppColors.accent : Colors.transparent,
-            width: 2,
-          ),
-          color: theme.scaffoldBackgroundColor,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AppCard(
+        selected: selected,
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
         ),
+        color: selected ? AppColors.accentSoft : null,
         child: Row(
           children: [
-            const Icon(Icons.local_taxi, size: 32),
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.accent.withValues(alpha: 0.16)
+                    : theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+              ),
+              child: Icon(_icon,
+                  size: 26,
+                  color: selected
+                      ? AppColors.accent
+                      : theme.colorScheme.onSurface),
+            ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(tier.label, style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 1),
                   Text(
-                    '${tier.capacity} seats · ${(tier.etaSeconds / 60).round()} min',
+                    '${tier.capacity} seats · ${(tier.etaSeconds / 60).round()} min away',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -817,7 +891,7 @@ class _RideTierTile extends StatelessWidget {
             ),
             Text(
               '\$${tier.fare.toStringAsFixed(0)}',
-              style: theme.textTheme.titleMedium,
+              style: theme.textTheme.titleLarge,
             ),
           ],
         ),
@@ -1110,19 +1184,40 @@ class _CompletedSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.check_circle, color: AppColors.accent, size: 48),
-          const SizedBox(height: AppSpacing.sm),
+          Center(
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                color: AppColors.accentSoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded,
+                  color: AppColors.accent, size: 36),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
           Center(
             child: Text('Trip complete', style: theme.textTheme.headlineSmall),
           ),
           const SizedBox(height: AppSpacing.lg),
-          _ReceiptRow(label: 'Fare', value: fare),
-          if (tip > 0) _ReceiptRow(label: 'Tip', value: tip),
-          const Divider(height: AppSpacing.xl),
-          _ReceiptRow(label: 'Total', value: fare + tip, bold: true),
+          AppCard(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            child: Column(
+              children: [
+                _ReceiptRow(label: 'Fare', value: fare),
+                if (tip > 0) _ReceiptRow(label: 'Tip', value: tip),
+                Divider(height: AppSpacing.lg, color: theme.dividerColor),
+                _ReceiptRow(label: 'Total', value: fare + tip, bold: true),
+              ],
+            ),
+          ),
           if (state.receipt?.isCash ?? false)
             Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              padding: const EdgeInsets.only(top: AppSpacing.md),
               child: Row(
                 children: [
                   const Icon(Icons.payments_outlined,
@@ -1136,42 +1231,47 @@ class _CompletedSheet extends StatelessWidget {
                 ],
               ),
             ),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.xl),
           // Rating
-          Text('Rate your driver', style: theme.textTheme.titleMedium),
+          Center(
+              child: Text('Rate your driver',
+                  style: theme.textTheme.titleMedium)),
           const SizedBox(height: AppSpacing.sm),
-          _StarRating(
+          StarRating(
             value: state.rating ?? 0,
             onRate: state.rating == null ? cubit.rateDriver : null,
           ),
           if (state.rating != null)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.xs),
-              child: Text('Thanks for your feedback!',
-                  style: theme.textTheme.bodySmall),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Text('Thanks for your feedback!',
+                    style: theme.textTheme.bodySmall),
+              ),
             ),
           if (state.driver?.id != null) ...[
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: AppSpacing.md),
             _FavoriteDriverButton(
               driverId: state.driver!.id!,
               driverName: state.driver!.name,
             ),
           ],
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.xl),
           // Tips
           Text('Add a tip', style: theme.textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              for (final amt in const [20.0, 30.0, 50.0])
+              for (final amt in const [2.0, 3.0, 5.0])
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(right: AppSpacing.sm),
-                    child: OutlinedButton(
-                      onPressed: (state.tipping || state.tipAmount != null)
+                    child: _TipChip(
+                      amount: amt,
+                      selected: state.tipAmount == amt,
+                      onTap: (state.tipping || state.tipAmount != null)
                           ? null
                           : () => cubit.tipDriver(amt),
-                      child: Text('\$${amt.toStringAsFixed(0)}'),
                     ),
                   ),
                 ),
@@ -1179,11 +1279,11 @@ class _CompletedSheet extends StatelessWidget {
           ),
           if (state.tipAmount != null)
             Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
               child: Text('Tip of \$${state.tipAmount!.toStringAsFixed(0)} added.',
                   style: theme.textTheme.bodySmall),
             ),
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.xl),
           PrimaryButton(
             label: 'Done',
             onPressed: () => context.read<TripCubit>().reset(),
@@ -1219,27 +1319,46 @@ class _ReceiptRow extends StatelessWidget {
   }
 }
 
-class _StarRating extends StatelessWidget {
-  const _StarRating({required this.value, this.onRate});
-  final int value;
-  final void Function(int stars)? onRate;
+class _TipChip extends StatelessWidget {
+  const _TipChip({required this.amount, required this.selected, this.onTap});
+  final double amount;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (var i = 1; i <= 5; i++)
-          IconButton(
-            iconSize: 34,
-            tooltip: '$i star${i > 1 ? 's' : ''}',
-            onPressed: onRate == null ? null : () => onRate!(i),
-            icon: Icon(
-              i <= value ? Icons.star : Icons.star_border,
-              color: AppColors.warning,
+    final theme = Theme.of(context);
+    final enabled = onTap != null || selected;
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.accentSoft
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          border: Border.all(
+            color: selected ? AppColors.accent : theme.dividerColor,
+            width: selected ? 1.6 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          child: Container(
+            height: 48,
+            alignment: Alignment.center,
+            child: Text(
+              '\$${amount.toStringAsFixed(0)}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: selected
+                    ? AppColors.accent
+                    : (enabled ? theme.colorScheme.onSurface : null),
+              ),
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 }
@@ -1293,29 +1412,3 @@ class _ErrorCard extends StatelessWidget {
   }
 }
 
-class _CircleButton extends StatelessWidget {
-  const _CircleButton({
-    required this.icon,
-    required this.onPressed,
-    this.tooltip,
-  });
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  /// Accessible label / hover hint for this icon-only control.
-  final String? tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      shape: const CircleBorder(),
-      elevation: 3,
-      child: IconButton(
-        icon: Icon(icon),
-        tooltip: tooltip,
-        onPressed: onPressed,
-      ),
-    );
-  }
-}
