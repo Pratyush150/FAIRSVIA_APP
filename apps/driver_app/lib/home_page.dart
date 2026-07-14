@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_models/shared_models.dart';
 
 import 'features/driver/driver_cubit.dart';
@@ -83,22 +82,31 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
     super.dispose();
   }
 
-  Set<Marker> _markers(DriverState state) {
+  List<AppMapMarker> _markers(DriverState state) {
     final trip = state.trip;
-    if (trip == null) return {};
-    return {
-      Marker(
-        markerId: const MarkerId('pickup'),
-        position: LatLng(trip.pickup.point.lat, trip.pickup.point.lng),
-        infoWindow: const InfoWindow(title: 'Pickup'),
+    if (trip == null) return const [];
+    return [
+      AppMapMarker(
+        point: LatLng(trip.pickup.point.lat, trip.pickup.point.lng),
+        kind: MapMarkerKind.pickup,
+        label: 'Pickup',
       ),
-      Marker(
-        markerId: const MarkerId('dropoff'),
-        position: LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(title: 'Dropoff'),
+      AppMapMarker(
+        point: LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng),
+        kind: MapMarkerKind.dropoff,
+        label: 'Dropoff',
       ),
-    };
+    ];
+  }
+
+  /// Fit both endpoints when there's an active trip.
+  List<LatLng>? _fitBounds(DriverState state) {
+    final trip = state.trip;
+    if (trip == null) return null;
+    return [
+      LatLng(trip.pickup.point.lat, trip.pickup.point.lng),
+      LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng),
+    ];
   }
 
   @override
@@ -126,18 +134,14 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
         return Scaffold(
           body: Stack(
             children: [
-              // Google Maps needs a JS key on web; placeholder keeps the driver
-              // flow testable in-browser until a key is set.
-              if (kIsWeb)
-                const MapPlaceholder()
-              else
-                GoogleMap(
-                  initialCameraPosition:
-                      const CameraPosition(target: _fallback, zoom: 14),
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: false,
-                  markers: _markers(state),
-                ),
+              // Real OpenStreetMap tiles (no API key) — renders on mobile + web.
+              AppMap(
+                initialCenter: _markers(state).isNotEmpty
+                    ? _markers(state).first.point
+                    : _fallback,
+                markers: _markers(state),
+                fitBounds: _fitBounds(state),
+              ),
               Positioned(
                 top: 0,
                 left: 0,

@@ -1,9 +1,7 @@
 import 'package:core/core.dart';
 import 'package:design_system/design_system.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_models/shared_models.dart';
 
 import 'features/trip/destination_search_page.dart';
@@ -39,7 +37,6 @@ class _RiderHomeView extends StatefulWidget {
 
 class _RiderHomeViewState extends State<_RiderHomeView> {
   final _location = LocationService();
-  GoogleMapController? _mapController;
   GeoPoint _myLocation = LocationService.fallback;
   List<SavedPlace> _savedPlaces = const [];
 
@@ -96,88 +93,60 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
     }
   }
 
-  void _fitRoute(TripState state) {
-    final controller = _mapController;
-    final estimate = state.estimate;
-    if (controller == null || estimate == null) return;
-    final points = [
-      MapUtils.toLatLng(estimate.pickup),
-      MapUtils.toLatLng(estimate.dropoff),
-    ];
-    controller.animateCamera(
-      CameraUpdate.newLatLngBounds(MapUtils.boundsFor(points), 80),
-    );
-  }
-
-  Set<Marker> _markers(TripState state) {
-    final markers = <Marker>{};
+  List<AppMapMarker> _markers(TripState state) {
+    final markers = <AppMapMarker>[];
     if (state.pickup != null) {
-      markers.add(Marker(
-        markerId: const MarkerId('pickup'),
-        position: MapUtils.toLatLng(state.pickup!),
-        infoWindow: const InfoWindow(title: 'Pickup'),
+      markers.add(AppMapMarker(
+        point: MapUtils.toLatLng(state.pickup!),
+        kind: MapMarkerKind.pickup,
+        label: 'Pickup',
       ));
     }
     if (state.dropoff != null) {
-      markers.add(Marker(
-        markerId: const MarkerId('dropoff'),
-        position: MapUtils.toLatLng(state.dropoff!),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(title: 'Destination'),
+      markers.add(AppMapMarker(
+        point: MapUtils.toLatLng(state.dropoff!),
+        kind: MapMarkerKind.dropoff,
+        label: 'Destination',
       ));
     }
     if (state.driverLocation != null) {
-      markers.add(Marker(
-        markerId: const MarkerId('driver'),
-        position: MapUtils.toLatLng(state.driverLocation!),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-        infoWindow: const InfoWindow(title: 'Driver'),
+      markers.add(AppMapMarker(
+        point: MapUtils.toLatLng(state.driverLocation!),
+        kind: MapMarkerKind.driver,
+        label: 'Driver',
       ));
     }
     return markers;
   }
 
-  Set<Polyline> _polylines(TripState state) {
+  List<LatLng> _route(TripState state) {
     final encoded = state.estimate?.polyline;
-    if (encoded == null || encoded.isEmpty) return {};
-    return {
-      Polyline(
-        polylineId: const PolylineId('route'),
-        points: MapUtils.decodePolyline(encoded),
-        color: AppColors.accent,
-        width: 5,
-      ),
-    };
+    if (encoded == null || encoded.isEmpty) return const [];
+    return MapUtils.decodePolyline(encoded);
+  }
+
+  /// Fit pickup + dropoff once an estimate exists (stable during the trip, so
+  /// AppMap only re-fits when the endpoints actually change).
+  List<LatLng>? _fitBounds(TripState state) {
+    final e = state.estimate;
+    if (e == null) return null;
+    return [MapUtils.toLatLng(e.pickup), MapUtils.toLatLng(e.dropoff)];
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<TripCubit, TripState>(
-      listenWhen: (p, c) => p.phase != c.phase,
-      listener: (context, state) {
-        if (state.phase == TripPhase.choosingRide) _fitRoute(state);
-      },
-      child: BlocBuilder<TripCubit, TripState>(
+    return BlocBuilder<TripCubit, TripState>(
         builder: (context, state) {
           return Scaffold(
             body: Stack(
               children: [
-                // Google Maps needs a JS key on web; until one is set we show a
-                // placeholder so the rest of the flow stays testable in-browser.
-                if (kIsWeb)
-                  const MapPlaceholder()
-                else
-                  GoogleMap(
-                    initialCameraPosition: CameraPosition(
-                      target: MapUtils.toLatLng(_myLocation),
-                      zoom: 14,
-                    ),
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: false,
-                    markers: _markers(state),
-                    polylines: _polylines(state),
-                    onMapCreated: (c) => _mapController = c,
-                  ),
+                // Real OpenStreetMap tiles (no API key) — renders on mobile + web.
+                AppMap(
+                  initialCenter: MapUtils.toLatLng(_myLocation),
+                  markers: _markers(state),
+                  route: _route(state),
+                  fitBounds: _fitBounds(state),
+                ),
                 Positioned(
                   top: 0,
                   left: 0,
@@ -215,7 +184,6 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
             ),
           );
         },
-      ),
     );
   }
 }

@@ -1,11 +1,26 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget _wrap(Widget child) => MaterialApp(
       theme: AppTheme.light,
       home: Scaffold(body: child),
     );
+
+/// A 1×1 transparent PNG, so tests render the map without hitting the network.
+final Uint8List _transparentPixel = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+);
+
+class _OfflineTileProvider extends TileProvider {
+  @override
+  ImageProvider getImage(TileCoordinates coordinates, TileLayer options) =>
+      MemoryImage(_transparentPixel);
+}
 
 void main() {
   group('PrimaryButton', () {
@@ -79,6 +94,37 @@ void main() {
       await tester.pumpWidget(_wrap(const ConnectionBanner(connected: false)));
       expect(find.textContaining('Reconnecting'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+  });
+
+  group('AppMap', () {
+    testWidgets('renders the OSM map with pickup + dropoff markers',
+        (tester) async {
+      await tester.pumpWidget(_wrap(SizedBox(
+        width: 400,
+        height: 600,
+        child: AppMap(
+          initialCenter: const LatLng(25.7743, -80.1937),
+          tileProvider: _OfflineTileProvider(),
+          markers: const [
+            AppMapMarker(
+              point: LatLng(25.7743, -80.1937),
+              kind: MapMarkerKind.pickup,
+            ),
+            AppMapMarker(
+              point: LatLng(25.7806, -80.2420),
+              kind: MapMarkerKind.dropoff,
+            ),
+          ],
+        ),
+      )));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // AppMap composes a flutter_map and builds without throwing (offline
+      // tiles). Marker placement is flutter_map's own concern.
+      expect(find.byType(AppMap), findsOneWidget);
+      expect(find.byType(FlutterMap), findsOneWidget);
     });
   });
 }
