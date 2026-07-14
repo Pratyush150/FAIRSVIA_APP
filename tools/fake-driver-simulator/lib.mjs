@@ -83,11 +83,11 @@ export async function onboardDriver(token, tier = 'economy') {
     token,
     body: {
       vehicleMake: 'Toyota',
-      vehicleModel: 'Etios',
+      vehicleModel: 'Camry',
       vehicleColor: 'White',
-      plateNumber: 'KA01AB' + Math.floor(1000 + (Date.now() % 9000)),
+      plateNumber: 'FL' + Math.floor(100000 + (Date.now() % 900000)),
       vehicleTier: tier,
-      licenseNo: 'DL-' + (Date.now() % 100000),
+      licenseNo: 'FL-' + (Date.now() % 100000),
     },
   });
 }
