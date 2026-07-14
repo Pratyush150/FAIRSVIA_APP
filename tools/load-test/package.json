@@ -6,7 +6,8 @@
   "description": "Load tests for the UberNav backend: REST hot-path throughput and realistic end-to-end ride capacity.",
   "scripts": {
     "rest": "node rest-load.mjs",
-    "ride": "node ride-load.mjs"
+    "ride": "node ride-load.mjs",
+    "spike": "node spike-load.mjs"
   },
   "dependencies": {
     "socket.io-client": "^4.8.1"

@@ -82,12 +82,18 @@ export class RealtimeGateway
 
   async handleDisconnect(client: AuthedSocket): Promise<void> {
     const userId = client.data.userId;
-    if (!userId || client.data.role !== 'driver') return;
-    // Best-effort: take a disconnecting driver out of the pool (unless on a trip).
+    if (!userId) return;
+    // Key off live driver state, NOT the JWT role: a driver's token is minted at
+    // login and still says 'rider' after onboarding, so a role check here would
+    // never fire and dead sockets would linger in the matchable pool — dispatch
+    // would then waste a full offer TTL per ghost. `driverTier` exists only while
+    // a driver is online, so it's the reliable "is an active driver" signal.
+    const tier = await this.redis.client.get(RedisKeys.driverTier(userId));
+    if (!tier) return; // not an online driver
+    // Mid-trip: keep them in place so a brief drop can reconnect and resume.
     const onTrip = await this.redis.client.get(RedisKeys.driverActiveTrip(userId));
     if (onTrip) return;
-    const tier = await this.redis.client.get(RedisKeys.driverTier(userId));
-    if (tier) await this.drivers.goOffline(userId, tier);
+    await this.drivers.goOffline(userId, tier);
   }
 
   @SubscribeMessage('driver:location')
