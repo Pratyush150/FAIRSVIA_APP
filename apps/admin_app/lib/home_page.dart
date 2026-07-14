@@ -81,6 +81,11 @@ class _AdminScaffold extends StatelessWidget {
                     selectedIcon: Icon(Icons.monitor_heart),
                     label: Text('Monitoring'),
                   ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.map_outlined),
+                    selectedIcon: Icon(Icons.map),
+                    label: Text('Live'),
+                  ),
                 ],
               ),
               const VerticalDivider(width: 1),
@@ -112,6 +117,7 @@ class _AdminScaffold extends StatelessWidget {
         AdminTab.users => 'Users',
         AdminTab.drivers => 'Drivers',
         AdminTab.monitoring => 'Monitoring',
+        AdminTab.live => 'Live map',
       };
 }
 
@@ -171,8 +177,161 @@ class _Body extends StatelessWidget {
       AdminTab.users => const _UsersView(),
       AdminTab.drivers => _DriversView(drivers: state.drivers),
       AdminTab.monitoring => _MonitoringView(ops: state.ops),
+      AdminTab.live => _LiveView(live: state.live),
     };
   }
+}
+
+// --- Live map ---------------------------------------------------------------
+
+/// A real-coordinate scatter of online drivers + active-trip pickups. No
+/// external map tiles — positions are plotted within their own bounding box so
+/// the ops team can see the fleet's spatial spread and statuses at a glance.
+class _LiveView extends StatelessWidget {
+  const _LiveView({required this.live});
+  final LiveSnapshot live;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final onTrip = live.drivers.where((d) => d.status != 'online').length;
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              _LiveStat(label: 'Online drivers', value: '${live.drivers.length}'),
+              const SizedBox(width: AppSpacing.xl),
+              _LiveStat(label: 'On a trip', value: '$onTrip'),
+              const SizedBox(width: AppSpacing.xl),
+              _LiveStat(label: 'Active trips', value: '${live.trips.length}'),
+              const Spacer(),
+              Row(children: const [
+                _Legend(color: AppColors.success, label: 'Idle'),
+                SizedBox(width: AppSpacing.md),
+                _Legend(color: AppColors.warning, label: 'On trip'),
+                SizedBox(width: AppSpacing.md),
+                _Legend(color: AppColors.accent, label: 'Pickup'),
+              ]),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Expanded(
+            child: live.drivers.isEmpty && live.trips.isEmpty
+                ? Center(
+                    child: Text('No drivers online right now.',
+                        style: theme.textTheme.bodyLarge),
+                  )
+                : Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: CustomPaint(
+                      painter: _FleetPainter(live),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveStat extends StatelessWidget {
+  const _LiveStat({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(value, style: theme.textTheme.headlineMedium),
+        Text(label, style: theme.textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+class _Legend extends StatelessWidget {
+  const _Legend({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+/// Plots each driver/pickup as a dot within the lat/lng bounding box of all
+/// points, with a little padding. A genuine visualization of live coordinates.
+class _FleetPainter extends CustomPainter {
+  _FleetPainter(this.live);
+  final LiveSnapshot live;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final lats = <double>[
+      ...live.drivers.map((d) => d.lat),
+      ...live.trips.map((t) => t.pickupLat),
+    ];
+    final lngs = <double>[
+      ...live.drivers.map((d) => d.lng),
+      ...live.trips.map((t) => t.pickupLng),
+    ];
+    if (lats.isEmpty) return;
+
+    var minLat = lats.reduce((a, b) => a < b ? a : b);
+    var maxLat = lats.reduce((a, b) => a > b ? a : b);
+    var minLng = lngs.reduce((a, b) => a < b ? a : b);
+    var maxLng = lngs.reduce((a, b) => a > b ? a : b);
+    // Avoid a zero-span box when all points coincide.
+    if (maxLat - minLat < 1e-4) {
+      minLat -= 0.01;
+      maxLat += 0.01;
+    }
+    if (maxLng - minLng < 1e-4) {
+      minLng -= 0.01;
+      maxLng += 0.01;
+    }
+    const pad = 24.0;
+    Offset project(double lat, double lng) {
+      final x = pad +
+          (lng - minLng) / (maxLng - minLng) * (size.width - 2 * pad);
+      // Latitude increases upward, so invert Y.
+      final y = pad +
+          (maxLat - lat) / (maxLat - minLat) * (size.height - 2 * pad);
+      return Offset(x, y);
+    }
+
+    final pickupPaint = Paint()..color = AppColors.accent.withValues(alpha: 0.8);
+    for (final t in live.trips) {
+      canvas.drawCircle(project(t.pickupLat, t.pickupLng), 4, pickupPaint);
+    }
+    for (final d in live.drivers) {
+      final paint = Paint()
+        ..color = d.status == 'online' ? AppColors.success : AppColors.warning;
+      canvas.drawCircle(project(d.lat, d.lng), 6, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FleetPainter old) => old.live != live;
 }
 
 // --- Overview ---------------------------------------------------------------

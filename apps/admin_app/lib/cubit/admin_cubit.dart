@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/admin_api.dart';
 
-enum AdminTab { overview, trips, users, drivers, monitoring }
+enum AdminTab { overview, trips, users, drivers, monitoring, live }
 
 class AdminState extends Equatable {
   const AdminState({
@@ -18,6 +18,7 @@ class AdminState extends Equatable {
     this.trips = const [],
     this.users = const [],
     this.drivers = const [],
+    this.live = LiveSnapshot.empty,
     this.userQuery = '',
   });
 
@@ -29,6 +30,7 @@ class AdminState extends Equatable {
   final List<AdminTrip> trips;
   final List<AdminUser> users;
   final List<AdminDriver> drivers;
+  final LiveSnapshot live;
   final String userQuery;
 
   AdminState copyWith({
@@ -41,6 +43,7 @@ class AdminState extends Equatable {
     List<AdminTrip>? trips,
     List<AdminUser>? users,
     List<AdminDriver>? drivers,
+    LiveSnapshot? live,
     String? userQuery,
   }) {
     return AdminState(
@@ -52,13 +55,14 @@ class AdminState extends Equatable {
       trips: trips ?? this.trips,
       users: users ?? this.users,
       drivers: drivers ?? this.drivers,
+      live: live ?? this.live,
       userQuery: userQuery ?? this.userQuery,
     );
   }
 
   @override
   List<Object?> get props =>
-      [tab, loading, error, stats, ops, trips, users, drivers, userQuery];
+      [tab, loading, error, stats, ops, trips, users, drivers, live, userQuery];
 }
 
 /// Drives the admin dashboard: loads each dataset on demand and auto-refreshes
@@ -103,6 +107,9 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.monitoring:
           final ops = await _api.metrics();
           emit(state.copyWith(loading: false, ops: ops));
+        case AdminTab.live:
+          final live = await _api.live();
+          emit(state.copyWith(loading: false, live: live));
       }
     } on ApiException catch (e) {
       emit(state.copyWith(loading: false, error: e.message));
@@ -124,6 +131,8 @@ class AdminCubit extends Cubit<AdminState> {
           emit(state.copyWith(trips: await _api.trips(limit: 100)));
         case AdminTab.monitoring:
           emit(state.copyWith(ops: await _api.metrics()));
+        case AdminTab.live:
+          emit(state.copyWith(live: await _api.live()));
         case AdminTab.users:
         case AdminTab.drivers:
           return; // not live-refreshed

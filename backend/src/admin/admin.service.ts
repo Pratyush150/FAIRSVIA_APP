@@ -236,6 +236,79 @@ export class AdminService {
     return { id: userId, docsVerified: profile.docsVerified };
   }
 
+  /**
+   * Live operational snapshot for the admin map: every online driver's current
+   * position (from Redis GEO, per tier) and every in-flight trip's endpoints.
+   */
+  async live() {
+    const drivers: {
+      driverId: string;
+      lat: number;
+      lng: number;
+      heading: number;
+      tier: string | null;
+      status: string;
+    }[] = [];
+
+    // Enumerate every online driver (idle OR on a trip) from their status keys,
+    // then read each one's last-known position. We use the per-driver location
+    // hash rather than the geo pool, because busy drivers are removed from the
+    // pool when matched but should still appear on the ops map.
+    const statusKeys = await this.redis.client.keys('driver:*:status');
+    const statuses = statusKeys.length
+      ? await this.redis.client.mget(...statusKeys)
+      : [];
+    for (let i = 0; i < statusKeys.length; i++) {
+      const status = statuses[i];
+      if (!status || status === 'offline') continue;
+      // key shape: driver:{id}:status
+      const driverId = statusKeys[i].split(':')[1];
+      const loc = await this.redis.client.hgetall(RedisKeys.driverLoc(driverId));
+      if (!loc?.lat || !loc?.lng) continue;
+      const tier = await this.redis.client.get(RedisKeys.driverTier(driverId));
+      drivers.push({
+        driverId,
+        lat: Number(loc.lat),
+        lng: Number(loc.lng),
+        heading: Number(loc.heading ?? 0),
+        tier,
+        status,
+      });
+    }
+
+    const active = await this.prisma.trip.findMany({
+      where: { status: { in: ACTIVE_STATUSES } },
+      orderBy: { requestedAt: 'desc' },
+      take: 200,
+      select: {
+        id: true,
+        status: true,
+        driverId: true,
+        pickupLat: true,
+        pickupLng: true,
+        dropoffLat: true,
+        dropoffLng: true,
+        pickupAddr: true,
+        dropoffAddr: true,
+      },
+    });
+
+    return {
+      drivers,
+      trips: active.map((t) => ({
+        id: t.id,
+        status: t.status,
+        driverId: t.driverId,
+        pickup: { lat: t.pickupLat, lng: t.pickupLng, address: t.pickupAddr },
+        dropoff: {
+          lat: t.dropoffLat,
+          lng: t.dropoffLng,
+          address: t.dropoffAddr,
+        },
+      })),
+    };
+  }
+
   private async countOnlineDrivers(): Promise<number> {
     // Small scale (~10k users): a scan over driver status keys is fine. At
     // larger scale, maintain an "online" set instead.

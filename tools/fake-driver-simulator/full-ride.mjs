@@ -270,6 +270,18 @@ async function main() {
   // --- Admin refund (B2) ---
   const admin = await login('+919900000001');
   assert(admin.user.role === 'admin', 'admin login');
+
+  // --- Admin live map (C1): the online driver shows up with coordinates ---
+  const live = await api('/admin/live', { token: admin.token });
+  const me = live.drivers.find((d) => d.driverId === driver.user.id);
+  assert(me, 'live map lists the online driver');
+  assert(
+    typeof me.lat === 'number' && typeof me.lng === 'number',
+    'live driver has coordinates',
+  );
+  console.log(
+    `• live map: ${live.drivers.length} driver(s), ${live.trips.length} active trip(s)`,
+  );
   const refundAmt = 20;
   const refund = await api(`/admin/payments/${trip.id}/refund`, {
     method: 'POST',

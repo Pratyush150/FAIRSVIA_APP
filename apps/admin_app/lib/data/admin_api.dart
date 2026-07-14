@@ -1,6 +1,75 @@
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 
+/// A live driver position (`GET /admin/live`).
+class LiveDriver {
+  const LiveDriver({
+    required this.driverId,
+    required this.lat,
+    required this.lng,
+    required this.status,
+    this.tier,
+  });
+
+  final String driverId;
+  final double lat;
+  final double lng;
+  final String status;
+  final String? tier;
+
+  factory LiveDriver.fromJson(Map<String, dynamic> j) => LiveDriver(
+        driverId: j['driverId'] as String,
+        lat: (j['lat'] as num).toDouble(),
+        lng: (j['lng'] as num).toDouble(),
+        status: j['status'] as String? ?? 'online',
+        tier: j['tier'] as String?,
+      );
+}
+
+/// A live active-trip endpoint pair (`GET /admin/live`).
+class LiveTrip {
+  const LiveTrip({
+    required this.id,
+    required this.status,
+    required this.pickupLat,
+    required this.pickupLng,
+  });
+
+  final String id;
+  final String status;
+  final double pickupLat;
+  final double pickupLng;
+
+  factory LiveTrip.fromJson(Map<String, dynamic> j) {
+    final pickup = (j['pickup'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return LiveTrip(
+      id: j['id'] as String,
+      status: j['status'] as String? ?? '',
+      pickupLat: (pickup['lat'] as num?)?.toDouble() ?? 0,
+      pickupLng: (pickup['lng'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+/// The live ops snapshot: online drivers + in-flight trips.
+class LiveSnapshot {
+  const LiveSnapshot({required this.drivers, required this.trips});
+
+  final List<LiveDriver> drivers;
+  final List<LiveTrip> trips;
+
+  static const empty = LiveSnapshot(drivers: [], trips: []);
+
+  factory LiveSnapshot.fromJson(Map<String, dynamic> j) => LiveSnapshot(
+        drivers: (j['drivers'] as List<dynamic>? ?? const [])
+            .map((d) => LiveDriver.fromJson(d as Map<String, dynamic>))
+            .toList(),
+        trips: (j['trips'] as List<dynamic>? ?? const [])
+            .map((t) => LiveTrip.fromJson(t as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
 /// Dashboard headline counters (`GET /admin/stats`).
 class AdminStats {
   const AdminStats({
@@ -310,6 +379,14 @@ class AdminApi {
           'isActive': isActive,
         }),
       );
+
+  /// Live ops snapshot: online drivers + in-flight trips.
+  Future<LiveSnapshot> live() async {
+    final res = await _guard(
+      () => _dio.get<Map<String, dynamic>>('/admin/live'),
+    );
+    return LiveSnapshot.fromJson(res.data ?? const {});
+  }
 
   /// Refund a trip's payment (full when [amount] is null).
   Future<void> refund(String tripId, {double? amount, String? reason}) => _guard(

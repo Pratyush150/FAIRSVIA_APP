@@ -919,6 +919,27 @@ describe('UberNav API (e2e)', () => {
         .expect(404);
     });
 
+    it('live ops snapshot: drivers + active trips (admin-only)', async () => {
+      const res = await request(server)
+        .get('/api/v1/admin/live')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.drivers)).toBe(true);
+      expect(Array.isArray(res.body.trips)).toBe(true);
+      // Any driver entry has real coordinates + a status.
+      for (const d of res.body.drivers) {
+        expect(typeof d.lat).toBe('number');
+        expect(typeof d.lng).toBe('number');
+        expect(d.status).toBeTruthy();
+      }
+
+      // Non-admins are forbidden.
+      await request(server)
+        .get('/api/v1/admin/live')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
+
     it('lists recent SOS alerts for admins', async () => {
       const res = await request(server)
         .get('/api/v1/admin/safety')
