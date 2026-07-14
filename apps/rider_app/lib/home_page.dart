@@ -41,17 +41,38 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   final _location = LocationService();
   GoogleMapController? _mapController;
   GeoPoint _myLocation = LocationService.fallback;
+  List<SavedPlace> _savedPlaces = const [];
 
   @override
   void initState() {
     super.initState();
     _loadLocation();
+    _loadSavedPlaces();
     _connectSocket();
   }
 
   Future<void> _loadLocation() async {
     final loc = await _location.currentOrFallback();
     if (mounted) setState(() => _myLocation = loc);
+  }
+
+  Future<void> _loadSavedPlaces() async {
+    try {
+      final places = await sl<UsersRemoteDataSource>().listPlaces();
+      if (mounted) setState(() => _savedPlaces = places);
+    } catch (_) {
+      // Quick-picks are a convenience; a load failure just hides them.
+    }
+  }
+
+  /// Start a ride to a saved place directly from the home sheet.
+  Future<void> _pickSaved(SavedPlace place) async {
+    await context.read<TripCubit>().chooseDestination(
+          pickup: _myLocation,
+          pickupAddr: 'Current location',
+          dropoff: place.point,
+          dropoffAddr: place.address ?? place.label,
+        );
   }
 
   Future<void> _connectSocket() async {
@@ -176,7 +197,12 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
                 ),
                 Align(
                   alignment: Alignment.bottomCenter,
-                  child: _BottomSheetForPhase(state: state, onSearch: _openSearch),
+                  child: _BottomSheetForPhase(
+                    state: state,
+                    onSearch: _openSearch,
+                    savedPlaces: _savedPlaces,
+                    onPickSaved: _pickSaved,
+                  ),
                 ),
               ],
             ),
@@ -188,15 +214,26 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
 }
 
 class _BottomSheetForPhase extends StatelessWidget {
-  const _BottomSheetForPhase({required this.state, required this.onSearch});
+  const _BottomSheetForPhase({
+    required this.state,
+    required this.onSearch,
+    this.savedPlaces = const [],
+    required this.onPickSaved,
+  });
 
   final TripState state;
   final VoidCallback onSearch;
+  final List<SavedPlace> savedPlaces;
+  final ValueChanged<SavedPlace> onPickSaved;
 
   @override
   Widget build(BuildContext context) {
     final child = switch (state.phase) {
-      TripPhase.idle => _WhereToCard(onTap: onSearch),
+      TripPhase.idle => _WhereToCard(
+          onTap: onSearch,
+          savedPlaces: savedPlaces,
+          onPickSaved: onPickSaved,
+        ),
       TripPhase.loadingEstimate =>
         const _InfoCard(child: _Busy(label: 'Finding the best route…')),
       TripPhase.choosingRide => _RideOptions(state: state),
@@ -245,8 +282,22 @@ class _SheetContainer extends StatelessWidget {
 }
 
 class _WhereToCard extends StatelessWidget {
-  const _WhereToCard({required this.onTap});
+  const _WhereToCard({
+    required this.onTap,
+    this.savedPlaces = const [],
+    required this.onPickSaved,
+  });
+
   final VoidCallback onTap;
+  final List<SavedPlace> savedPlaces;
+  final ValueChanged<SavedPlace> onPickSaved;
+
+  IconData _iconFor(String label) {
+    final l = label.toLowerCase();
+    if (l == 'home') return Icons.home_outlined;
+    if (l == 'work') return Icons.work_outline;
+    return Icons.place_outlined;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -276,6 +327,21 @@ class _WhereToCard extends StatelessWidget {
             ),
           ),
         ),
+        if (savedPlaces.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              for (final place in savedPlaces)
+                ActionChip(
+                  avatar: Icon(_iconFor(place.label), size: 18),
+                  label: Text(place.label),
+                  onPressed: () => onPickSaved(place),
+                ),
+            ],
+          ),
+        ],
       ],
     );
   }
