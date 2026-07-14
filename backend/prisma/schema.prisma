@@ -71,6 +71,12 @@ model DriverProfile {
   docsVerified Boolean  @default(false) @map("docs_verified")
   totalTrips   Int      @default(0) @map("total_trips")
 
+  // Driver background check (Checkr in prod). Status is the normalized
+  // none|pending|clear|consider|suspended; candidate/report are vendor ids.
+  bgcStatus      String  @default("none") @map("bgc_status") @db.VarChar(12)
+  bgcCandidateId String? @map("bgc_candidate_id")
+  bgcReportId    String? @map("bgc_report_id")
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("driver_profiles")

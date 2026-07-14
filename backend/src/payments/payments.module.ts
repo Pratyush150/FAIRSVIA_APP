@@ -18,7 +18,8 @@ import { StripePaymentProvider } from './stripe-payment.provider';
         const key = config.get<string>('stripeSecretKey');
         if (key && key.length > 0) {
           Logger.log('Using Stripe payment provider', 'PaymentsModule');
-          return new StripePaymentProvider(key);
+          const base = config.get<string>('stripeApiBaseUrl');
+          return new StripePaymentProvider(key, base);
         }
         return new MockPaymentProvider();
       },

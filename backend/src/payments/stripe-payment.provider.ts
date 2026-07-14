@@ -13,10 +13,14 @@ import {
  */
 export class StripePaymentProvider implements PaymentProvider {
   private readonly logger = new Logger('StripePayments');
-  private static readonly base = 'https://api.stripe.com/v1';
 
-  constructor(private readonly secretKey: string) {
-    this.logger.log('Using Stripe payment provider');
+  constructor(
+    private readonly secretKey: string,
+    // Defaults to the live Stripe host; overridable (STRIPE_API_BASE_URL) so the
+    // integration path can be validated against a local mock endpoint.
+    private readonly base = 'https://api.stripe.com/v1',
+  ) {
+    this.logger.log(`Using Stripe payment provider (${this.base})`);
   }
 
   async authorize(params: AuthorizeParams): Promise<PaymentIntentResult> {
@@ -71,7 +75,7 @@ export class StripePaymentProvider implements PaymentProvider {
   private async post(path: string, body: Record<string, string>): Promise<any> {
     let res: Response;
     try {
-      res = await fetch(`${StripePaymentProvider.base}${path}`, {
+      res = await fetch(`${this.base}${path}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.secretKey}`,

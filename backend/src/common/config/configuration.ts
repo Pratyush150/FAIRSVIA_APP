@@ -18,10 +18,27 @@ export interface AppConfig {
     devEcho: boolean;
   };
   smsProvider: string;
+  /** Twilio SMS credentials + endpoint. `baseUrl` defaults to the real Twilio
+   *  host but can be pointed at a local mock endpoint for testing. */
+  twilio: {
+    accountSid: string;
+    authToken: string;
+    fromNumber: string;
+    baseUrl: string;
+  };
+  /** Checkr driver-background-check credentials + endpoint. Empty apiKey selects
+   *  the mock provider; `baseUrl` is overridable to a mock endpoint. */
+  checkr: {
+    apiKey: string;
+    packageSlug: string;
+    baseUrl: string;
+  };
   /** Allowed browser origins for CORS. Empty = reflect any origin (dev only). */
   corsOrigins: string[];
   googleMapsApiKey: string;
   stripeSecretKey: string;
+  /** Stripe API host; overridable to a local mock endpoint for testing. */
+  stripeApiBaseUrl: string;
   platformFeePercent: number;
   cancellationFee: number;
   fcmServerKey: string;
@@ -102,12 +119,24 @@ export default (): AppConfig => {
     devEcho: otpDevEcho,
   },
   smsProvider,
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID ?? '',
+    authToken: process.env.TWILIO_AUTH_TOKEN ?? '',
+    fromNumber: process.env.TWILIO_FROM_NUMBER ?? '',
+    baseUrl: process.env.TWILIO_API_BASE_URL ?? 'https://api.twilio.com',
+  },
+  checkr: {
+    apiKey: process.env.CHECKR_API_KEY ?? '',
+    packageSlug: process.env.CHECKR_PACKAGE ?? 'driver_standard',
+    baseUrl: process.env.CHECKR_API_BASE_URL ?? 'https://api.checkr.com/v1',
+  },
   corsOrigins: (process.env.CORS_ORIGINS ?? '')
     .split(',')
     .map((o) => o.trim())
     .filter((o) => o.length > 0),
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
+  stripeApiBaseUrl: process.env.STRIPE_API_BASE_URL ?? 'https://api.stripe.com/v1',
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '0.20'),
   cancellationFee: parseFloat(process.env.CANCELLATION_FEE ?? '5'),
   fcmServerKey: process.env.FCM_SERVER_KEY ?? '',

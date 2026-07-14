@@ -1146,6 +1146,99 @@ describe('UberNav API (e2e)', () => {
         .expect(200);
     });
 
+    it('background check: driver initiates → pending → clear verifies; admin can refresh', async () => {
+      const dPhone = `+1963${Date.now() % 10000000}`;
+      await resetOtpLimits(dPhone);
+      const d1 = await request(server)
+        .post('/api/v1/auth/otp/request')
+        .send({ phone: dPhone });
+      const d2 = await request(server)
+        .post('/api/v1/auth/otp/verify')
+        .send({ phone: dPhone, code: d1.body.devCode });
+      const dToken = d2.body.accessToken as string;
+      const dId = d2.body.user.id as string;
+      await request(server)
+        .post('/api/v1/drivers/onboarding')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({
+          vehicleMake: 'Honda',
+          vehicleModel: 'Civic',
+          plateNumber: 'FL01BGC1',
+          vehicleTier: 'economy',
+        })
+        .expect(201);
+
+      // No check yet.
+      const s0 = await request(server)
+        .get('/api/v1/drivers/background')
+        .set('Authorization', `Bearer ${dToken}`)
+        .expect(200);
+      expect(s0.body.status).toBe('none');
+
+      // Order a check → pending, vendor ids recorded.
+      const init = await request(server)
+        .post('/api/v1/drivers/background')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({})
+        .expect(200);
+      expect(init.body.status).toBe('pending');
+      expect(init.body.candidateId).toBeTruthy();
+      expect(init.body.reportId).toBeTruthy();
+
+      // Poll → clear, which verifies the driver's documents.
+      const ref = await request(server)
+        .post('/api/v1/drivers/background/refresh')
+        .set('Authorization', `Bearer ${dToken}`)
+        .expect(200);
+      expect(ref.body.status).toBe('clear');
+      expect(ref.body.docsVerified).toBe(true);
+
+      // Admin can refresh any driver's check; non-admins cannot.
+      const adminRef = await request(server)
+        .post(`/api/v1/admin/drivers/${dId}/background/refresh`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(adminRef.body.status).toBe('clear');
+      await request(server)
+        .post(`/api/v1/admin/drivers/${dId}/background/refresh`)
+        .set('Authorization', `Bearer ${dToken}`)
+        .expect(403);
+    });
+
+    it('background check: a flagged applicant resolves to consider (manual review)', async () => {
+      const dPhone = `+1964${Date.now() % 10000000}`;
+      await resetOtpLimits(dPhone);
+      const d1 = await request(server)
+        .post('/api/v1/auth/otp/request')
+        .send({ phone: dPhone });
+      const d2 = await request(server)
+        .post('/api/v1/auth/otp/verify')
+        .send({ phone: dPhone, code: d1.body.devCode });
+      const dToken = d2.body.accessToken as string;
+      await request(server)
+        .post('/api/v1/drivers/onboarding')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({
+          vehicleMake: 'Honda',
+          vehicleModel: 'Civic',
+          plateNumber: 'FL01BGC2',
+          vehicleTier: 'economy',
+        })
+        .expect(201);
+
+      // The mock flags any candidate whose email marks it for review.
+      await request(server)
+        .post('/api/v1/drivers/background')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({ email: `consider.${Date.now()}@drivers.example` })
+        .expect(200);
+      const ref = await request(server)
+        .post('/api/v1/drivers/background/refresh')
+        .set('Authorization', `Bearer ${dToken}`)
+        .expect(200);
+      expect(ref.body.status).toBe('consider');
+    });
+
     it('payout ledger: fresh driver has zero balance; over-withdrawal is 400', async () => {
       const dPhone = `+198${Date.now() % 100000000}`;
       await resetOtpLimits(dPhone);
