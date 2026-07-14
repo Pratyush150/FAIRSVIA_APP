@@ -33,3 +33,6 @@ export 'src/account/driver_earnings_page.dart';
 // In-trip chat.
 export 'src/chat/chat_remote_data_source.dart';
 export 'src/chat/chat_page.dart';
+// Safety toolkit (SOS).
+export 'src/safety/safety_remote_data_source.dart';
+export 'src/safety/safety_sheet.dart';

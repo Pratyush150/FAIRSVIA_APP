@@ -362,6 +362,30 @@ describe('UberNav API (e2e)', () => {
       .expect(403);
   });
 
+  it('safety: rider raises SOS, non-participant is forbidden', async () => {
+    const sos = await request(server)
+      .post(`/api/v1/trips/${tripId}/sos`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ lat: 12.97, lng: 77.59 });
+    expect(sos.status).toBe(201);
+    expect(sos.body.ok).toBe(true);
+    expect(sos.body.summary.raisedBy).toBe('rider');
+
+    const otherPhone = `+9194${Date.now() % 100000000}`;
+    await resetOtpLimits(otherPhone);
+    const o1 = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone: otherPhone });
+    const o2 = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone: otherPhone, code: o1.body.devCode });
+    await request(server)
+      .post(`/api/v1/trips/${tripId}/sos`)
+      .set('Authorization', `Bearer ${o2.body.accessToken}`)
+      .send({})
+      .expect(403);
+  });
+
   it('forbids a non-admin from the admin API', async () => {
     await request(server)
       .get('/api/v1/admin/stats')
@@ -528,6 +552,18 @@ describe('UberNav API (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ isActive: true })
         .expect(200);
+    });
+
+    it('lists recent SOS alerts for admins', async () => {
+      const res = await request(server)
+        .get('/api/v1/admin/safety')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      // The rider's SOS earlier in the suite should be present.
+      expect(res.body.some((e: { tripId: string }) => e.tripId === tripId)).toBe(
+        true,
+      );
     });
 
     it('KYC gate: admin revoke blocks going online, re-approve restores it', async () => {

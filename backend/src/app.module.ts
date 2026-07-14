@@ -22,6 +22,7 @@ import { AdminModule } from './admin/admin.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { GatewayModule } from './realtime/gateway.module';
 import { ChatModule } from './chat/chat.module';
+import { SafetyModule } from './safety/safety.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -51,6 +52,7 @@ import { HealthController } from './health/health.controller';
     AdminModule,
     GatewayModule,
     ChatModule,
+    SafetyModule,
   ],
   controllers: [HealthController],
 })

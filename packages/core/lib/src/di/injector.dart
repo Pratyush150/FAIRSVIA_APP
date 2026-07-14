@@ -18,6 +18,7 @@ import '../trip/payments_remote_data_source.dart';
 import '../trip/ratings_remote_data_source.dart';
 import '../account/users_remote_data_source.dart';
 import '../chat/chat_remote_data_source.dart';
+import '../safety/safety_remote_data_source.dart';
 
 /// Shared service locator.
 final GetIt sl = GetIt.instance;
@@ -78,5 +79,9 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
     // In-trip chat (history + send; live delivery over the socket).
     ..registerSingleton<ChatRemoteDataSource>(
       ChatRemoteDataSource(sl<DioClient>().authenticatedDio),
+    )
+    // Safety toolkit (SOS).
+    ..registerSingleton<SafetyRemoteDataSource>(
+      SafetyRemoteDataSource(sl<DioClient>().authenticatedDio),
     );
 }

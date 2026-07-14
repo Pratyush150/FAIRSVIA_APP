@@ -455,9 +455,16 @@ class _DriverInfoSheet extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          arrived ? 'Your driver has arrived' : 'Driver on the way',
-          style: theme.textTheme.headlineSmall,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                arrived ? 'Your driver has arrived' : 'Driver on the way',
+                style: theme.textTheme.headlineSmall,
+              ),
+            ),
+            _sosButton(context, state),
+          ],
         ),
         const SizedBox(height: AppSpacing.md),
         Row(
@@ -554,6 +561,7 @@ class _OnTripSheet extends StatelessWidget {
               child: Text('On the way to your destination',
                   style: theme.textTheme.titleMedium),
             ),
+            _sosButton(context, state),
             IconButton(
               tooltip: 'Message driver',
               icon: const Icon(Icons.chat_bubble_outline),
@@ -566,6 +574,29 @@ class _OnTripSheet extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Opens the safety toolkit (SOS) for the active trip.
+void _openSafety(BuildContext context, TripState state) {
+  final tripId = state.trip?.id;
+  if (tripId == null) return;
+  final share = 'UberNav trip to ${state.dropoffAddr ?? 'my destination'}. '
+      'Driver: ${state.driver?.name ?? 'assigned'}. Please track my ride.';
+  showSafetySheet(
+    context,
+    tripId: tripId,
+    safety: sl<SafetyRemoteDataSource>(),
+    shareText: share,
+  );
+}
+
+/// A small red SOS button for the active-trip sheets.
+Widget _sosButton(BuildContext context, TripState state) {
+  return IconButton(
+    tooltip: 'Safety',
+    icon: const Icon(Icons.shield_outlined, color: AppColors.error),
+    onPressed: () => _openSafety(context, state),
+  );
 }
 
 /// Opens the in-trip chat with the assigned driver.
