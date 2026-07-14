@@ -11,6 +11,7 @@ import '../trip/places_remote_data_source.dart';
 import '../trip/trip_remote_data_source.dart';
 import 'driver_earnings_page.dart';
 import 'payment_methods_page.dart';
+import 'driver_payouts_page.dart';
 import 'profile_edit_page.dart';
 import 'saved_places_page.dart';
 import 'scheduled_rides_page.dart';
@@ -75,13 +76,20 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               isDriver: widget.isDriver,
             )),
           ),
-          if (widget.isDriver)
+          if (widget.isDriver) ...[
             _tile(
               icon: Icons.account_balance_wallet_outlined,
               title: 'Earnings',
               onTap: () => _open(
                   DriverEarningsPage(driver: sl<DriverRemoteDataSource>())),
             ),
+            _tile(
+              icon: Icons.payments_outlined,
+              title: 'Payouts',
+              onTap: () => _open(
+                  DriverPayoutsPage(driver: sl<DriverRemoteDataSource>())),
+            ),
+          ],
           if (!widget.isDriver) ...[
             _tile(
               icon: Icons.schedule,

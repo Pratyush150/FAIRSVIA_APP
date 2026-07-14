@@ -3,8 +3,12 @@ import { io } from 'socket.io-client';
 export const BASE = process.env.BASE_URL || 'http://localhost:3000/api/v1';
 export const WS = process.env.WS_URL || 'http://localhost:3000';
 
-/** Minimal REST helper against the backend. */
-export async function api(path, { method = 'GET', token, body } = {}) {
+/** Minimal REST helper against the backend. When `expectError` is set, a
+ * non-2xx response is returned as `{ status }` instead of throwing. */
+export async function api(
+  path,
+  { method = 'GET', token, body, expectError = false } = {},
+) {
   const res = await fetch(BASE + path, {
     method,
     headers: {
@@ -14,6 +18,7 @@ export async function api(path, { method = 'GET', token, body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    if (expectError) return { status: res.status };
     throw new Error(`${method} ${path} -> ${res.status}: ${await res.text()}`);
   }
   return res.status === 204 ? null : res.json();

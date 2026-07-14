@@ -13,6 +13,7 @@ import {
   PaymentProvider,
 } from './payment-provider.interface';
 import { AddMethodDto } from './dto/add-method.dto';
+import { LedgerService } from '../ledger/ledger.service';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -25,6 +26,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly ledger: LedgerService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
   ) {}
 
@@ -116,6 +118,13 @@ export class PaymentsService {
           driverPayout,
         },
       });
+      // Cash in the driver's hand — they owe the platform its commission.
+      if (trip.driverId) {
+        await this.ledger.record(trip.driverId, 'commission', -platformFee, {
+          tripId,
+          note: 'Commission owed on cash ride',
+        });
+      }
       return { fareFinal: final, platformFee, driverPayout };
     }
 
@@ -150,6 +159,13 @@ export class PaymentsService {
       where: { tripId },
       data: { status: 'captured', amount: final, platformFee, driverPayout },
     });
+    // Card ride captured by the platform — credit the driver their net payout.
+    if (trip.driverId) {
+      await this.ledger.record(trip.driverId, 'earning', driverPayout, {
+        tripId,
+        note: 'Ride earning',
+      });
+    }
     return { fareFinal: final, platformFee, driverPayout };
   }
 
@@ -189,6 +205,15 @@ export class PaymentsService {
         externalIntentId: intent.intentId,
       },
     });
+    // Compensate the driver for the wasted trip-to-pickup (their fee share).
+    if (trip.driverId) {
+      await this.ledger.record(
+        trip.driverId,
+        'earning',
+        round2(amount - platformFee),
+        { tripId, note: 'Cancellation compensation' },
+      );
+    }
     return amount;
   }
 
@@ -216,6 +241,13 @@ export class PaymentsService {
       where: { tripId },
       data: { tip: newTip, driverPayout: newPayout },
     });
+    // A tip is paid in full to the driver.
+    if (trip.driverId) {
+      await this.ledger.record(trip.driverId, 'tip', amount, {
+        tripId,
+        note: 'Tip',
+      });
+    }
     return { tip: Number(updated.tip), driverPayout: Number(updated.driverPayout) };
   }
 

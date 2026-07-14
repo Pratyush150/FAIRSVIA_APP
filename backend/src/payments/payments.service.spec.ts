@@ -34,10 +34,15 @@ describe('PaymentsService', () => {
     } as never;
   }
 
+  const ledger = {
+    record: jest.fn().mockResolvedValue(null),
+  } as never;
+
   function makeService(prisma: never, provider?: PaymentProvider) {
     return new PaymentsService(
       prisma,
       config,
+      ledger,
       provider ?? new MockPaymentProvider(),
     );
   }

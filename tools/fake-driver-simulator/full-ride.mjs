@@ -206,6 +206,46 @@ async function main() {
   });
   assert(earnings.trips >= 1, 'driver earnings reflect the trip');
 
+  // --- Payout ledger + withdrawal (B1) ---
+  const bal = await api('/drivers/balance', { token: driver.token });
+  assert(bal.balance > 0, 'ledger balance is positive after a paid ride');
+  // For a card ride, the ledger holds the net payout + the tip.
+  const expectedLedger =
+    Math.round((receipt.driverPayout + 25) * 100) / 100;
+  assert(
+    Math.abs(bal.balance - expectedLedger) < 0.01,
+    `ledger balance ₹${bal.balance} === payout+tip ₹${expectedLedger}`,
+  );
+  assert(
+    bal.entries.some((e) => e.type === 'earning') &&
+      bal.entries.some((e) => e.type === 'tip'),
+    'ledger has earning + tip entries',
+  );
+  console.log(`• ledger balance ₹${bal.balance} (earning + tip)`);
+
+  // Withdraw part of the balance; it debits and the new balance matches.
+  const withdrawAmt = Math.floor(bal.balance / 2);
+  const wd = await api('/drivers/balance/withdraw', {
+    method: 'POST',
+    token: driver.token,
+    body: { amount: withdrawAmt },
+  });
+  assert(wd.withdrawn === withdrawAmt, 'withdrawal amount recorded');
+  const afterBal = await api('/drivers/balance', { token: driver.token });
+  assert(
+    Math.abs(afterBal.balance - (bal.balance - withdrawAmt)) < 0.01,
+    'balance debited by the withdrawal',
+  );
+  // Over-withdrawing the remaining balance is rejected.
+  const over = await api('/drivers/balance/withdraw', {
+    method: 'POST',
+    token: driver.token,
+    body: { amount: afterBal.balance + 1000 },
+    expectError: true,
+  });
+  assert(over.status === 400, 'over-withdrawal rejected (400)');
+  console.log(`• withdrew ₹${withdrawAmt}, balance now ₹${afterBal.balance}`);
+
   console.log(
     `\n✅ FULL RIDE OK — requested→matching→accepted→arrived→in_progress→completed` +
       `\n   payment captured (split ₹${receipt.platformFee}/₹${receipt.driverPayout}), tip ₹25, two-way ratings recorded` +

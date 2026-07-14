@@ -83,7 +83,12 @@ void main() {
     when(() => remote.getTrip(any())).thenAnswer((_) async => trip);
     when(() => remote.arrived(any())).thenAnswer((_) async {});
     when(() => remote.start(any(), any())).thenAnswer((_) async {});
-    when(() => remote.complete(any())).thenAnswer((_) async {});
+    when(() => remote.complete(any())).thenAnswer(
+      (_) async => <String, dynamic>{
+        'fareFinal': 142.98,
+        'paymentMode': 'card',
+      },
+    );
     when(() => remote.earnings(range: any(named: 'range'))).thenAnswer(
       (_) async => const DriverEarnings(total: 142.98, trips: 1, range: 'today'),
     );

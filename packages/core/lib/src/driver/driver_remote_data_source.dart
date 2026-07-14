@@ -16,6 +16,51 @@ class DriverEarnings {
       );
 }
 
+/// A single movement in the driver's payout balance.
+class LedgerEntry {
+  const LedgerEntry({
+    required this.type,
+    required this.amount,
+    this.note,
+    this.createdAt,
+  });
+
+  final String type; // earning|tip|commission|withdrawal|adjustment
+  final double amount; // signed
+  final String? note;
+  final DateTime? createdAt;
+
+  factory LedgerEntry.fromJson(Map<String, dynamic> json) => LedgerEntry(
+        type: json['type'] as String? ?? 'adjustment',
+        amount: (json['amount'] as num?)?.toDouble() ?? 0,
+        note: json['note'] as String?,
+        createdAt: json['createdAt'] is String
+            ? DateTime.tryParse(json['createdAt'] as String)?.toLocal()
+            : null,
+      );
+}
+
+/// The driver's payout balance plus recent ledger movements.
+class PayoutBalance {
+  const PayoutBalance({
+    required this.balance,
+    required this.currency,
+    required this.entries,
+  });
+
+  final double balance;
+  final String currency;
+  final List<LedgerEntry> entries;
+
+  factory PayoutBalance.fromJson(Map<String, dynamic> json) => PayoutBalance(
+        balance: (json['balance'] as num?)?.toDouble() ?? 0,
+        currency: json['currency'] as String? ?? 'INR',
+        entries: (json['entries'] as List<dynamic>? ?? const [])
+            .map((e) => LedgerEntry.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
 /// REST calls for the driver flow (status, onboarding, trip lifecycle, earnings).
 class DriverRemoteDataSource {
   DriverRemoteDataSource(this._dio);
@@ -73,6 +118,25 @@ class DriverRemoteDataSource {
       ),
     );
     return DriverEarnings.fromJson(res.data!);
+  }
+
+  /// Current payout balance + recent ledger movements.
+  Future<PayoutBalance> balance() async {
+    final res = await _guard(
+      () => _dio.get<Map<String, dynamic>>('/drivers/balance'),
+    );
+    return PayoutBalance.fromJson(res.data!);
+  }
+
+  /// Withdraw [amount] of available balance; returns the new balance.
+  Future<PayoutBalance> withdraw(double amount) async {
+    await _guard(
+      () => _dio.post<Map<String, dynamic>>(
+        '/drivers/balance/withdraw',
+        data: {'amount': amount},
+      ),
+    );
+    return balance();
   }
 
   Future<T> _guard<T>(Future<T> Function() call) async {

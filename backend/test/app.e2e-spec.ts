@@ -899,5 +899,42 @@ describe('UberNav API (e2e)', () => {
         .send({ status: 'online' })
         .expect(200);
     });
+
+    it('payout ledger: fresh driver has zero balance; over-withdrawal is 400', async () => {
+      const dPhone = `+9198${Date.now() % 100000000}`;
+      await resetOtpLimits(dPhone);
+      const d1 = await request(server)
+        .post('/api/v1/auth/otp/request')
+        .send({ phone: dPhone });
+      const d2 = await request(server)
+        .post('/api/v1/auth/otp/verify')
+        .send({ phone: dPhone, code: d1.body.devCode });
+      const dToken = d2.body.accessToken as string;
+      await request(server)
+        .post('/api/v1/drivers/onboarding')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({
+          vehicleMake: 'Toyota',
+          vehicleModel: 'Etios',
+          plateNumber: 'KA01LG0001',
+          vehicleTier: 'economy',
+        })
+        .expect(201);
+
+      // Fresh driver: empty ledger, zero balance.
+      const bal = await request(server)
+        .get('/api/v1/drivers/balance')
+        .set('Authorization', `Bearer ${dToken}`);
+      expect(bal.status).toBe(200);
+      expect(bal.body.balance).toBe(0);
+      expect(bal.body.entries).toEqual([]);
+
+      // Can't withdraw more than the (zero) balance.
+      await request(server)
+        .post('/api/v1/drivers/balance/withdraw')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({ amount: 100 })
+        .expect(400);
+    });
   });
 });

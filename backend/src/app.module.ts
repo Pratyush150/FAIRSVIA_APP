@@ -26,6 +26,7 @@ import { SafetyModule } from './safety/safety.module';
 import { SurgeModule } from './surge/surge.module';
 import { PromoModule } from './promo/promo.module';
 import { ScheduledModule } from './scheduled/scheduled.module';
+import { LedgerModule } from './ledger/ledger.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -59,6 +60,7 @@ import { HealthController } from './health/health.controller';
     SurgeModule,
     PromoModule,
     ScheduledModule,
+    LedgerModule,
   ],
   controllers: [HealthController],
 })
