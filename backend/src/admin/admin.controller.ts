@@ -13,6 +13,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AdminService } from './admin.service';
 import { SetActiveDto } from './dto/set-active.dto';
+import { VerifyDriverDto } from './dto/verify-driver.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -44,8 +45,16 @@ export class AdminController {
   }
 
   @Get('drivers')
-  drivers(@Query('limit') limit?: string) {
-    return this.admin.drivers({ limit: limit ? parseInt(limit, 10) : undefined });
+  drivers(@Query('limit') limit?: string, @Query('pending') pending?: string) {
+    return this.admin.drivers({
+      limit: limit ? parseInt(limit, 10) : undefined,
+      pending: pending === 'true',
+    });
+  }
+
+  @Patch('drivers/:id/verify')
+  verifyDriver(@Param('id') id: string, @Body() dto: VerifyDriverDto) {
+    return this.admin.verifyDriver(id, dto.docsVerified);
   }
 
   @Patch('users/:id/active')

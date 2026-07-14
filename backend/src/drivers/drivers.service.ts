@@ -4,6 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { RideTier, TripStatus, UserRole } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { RedisKeys } from '../common/redis/redis.keys';
@@ -14,11 +15,14 @@ export class DriversService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly config: ConfigService,
   ) {}
 
-  /** Create/refresh the driver profile and mark the user as a driver. Dev
-   *  auto-approves documents; real KYC arrives in a later phase. */
+  /** Create/refresh the driver profile and mark the user as a driver. Documents
+   *  are auto-approved when DRIVER_AUTO_VERIFY is on (dev default); otherwise the
+   *  driver onboards as pending and an admin must verify before they go online. */
   async onboarding(userId: string, dto: OnboardingDto) {
+    const autoVerify = this.config.get<boolean>('driverAutoVerify') ?? true;
     const profile = await this.prisma.driverProfile.upsert({
       where: { userId },
       create: {
@@ -29,7 +33,7 @@ export class DriversService {
         plateNumber: dto.plateNumber,
         vehicleTier: dto.vehicleTier as RideTier,
         licenseNo: dto.licenseNo,
-        docsVerified: true,
+        docsVerified: autoVerify,
       },
       update: {
         vehicleMake: dto.vehicleMake,

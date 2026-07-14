@@ -99,6 +99,10 @@ async function main() {
       `(within ${(err * 100).toFixed(1)}% of the ${Math.round(driven)} m streamed)`,
   );
 
+  // Clean up: take the driver out of the pool before disconnecting.
+  dSock.emit('driver:status', { status: 'offline' });
+  await wait(200);
+
   dSock.close();
   rSock.close();
   process.exit(0);

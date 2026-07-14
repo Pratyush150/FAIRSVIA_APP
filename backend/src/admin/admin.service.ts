@@ -182,10 +182,11 @@ export class AdminService {
   }
 
   /** Drivers with their durable profile + live online status from Redis. */
-  async drivers(params: { limit?: number }) {
+  async drivers(params: { limit?: number; pending?: boolean }) {
     const limit = Math.min(params.limit ?? 50, 200);
     const profiles = await this.prisma.driverProfile.findMany({
       take: limit,
+      where: params.pending ? { docsVerified: false } : undefined,
       include: {
         user: { select: { id: true, fullName: true, phone: true, isActive: true, ratingAvg: true } },
       },
@@ -200,6 +201,7 @@ export class AdminService {
           name: p.user.fullName,
           phone: p.user.phone,
           isActive: p.user.isActive,
+          docsVerified: p.docsVerified,
           rating: Number(p.user.ratingAvg),
           vehicle: {
             make: p.vehicleMake,
@@ -222,6 +224,16 @@ export class AdminService {
       .catch(() => null);
     if (!user) throw new NotFoundException('User not found');
     return { id: user.id, isActive: user.isActive };
+  }
+
+  /** Approve or reject a driver's documents (KYC gate). A driver cannot go
+   *  online until verified. */
+  async verifyDriver(userId: string, docsVerified: boolean) {
+    const profile = await this.prisma.driverProfile
+      .update({ where: { userId }, data: { docsVerified } })
+      .catch(() => null);
+    if (!profile) throw new NotFoundException('Driver profile not found');
+    return { id: userId, docsVerified: profile.docsVerified };
   }
 
   private async countOnlineDrivers(): Promise<number> {

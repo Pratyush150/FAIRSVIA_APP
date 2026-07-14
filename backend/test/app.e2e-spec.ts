@@ -163,7 +163,11 @@ describe('UberNav API (e2e)', () => {
       expect(res.body.status).toBe('cancelled');
       expect(res.body.fee).toBe(0);
     } else {
-      expect(res.status).toBe(400);
+      // The dispatch loop finalized the trip to no_drivers first. That's either
+      // caught by the pre-check (400) or by the atomic state-machine transition
+      // losing the compare-and-set race (409) — both mean the same terminal,
+      // fee-free state, so accept either.
+      expect([400, 409]).toContain(res.status);
       const view = await request(server)
         .get(`/api/v1/trips/${tripId}`)
         .set('Authorization', `Bearer ${token}`);
@@ -484,6 +488,70 @@ describe('UberNav API (e2e)', () => {
         .patch(`/api/v1/admin/users/${target.id}/active`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ isActive: true })
+        .expect(200);
+    });
+
+    it('KYC gate: admin revoke blocks going online, re-approve restores it', async () => {
+      // A fresh driver (auto-verified in dev, so can go online immediately).
+      const dPhone = `+9199${Date.now() % 100000000}`;
+      await resetOtpLimits(dPhone);
+      const d1 = await request(server)
+        .post('/api/v1/auth/otp/request')
+        .send({ phone: dPhone });
+      const d2 = await request(server)
+        .post('/api/v1/auth/otp/verify')
+        .send({ phone: dPhone, code: d1.body.devCode });
+      const dToken = d2.body.accessToken as string;
+      const dId = d2.body.user.id as string;
+      await request(server)
+        .post('/api/v1/drivers/onboarding')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({
+          vehicleMake: 'Toyota',
+          vehicleModel: 'Etios',
+          plateNumber: 'KA01XX0001',
+          vehicleTier: 'economy',
+        })
+        .expect(201);
+
+      // Verified → online allowed.
+      await request(server)
+        .post('/api/v1/drivers/status')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({ status: 'online' })
+        .expect(200);
+
+      // Admin revokes verification.
+      const revoke = await request(server)
+        .patch(`/api/v1/admin/drivers/${dId}/verify`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ docsVerified: false });
+      expect(revoke.status).toBe(200);
+      expect(revoke.body.docsVerified).toBe(false);
+
+      // Now blocked from going online.
+      await request(server)
+        .post('/api/v1/drivers/status')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({ status: 'online' })
+        .expect(403);
+
+      // Appears in the pending-review list.
+      const pending = await request(server)
+        .get('/api/v1/admin/drivers?pending=true')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(pending.body.some((x: { id: string }) => x.id === dId)).toBe(true);
+
+      // Re-approve → online works again.
+      await request(server)
+        .patch(`/api/v1/admin/drivers/${dId}/verify`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ docsVerified: true })
+        .expect(200);
+      await request(server)
+        .post('/api/v1/drivers/status')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({ status: 'online' })
         .expect(200);
     });
   });

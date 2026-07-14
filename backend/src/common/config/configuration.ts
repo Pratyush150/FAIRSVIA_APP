@@ -21,6 +21,10 @@ export interface AppConfig {
   cancellationFee: number;
   fcmServerKey: string;
   adminPhones: string[];
+  /** When true, driver documents are auto-approved at onboarding (dev default).
+   *  When false, drivers onboard as pending and an admin must verify them
+   *  before they can go online. */
+  driverAutoVerify: boolean;
 }
 
 export default (): AppConfig => ({
@@ -51,4 +55,5 @@ export default (): AppConfig => ({
     .split(',')
     .map((p) => p.trim())
     .filter((p) => p.length > 0),
+  driverAutoVerify: (process.env.DRIVER_AUTO_VERIFY ?? 'true') !== 'false',
 });

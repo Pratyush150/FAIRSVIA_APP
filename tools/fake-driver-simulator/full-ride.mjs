@@ -187,6 +187,10 @@ async function main() {
       `\n   driver earnings today: ₹${earnings.total} over ${earnings.trips} trip(s)`,
   );
 
+  // Clean up: take the driver out of the pool before disconnecting.
+  dSock.emit('driver:status', { status: 'offline' });
+  await wait(200);
+
   dSock.close();
   rSock.close();
   process.exit(0);
