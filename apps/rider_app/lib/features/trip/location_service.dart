@@ -6,7 +6,24 @@ import 'package:shared_models/shared_models.dart';
 class LocationService {
   static const GeoPoint fallback = GeoPoint(25.7743, -80.1937); // Miami, FL
 
+  /// Dev/testing override. Build with `--dart-define=MOCK_LOCATION=<lat>,<lng>`
+  /// to pin the rider's location instead of reading device GPS — useful when
+  /// demoing this Florida-only app from elsewhere. Empty (default) = real GPS.
+  static const String _mockLocation = String.fromEnvironment('MOCK_LOCATION');
+
+  static GeoPoint? get _mockPoint {
+    if (_mockLocation.isEmpty) return null;
+    final parts = _mockLocation.split(',');
+    if (parts.length != 2) return null;
+    final lat = double.tryParse(parts[0].trim());
+    final lng = double.tryParse(parts[1].trim());
+    if (lat == null || lng == null) return null;
+    return GeoPoint(lat, lng);
+  }
+
   Future<GeoPoint> currentOrFallback() async {
+    final mock = _mockPoint;
+    if (mock != null) return mock;
     try {
       if (!await Geolocator.isLocationServiceEnabled()) return fallback;
 
