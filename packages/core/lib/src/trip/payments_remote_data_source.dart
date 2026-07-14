@@ -13,6 +13,7 @@ class Receipt {
     this.platformFee,
     this.driverPayout,
     this.method = 'card',
+    this.refundedAmount = 0,
   });
 
   final String tripId;
@@ -26,7 +27,11 @@ class Receipt {
   /// How the ride settled: `card` or `cash`.
   final String method;
 
+  /// Amount refunded to the rider (0 when none).
+  final double refundedAmount;
+
   bool get isCash => method == 'cash';
+  bool get isRefunded => refundedAmount > 0;
 
   factory Receipt.fromJson(Map<String, dynamic> j) {
     final p = j['payment'] as Map<String, dynamic>?;
@@ -39,6 +44,7 @@ class Receipt {
       platformFee: (p?['platformFee'] as num?)?.toDouble(),
       driverPayout: (p?['driverPayout'] as num?)?.toDouble(),
       method: p?['method'] as String? ?? 'card',
+      refundedAmount: (p?['refundedAmount'] as num?)?.toDouble() ?? 0,
     );
   }
 }

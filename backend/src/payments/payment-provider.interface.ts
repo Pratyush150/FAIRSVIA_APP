@@ -28,6 +28,6 @@ export interface PaymentProvider {
   /** Immediate charge (tips, cancellation fees). */
   charge(params: AuthorizeParams): Promise<PaymentIntentResult>;
 
-  /** Void/refund an intent. */
-  refund(intentId: string): Promise<void>;
+  /** Void/refund an intent (optionally a partial amount). */
+  refund(intentId: string, amount?: number): Promise<void>;
 }

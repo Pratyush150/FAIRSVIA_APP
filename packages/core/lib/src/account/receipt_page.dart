@@ -49,6 +49,15 @@ class ReceiptPage extends StatelessWidget {
         if (r.tip > 0) _row(context, 'Tip', Fmt.money(r.tip, r.currency)),
         const Divider(height: AppSpacing.xl),
         _row(context, 'Total', Fmt.money(total, r.currency), bold: true),
+        if (r.isRefunded)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: _row(
+              context,
+              'Refunded',
+              '- ${Fmt.money(r.refundedAmount, r.currency)}',
+            ),
+          ),
         if (showPayout && r.driverPayout != null) ...[
           const SizedBox(height: AppSpacing.lg),
           Text('Payout', style: theme.textTheme.titleMedium),

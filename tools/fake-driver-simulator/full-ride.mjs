@@ -246,6 +246,33 @@ async function main() {
   assert(over.status === 400, 'over-withdrawal rejected (400)');
   console.log(`• withdrew ₹${withdrawAmt}, balance now ₹${afterBal.balance}`);
 
+  // --- Admin refund (B2) ---
+  const admin = await login('+919900000001');
+  assert(admin.user.role === 'admin', 'admin login');
+  const refundAmt = 20;
+  const refund = await api(`/admin/payments/${trip.id}/refund`, {
+    method: 'POST',
+    token: admin.token,
+    body: { amount: refundAmt, reason: 'e2e goodwill' },
+  });
+  assert(refund.refunded === refundAmt, 'refund amount recorded');
+  assert(refund.status === 'partial', 'payment partially refunded');
+  const rDoc = await api(`/payments/${trip.id}/receipt`, { token: rider.token });
+  assert(
+    rDoc.payment.refundedAmount === refundAmt,
+    'receipt reflects the refunded amount',
+  );
+  // Driver's payout share of the refund (net of the 20% fee) is clawed back.
+  const postRefundBal = await api('/drivers/balance', { token: driver.token });
+  const expectedClawback = Math.round(refundAmt * 0.8 * 100) / 100;
+  assert(
+    Math.abs(afterBal.balance - postRefundBal.balance - expectedClawback) < 0.01,
+    `refund clawed back ₹${expectedClawback} from the driver`,
+  );
+  console.log(
+    `• admin refunded ₹${refundAmt} → payment ${refund.status}, driver clawback ₹${expectedClawback}`,
+  );
+
   console.log(
     `\n✅ FULL RIDE OK — requested→matching→accepted→arrived→in_progress→completed` +
       `\n   payment captured (split ₹${receipt.platformFee}/₹${receipt.driverPayout}), tip ₹25, two-way ratings recorded` +

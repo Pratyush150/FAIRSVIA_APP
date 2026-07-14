@@ -824,6 +824,22 @@ describe('UberNav API (e2e)', () => {
         .expect(400);
     });
 
+    it('refund: admin-only, and 404 when there is no payment to refund', async () => {
+      // A non-admin cannot refund.
+      await request(server)
+        .post(`/api/v1/admin/payments/${tripId}/refund`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ amount: 10 })
+        .expect(403);
+
+      // The earlier cancelled trip has no captured payment → nothing to refund.
+      await request(server)
+        .post(`/api/v1/admin/payments/${tripId}/refund`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ amount: 10 })
+        .expect(404);
+    });
+
     it('lists recent SOS alerts for admins', async () => {
       const res = await request(server)
         .get('/api/v1/admin/safety')

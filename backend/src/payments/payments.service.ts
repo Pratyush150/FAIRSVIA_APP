@@ -217,6 +217,54 @@ export class PaymentsService {
     return amount;
   }
 
+  /**
+   * Refund a settled ride payment (full or partial), reversing the driver's
+   * earning proportionally. Admin-initiated. Card payments hit the provider;
+   * cash refunds are recorded only (settled with the rider out-of-band).
+   */
+  async refundTrip(tripId: string, amount?: number, reason?: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { tripId } });
+    if (!payment) throw new NotFoundException('No payment for this trip');
+    if (!['captured', 'collected', 'partial'].includes(payment.status)) {
+      throw new BadRequestException(
+        `A ${payment.status} payment cannot be refunded`,
+      );
+    }
+    const total = Number(payment.amount);
+    const already = Number(payment.refundedAmount);
+    const remaining = round2(total - already);
+    const refund = amount != null ? round2(amount) : remaining;
+    if (refund <= 0 || refund > remaining) {
+      throw new BadRequestException(
+        `Refund must be between 0 and ₹${remaining.toFixed(2)}`,
+      );
+    }
+
+    if (payment.externalIntentId) {
+      await this.provider.refund(payment.externalIntentId, refund);
+    }
+
+    const refundedAmount = round2(already + refund);
+    // 'partial' (not 'partially_refunded') to fit the status VarChar(12).
+    const status = refundedAmount >= total ? 'refunded' : 'partial';
+    await this.prisma.payment.update({
+      where: { tripId },
+      data: { refundedAmount, status, refundReason: reason ?? null },
+    });
+
+    // Claw back the driver's share of the refunded amount (net of platform fee).
+    const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
+    if (trip?.driverId) {
+      const clawback = round2(refund * (1 - this.feePercent));
+      await this.ledger.record(trip.driverId, 'adjustment', -clawback, {
+        tripId,
+        note: `Refund clawback${reason ? `: ${reason}` : ''}`,
+      });
+    }
+
+    return { tripId, refunded: refund, totalRefunded: refundedAmount, status };
+  }
+
   async addTip(userId: string, tripId: string, amount: number) {
     if (amount <= 0) throw new BadRequestException('Tip must be positive');
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
@@ -299,6 +347,8 @@ export class PaymentsService {
             tip: Number(p.tip),
             platformFee: p.platformFee ? Number(p.platformFee) : null,
             driverPayout: p.driverPayout ? Number(p.driverPayout) : null,
+            refundedAmount: Number(p.refundedAmount),
+            refundReason: p.refundReason,
           }
         : null,
     };

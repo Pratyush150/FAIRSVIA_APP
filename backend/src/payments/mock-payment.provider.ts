@@ -38,8 +38,10 @@ export class MockPaymentProvider implements PaymentProvider {
     return { intentId, status: 'captured' };
   }
 
-  async refund(intentId: string): Promise<void> {
-    this.logger.log(`refund ${intentId}`);
+  async refund(intentId: string, amount?: number): Promise<void> {
+    this.logger.log(
+      `refund ${intentId}${amount != null ? ` amount=${amount}` : ' (full)'}`,
+    );
   }
 
   private assertAmount(amount: number): void {

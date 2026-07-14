@@ -181,6 +181,8 @@ model Payment {
   driverPayout     Decimal? @map("driver_payout") @db.Decimal(10, 2)
   platformFee      Decimal? @map("platform_fee") @db.Decimal(10, 2)
   tip              Decimal  @default(0) @db.Decimal(10, 2)
+  refundedAmount   Decimal  @default(0) @map("refunded_amount") @db.Decimal(10, 2)
+  refundReason     String?  @map("refund_reason")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

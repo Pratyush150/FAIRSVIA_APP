@@ -36,13 +36,13 @@ describe('PaymentsService', () => {
 
   const ledger = {
     record: jest.fn().mockResolvedValue(null),
-  } as never;
+  };
 
   function makeService(prisma: never, provider?: PaymentProvider) {
     return new PaymentsService(
       prisma,
       config,
-      ledger,
+      ledger as never,
       provider ?? new MockPaymentProvider(),
     );
   }
@@ -227,6 +227,76 @@ describe('PaymentsService', () => {
     const svc = makeService(prisma);
     await expect(svc.chargeCancellationFee('t1', 0)).resolves.toBe(0);
     expect((prisma as any).trip.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('partially refunds a captured payment and claws back the driver share', async () => {
+    ledger.record.mockClear();
+    const prisma = makePrisma();
+    (prisma as any).payment.findUnique.mockResolvedValue({
+      status: 'captured',
+      amount: 100,
+      refundedAmount: 0,
+      externalIntentId: 'mock_pi_x',
+    });
+    (prisma as any).trip.findUnique.mockResolvedValue({ driverId: 'd1' });
+    (prisma as any).payment.update.mockResolvedValue({});
+    const refund = jest.fn().mockResolvedValue(undefined);
+    const provider = {
+      authorize: jest.fn(),
+      capture: jest.fn(),
+      charge: jest.fn(),
+      refund,
+    } as PaymentProvider;
+
+    const svc = makeService(prisma, provider);
+    const res = await svc.refundTrip('t1', 40, 'complaint');
+
+    expect(res).toEqual({
+      tripId: 't1',
+      refunded: 40,
+      totalRefunded: 40,
+      status: 'partial',
+    });
+    expect(refund).toHaveBeenCalledWith('mock_pi_x', 40);
+    // Driver clawback = 40 * (1 - 0.2) = 32.
+    expect(ledger.record).toHaveBeenCalledWith(
+      'd1',
+      'adjustment',
+      -32,
+      expect.objectContaining({ tripId: 't1' }),
+    );
+  });
+
+  it('marks a payment fully refunded when the whole amount is returned', async () => {
+    const prisma = makePrisma();
+    (prisma as any).payment.findUnique.mockResolvedValue({
+      status: 'captured',
+      amount: 100,
+      refundedAmount: 0,
+      externalIntentId: 'mock_pi_x',
+    });
+    (prisma as any).trip.findUnique.mockResolvedValue({ driverId: null });
+    const update = jest.fn().mockResolvedValue({});
+    (prisma as any).payment.update = update;
+
+    const svc = makeService(prisma);
+    const res = await svc.refundTrip('t1'); // full remaining
+    expect(res.refunded).toBe(100);
+    expect(res.status).toBe('refunded');
+    expect(update.mock.calls[0][0].data.status).toBe('refunded');
+  });
+
+  it('rejects over-refunding beyond the remaining balance', async () => {
+    const prisma = makePrisma();
+    (prisma as any).payment.findUnique.mockResolvedValue({
+      status: 'captured',
+      amount: 100,
+      refundedAmount: 80,
+      externalIntentId: 'mock_pi_x',
+    });
+    const svc = makeService(prisma);
+    // Only 20 remains refundable.
+    await expect(svc.refundTrip('t1', 50)).rejects.toThrow(/between 0 and/);
   });
 });
 

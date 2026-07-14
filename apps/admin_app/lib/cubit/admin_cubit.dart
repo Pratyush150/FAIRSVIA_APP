@@ -146,6 +146,18 @@ class AdminCubit extends Cubit<AdminState> {
     }
   }
 
+  /// Refund a trip (full when [amount] is null). Rethrows so the caller can
+  /// surface success/failure inline.
+  Future<void> refundTrip(String tripId, {double? amount, String? reason}) async {
+    try {
+      await _api.refund(tripId, amount: amount, reason: reason);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+      rethrow;
+    }
+  }
+
   @override
   Future<void> close() {
     _timer?.cancel();

@@ -311,6 +311,14 @@ class AdminApi {
         }),
       );
 
+  /// Refund a trip's payment (full when [amount] is null).
+  Future<void> refund(String tripId, {double? amount, String? reason}) => _guard(
+        () => _dio.post('/admin/payments/$tripId/refund', data: {
+          'amount': ?amount,
+          'reason': ?reason,
+        }),
+      );
+
   Future<T> _guard<T>(Future<T> Function() call) async {
     try {
       return await call();

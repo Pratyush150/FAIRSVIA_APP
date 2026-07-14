@@ -296,6 +296,62 @@ class _TripTile extends StatelessWidget {
   const _TripTile({required this.trip});
   final AdminTrip trip;
 
+  bool get _refundable => trip.status == 'completed' && trip.fare > 0;
+
+  Future<void> _refund(BuildContext context) async {
+    final cubit = context.read<AdminCubit>();
+    final controller = TextEditingController(text: trip.fare.toStringAsFixed(0));
+    final reason = TextEditingController();
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Refund trip'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                prefixText: '₹ ',
+                helperText: 'Fare ₹${trip.fare.toStringAsFixed(2)}',
+              ),
+            ),
+            TextField(
+              controller: reason,
+              decoration: const InputDecoration(labelText: 'Reason (optional)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(ctx, double.tryParse(controller.text.trim())),
+            child: const Text('Refund'),
+          ),
+        ],
+      ),
+    );
+    if (amount == null || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await cubit.refundTrip(
+        trip.id,
+        amount: amount,
+        reason: reason.text.trim().isEmpty ? null : reason.text.trim(),
+      );
+      messenger.showSnackBar(
+        SnackBar(content: Text('Refunded ₹${amount.toStringAsFixed(0)}')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Refund failed')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -314,9 +370,20 @@ class _TripTile extends StatelessWidget {
           '   •   ${trip.tier}',
           style: theme.textTheme.bodySmall,
         ),
-        trailing: Text(
-          '${trip.currency == 'INR' ? '₹' : ''}${trip.fare.toStringAsFixed(0)}',
-          style: theme.textTheme.titleMedium,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${trip.currency == 'INR' ? '₹' : ''}${trip.fare.toStringAsFixed(0)}',
+              style: theme.textTheme.titleMedium,
+            ),
+            if (_refundable)
+              IconButton(
+                icon: const Icon(Icons.currency_exchange, size: 20),
+                tooltip: 'Refund',
+                onPressed: () => _refund(context),
+              ),
+          ],
         ),
       ),
     );
