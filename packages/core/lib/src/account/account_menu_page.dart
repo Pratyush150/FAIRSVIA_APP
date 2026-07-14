@@ -213,6 +213,7 @@ class _ProfileHeader extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit profile',
             onPressed: onEdit,
           ),
         ],

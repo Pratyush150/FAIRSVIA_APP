@@ -138,6 +138,12 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
                   myLocationButtonEnabled: false,
                   markers: _markers(state),
                 ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: ConnectionBanner(connected: state.connected),
+              ),
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
@@ -147,6 +153,7 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
                       const Spacer(),
                       _CircleButton(
                         icon: Icons.menu,
+                        tooltip: 'Account menu',
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) =>
@@ -692,9 +699,16 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _CircleButton extends StatelessWidget {
-  const _CircleButton({required this.icon, required this.onPressed});
+  const _CircleButton({
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+  });
   final IconData icon;
   final VoidCallback onPressed;
+
+  /// Accessible label / hover hint for this icon-only control.
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -702,7 +716,11 @@ class _CircleButton extends StatelessWidget {
       color: Theme.of(context).colorScheme.surface,
       shape: const CircleBorder(),
       elevation: 3,
-      child: IconButton(icon: Icon(icon), onPressed: onPressed),
+      child: IconButton(
+        icon: Icon(icon),
+        tooltip: tooltip,
+        onPressed: onPressed,
+      ),
     );
   }
 }

@@ -35,6 +35,11 @@ class FakeRealtimeClient implements RealtimeClient {
   @override
   Stream<void> get reconnects => _reconnects.stream;
 
+  final _connection = StreamController<bool>.broadcast();
+
+  @override
+  Stream<bool> get connection => _connection.stream;
+
   @override
   void emit(String event, Map<String, dynamic> data) =>
       emitted.add((event, data));
@@ -43,6 +48,8 @@ class FakeRealtimeClient implements RealtimeClient {
       _controllers[event]?.add(data);
 
   void pushReconnect() => _reconnects.add(null);
+
+  void pushConnection(bool up) => _connection.add(up);
 }
 
 Future<void> tick() => Future<void>.delayed(const Duration(milliseconds: 10));
@@ -196,6 +203,22 @@ void main() {
     await tick();
     expect(cubit.state.phase, DriverPhase.online);
     expect(cubit.state.trip, isNull);
+
+    await cubit.close();
+  });
+
+  test('socket up/down edges drive the connection banner state', () async {
+    final cubit = DriverCubit(realtime, remote, ratings);
+    await cubit.init('token');
+    expect(cubit.state.connected, isTrue); // optimistic default
+
+    realtime.pushConnection(false);
+    await tick();
+    expect(cubit.state.connected, isFalse);
+
+    realtime.pushConnection(true);
+    await tick();
+    expect(cubit.state.connected, isTrue);
 
     await cubit.close();
   });

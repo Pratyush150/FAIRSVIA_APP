@@ -22,6 +22,7 @@ class DriverState extends Equatable {
     this.riderRating,
     this.cashToCollect,
     this.needsOnboarding = false,
+    this.connected = true,
   });
 
   final DriverPhase phase;
@@ -36,6 +37,9 @@ class DriverState extends Equatable {
   /// Cash the driver must collect for the just-completed trip (null for card).
   final double? cashToCollect;
   final bool needsOnboarding;
+
+  /// Live socket connectivity. False shows a "reconnecting" banner.
+  final bool connected;
 
   bool get isOnline => phase != DriverPhase.offline;
 
@@ -52,6 +56,7 @@ class DriverState extends Equatable {
     Object? riderRating = _s,
     Object? cashToCollect = _s,
     bool? needsOnboarding,
+    bool? connected,
   }) {
     return DriverState(
       phase: phase ?? this.phase,
@@ -65,6 +70,7 @@ class DriverState extends Equatable {
       cashToCollect:
           cashToCollect == _s ? this.cashToCollect : cashToCollect as double?,
       needsOnboarding: needsOnboarding ?? this.needsOnboarding,
+      connected: connected ?? this.connected,
     );
   }
 
@@ -80,5 +86,6 @@ class DriverState extends Equatable {
         riderRating,
         cashToCollect,
         needsOnboarding,
+        connected,
       ];
 }

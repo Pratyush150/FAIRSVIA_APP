@@ -17,7 +17,10 @@ class MapPlaceholder extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final base = isDark ? AppColors.surfaceDark : const Color(0xFFE8EBF0);
     final line = isDark ? AppColors.borderDark : const Color(0xFFD2D8E0);
-    return DecoratedBox(
+    return Semantics(
+      image: true,
+      label: 'Map area',
+      child: DecoratedBox(
       decoration: BoxDecoration(color: base),
       child: CustomPaint(
         painter: _GridPainter(line),
@@ -39,6 +42,7 @@ class MapPlaceholder extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

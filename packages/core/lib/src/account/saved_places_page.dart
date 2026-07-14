@@ -123,6 +123,7 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
                 onTap: () => _addOrEdit(p),
                 trailing: IconButton(
                   icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete place',
                   onPressed: () => _delete(p),
                 ),
               ),

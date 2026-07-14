@@ -30,7 +30,11 @@ class DriverCubit extends Cubit<DriverState> {
       ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
       // Reconnection resilience: re-announce presence and re-fetch the active
       // trip after a dropped socket so the driver's screen stays truthful.
-      ..add(_realtime.reconnects.listen((_) => _onReconnect()));
+      ..add(_realtime.reconnects.listen((_) => _onReconnect()))
+      // Surface socket up/down edges so the UI can show a reconnecting banner.
+      ..add(_realtime.connection.listen((up) {
+        if (up != state.connected) emit(state.copyWith(connected: up));
+      }));
   }
 
   Future<void> _onReconnect() async {

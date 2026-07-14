@@ -38,6 +38,7 @@ class TripState extends Equatable {
     this.paymentMode = 'card',
     this.scheduledAt,
     this.stops = const [],
+    this.connected = true,
     this.error,
   });
 
@@ -74,6 +75,10 @@ class TripState extends Equatable {
 
   /// Ordered intermediate stops for a multi-stop ride.
   final List<TripStop> stops;
+
+  /// Live socket connectivity. False shows a "reconnecting" banner and means
+  /// live trip updates are paused until the socket recovers.
+  final bool connected;
   final String? error;
 
   FareTier? get selectedFare {
@@ -119,6 +124,7 @@ class TripState extends Equatable {
     String? paymentMode,
     Object? scheduledAt = _s,
     List<TripStop>? stops,
+    bool? connected,
     Object? error = _s,
   }) {
     return TripState(
@@ -150,6 +156,7 @@ class TripState extends Equatable {
       scheduledAt:
           scheduledAt == _s ? this.scheduledAt : scheduledAt as DateTime?,
       stops: stops ?? this.stops,
+      connected: connected ?? this.connected,
       error: error == _s ? this.error : error as String?,
     );
   }
@@ -177,6 +184,7 @@ class TripState extends Equatable {
         paymentMode,
         scheduledAt,
         stops,
+        connected,
         error,
       ];
 }

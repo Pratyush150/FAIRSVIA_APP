@@ -34,7 +34,11 @@ class TripCubit extends Cubit<TripState> {
       // Reconnection resilience: the server replies to `trip:sync` with the
       // authoritative trip so we can rehydrate after a dropped socket.
       ..add(_realtime.on('trip:sync').listen(_onSync))
-      ..add(_realtime.reconnects.listen((_) => _resync()));
+      ..add(_realtime.reconnects.listen((_) => _resync()))
+      // Surface socket up/down edges so the UI can show a reconnecting banner.
+      ..add(_realtime.connection.listen((up) {
+        if (up != state.connected) emit(state.copyWith(connected: up));
+      }));
   }
 
   /// After a reconnect, ask the server for the current trip state.

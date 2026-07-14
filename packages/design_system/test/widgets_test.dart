@@ -66,4 +66,19 @@ void main() {
       expect(changes.last, '1234');
     });
   });
+
+  group('ConnectionBanner', () {
+    testWidgets('is hidden when connected', (tester) async {
+      await tester.pumpWidget(_wrap(const ConnectionBanner(connected: true)));
+      expect(find.textContaining('Reconnecting'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('shows the reconnecting message when disconnected',
+        (tester) async {
+      await tester.pumpWidget(_wrap(const ConnectionBanner(connected: false)));
+      expect(find.textContaining('Reconnecting'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+  });
 }

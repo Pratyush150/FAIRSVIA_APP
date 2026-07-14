@@ -26,6 +26,8 @@ class FakeRealtimeClient implements RealtimeClient {
   @override
   Stream<void> get reconnects => const Stream.empty();
   @override
+  Stream<bool> get connection => const Stream.empty();
+  @override
   void emit(String event, Map<String, dynamic> data) {}
 }
 
