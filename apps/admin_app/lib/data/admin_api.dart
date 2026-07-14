@@ -238,7 +238,7 @@ class AdminTrip {
         status: j['status'] as String,
         tier: j['tier'] as String? ?? '',
         fare: (j['fare'] as num?)?.toDouble() ?? 0,
-        currency: j['currency'] as String? ?? 'INR',
+        currency: j['currency'] as String? ?? 'USD',
         rider: AdminParty.fromJson(j['rider'] as Map<String, dynamic>?),
         driver: AdminParty.fromJson(j['driver'] as Map<String, dynamic>?),
         pickup: j['pickup'] as String?,

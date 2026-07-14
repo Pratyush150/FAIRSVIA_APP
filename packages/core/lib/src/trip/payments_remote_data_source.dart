@@ -38,7 +38,7 @@ class Receipt {
     return Receipt(
       tripId: j['tripId'] as String,
       fare: (j['fare'] as num?)?.toDouble() ?? 0,
-      currency: j['currency'] as String? ?? 'INR',
+      currency: j['currency'] as String? ?? 'USD',
       status: p?['status'] as String?,
       tip: (p?['tip'] as num?)?.toDouble() ?? 0,
       platformFee: (p?['platformFee'] as num?)?.toDouble(),

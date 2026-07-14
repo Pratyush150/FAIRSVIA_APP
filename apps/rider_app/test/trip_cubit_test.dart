@@ -45,7 +45,7 @@ void main() {
     durationS: 824,
     polyline: 'abcd',
     surge: 1,
-    currency: 'INR',
+    currency: 'USD',
     pickup: pickup,
     dropoff: dropoff,
     tiers: [
@@ -54,7 +54,7 @@ void main() {
         label: 'Economy',
         capacity: 4,
         fare: 142.98,
-        currency: 'INR',
+        currency: 'USD',
         etaSeconds: 824,
       ),
       FareTier(
@@ -62,7 +62,7 @@ void main() {
         label: 'XL',
         capacity: 6,
         fare: 246.63,
-        currency: 'INR',
+        currency: 'USD',
         etaSeconds: 824,
       ),
     ],

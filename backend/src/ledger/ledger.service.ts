@@ -58,7 +58,7 @@ export class LedgerService {
     ]);
     return {
       balance,
-      currency: 'INR',
+      currency: 'USD',
       entries: entries.map((e) => ({
         id: e.id,
         type: e.type,
@@ -82,7 +82,7 @@ export class LedgerService {
     const balance = await this.balance(driverId);
     if (requested > balance) {
       throw new BadRequestException(
-        `You can withdraw up to ₹${balance.toFixed(2)}.`,
+        `You can withdraw up to $${balance.toFixed(2)}.`,
       );
     }
     await this.record(driverId, 'withdrawal', -requested, {

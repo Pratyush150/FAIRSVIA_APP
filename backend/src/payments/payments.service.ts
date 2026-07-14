@@ -236,7 +236,7 @@ export class PaymentsService {
     const refund = amount != null ? round2(amount) : remaining;
     if (refund <= 0 || refund > remaining) {
       throw new BadRequestException(
-        `Refund must be between 0 and ₹${remaining.toFixed(2)}`,
+        `Refund must be between 0 and $${remaining.toFixed(2)}`,
       );
     }
 

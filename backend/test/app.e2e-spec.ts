@@ -14,7 +14,7 @@ describe('UberNav API (e2e)', () => {
   let server: ReturnType<INestApplication['getHttpServer']>;
   let redis: RedisService;
 
-  const phone = `+9197${Date.now() % 100000000}`;
+  const phone = `+197${Date.now() % 100000000}`;
   let token: string;
   let tripId: string;
   // A deterministically-cancellable trip (parked on a non-responsive driver).
@@ -84,7 +84,7 @@ describe('UberNav API (e2e)', () => {
   });
 
   it('rejects a wrong OTP', async () => {
-    const p = `+9196${Date.now() % 100000000}`;
+    const p = `+196${Date.now() % 100000000}`;
     const r1 = await request(server)
       .post('/api/v1/auth/otp/request')
       .send({ phone: p });
@@ -226,7 +226,7 @@ describe('UberNav API (e2e)', () => {
   it('notification inbox: fresh user is empty, endpoints behave', async () => {
     // A brand-new user never triggers an (async) notification, so its inbox
     // stays deterministically empty — no cross-test push can race in.
-    const nPhone = `+9197${Date.now() % 100000000}`;
+    const nPhone = `+197${Date.now() % 100000000}`;
     await resetOtpLimits(nPhone);
     const r1 = await request(server)
       .post('/api/v1/auth/otp/request')
@@ -380,7 +380,7 @@ describe('UberNav API (e2e)', () => {
     await redis.client.set(RedisKeys.driverStatus(driverId), 'online');
 
     // A dedicated rider so the test is order-independent.
-    const rPhone = `+9194${Date.now() % 100000000}`;
+    const rPhone = `+194${Date.now() % 100000000}`;
     await resetOtpLimits(rPhone);
     const r1 = await request(server)
       .post('/api/v1/auth/otp/request')
@@ -538,7 +538,7 @@ describe('UberNav API (e2e)', () => {
     const id = mine.body.id as string;
 
     // a second, unrelated user
-    const otherPhone = `+9198${Date.now() % 100000000}`;
+    const otherPhone = `+198${Date.now() % 100000000}`;
     await resetOtpLimits(otherPhone);
     const o1 = await request(server)
       .post('/api/v1/auth/otp/request')
@@ -611,7 +611,7 @@ describe('UberNav API (e2e)', () => {
       .expect(400);
 
     // a non-participant cannot read the thread
-    const otherPhone = `+9195${Date.now() % 100000000}`;
+    const otherPhone = `+195${Date.now() % 100000000}`;
     await resetOtpLimits(otherPhone);
     const o1 = await request(server)
       .post('/api/v1/auth/otp/request')
@@ -634,7 +634,7 @@ describe('UberNav API (e2e)', () => {
     expect(sos.body.ok).toBe(true);
     expect(sos.body.summary.raisedBy).toBe('rider');
 
-    const otherPhone = `+9194${Date.now() % 100000000}`;
+    const otherPhone = `+194${Date.now() % 100000000}`;
     await resetOtpLimits(otherPhone);
     const o1 = await request(server)
       .post('/api/v1/auth/otp/request')
@@ -658,7 +658,7 @@ describe('UberNav API (e2e)', () => {
 
   describe('robustness & edge cases', () => {
     async function freshUser() {
-      const p = `+9198${Math.floor(Math.random() * 1e8)}`;
+      const p = `+198${Math.floor(Math.random() * 1e8)}`;
       const r1 = await request(server)
         .post('/api/v1/auth/otp/request')
         .send({ phone: p });
@@ -685,12 +685,12 @@ describe('UberNav API (e2e)', () => {
       expect(reuse.status).toBe(401);
     });
 
-    // A remote pickup (Delhi) — far from any Bangalore test/sim driver — so the
+    // A remote pickup (Seattle) — far from any Miami test/sim driver — so the
     // trip won't be matched mid-test and the access-control assertions hold in
     // any state (a non-participant is always forbidden).
     const remoteTrip = {
-      pickupLat: 28.6139, pickupLng: 77.209,
-      dropoffLat: 28.62, dropoffLng: 77.22,
+      pickupLat: 47.6062, pickupLng: -122.3321,
+      dropoffLat: 47.61, dropoffLng: -122.34,
       tier: 'economy', pickupAddr: 'A', dropoffAddr: 'B',
     };
 
@@ -748,7 +748,7 @@ describe('UberNav API (e2e)', () => {
   describe('admin (role-gated)', () => {
     let adminToken: string;
     // Matches ADMIN_PHONES in the backend .env — promoted to admin on login.
-    const adminPhone = '+919900000001';
+    const adminPhone = '+19900000001';
 
     beforeAll(async () => {
       await resetOtpLimits(adminPhone);
@@ -993,7 +993,7 @@ describe('UberNav API (e2e)', () => {
 
     it('support tickets: rider opens, admin replies + resolves, rider reopens', async () => {
       // Mint a dedicated rider token so the test is order-independent.
-      const rPhone = `+9195${Date.now() % 100000000}`;
+      const rPhone = `+195${Date.now() % 100000000}`;
       await resetOtpLimits(rPhone);
       const r1 = await request(server)
         .post('/api/v1/auth/otp/request')
@@ -1056,7 +1056,7 @@ describe('UberNav API (e2e)', () => {
       expect(reopen.body.status).toBe('active');
 
       // A different rider cannot read this ticket.
-      const oPhone = `+9196${Date.now() % 100000000}`;
+      const oPhone = `+196${Date.now() % 100000000}`;
       await resetOtpLimits(oPhone);
       const o1 = await request(server)
         .post('/api/v1/auth/otp/request')
@@ -1084,7 +1084,7 @@ describe('UberNav API (e2e)', () => {
 
     it('KYC gate: admin revoke blocks going online, re-approve restores it', async () => {
       // A fresh driver (auto-verified in dev, so can go online immediately).
-      const dPhone = `+9199${Date.now() % 100000000}`;
+      const dPhone = `+199${Date.now() % 100000000}`;
       await resetOtpLimits(dPhone);
       const d1 = await request(server)
         .post('/api/v1/auth/otp/request')
@@ -1147,7 +1147,7 @@ describe('UberNav API (e2e)', () => {
     });
 
     it('payout ledger: fresh driver has zero balance; over-withdrawal is 400', async () => {
-      const dPhone = `+9198${Date.now() % 100000000}`;
+      const dPhone = `+198${Date.now() % 100000000}`;
       await resetOtpLimits(dPhone);
       const d1 = await request(server)
         .post('/api/v1/auth/otp/request')

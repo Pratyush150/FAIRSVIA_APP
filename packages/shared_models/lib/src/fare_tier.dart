@@ -23,7 +23,7 @@ class FareTier extends Equatable {
         label: json['label'] as String,
         capacity: (json['capacity'] as num).toInt(),
         fare: (json['fare'] as num).toDouble(),
-        currency: json['currency'] as String? ?? 'INR',
+        currency: json['currency'] as String? ?? 'USD',
         etaSeconds: (json['etaSeconds'] as num).toInt(),
       );
 

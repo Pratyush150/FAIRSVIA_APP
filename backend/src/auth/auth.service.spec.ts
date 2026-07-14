@@ -96,21 +96,21 @@ describe('AuthService', () => {
 
   describe('requestOtp', () => {
     it('generates a 6-digit code, stores its hash, and sends it', async () => {
-      const res = await service.requestOtp('+919876543210');
+      const res = await service.requestOtp('+19876543210');
 
       expect(sentOtp).not.toBeNull();
       expect(sentOtp!.code).toMatch(/^\d{6}$/);
       // Dev mode echoes the code back.
       expect(res.devCode).toBe(sentOtp!.code);
       // Stored value is the hash, never the plaintext.
-      expect(store.get('otp:+919876543210')).toBe(sha256(sentOtp!.code));
+      expect(store.get('otp:+19876543210')).toBe(sha256(sentOtp!.code));
     });
 
     it('rate-limits after 5 requests in the window', async () => {
       for (let i = 0; i < 5; i++) {
-        await service.requestOtp('+911111111111');
+        await service.requestOtp('+11111111111');
       }
-      await expect(service.requestOtp('+911111111111')).rejects.toThrow(
+      await expect(service.requestOtp('+11111111111')).rejects.toThrow(
         /too many otp requests/i,
       );
     });
@@ -118,27 +118,27 @@ describe('AuthService', () => {
 
   describe('verifyOtp', () => {
     it('accepts the correct code, upserts the user, and issues tokens', async () => {
-      const { devCode } = await service.requestOtp('+919876543210');
-      const result = await service.verifyOtp('+919876543210', devCode!);
+      const { devCode } = await service.requestOtp('+19876543210');
+      const result = await service.verifyOtp('+19876543210', devCode!);
 
-      expect(result.user.phone).toBe('+919876543210');
+      expect(result.user.phone).toBe('+19876543210');
       expect(result.accessToken).toContain('signed:');
       expect(result.refreshToken).toContain('signed:');
       expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
       // OTP is burned after success.
-      expect(store.get('otp:+919876543210')).toBeUndefined();
+      expect(store.get('otp:+19876543210')).toBeUndefined();
     });
 
     it('rejects an incorrect code', async () => {
-      const { devCode } = await service.requestOtp('+919876543210');
+      const { devCode } = await service.requestOtp('+19876543210');
       const wrong = devCode === '0000' ? '1111' : '0000';
-      await expect(service.verifyOtp('+919876543210', wrong)).rejects.toBeInstanceOf(
+      await expect(service.verifyOtp('+19876543210', wrong)).rejects.toBeInstanceOf(
         BadRequestException,
       );
     });
 
     it('rejects when no OTP was requested', async () => {
-      await expect(service.verifyOtp('+910000000000', '1234')).rejects.toThrow(
+      await expect(service.verifyOtp('+10000000000', '1234')).rejects.toThrow(
         /expired or not requested/i,
       );
     });

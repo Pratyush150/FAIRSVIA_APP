@@ -4,8 +4,8 @@
 // Run: node driver-bot.mjs   (optionally BOT_LAT / BOT_LNG env)
 import { api, connect, login, onboardDriver, phone, wait } from './lib.mjs';
 
-const LAT = Number(process.env.BOT_LAT ?? 12.9611);
-const LNG = Number(process.env.BOT_LNG ?? 77.6387);
+const LAT = Number(process.env.BOT_LAT ?? 25.7743);
+const LNG = Number(process.env.BOT_LNG ?? -80.1937);
 
 async function main() {
   const driver = await login(phone('88'));
@@ -21,7 +21,7 @@ async function main() {
   let activeTrip = null;
 
   sock.on('trip:offer', async (offer) => {
-    console.log(`• offer ${offer.tripId} ₹${offer.fare} → accepting`);
+    console.log(`• offer ${offer.tripId} $${offer.fare} → accepting`);
     sock.emit('trip:accept', { tripId: offer.tripId });
     activeTrip = offer.tripId;
     // Nudge to pickup so the rider sees the car move.

@@ -5,7 +5,12 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { CURRENCY, FARE_CONFIG, TierFareConfig } from './fare-config';
+import {
+  CURRENCY,
+  FARE_CONFIG,
+  METERS_PER_MILE,
+  TierFareConfig,
+} from './fare-config';
 
 export interface FareBreakdown {
   baseFare: number;
@@ -51,7 +56,7 @@ export class PricingService implements OnModuleInit {
         tier: c.tier,
         label: c.label,
         baseFare: c.baseFare,
-        perKm: c.perKm,
+        perMile: c.perMile,
         perMin: c.perMin,
         bookingFee: c.bookingFee,
         minFare: c.minFare,
@@ -73,7 +78,7 @@ export class PricingService implements OnModuleInit {
           tier: r.tier,
           label: r.label,
           baseFare: r.baseFare,
-          perKm: r.perKm,
+          perMile: r.perMile,
           perMin: r.perMin,
           bookingFee: r.bookingFee,
           minFare: r.minFare,
@@ -106,7 +111,7 @@ export class PricingService implements OnModuleInit {
       data: {
         label: patch.label,
         baseFare: patch.baseFare,
-        perKm: patch.perKm,
+        perMile: patch.perMile,
         perMin: patch.perMin,
         bookingFee: patch.bookingFee,
         minFare: patch.minFare,
@@ -118,7 +123,7 @@ export class PricingService implements OnModuleInit {
   }
 
   /**
-   * fare = (base + perKm*km + perMin*min) * surge + bookingFee, floored at minFare.
+   * fare = (base + perMile*mi + perMin*min) * surge + bookingFee, floored at minFare.
    */
   estimateForTier(
     tier: string,
@@ -150,10 +155,10 @@ export class PricingService implements OnModuleInit {
     durationS: number,
     surge: number,
   ): FareEstimate {
-    const distanceKm = distanceM / 1000;
+    const distanceMi = distanceM / METERS_PER_MILE;
     const durationMin = durationS / 60;
 
-    const distanceFare = cfg.perKm * distanceKm;
+    const distanceFare = cfg.perMile * distanceMi;
     const timeFare = cfg.perMin * durationMin;
     const preFare = (cfg.baseFare + distanceFare + timeFare) * surge;
     const total = Math.max(preFare + cfg.bookingFee, cfg.minFare);

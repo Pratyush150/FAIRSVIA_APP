@@ -52,7 +52,7 @@ describe('PaymentsService', () => {
     (prisma as any).trip.findUnique.mockResolvedValue({
       id: 't1',
       riderId: 'r1',
-      currency: 'INR',
+      currency: 'USD',
       fareFinal: 100,
       fareEstimate: 100,
     });
@@ -97,7 +97,7 @@ describe('PaymentsService', () => {
     (prisma as any).trip.findUnique.mockResolvedValue({
       id: 't1',
       riderId: 'r1',
-      currency: 'INR',
+      currency: 'USD',
       fareFinal: 99.99,
       fareEstimate: 99.99,
     });
@@ -127,7 +127,7 @@ describe('PaymentsService', () => {
     (prisma as any).trip.findUnique.mockResolvedValue({
       id: 't1',
       riderId: 'r1',
-      currency: 'INR',
+      currency: 'USD',
       fareFinal: 50,
       fareEstimate: 50,
     });
@@ -158,7 +158,7 @@ describe('PaymentsService', () => {
     (prisma as any).trip.findUnique.mockResolvedValue({
       id: 't1',
       riderId: 'r1',
-      currency: 'INR',
+      currency: 'USD',
     });
     (prisma as any).payment.findUnique.mockResolvedValue({
       tip: 0,
@@ -184,7 +184,7 @@ describe('PaymentsService', () => {
     (prisma as any).trip.findUnique.mockResolvedValue({
       id: 't1',
       riderId: 'r1',
-      currency: 'INR',
+      currency: 'USD',
     });
     const svc = makeService(prisma);
     await expect(svc.addTip('someone-else', 't1', 15)).rejects.toThrow(
@@ -197,7 +197,7 @@ describe('PaymentsService', () => {
     (prisma as any).trip.findUnique.mockResolvedValue({
       id: 't1',
       riderId: 'r1',
-      currency: 'INR',
+      currency: 'USD',
     });
     (prisma as any).payment.upsert.mockResolvedValue({});
 
@@ -304,7 +304,7 @@ describe('MockPaymentProvider', () => {
   const provider = new MockPaymentProvider();
 
   it('authorizes with a mock_pi id and authorized status', async () => {
-    const r = await provider.authorize({ amount: 10, currency: 'INR' });
+    const r = await provider.authorize({ amount: 10, currency: 'USD' });
     expect(r.intentId).toMatch(/^mock_pi_/);
     expect(r.status).toBe('authorized');
   });
@@ -315,14 +315,14 @@ describe('MockPaymentProvider', () => {
   });
 
   it('charges with a mock_ch id', async () => {
-    const r = await provider.charge({ amount: 5, currency: 'INR' });
+    const r = await provider.charge({ amount: 5, currency: 'USD' });
     expect(r.intentId).toMatch(/^mock_ch_/);
     expect(r.status).toBe('captured');
   });
 
   it('rejects non-positive amounts', async () => {
     await expect(
-      provider.authorize({ amount: 0, currency: 'INR' }),
+      provider.authorize({ amount: 0, currency: 'USD' }),
     ).rejects.toThrow('greater than zero');
   });
 });

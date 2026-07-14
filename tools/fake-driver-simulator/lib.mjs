@@ -74,7 +74,7 @@ let seq = 0;
 export function phone(prefix = '9') {
   seq += 1;
   const n = (Date.now() % 10000000) * 10 + (seq % 10);
-  return `+91${prefix}${String(n).padStart(9, '0').slice(0, 9)}`;
+  return `+1${prefix}${String(n).padStart(9, '0').slice(0, 9)}`;
 }
 
 export async function onboardDriver(token, tier = 'economy') {

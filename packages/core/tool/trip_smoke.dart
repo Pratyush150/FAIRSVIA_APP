@@ -19,7 +19,7 @@ Future<void> main(List<String> args) async {
 
   // Log in to get a token.
   final auth = AuthRemoteDataSource(dio);
-  final phone = '+9198${DateTime.now().millisecondsSinceEpoch % 100000000}';
+  final phone = '+198${DateTime.now().millisecondsSinceEpoch % 100000000}';
   final otp = await auth.requestOtp(phone);
   final session = await auth.verifyOtp(phone, otp.devCode!);
   dio.options.headers['Authorization'] =
@@ -37,7 +37,7 @@ Future<void> main(List<String> args) async {
 
   final pickup = details.location; // reuse as a nearby pickup base
   final estimate = await trips.estimate(pickup, details.location);
-  print('✓ estimate      ${estimate.tiers.length} tiers, economy=₹${estimate.tiers.first.fare}');
+  print('✓ estimate      ${estimate.tiers.length} tiers, economy=\$${estimate.tiers.first.fare}');
 
   final trip = await trips.create(
     pickup: pickup,
@@ -46,7 +46,7 @@ Future<void> main(List<String> args) async {
     pickupAddr: 'Pickup',
     dropoffAddr: details.address,
   );
-  print('✓ createTrip    id=${trip.id} status=${trip.status.name} fare=₹${trip.fareEstimate}');
+  print('✓ createTrip    id=${trip.id} status=${trip.status.name} fare=\$${trip.fareEstimate}');
 
   final fetched = await trips.getById(trip.id);
   print('✓ getTrip       status=${fetched.status.name}');

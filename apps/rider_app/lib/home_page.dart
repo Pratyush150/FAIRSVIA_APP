@@ -372,7 +372,7 @@ class _RideOptions extends StatelessWidget {
             Text('Choose a ride', style: theme.textTheme.headlineSmall),
             const Spacer(),
             Text(
-              '${estimate.distanceKm.toStringAsFixed(1)} km · '
+              '${estimate.distanceMi.toStringAsFixed(1)} mi · '
               '${(estimate.durationS / 60).round()} min',
               style: theme.textTheme.bodyMedium,
             ),
@@ -494,7 +494,7 @@ String _confirmLabel(TripState state) {
       ? net
       : fare.fare;
   final verb = state.scheduledAt != null ? 'Schedule' : 'Confirm';
-  return '$verb ${fare.label} · ₹${amount.toStringAsFixed(0)}';
+  return '$verb ${fare.label} · \$${amount.toStringAsFixed(0)}';
 }
 
 String _formatSchedule(DateTime when) {
@@ -742,7 +742,7 @@ class _PromoFieldState extends State<_PromoField> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                '${promo.code} applied · −₹${promo.discount.toStringAsFixed(0)}',
+                '${promo.code} applied · −\$${promo.discount.toStringAsFixed(0)}',
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: AppColors.success),
               ),
@@ -848,7 +848,7 @@ class _RideTierTile extends StatelessWidget {
               ),
             ),
             Text(
-              '₹${tier.fare.toStringAsFixed(0)}',
+              '\$${tier.fare.toStringAsFixed(0)}',
               style: theme.textTheme.titleMedium,
             ),
           ],
@@ -1161,7 +1161,7 @@ class _CompletedSheet extends StatelessWidget {
                       size: 16, color: AppColors.warning),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Pay ₹${(fare + tip).toStringAsFixed(0)} in cash to your driver',
+                    'Pay \$${(fare + tip).toStringAsFixed(0)} in cash to your driver',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: AppColors.warning),
                   ),
@@ -1203,7 +1203,7 @@ class _CompletedSheet extends StatelessWidget {
                       onPressed: (state.tipping || state.tipAmount != null)
                           ? null
                           : () => cubit.tipDriver(amt),
-                      child: Text('₹${amt.toStringAsFixed(0)}'),
+                      child: Text('\$${amt.toStringAsFixed(0)}'),
                     ),
                   ),
                 ),
@@ -1212,7 +1212,7 @@ class _CompletedSheet extends StatelessWidget {
           if (state.tipAmount != null)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.xs),
-              child: Text('Tip of ₹${state.tipAmount!.toStringAsFixed(0)} added.',
+              child: Text('Tip of \$${state.tipAmount!.toStringAsFixed(0)} added.',
                   style: theme.textTheme.bodySmall),
             ),
           const SizedBox(height: AppSpacing.lg),
@@ -1244,7 +1244,7 @@ class _ReceiptRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: style),
-          Text('₹${value.toStringAsFixed(0)}', style: style),
+          Text('\$${value.toStringAsFixed(0)}', style: style),
         ],
       ),
     );

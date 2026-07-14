@@ -109,7 +109,7 @@ export default (): AppConfig => {
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '0.20'),
-  cancellationFee: parseFloat(process.env.CANCELLATION_FEE ?? '30'),
+  cancellationFee: parseFloat(process.env.CANCELLATION_FEE ?? '5'),
   fcmServerKey: process.env.FCM_SERVER_KEY ?? '',
   // Comma-separated phone numbers that are promoted to the admin role on login,
   // to bootstrap the self-hosted admin app without a manual DB edit.

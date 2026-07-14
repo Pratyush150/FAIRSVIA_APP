@@ -24,8 +24,8 @@ function haversine(a, b) {
 }
 
 async function main() {
-  const pickup = { lat: 12.9611, lng: 77.6387 };
-  const dropoff = { lat: 12.9674, lng: 77.5904 };
+  const pickup = { lat: 25.7743, lng: -80.1937 };
+  const dropoff = { lat: 25.7806, lng: -80.2420 };
 
   const driver = await login(phone('90'));
   await onboardDriver(driver.token, 'economy');
@@ -83,8 +83,8 @@ async function main() {
   });
   const final = await api(`/trips/${trip.id}`, { token: rider.token });
 
-  console.log(`• estimate fare      ₹${estimateFare}`);
-  console.log(`• final (metered)    ₹${receipt.fareFinal}`);
+  console.log(`• estimate fare      $${estimateFare}`);
+  console.log(`• final (metered)    $${receipt.fareFinal}`);
   console.log(`• receipt distanceM  ${receipt.distanceM} m  (driven ≈ ${Math.round(driven)} m)`);
 
   // The odometer must have engaged: recorded distance close to what we drove.

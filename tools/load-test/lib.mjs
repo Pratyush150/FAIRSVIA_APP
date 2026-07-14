@@ -84,7 +84,7 @@ const RUN = Math.floor(1000 + Math.random() * 9000);
 let seq = 0;
 export function phone() {
   seq += 1;
-  return `+9197${RUN}${String(seq).padStart(5, '0')}`;
+  return `+197${RUN}${String(seq).padStart(5, '0')}`;
 }
 
 // --- stats -----------------------------------------------------------------

@@ -688,11 +688,11 @@ class _OverviewView extends StatelessWidget {
                 icon: Icons.check_circle),
             _StatCard(
                 label: 'Gross revenue',
-                value: '₹${s.grossRevenue.toStringAsFixed(0)}',
+                value: '\$${s.grossRevenue.toStringAsFixed(0)}',
                 icon: Icons.payments),
             _StatCard(
                 label: 'Platform fees',
-                value: '₹${s.platformRevenue.toStringAsFixed(0)}',
+                value: '\$${s.platformRevenue.toStringAsFixed(0)}',
                 icon: Icons.account_balance,
                 color: AppColors.accent),
           ],
@@ -786,8 +786,8 @@ class _TripTile extends StatelessWidget {
               controller: controller,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                prefixText: '₹ ',
-                helperText: 'Fare ₹${trip.fare.toStringAsFixed(2)}',
+                prefixText: '\$ ',
+                helperText: 'Fare \$${trip.fare.toStringAsFixed(2)}',
               ),
             ),
             TextField(
@@ -818,7 +818,7 @@ class _TripTile extends StatelessWidget {
         reason: reason.text.trim().isEmpty ? null : reason.text.trim(),
       );
       messenger.showSnackBar(
-        SnackBar(content: Text('Refunded ₹${amount.toStringAsFixed(0)}')),
+        SnackBar(content: Text('Refunded \$${amount.toStringAsFixed(0)}')),
       );
     } catch (_) {
       messenger.showSnackBar(const SnackBar(content: Text('Refund failed')));
@@ -847,7 +847,7 @@ class _TripTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '${trip.currency == 'INR' ? '₹' : ''}${trip.fare.toStringAsFixed(0)}',
+              '${trip.currency == 'USD' ? '\$' : ''}${trip.fare.toStringAsFixed(0)}',
               style: theme.textTheme.titleMedium,
             ),
             if (_refundable)

@@ -28,14 +28,15 @@ class TripEstimate extends Equatable {
   final List<FareTier> tiers;
   final List<TripStop> stops;
 
-  double get distanceKm => distanceM / 1000;
+  /// Distance in statute miles (US market). The backend reports meters.
+  double get distanceMi => distanceM / 1609.34;
 
   factory TripEstimate.fromJson(Map<String, dynamic> json) => TripEstimate(
         distanceM: (json['distanceM'] as num).toInt(),
         durationS: (json['durationS'] as num).toInt(),
         polyline: json['polyline'] as String? ?? '',
         surge: (json['surge'] as num?)?.toDouble() ?? 1.0,
-        currency: json['currency'] as String? ?? 'INR',
+        currency: json['currency'] as String? ?? 'USD',
         pickup: GeoPoint.fromJson(json['pickup'] as Map<String, dynamic>),
         dropoff: GeoPoint.fromJson(json['dropoff'] as Map<String, dynamic>),
         tiers: (json['tiers'] as List<dynamic>)

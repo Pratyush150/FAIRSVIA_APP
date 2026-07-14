@@ -4,7 +4,7 @@ export class RequestOtpDto {
   // E.164-ish: optional +, 8-15 digits.
   @IsString()
   @Matches(/^\+?[1-9]\d{7,14}$/, {
-    message: 'phone must be a valid E.164 number (e.g. +919876543210)',
+    message: 'phone must be a valid E.164 number (e.g. +13055550137)',
   })
   phone!: string;
 }

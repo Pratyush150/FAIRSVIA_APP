@@ -15,8 +15,8 @@ function assert(cond, msg) {
 }
 
 async function main() {
-  const pickup = { lat: 12.9611, lng: 77.6387 };
-  const dropoff = { lat: 12.9674, lng: 77.5904 };
+  const pickup = { lat: 25.7743, lng: -80.1937 };
+  const dropoff = { lat: 25.7806, lng: -80.2420 };
 
   // --- Driver: login, onboard, connect, go online near the pickup ---
   const driver = await login(phone('90'));
@@ -70,7 +70,7 @@ async function main() {
 
   const offer = await offerP;
   assert(offer.tripId === trip.id, 'offer is for this trip');
-  console.log(`• driver ← trip:offer  ₹${offer.fare} (${offer.expiresInSec}s)`);
+  console.log(`• driver ← trip:offer  $${offer.fare} (${offer.expiresInSec}s)`);
 
   dSock.emit('trip:accept', { tripId: offer.tripId });
   const accepted = await acceptedP;
@@ -126,7 +126,7 @@ async function main() {
     token: driver.token,
   });
   await completedP;
-  console.log(`• rider ← trip:completed  ₹${receipt.fareFinal}`);
+  console.log(`• rider ← trip:completed  $${receipt.fareFinal}`);
   assert(receipt.paymentMode === paymentMode, `receipt paymentMode ${paymentMode}`);
 
   const final = await api(`/trips/${trip.id}`, { token: rider.token });
@@ -145,7 +145,7 @@ async function main() {
     `driver payout ${receipt.driverPayout} === ${expectedPayout}`,
   );
   console.log(
-    `• payment split  fare=₹${receipt.fareFinal}  fee=₹${receipt.platformFee}  payout=₹${receipt.driverPayout}`,
+    `• payment split  fare=$${receipt.fareFinal}  fee=$${receipt.platformFee}  payout=$${receipt.driverPayout}`,
   );
 
   // Receipt endpoint should report the captured ride payment.
@@ -177,7 +177,7 @@ async function main() {
     tipRes.driverPayout === Math.round((expectedPayout + 25) * 100) / 100,
     'tip added fully to driver payout',
   );
-  console.log(`• tip ₹25 → driver payout now ₹${tipRes.driverPayout}`);
+  console.log(`• tip $25 → driver payout now $${tipRes.driverPayout}`);
 
   // --- Two-way ratings ---
   const rated = await api(`/trips/${trip.id}/rating`, {
@@ -214,14 +214,14 @@ async function main() {
     Math.round((receipt.driverPayout + 25) * 100) / 100;
   assert(
     Math.abs(bal.balance - expectedLedger) < 0.01,
-    `ledger balance ₹${bal.balance} === payout+tip ₹${expectedLedger}`,
+    `ledger balance $${bal.balance} === payout+tip $${expectedLedger}`,
   );
   assert(
     bal.entries.some((e) => e.type === 'earning') &&
       bal.entries.some((e) => e.type === 'tip'),
     'ledger has earning + tip entries',
   );
-  console.log(`• ledger balance ₹${bal.balance} (earning + tip)`);
+  console.log(`• ledger balance $${bal.balance} (earning + tip)`);
 
   // Withdraw part of the balance; it debits and the new balance matches.
   const withdrawAmt = Math.floor(bal.balance / 2);
@@ -244,7 +244,7 @@ async function main() {
     expectError: true,
   });
   assert(over.status === 400, 'over-withdrawal rejected (400)');
-  console.log(`• withdrew ₹${withdrawAmt}, balance now ₹${afterBal.balance}`);
+  console.log(`• withdrew $${withdrawAmt}, balance now $${afterBal.balance}`);
 
   // --- Notification inbox (C4): the ride milestones were persisted ---
   const inbox = await api('/me/notifications', { token: rider.token });
@@ -268,7 +268,7 @@ async function main() {
   console.log(`• inbox: ${inbox.length} milestones, unread cleared to 0`);
 
   // --- Admin refund (B2) ---
-  const admin = await login('+919900000001');
+  const admin = await login('+19900000001');
   assert(admin.user.role === 'admin', 'admin login');
 
   // --- Admin live map (C1): the online driver shows up with coordinates ---
@@ -282,7 +282,7 @@ async function main() {
   console.log(
     `• live map: ${live.drivers.length} driver(s), ${live.trips.length} active trip(s)`,
   );
-  const refundAmt = 20;
+  const refundAmt = 5;
   const refund = await api(`/admin/payments/${trip.id}/refund`, {
     method: 'POST',
     token: admin.token,
@@ -300,16 +300,16 @@ async function main() {
   const expectedClawback = Math.round(refundAmt * 0.8 * 100) / 100;
   assert(
     Math.abs(afterBal.balance - postRefundBal.balance - expectedClawback) < 0.01,
-    `refund clawed back ₹${expectedClawback} from the driver`,
+    `refund clawed back $${expectedClawback} from the driver`,
   );
   console.log(
-    `• admin refunded ₹${refundAmt} → payment ${refund.status}, driver clawback ₹${expectedClawback}`,
+    `• admin refunded $${refundAmt} → payment ${refund.status}, driver clawback $${expectedClawback}`,
   );
 
   console.log(
     `\n✅ FULL RIDE OK — requested→matching→accepted→arrived→in_progress→completed` +
-      `\n   payment captured (split ₹${receipt.platformFee}/₹${receipt.driverPayout}), tip ₹25, two-way ratings recorded` +
-      `\n   driver earnings today: ₹${earnings.total} over ${earnings.trips} trip(s)`,
+      `\n   payment captured (split $${receipt.platformFee}/$${receipt.driverPayout}), tip $25, two-way ratings recorded` +
+      `\n   driver earnings today: $${earnings.total} over ${earnings.trips} trip(s)`,
   );
 
   // Clean up: take the driver out of the pool before disconnecting.

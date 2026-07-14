@@ -8,8 +8,8 @@ import { api, connect, login, onboardDriver, phone, wait } from './lib.mjs';
 
 const N = parseInt(process.env.DRIVERS || '3', 10);
 const CENTER = {
-  lat: parseFloat(process.env.LAT || '12.9611'),
-  lng: parseFloat(process.env.LNG || '77.6387'),
+  lat: parseFloat(process.env.LAT || '25.7743'),
+  lng: parseFloat(process.env.LNG || '-80.1937'),
 };
 
 async function spawnDriver(i) {
@@ -39,7 +39,7 @@ async function spawnDriver(i) {
   }, 4000);
 
   sock.on('trip:offer', (offer) => {
-    console.log(`[driver ${i}] offer ${offer.tripId} ₹${offer.fare} → accepting`);
+    console.log(`[driver ${i}] offer ${offer.tripId} $${offer.fare} → accepting`);
     sock.emit('trip:accept', { tripId: offer.tripId });
   });
 

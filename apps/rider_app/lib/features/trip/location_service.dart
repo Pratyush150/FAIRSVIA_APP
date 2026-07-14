@@ -4,7 +4,7 @@ import 'package:shared_models/shared_models.dart';
 /// Resolves the rider's current location, falling back to a city center when
 /// permission is denied or GPS is unavailable.
 class LocationService {
-  static const GeoPoint fallback = GeoPoint(12.9716, 77.5946); // Bengaluru
+  static const GeoPoint fallback = GeoPoint(25.7743, -80.1937); // Miami, FL
 
   Future<GeoPoint> currentOrFallback() async {
     try {

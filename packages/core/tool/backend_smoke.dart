@@ -21,7 +21,7 @@ Future<void> main(List<String> args) async {
   final ds = AuthRemoteDataSource(dio);
 
   // Unique phone per run so we exercise first-login user creation.
-  final phone = '+9199${DateTime.now().millisecondsSinceEpoch % 100000000}';
+  final phone = '+199${DateTime.now().millisecondsSinceEpoch % 100000000}';
   print('› base=$baseUrl phone=$phone');
 
   final otp = await ds.requestOtp(phone);

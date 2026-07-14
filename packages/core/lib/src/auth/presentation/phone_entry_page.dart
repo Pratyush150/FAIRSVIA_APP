@@ -64,7 +64,7 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
                     ],
                     decoration: const InputDecoration(
-                      hintText: '+91 98765 43210',
+                      hintText: '+1 305 555 0137',
                       prefixIcon: Icon(Icons.phone_outlined),
                     ),
                     onChanged: (v) => setState(

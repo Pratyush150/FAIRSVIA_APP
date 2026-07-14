@@ -461,7 +461,7 @@ export class TripsService {
 
     let fee = 0;
     if (feeApplies) {
-      const amount = this.config.get<number>('cancellationFee') ?? 30;
+      const amount = this.config.get<number>('cancellationFee') ?? 5;
       try {
         fee = await this.payments.chargeCancellationFee(tripId, amount);
       } catch (e) {

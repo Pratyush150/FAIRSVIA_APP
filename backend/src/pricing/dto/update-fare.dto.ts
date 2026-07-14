@@ -8,7 +8,7 @@ export class UpdateFareDto {
   baseFare?: number;
 
   @IsOptional() @IsNumber() @Min(0)
-  perKm?: number;
+  perMile?: number;
 
   @IsOptional() @IsNumber() @Min(0)
   perMin?: number;

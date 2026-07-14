@@ -12,7 +12,7 @@ mkdirSync(SHOTS, { recursive: true });
 
 const API = 'http://192.168.1.48:3000/api/v1';
 const URL = 'http://192.168.1.48:9090'; // admin
-const PHONE = '+919900000001';
+const PHONE = '+19900000001';
 
 async function login() {
   const req = await fetch(`${API}/auth/otp/request`, {

@@ -121,7 +121,7 @@ model Trip {
   fareEstimate    Decimal?   @map("fare_estimate") @db.Decimal(10, 2)
   fareFinal       Decimal?   @map("fare_final") @db.Decimal(10, 2)
   surgeMultiplier Decimal    @default(1.0) @map("surge_multiplier") @db.Decimal(3, 2)
-  currency        String     @default("INR") @db.VarChar(3)
+  currency        String     @default("USD") @db.VarChar(3)
   startOtp        String?    @map("start_otp") @db.VarChar(4)
   promoCode       String?    @map("promo_code") @db.VarChar(24)
   promoDiscount   Decimal    @default(0) @map("promo_discount") @db.Decimal(10, 2)
@@ -173,7 +173,7 @@ model Payment {
   id               String   @id @default(uuid()) @db.Uuid
   tripId           String   @unique @map("trip_id") @db.Uuid
   amount           Decimal  @db.Decimal(10, 2)
-  currency         String   @default("INR") @db.VarChar(3)
+  currency         String   @default("USD") @db.VarChar(3)
   status           String   @default("pending") @db.VarChar(12) // pending|authorized|captured|collected|failed|refunded
   kind             String   @default("ride") @db.VarChar(12) // ride|cancellation
   method           String   @default("card") @db.VarChar(4) // card|cash
@@ -337,7 +337,7 @@ model FareConfig {
   tier       String   @id @db.VarChar(12)
   label      String   @db.VarChar(30)
   baseFare   Float    @map("base_fare")
-  perKm      Float    @map("per_km")
+  perMile    Float    @map("per_mile")
   perMin     Float    @map("per_min")
   bookingFee Float    @map("booking_fee")
   minFare    Float    @map("min_fare")

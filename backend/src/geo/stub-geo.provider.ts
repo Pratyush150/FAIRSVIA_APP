@@ -17,9 +17,9 @@ import { encodePolyline, haversineMeters } from './geo.util';
 export class StubGeoProvider implements GeoProvider {
   private readonly logger = new Logger('StubGeo');
 
-  // City center used as the origin for generated predictions (Bengaluru).
-  private static readonly base: LatLng = { lat: 12.9716, lng: 77.5946 };
-  private static readonly avgSpeedMps = 8.33; // ~30 km/h
+  // City center used as the origin for generated predictions (Miami, FL).
+  private static readonly base: LatLng = { lat: 25.7743, lng: -80.1937 };
+  private static readonly avgSpeedMps = 8.94; // ~20 mph
 
   constructor() {
     this.logger.warn(
@@ -28,15 +28,15 @@ export class StubGeoProvider implements GeoProvider {
   }
 
   async autocomplete(query: string): Promise<PlacePrediction[]> {
-    const suffixes = ['Road', 'Metro Station', 'Mall', 'Park'];
+    const suffixes = ['Street', 'Station', 'Mall', 'Park'];
     return suffixes.map((suffix, i) => {
       const loc = this.offset(StubGeoProvider.base, query, i);
       const primary = `${query} ${suffix}`.trim();
       return {
         placeId: this.encodePlaceId(loc),
         primaryText: primary,
-        secondaryText: 'Bengaluru, Karnataka',
-        description: `${primary}, Bengaluru, Karnataka`,
+        secondaryText: 'Miami, FL',
+        description: `${primary}, Miami, FL`,
       };
     });
   }

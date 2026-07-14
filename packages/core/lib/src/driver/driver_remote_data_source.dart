@@ -54,7 +54,7 @@ class PayoutBalance {
 
   factory PayoutBalance.fromJson(Map<String, dynamic> json) => PayoutBalance(
         balance: (json['balance'] as num?)?.toDouble() ?? 0,
-        currency: json['currency'] as String? ?? 'INR',
+        currency: json['currency'] as String? ?? 'USD',
         entries: (json['entries'] as List<dynamic>? ?? const [])
             .map((e) => LedgerEntry.fromJson(e as Map<String, dynamic>))
             .toList(),

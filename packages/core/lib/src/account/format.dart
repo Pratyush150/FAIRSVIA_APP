@@ -20,10 +20,10 @@ class Fmt {
   static String dateShort(DateTime? d) =>
       d == null ? '—' : '${d.day} ${_months[d.month - 1]}';
 
-  /// Currency amount, e.g. "₹240" (INR shown as ₹, else "<code> 240").
-  static String money(double amount, [String currency = 'INR']) {
+  /// Currency amount, e.g. "\$240" (USD shown as $, else "<code> 240").
+  static String money(double amount, [String currency = 'USD']) {
     final n = amount.toStringAsFixed(amount.truncateToDouble() == amount ? 0 : 2);
-    return currency == 'INR' ? '₹$n' : '$currency $n';
+    return currency == 'USD' ? '\$$n' : '$currency $n';
   }
 
   /// Human status label from the trip status enum name.

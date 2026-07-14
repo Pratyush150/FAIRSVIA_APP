@@ -30,8 +30,8 @@ class _DriverPayoutsPageState extends State<DriverPayoutsPage> {
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            prefixText: '₹ ',
-            helperText: 'Available: ₹${max.toStringAsFixed(2)}',
+            prefixText: '\$ ',
+            helperText: 'Available: \$${max.toStringAsFixed(2)}',
           ),
         ),
         actions: [
@@ -52,7 +52,7 @@ class _DriverPayoutsPageState extends State<DriverPayoutsPage> {
     try {
       await widget.driver.withdraw(amount);
       messenger.showSnackBar(
-        SnackBar(content: Text('Withdrew ₹${amount.toStringAsFixed(0)}')),
+        SnackBar(content: Text('Withdrew \$${amount.toStringAsFixed(0)}')),
       );
       if (mounted) setState(() => _reloadKey++);
     } on ApiException catch (e) {
@@ -145,7 +145,7 @@ class _LedgerTile extends StatelessWidget {
           ? Text(Fmt.dateTime(entry.createdAt!))
           : null,
       trailing: Text(
-        '${credit ? '+' : '−'}₹${entry.amount.abs().toStringAsFixed(2)}',
+        '${credit ? '+' : '−'}\$${entry.amount.abs().toStringAsFixed(2)}',
         style: theme.textTheme.titleMedium?.copyWith(
           color: credit ? AppColors.success : AppColors.error,
         ),

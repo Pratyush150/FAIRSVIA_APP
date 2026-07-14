@@ -18,7 +18,7 @@ const MATCH_TIMEOUT = Number(process.env.MATCH_TIMEOUT_MS || 20000);
 const MATCH_SUCCESS_SLO = Number(process.env.MATCH_SUCCESS_SLO || 0.95);
 const MATCH_P95_SLO = Number(process.env.MATCH_P95_SLO_MS || 4000);
 
-const CENTER = { lat: 12.9611, lng: 77.6387 };
+const CENTER = { lat: 25.7743, lng: -80.1937 };
 const jitter = () => (Math.random() - 0.5) * 0.01; // ~0.5km
 const drivers = new Map(); // userId -> { token, socket }
 
@@ -112,7 +112,7 @@ async function main() {
         body: {
           pickupLat: CENTER.lat + jitter(),
           pickupLng: CENTER.lng + jitter(),
-          dropoffLat: 12.9674, dropoffLng: 77.5904,
+          dropoffLat: 25.7806, dropoffLng: -80.2420,
           tier: 'economy', pickupAddr: 'Load', dropoffAddr: 'Test',
         },
       });

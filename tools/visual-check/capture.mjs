@@ -27,9 +27,9 @@ const API = process.env.API_BASE_URL || 'http://192.168.1.48:3000/api/v1';
 const HOST = process.env.APP_HOST || 'http://192.168.1.48';
 
 const APPS = [
-  { name: 'rider', url: `${HOST}:9091`, phone: '+919810000001' },
-  { name: 'admin', url: `${HOST}:9090`, phone: '+919900000001' },
-  { name: 'driver', url: `${HOST}:9092`, phone: '+919820000001' },
+  { name: 'rider', url: `${HOST}:9091`, phone: '+13055550101' },
+  { name: 'admin', url: `${HOST}:9090`, phone: '+19900000001' },
+  { name: 'driver', url: `${HOST}:9092`, phone: '+13055550102' },
 ];
 
 const ACCESS_KEY = 'ubernav.access_token';

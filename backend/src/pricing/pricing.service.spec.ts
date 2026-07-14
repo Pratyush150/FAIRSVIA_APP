@@ -6,24 +6,26 @@ describe('PricingService', () => {
   // so the pure fare math is exercised without touching Prisma.
   const pricing = new PricingService({} as unknown as PrismaService);
 
-  it('computes economy fare = (base + perKm*km + perMin*min)*surge + bookingFee', () => {
-    // 5 km, 10 min, economy: (30 + 12*5 + 1.5*10)*1 + 10 = 115
+  it('computes economy fare = (base + perMile*mi + perMin*min)*surge + bookingFee', () => {
+    // 5000 m ≈ 3.107 mi, 10 min, economy:
+    // (2.5 + 1.2*3.107 + 0.25*10)*1 + 2.0 = 10.73
     const est = pricing.estimateForTier('economy', 5000, 600, 1);
-    expect(est.fare).toBe(115);
-    expect(est.currency).toBe('INR');
+    expect(est.fare).toBeCloseTo(10.73, 2);
+    expect(est.currency).toBe('USD');
     expect(est.etaSeconds).toBe(600);
   });
 
   it('enforces the minimum fare for very short trips', () => {
-    // 100 m, 60 s economy: 30 + 1.2 + 1.5 + 10 = 42.7 -> floored to minFare 60
+    // 100 m, 60 s economy: 2.5 + ~0.07 + 0.25 + 2.0 ≈ 4.82 -> floored to minFare 6.5
     const est = pricing.estimateForTier('economy', 100, 60, 1);
-    expect(est.fare).toBe(60);
+    expect(est.fare).toBe(6.5);
   });
 
   it('applies the surge multiplier to base/distance/time but not booking fee', () => {
-    // 5 km, 10 min, surge 2: (30 + 60 + 15)*2 + 10 = 220
+    // 5000 m ≈ 3.107 mi, 10 min, surge 2:
+    // (2.5 + 1.2*3.107 + 0.25*10)*2 + 2.0 = 19.46
     const est = pricing.estimateForTier('economy', 5000, 600, 2);
-    expect(est.fare).toBe(220);
+    expect(est.fare).toBeCloseTo(19.46, 2);
     expect(est.breakdown.surgeMultiplier).toBe(2);
   });
 

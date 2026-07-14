@@ -11,8 +11,8 @@ const DURATION_S = Number(process.env.DURATION_S || 20);
 const P95_SLO_MS = Number(process.env.P95_SLO_MS || 600);
 const ERR_SLO = Number(process.env.ERR_SLO || 0.01);
 
-const pickup = { lat: 12.9611, lng: 77.6387 };
-const dropoff = { lat: 12.9674, lng: 77.5904 };
+const pickup = { lat: 25.7743, lng: -80.1937 };
+const dropoff = { lat: 25.7806, lng: -80.2420 };
 
 async function main() {
   console.log(

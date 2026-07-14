@@ -3,17 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Fmt.money', () {
-    test('renders whole INR amounts with the rupee sign, no decimals', () {
-      expect(Fmt.money(240), '₹240');
-      expect(Fmt.money(0), '₹0');
+    test('renders whole USD amounts with the dollar sign, no decimals', () {
+      expect(Fmt.money(240), '\$240');
+      expect(Fmt.money(0), '\$0');
     });
 
     test('keeps decimals when the amount is fractional', () {
-      expect(Fmt.money(12.5), '₹12.50');
+      expect(Fmt.money(12.5), '\$12.50');
     });
 
-    test('uses the currency code for non-INR', () {
-      expect(Fmt.money(10, 'USD'), 'USD 10');
+    test('uses the currency code for non-USD', () {
+      expect(Fmt.money(10, 'EUR'), 'EUR 10');
     });
   });
 

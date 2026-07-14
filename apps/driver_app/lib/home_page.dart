@@ -39,7 +39,7 @@ class _DriverHomeView extends StatefulWidget {
 }
 
 class _DriverHomeViewState extends State<_DriverHomeView> {
-  static const _fallback = LatLng(12.9716, 77.5946);
+  static const _fallback = LatLng(25.7743, -80.1937); // Miami, FL
   StreamSubscription<Position>? _posSub;
 
   @override
@@ -206,7 +206,7 @@ class _BottomSheet extends StatelessWidget {
             if (state.lastEarned != null)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: Text('Today: ₹${state.lastEarned!.toStringAsFixed(0)}',
+                child: Text('Today: \$${state.lastEarned!.toStringAsFixed(0)}',
                     style: theme.textTheme.bodyMedium),
               ),
             const SizedBox(height: AppSpacing.md),
@@ -292,7 +292,7 @@ class _CompletedSheet extends StatelessWidget {
         ),
         if (state.lastEarned != null) ...[
           const SizedBox(height: AppSpacing.xs),
-          Text("Today's earnings: ₹${state.lastEarned!.toStringAsFixed(0)}",
+          Text("Today's earnings: \$${state.lastEarned!.toStringAsFixed(0)}",
               style: theme.textTheme.bodyMedium),
         ],
         if (state.cashToCollect != null) ...[
@@ -309,7 +309,7 @@ class _CompletedSheet extends StatelessWidget {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    'Collect ₹${state.cashToCollect!.toStringAsFixed(0)} in cash from the rider',
+                    'Collect \$${state.cashToCollect!.toStringAsFixed(0)} in cash from the rider',
                     style: theme.textTheme.titleSmall
                         ?.copyWith(color: AppColors.warning),
                   ),
@@ -538,8 +538,8 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                 Text('New ride request', style: theme.textTheme.headlineSmall),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  '₹${offer.fare.toStringAsFixed(0)} · '
-                  '${(offer.distanceM / 1000).toStringAsFixed(1)} km',
+                  '\$${offer.fare.toStringAsFixed(0)} · '
+                  '${(offer.distanceM / 1609.34).toStringAsFixed(1)} mi',
                   style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: AppSpacing.sm),
