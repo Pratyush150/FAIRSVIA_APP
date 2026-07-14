@@ -1,15 +1,22 @@
-/// 4px base spacing grid used across the apps.
+/// 4px base spacing grid + corner radii, shared across the apps.
 class AppSpacing {
   AppSpacing._();
 
+  static const double xxs = 2;
   static const double xs = 4;
   static const double sm = 8;
   static const double md = 12;
   static const double lg = 16;
+  static const double x20 = 20;
   static const double xl = 24;
   static const double xxl = 32;
+  static const double xxxl = 40;
+  static const double huge = 48;
 
-  /// Default corner radius for cards, sheets, buttons.
-  static const double radius = 14;
-  static const double radiusSm = 8;
+  // Corner radii. Generous, consistent rounding reads as premium.
+  static const double radiusSm = 10;
+  static const double radius = 16;
+  static const double radiusLg = 20;
+  static const double radiusXl = 28;
+  static const double pill = 999;
 }

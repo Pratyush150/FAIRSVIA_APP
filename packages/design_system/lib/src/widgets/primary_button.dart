@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_typography.dart';
 
 /// Full-width primary CTA with a built-in loading state.
 /// One primary action per screen — this is that action.
@@ -24,16 +25,22 @@ class PrimaryButton extends StatelessWidget {
     final enabled = onPressed != null && !loading;
     return SizedBox(
       width: double.infinity,
-      height: 54,
+      height: 56,
       child: FilledButton(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.accent,
-          disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.5),
-          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.4),
+          foregroundColor: AppColors.onAccent,
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radius),
           ),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(
+            fontFamily: AppTypography.fontFamily,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
+          ),
         ),
         onPressed: enabled ? onPressed : null,
         child: loading
@@ -42,7 +49,7 @@ class PrimaryButton extends StatelessWidget {
                 width: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.4,
-                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                  valueColor: AlwaysStoppedAnimation(AppColors.onAccent),
                 ),
               )
             : Row(

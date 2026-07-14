@@ -1,43 +1,45 @@
 import 'package:flutter/material.dart';
 
-/// Type scale. Uses the platform default sans (Inter/SF-like) for Phase 0;
-/// a bundled font can be added to the design_system package later.
+/// Type scale built on Plus Jakarta Sans (bundled in this package) — a
+/// geometric-humanist sans in the spirit of premium product UIs. Large headings
+/// use bold weights with tight negative tracking; body stays comfortable.
 class AppTypography {
   AppTypography._();
 
+  /// Package-qualified family name so apps pick it up without re-declaring.
+  static const String fontFamily = 'packages/design_system/PlusJakartaSans';
+
   static TextTheme textTheme(Color primary, Color secondary) {
+    TextStyle s(
+      double size,
+      FontWeight weight, {
+      Color? color,
+      double height = 1.3,
+      double spacing = 0,
+    }) =>
+        TextStyle(
+          fontFamily: fontFamily,
+          fontSize: size,
+          fontWeight: weight,
+          color: color ?? primary,
+          height: height,
+          letterSpacing: spacing,
+        );
+
     return TextTheme(
-      displaySmall: TextStyle(
-        fontSize: 34,
-        fontWeight: FontWeight.w700,
-        color: primary,
-        height: 1.15,
-      ),
-      headlineMedium: TextStyle(
-        fontSize: 26,
-        fontWeight: FontWeight.w700,
-        color: primary,
-        height: 1.2,
-      ),
-      headlineSmall: TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: primary,
-        height: 1.25,
-      ),
-      titleMedium: TextStyle(
-        fontSize: 17,
-        fontWeight: FontWeight.w600,
-        color: primary,
-      ),
-      bodyLarge: TextStyle(fontSize: 16, color: primary, height: 1.4),
-      bodyMedium: TextStyle(fontSize: 14, color: secondary, height: 1.4),
-      labelLarge: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        color: primary,
-      ),
-      bodySmall: TextStyle(fontSize: 12, color: secondary),
+      displaySmall: s(32, FontWeight.w800, height: 1.08, spacing: -0.6),
+      headlineLarge: s(28, FontWeight.w800, height: 1.12, spacing: -0.5),
+      headlineMedium: s(24, FontWeight.w700, height: 1.16, spacing: -0.4),
+      headlineSmall: s(20, FontWeight.w700, height: 1.2, spacing: -0.2),
+      titleLarge: s(18, FontWeight.w700, height: 1.25, spacing: -0.2),
+      titleMedium: s(16, FontWeight.w600, height: 1.3),
+      titleSmall: s(14, FontWeight.w600, height: 1.3),
+      bodyLarge: s(16, FontWeight.w400, height: 1.45),
+      bodyMedium: s(14, FontWeight.w400, color: secondary, height: 1.45),
+      bodySmall: s(13, FontWeight.w400, color: secondary, height: 1.4),
+      labelLarge: s(15, FontWeight.w600, height: 1.2),
+      labelMedium: s(13, FontWeight.w600, height: 1.2),
+      labelSmall: s(11, FontWeight.w700, height: 1.2, spacing: 0.4),
     );
   }
 }
