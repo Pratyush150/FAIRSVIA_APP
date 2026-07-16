@@ -135,7 +135,23 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<TripCubit, TripState>(
+    return BlocConsumer<TripCubit, TripState>(
+        listenWhen: (prev, curr) => prev.phase != curr.phase,
+        listener: (context, state) {
+          // Tactile punctuation on the moments that matter in the ride flow.
+          switch (state.phase) {
+            case TripPhase.driverEnRoute:
+              AppHaptics.success(); // a driver accepted — you're matched
+            case TripPhase.driverArrived:
+              AppHaptics.medium(); // your driver is here
+            case TripPhase.completed:
+              AppHaptics.success(); // trip done
+            case TripPhase.error:
+              AppHaptics.heavy();
+            case _:
+              break;
+          }
+        },
         builder: (context, state) {
           return Scaffold(
             body: Stack(
@@ -225,7 +241,39 @@ class _BottomSheetForPhase extends StatelessWidget {
           onRetry: onSearch,
         ),
     };
-    return AppSheet(child: child);
+    // Cross-fade + slide between phases, and smoothly resize the sheet as each
+    // phase's content changes height — so the flow feels like one continuous
+    // surface rather than a stack of hard-swapped cards.
+    return AppSheet(
+      child: AnimatedSize(
+        duration: AppMotion.normal,
+        curve: AppMotion.standard,
+        alignment: Alignment.bottomCenter,
+        child: AnimatedSwitcher(
+          duration: AppMotion.normal,
+          switchInCurve: AppMotion.emphasized,
+          switchOutCurve: AppMotion.exit,
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim,
+            child: SlideTransition(
+              position: Tween(
+                begin: const Offset(0, 0.06),
+                end: Offset.zero,
+              ).animate(anim),
+              child: child,
+            ),
+          ),
+          layoutBuilder: (currentChild, previousChildren) => Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              ...previousChildren,
+              ?currentChild,
+            ],
+          ),
+          child: KeyedSubtree(key: ValueKey(state.phase), child: child),
+        ),
+      ),
+    );
   }
 }
 
@@ -413,12 +461,24 @@ class _RideOptions extends StatelessWidget {
           child: ListView(
             shrinkWrap: true,
             children: [
-              for (final tier in estimate.tiers)
+              for (final (i, tier) in estimate.tiers.indexed)
                 _RideTierTile(
                   tier: tier,
                   selected: tier.tier == state.selectedTier,
-                  onTap: () => cubit.selectTier(tier.tier),
-                ),
+                  onTap: () {
+                    AppHaptics.selection();
+                    cubit.selectTier(tier.tier);
+                  },
+                ).animate().fadeIn(
+                      delay: AppMotion.stagger * i,
+                      duration: AppMotion.normal,
+                    ).moveY(
+                      begin: 8,
+                      end: 0,
+                      delay: AppMotion.stagger * i,
+                      duration: AppMotion.normal,
+                      curve: AppMotion.emphasized,
+                    ),
             ],
           ),
         ),
@@ -690,11 +750,21 @@ class _PayChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        AppHaptics.selection();
+        onTap();
+      },
       borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-      child: Container(
+      child: AnimatedContainer(
+        duration: AppMotion.fast,
+        curve: AppMotion.standard,
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         decoration: BoxDecoration(
+          color: selected
+              ? (theme.brightness == Brightness.dark
+                  ? AppColors.accentSoftDark
+                  : AppColors.accentSoft)
+              : null,
           borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
           border: Border.all(
             color: selected ? AppColors.accent : theme.dividerColor,
@@ -913,29 +983,12 @@ class _FindingDriver extends StatelessWidget {
       children: [
         Row(
           children: [
-            SizedBox(
-              height: 48,
-              width: 48,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const SizedBox(
-                    height: 48,
-                    width: 48,
-                    child: CircularProgressIndicator(strokeWidth: 3),
-                  ),
-                  Container(
-                    height: 32,
-                    width: 32,
-                    decoration: const BoxDecoration(
-                      color: AppColors.accentSoft,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.local_taxi_rounded,
-                        size: 18, color: AppColors.accent),
-                  ),
-                ],
-              ),
+            // Animated radar sweeping for a nearby driver — reads as the system
+            // actively looking, not a generic spinner.
+            const PulseRadar(
+              size: 56,
+              child: Icon(Icons.local_taxi_rounded,
+                  size: 20, color: AppColors.accent),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -1411,7 +1464,12 @@ class _TipChip extends StatelessWidget {
           ),
         ),
         child: InkWell(
-          onTap: onTap,
+          onTap: onTap == null
+              ? null
+              : () {
+                  AppHaptics.selection();
+                  onTap!();
+                },
           borderRadius: BorderRadius.circular(AppSpacing.radius),
           child: Container(
             height: 48,

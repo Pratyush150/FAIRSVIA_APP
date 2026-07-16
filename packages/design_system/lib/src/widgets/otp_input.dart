@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 
 /// Segmented OTP entry: [length] boxes that auto-advance as the user types
@@ -50,12 +51,14 @@ class _OtpInputState extends State<OtpInput> {
   String get _value => _controllers.map((c) => c.text).join();
 
   void _onChangedAt(int index, String value) {
-    if (value.isNotEmpty && index < widget.length - 1) {
-      _focusNodes[index + 1].requestFocus();
+    if (value.isNotEmpty) {
+      AppHaptics.selection();
+      if (index < widget.length - 1) _focusNodes[index + 1].requestFocus();
     }
     final code = _value;
     widget.onChanged(code);
     if (code.length == widget.length) {
+      AppHaptics.success();
       widget.onCompleted?.call(code);
     }
   }

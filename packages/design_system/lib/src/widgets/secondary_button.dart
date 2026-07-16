@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 
 /// Full-width secondary action — outlined, same height/rhythm as [PrimaryButton].
@@ -40,7 +41,12 @@ class SecondaryButton extends StatelessWidget {
           ),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
-        onPressed: onPressed,
+        onPressed: onPressed == null
+            ? null
+            : () {
+                AppHaptics.light();
+                onPressed!();
+              },
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

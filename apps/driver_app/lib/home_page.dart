@@ -539,9 +539,13 @@ class _OfferOverlayState extends State<_OfferOverlay> {
     super.initState();
     _total = widget.offer.expiresInSec;
     _remaining = _total;
+    // An incoming offer is urgent and interrupting — announce it firmly.
+    AppHaptics.heavy();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
       setState(() => _remaining -= 1);
+      // A tick of warning as the window closes.
+      if (_remaining > 0 && _remaining <= 3) AppHaptics.light();
       if (_remaining <= 0) {
         t.cancel();
         context.read<DriverCubit>().declineOffer();
@@ -560,20 +564,25 @@ class _OfferOverlayState extends State<_OfferOverlay> {
     final theme = Theme.of(context);
     final offer = widget.offer;
     final miles = (offer.distanceM / 1609.34).toStringAsFixed(1);
+    final low = _remaining <= 5;
     return Positioned.fill(
-      child: Container(
-        color: AppColors.scrim,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Material(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-          color: theme.colorScheme.surface,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+      child: Stack(
+        children: [
+          // Frosted, dimmed backdrop lifts the offer off the live map.
+          const BlurredScrim(sigma: 8),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Material(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+                color: theme.colorScheme.surface,
+                elevation: 0,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.xl),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                 Row(
                   children: [
                     Expanded(
@@ -586,16 +595,26 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                         SizedBox(
                           height: 44,
                           width: 44,
-                          child: CircularProgressIndicator(
-                            value: _total == 0 ? 0 : _remaining / _total,
-                            strokeWidth: 4,
-                            backgroundColor: AppColors.borderLight,
-                            valueColor: const AlwaysStoppedAnimation(
-                                AppColors.accent),
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(
+                              begin: 1,
+                              end: _total == 0 ? 0 : _remaining / _total,
+                            ),
+                            duration: AppMotion.slow,
+                            builder: (context, v, _) =>
+                                CircularProgressIndicator(
+                              value: v,
+                              strokeWidth: 4,
+                              backgroundColor: AppColors.borderLight,
+                              valueColor: AlwaysStoppedAnimation(
+                                  low ? AppColors.error : AppColors.accent),
+                            ),
                           ),
                         ),
                         Text('$_remaining',
-                            style: theme.textTheme.titleMedium),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: low ? AppColors.error : null,
+                            )),
                       ],
                     ),
                   ],
@@ -655,12 +674,23 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                             context.read<DriverCubit>().acceptOffer(),
                       ),
                     ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            )
+                .animate()
+                .fadeIn(duration: AppMotion.fast)
+                .scaleXY(
+                  begin: 0.9,
+                  end: 1,
+                  duration: AppMotion.normal,
+                  curve: AppMotion.emphasized,
+                ),
           ),
-        ),
+          ),
+        ],
       ),
     );
   }

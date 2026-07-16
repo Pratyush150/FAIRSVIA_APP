@@ -127,4 +127,37 @@ void main() {
       expect(find.byType(FlutterMap), findsOneWidget);
     });
   });
+
+  group('polish widgets', () {
+    testWidgets('PulseRadar paints and animates without throwing',
+        (tester) async {
+      await tester.pumpWidget(_wrap(
+        const PulseRadar(size: 64, child: Icon(Icons.local_taxi_rounded)),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500)); // advance the loop
+      expect(find.byType(PulseRadar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('BlurredScrim builds its BackdropFilter and handles taps',
+        (tester) async {
+      var tapped = false;
+      await tester.pumpWidget(_wrap(
+        Stack(children: [BlurredScrim(onTap: () => tapped = true)]),
+      ));
+      await tester.pump(const Duration(milliseconds: 300)); // blur tween in
+      expect(find.byType(BackdropFilter), findsOneWidget);
+      await tester.tap(find.byType(BlurredScrim));
+      expect(tapped, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('AppListSkeleton renders skeleton rows', (tester) async {
+      await tester.pumpWidget(_wrap(const AppListSkeleton(rows: 4)));
+      await tester.pump();
+      expect(find.byType(AppListSkeleton), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

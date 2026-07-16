@@ -15,6 +15,7 @@ class AsyncContent<T> extends StatefulWidget {
     this.emptyIcon = Icons.inbox_outlined,
     this.emptyTitle = 'Nothing here yet',
     this.emptyMessage,
+    this.skeleton,
   });
 
   final Future<T> Function() load;
@@ -26,6 +27,10 @@ class AsyncContent<T> extends StatefulWidget {
   final IconData emptyIcon;
   final String emptyTitle;
   final String? emptyMessage;
+
+  /// The loading placeholder. Defaults to an Airbnb-style list skeleton; pass a
+  /// screen-specific shape when the content isn't a simple list.
+  final Widget? skeleton;
 
   @override
   State<AsyncContent<T>> createState() => _AsyncContentState<T>();
@@ -53,43 +58,52 @@ class _AsyncContentState<T> extends State<AsyncContent<T>> {
     return FutureBuilder<T>(
       future: _future,
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(AppSpacing.xl),
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(AppColors.accent),
-              ),
-            ),
-          );
-        }
-        if (snap.hasError) {
-          return _ErrorState(
-            message: snap.error is ApiException
-                ? (snap.error as ApiException).message
-                : 'Something went wrong.',
-            onRetry: _reload,
-          );
-        }
-        final data = snap.data as T;
-        if (widget.isEmpty?.call(data) ?? false) {
-          return _EmptyState(
-            icon: widget.emptyIcon,
-            title: widget.emptyTitle,
-            message: widget.emptyMessage,
-          );
-        }
-        return RefreshIndicator(
-          onRefresh: () async => _reload(),
-          child: widget.builder(context, data, _reload),
+        // Cross-fade between states so loading → content never hard-cuts.
+        return AnimatedSwitcher(
+          duration: AppMotion.normal,
+          switchInCurve: AppMotion.standard,
+          child: _stateFor(context, snap),
         );
       },
+    );
+  }
+
+  Widget _stateFor(BuildContext context, AsyncSnapshot<T> snap) {
+    if (snap.connectionState == ConnectionState.waiting) {
+      // Skeleton placeholder in the shape of the loaded content.
+      return KeyedSubtree(
+        key: const ValueKey('loading'),
+        child: widget.skeleton ?? const AppListSkeleton(),
+      );
+    }
+    if (snap.hasError) {
+      return _ErrorState(
+        key: const ValueKey('error'),
+        message: snap.error is ApiException
+            ? (snap.error as ApiException).message
+            : 'Something went wrong.',
+        onRetry: _reload,
+      );
+    }
+    final data = snap.data as T;
+    if (widget.isEmpty?.call(data) ?? false) {
+      return _EmptyState(
+        key: const ValueKey('empty'),
+        icon: widget.emptyIcon,
+        title: widget.emptyTitle,
+        message: widget.emptyMessage,
+      );
+    }
+    return RefreshIndicator(
+      key: const ValueKey('content'),
+      onRefresh: () async => _reload(),
+      child: widget.builder(context, data, _reload),
     );
   }
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
+  const _ErrorState({super.key, required this.message, required this.onRetry});
   final String message;
   final VoidCallback onRetry;
 
@@ -118,7 +132,12 @@ class _ErrorState extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.icon, required this.title, this.message});
+  const _EmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.message,
+  });
   final IconData icon;
   final String title;
   final String? message;

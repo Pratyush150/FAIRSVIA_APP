@@ -10,15 +10,21 @@ Widget _host(Widget child) => MaterialApp(
     );
 
 void main() {
-  testWidgets('shows a spinner while the future is pending', (tester) async {
+  testWidgets('shows a skeleton placeholder while the future is pending',
+      (tester) async {
     await tester.pumpWidget(_host(AsyncContent<int>(
       load: () => Future.delayed(const Duration(seconds: 1), () => 1),
       builder: (_, _, _) => const Text('done'),
     )));
     await tester.pump(); // let the FutureBuilder subscribe
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    // Loading now renders an Airbnb-style skeleton, not a bare spinner.
+    expect(find.byType(AppListSkeleton), findsOneWidget);
     expect(find.text('done'), findsNothing);
-    await tester.pumpAndSettle();
+    // Let the future resolve + the cross-fade finish, then the skeleton is gone.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(AppListSkeleton), findsNothing);
+    expect(find.text('done'), findsOneWidget);
   });
 
   testWidgets('renders builder content once loaded', (tester) async {
