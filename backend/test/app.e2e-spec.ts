@@ -100,10 +100,13 @@ describe('UberNav API (e2e)', () => {
       .post('/api/v1/trips/estimate')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        pickupLat: 12.9611,
-        pickupLng: 77.6387,
-        dropoffLat: 12.9674,
-        dropoffLng: 77.5904,
+        // Miami (Brickell → Downtown). Must be inside the Florida OSRM extract
+        // so real road distance drives the tier fares; foreign coords collapse
+        // to distance 0 and defeat the assertions below.
+        pickupLat: 25.7615,
+        pickupLng: -80.1929,
+        dropoffLat: 25.7743,
+        dropoffLng: -80.1937,
       });
     expect(res.status).toBe(200);
     expect(res.body.tiers).toHaveLength(4);
@@ -172,11 +175,13 @@ describe('UberNav API (e2e)', () => {
   });
 
   it('supports multi-stop rides (adds distance, stores stops, caps at 3)', async () => {
+    // Miami (Brickell → Downtown), inside the Florida OSRM extract so the detour
+    // genuinely adds road distance; the detour stop sits off the direct line.
     const base = {
-      pickupLat: 28.6139,
-      pickupLng: 77.209,
-      dropoffLat: 28.62,
-      dropoffLng: 77.22,
+      pickupLat: 25.7615,
+      pickupLng: -80.1929,
+      dropoffLat: 25.7743,
+      dropoffLng: -80.1937,
     };
     // Direct estimate.
     const direct = await request(server)
@@ -189,7 +194,7 @@ describe('UberNav API (e2e)', () => {
     const withStop = await request(server)
       .post('/api/v1/trips/estimate')
       .set('Authorization', `Bearer ${token}`)
-      .send({ ...base, stops: [{ lat: 28.70, lng: 77.30, addr: 'Detour' }] });
+      .send({ ...base, stops: [{ lat: 25.79, lng: -80.13, addr: 'Detour' }] });
     expect(withStop.status).toBe(200);
     expect(withStop.body.distanceM).toBeGreaterThan(directDist);
     expect(withStop.body.stops).toHaveLength(1);
@@ -201,7 +206,7 @@ describe('UberNav API (e2e)', () => {
       .send({
         ...base,
         tier: 'economy',
-        stops: [{ lat: 28.70, lng: 77.30, addr: 'Detour' }],
+        stops: [{ lat: 25.79, lng: -80.13, addr: 'Detour' }],
       });
     expect(created.status).toBe(201);
     expect(created.body.stops).toHaveLength(1);
@@ -214,10 +219,10 @@ describe('UberNav API (e2e)', () => {
       .send({
         ...base,
         stops: [
-          { lat: 28.7, lng: 77.3 },
-          { lat: 28.71, lng: 77.31 },
-          { lat: 28.72, lng: 77.32 },
-          { lat: 28.73, lng: 77.33 },
+          { lat: 25.79, lng: -80.13 },
+          { lat: 25.80, lng: -80.14 },
+          { lat: 25.81, lng: -80.15 },
+          { lat: 25.82, lng: -80.16 },
         ],
       })
       .expect(400);
@@ -846,14 +851,16 @@ describe('UberNav API (e2e)', () => {
     });
 
     it('surge: admin override raises the fare estimate, then clears', async () => {
-      // A pristine cell (Chennai) that no other test sends trips to, so organic
-      // surge stays 1 and the admin override floor is the only multiplier —
-      // isolating this assertion from cross-test/cross-run Redis demand.
-      const chennai = {
-        pickupLat: 13.0827,
-        pickupLng: 80.2707,
-        dropoffLat: 13.11,
-        dropoffLng: 80.29,
+      // A pristine cell (Orlando) inside the Florida OSRM extract that no other
+      // test or simulation sends trips to, so organic surge stays 1 and the admin
+      // override floor is the only multiplier — isolating this assertion from
+      // cross-test/cross-run Redis demand. (Far from the Miami cluster the load
+      // sims exercise, so no residual surge, but still routable for a real fare.)
+      const orlando = {
+        pickupLat: 28.5383,
+        pickupLng: -81.3792,
+        dropoffLat: 28.55,
+        dropoffLng: -81.36,
       };
       // Self-heal: clear any override left by a prior failed run so the baseline
       // is truly organic (surge 1) before we measure the override's effect.
@@ -865,7 +872,7 @@ describe('UberNav API (e2e)', () => {
       const base = await request(server)
         .post('/api/v1/trips/estimate')
         .set('Authorization', `Bearer ${token}`)
-        .send(chennai);
+        .send(orlando);
       const baseFare = base.body.tiers[0].fare;
       expect(base.body.surge).toBe(1);
 
@@ -880,7 +887,7 @@ describe('UberNav API (e2e)', () => {
       const surged = await request(server)
         .post('/api/v1/trips/estimate')
         .set('Authorization', `Bearer ${token}`)
-        .send(chennai);
+        .send(orlando);
       expect(surged.body.surge).toBe(1.5);
       expect(surged.body.tiers[0].fare).toBeGreaterThan(baseFare);
 

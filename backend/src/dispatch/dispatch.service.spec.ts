@@ -87,4 +87,63 @@ describe('DispatchService', () => {
     ).favoritesFirst(list, new Set<string>());
     expect(ordered).toEqual(list);
   });
+
+  // The re-sweep loop is the fix for momentary supply exhaustion: an exhausted
+  // sweep must NOT immediately fail the trip while a driver may still free up.
+  function makeForDispatch() {
+    const trip = { id: 'trip-1', status: 'matching', riderId: 'rider-1', tier: 'economy' };
+    const prisma = {
+      trip: { findUnique: jest.fn().mockResolvedValue(trip) },
+    };
+    const realtime = { emitToUser: jest.fn() };
+    const notifications = { notifyTrip: jest.fn() };
+    const stateMachine = { transition: jest.fn().mockResolvedValue(undefined) };
+    const favorites = { favoriteDriverIds: jest.fn().mockResolvedValue(new Set<string>()) };
+    const svc = new DispatchService(
+      prisma as never,
+      {} as never,
+      realtime as never,
+      notifications as never,
+      stateMachine as never,
+      favorites as never,
+      {} as never,
+    );
+    // Skip the real inter-sweep delay so the test is fast.
+    (svc as unknown as { sleep: () => Promise<void> }).sleep = () => Promise.resolve();
+    return { svc, trip, prisma, realtime, stateMachine };
+  }
+
+  it('re-sweeps after an exhausted pass and assigns without declaring no_drivers', async () => {
+    const { svc, realtime, stateMachine } = makeForDispatch();
+    const sweep = jest
+      .fn()
+      .mockResolvedValueOnce('exhausted') // all drivers busy this pass...
+      .mockResolvedValueOnce('assigned'); // ...one frees up on the next sweep
+    (svc as unknown as { sweep: jest.Mock }).sweep = sweep;
+
+    await svc.runDispatch('trip-1');
+
+    expect(sweep).toHaveBeenCalledTimes(2);
+    expect(stateMachine.transition).not.toHaveBeenCalled(); // stayed in MATCHING
+    expect(realtime.emitToUser).not.toHaveBeenCalledWith(
+      'rider-1',
+      'trip:no_drivers',
+      expect.anything(),
+    );
+  });
+
+  it('stops re-sweeping and does not fail the trip once it leaves MATCHING (cancelled)', async () => {
+    const { svc, prisma, stateMachine } = makeForDispatch();
+    (svc as unknown as { sweep: jest.Mock }).sweep = jest
+      .fn()
+      .mockResolvedValue('exhausted');
+    // Initial load = matching; the post-sweep cancel-check sees it cancelled.
+    prisma.trip.findUnique
+      .mockResolvedValueOnce({ id: 'trip-1', status: 'matching', riderId: 'rider-1', tier: 'economy' })
+      .mockResolvedValueOnce({ status: 'cancelled' });
+
+    await svc.runDispatch('trip-1');
+
+    expect(stateMachine.transition).not.toHaveBeenCalled();
+  });
 });

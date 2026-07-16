@@ -133,6 +133,16 @@ jobs:
       - name: Trip odometer + fare recompute
         working-directory: tools/fake-driver-simulator
         run: node odometer-ride.mjs
+      - name: Marketplace simulation — smoke (dispatch + SLO gate)
+        working-directory: tools/simulation-engine
+        # No OSRM in CI → straight-line actor motion (still exercises the full
+        # two-sided dispatch/offer/lifecycle path). Non-zero exit on any SLO miss.
+        env:
+          OSRM_BASE_URL: ''
+          TIME_SCALE: '60'
+        run: |
+          npm ci || npm install
+          node run.mjs smoke
       - name: Stop backend
         if: always()
         run: kill "$(cat /tmp/backend.pid)" 2>/dev/null || true

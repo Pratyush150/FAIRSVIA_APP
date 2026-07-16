@@ -67,8 +67,17 @@ export class LocationService {
       ts: Date.now(),
     });
 
-    const status = await this.redis.client.get(RedisKeys.driverStatus(driverId));
-    if (status === 'online') {
+    const [status, tripId] = await Promise.all([
+      this.redis.client.get(RedisKeys.driverStatus(driverId)),
+      this.redis.client.get(RedisKeys.driverActiveTrip(driverId)),
+    ]);
+
+    // Keep the driver in the dispatch pool only while online AND free. An
+    // on-trip driver keeps streaming GPS (for the rider's live map), but must
+    // NOT be re-added to the GEO set — dispatch removes them at assignment, and
+    // re-adding here would offer them new trips they can't take, causing offer
+    // churn and spurious no_drivers under load.
+    if (status === 'online' && !tripId) {
       const tier = await this.redis.client.get(RedisKeys.driverTier(driverId));
       if (tier) {
         // ioredis geoadd: key, longitude, latitude, member
@@ -77,17 +86,16 @@ export class LocationService {
     }
 
     // On a trip → stream the position to the rider watching the map.
-    const [riderId, tripId] = await Promise.all([
-      this.redis.client.get(RedisKeys.driverActiveRider(driverId)),
-      this.redis.client.get(RedisKeys.driverActiveTrip(driverId)),
-    ]);
-    if (riderId && tripId) {
-      this.realtime.emitToUser(riderId, 'trip:driver_location', {
-        tripId,
-        lat,
-        lng,
-        heading,
-      });
+    if (tripId) {
+      const riderId = await this.redis.client.get(RedisKeys.driverActiveRider(driverId));
+      if (riderId) {
+        this.realtime.emitToUser(riderId, 'trip:driver_location', {
+          tripId,
+          lat,
+          lng,
+          heading,
+        });
+      }
       await this.meterTrip(tripId, lat, lng);
     }
   }

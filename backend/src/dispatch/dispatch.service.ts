@@ -15,13 +15,25 @@ import {
   DEFAULT_JOB_OPTS,
 } from '../common/queue/queue.constants';
 
-const OFFER_TTL_MS = 15000;
+// How long a driver has to respond to an offer before we move on. A driver who
+// *ghosts* (neither accepts nor declines) blocks this rider's sequential offer
+// loop for the whole window, so it directly bounds the worst-case match-latency
+// tail. 10s is still an easy human-tap window while keeping ghost recovery snappy.
+const OFFER_TTL_MS = 10000;
 // Poll the response key fairly tightly: a driver auto-accepts in well under a
 // second, so this mostly sets the floor on match latency. Cheap Redis GETs.
 const RESPONSE_POLL_MS = 100;
 const START_RADIUS_KM = 3;
 const MAX_RADIUS_KM = 9;
 const RADIUS_STEP_KM = 2;
+// When a full expanding-ring sweep finds no *available* driver (every nearby
+// driver is busy on another trip), don't give up immediately — under bursty
+// demand near capacity a driver frees up within seconds. Keep the trip in
+// MATCHING (rider still sees "finding driver") and re-sweep, up to a bounded
+// total window. Only after the window elapses do we declare no_drivers. This
+// turns momentary supply exhaustion from a hard failure into a short wait.
+const MATCH_WINDOW_MS = 45000;
+const RESWEEP_DELAY_MS = 2500;
 
 /**
  * The DISCO equivalent: matches a requested trip to the nearest available
@@ -84,39 +96,29 @@ export class DispatchService {
       return; // already assigned, cancelled, or terminal
     }
 
-    const tried = new Set<string>();
     // The rider's favourite drivers jump the queue when they're nearby.
     const favorites = await this.favorites
       .favoriteDriverIds(trip.riderId)
       .catch(() => new Set<string>());
-    for (
-      let radiusKm = START_RADIUS_KM;
-      radiusKm <= MAX_RADIUS_KM;
-      radiusKm += RADIUS_STEP_KM
-    ) {
-      const candidates = this.favoritesFirst(
-        await this.nearestDrivers(trip, radiusKm),
-        favorites,
-      );
-      for (const driverId of candidates) {
-        if (tried.has(driverId)) continue;
-        tried.add(driverId);
 
-        // Skip if the trip was cancelled while we were offering.
-        const current = await this.prisma.trip.findUnique({
-          where: { id: tripId },
-          select: { status: true },
-        });
-        if (current?.status !== TripStatus.matching) return;
-
-        if ((await this.redis.client.get(RedisKeys.driverStatus(driverId))) !== 'online') {
-          continue;
-        }
-        if (await this.offerTo(driverId, trip)) return; // assigned
-      }
+    // Re-sweep until a driver is assigned or the matching window elapses. Each
+    // sweep re-reads the live GEO set, so drivers that were busy last pass are
+    // reconsidered as they free up.
+    const deadline = Date.now() + MATCH_WINDOW_MS;
+    for (;;) {
+      const outcome = await this.sweep(trip, favorites, deadline);
+      if (outcome !== 'exhausted') return; // 'assigned' or 'cancelled'
+      if (Date.now() >= deadline) break;
+      await this.sleep(RESWEEP_DELAY_MS);
+      // Bail out if the trip left MATCHING (cancelled) during the wait.
+      const cur = await this.prisma.trip.findUnique({
+        where: { id: tripId },
+        select: { status: true },
+      });
+      if (cur?.status !== TripStatus.matching) return;
     }
 
-    // Exhausted the search.
+    // Window elapsed with no available driver.
     try {
       await this.stateMachine.transition({
         tripId,
@@ -129,6 +131,54 @@ export class DispatchService {
     } catch {
       // Trip left MATCHING (cancelled) — nothing to do.
     }
+  }
+
+  /**
+   * One expanding-ring pass: offer to nearby available drivers, nearest first,
+   * favourites jumping the queue. Returns:
+   *   - 'assigned'  a driver accepted (trip is now ACCEPTED)
+   *   - 'cancelled' the trip left MATCHING mid-sweep
+   *   - 'exhausted' no available driver responded across the whole ring
+   * `tried` is per-sweep so a driver busy this pass is reconsidered next pass.
+   */
+  private async sweep(
+    trip: Trip,
+    favorites: Set<string>,
+    deadline: number,
+  ): Promise<'assigned' | 'cancelled' | 'exhausted'> {
+    const tried = new Set<string>();
+    for (
+      let radiusKm = START_RADIUS_KM;
+      radiusKm <= MAX_RADIUS_KM;
+      radiusKm += RADIUS_STEP_KM
+    ) {
+      const candidates = this.favoritesFirst(
+        await this.nearestDrivers(trip, radiusKm),
+        favorites,
+      );
+      for (const driverId of candidates) {
+        // Enforce the match window BETWEEN OFFERS, not just between sweeps: each
+        // ghosted offer burns a full OFFER_TTL, so a ring full of unresponsive
+        // drivers could otherwise run minutes past the deadline before the rider
+        // is told no_drivers. Bail as soon as the window is spent.
+        if (Date.now() >= deadline) return 'exhausted';
+        if (tried.has(driverId)) continue;
+        tried.add(driverId);
+
+        // Skip if the trip was cancelled while we were offering.
+        const current = await this.prisma.trip.findUnique({
+          where: { id: trip.id },
+          select: { status: true },
+        });
+        if (current?.status !== TripStatus.matching) return 'cancelled';
+
+        if ((await this.redis.client.get(RedisKeys.driverStatus(driverId))) !== 'online') {
+          continue;
+        }
+        if (await this.offerTo(driverId, trip)) return 'assigned';
+      }
+    }
+    return 'exhausted';
   }
 
   /**
