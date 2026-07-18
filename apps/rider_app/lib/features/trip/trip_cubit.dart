@@ -144,10 +144,20 @@ class TripCubit extends Cubit<TripState> {
   }
 
   void _onNoDrivers() {
-    emit(state.copyWith(
-      phase: TripPhase.error,
-      error: 'No drivers available right now. Please try again.',
-    ));
+    // Drop back to the ride options (destination + tier retained) with a clear
+    // message, so the rider can just re-tap Confirm instead of being stuck on
+    // "finding driver" or bounced to a dead-end error screen.
+    if (state.estimate != null) {
+      emit(state.copyWith(
+        phase: TripPhase.choosingRide,
+        error: 'No drivers available nearby right now — try again.',
+      ));
+    } else {
+      emit(state.copyWith(
+        phase: TripPhase.error,
+        error: 'No drivers available right now. Please try again.',
+      ));
+    }
   }
 
   void _setPhase(TripPhase phase) => emit(state.copyWith(phase: phase));

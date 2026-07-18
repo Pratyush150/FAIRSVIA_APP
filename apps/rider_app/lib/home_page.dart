@@ -475,6 +475,24 @@ class _RideOptions extends StatelessWidget {
                   ?.copyWith(color: AppColors.warning),
             ),
           ),
+        // Surfaced when a request comes back with no drivers (or a create error);
+        // the ride is kept so the rider can just re-tap Confirm.
+        if (state.error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded,
+                    size: 16, color: AppColors.warning),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(state.error!,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: AppColors.warning)),
+                ),
+              ],
+            ),
+          ),
         const SizedBox(height: AppSpacing.sm),
         _StopsSection(state: state),
         const SizedBox(height: AppSpacing.sm),
