@@ -35,6 +35,39 @@ class DriverCubit extends Cubit<DriverState> {
       ..add(_realtime.connection.listen((up) {
         if (up != state.connected) emit(state.copyWith(connected: up));
       }));
+    // If this app was killed and reopened mid-trip, restore the live trip
+    // screen instead of showing the idle "go online" home.
+    await _restoreActiveTrip();
+  }
+
+  /// Maps a server trip status to the driver's in-trip phase (null = not a
+  /// driver-actionable phase, e.g. a rider-side requested/matching trip).
+  static DriverPhase? _phaseForStatus(TripStatus status) {
+    switch (status) {
+      case TripStatus.accepted:
+        return DriverPhase.enRoute;
+      case TripStatus.arrived:
+        return DriverPhase.arrived;
+      case TripStatus.inProgress:
+        return DriverPhase.onTrip;
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _restoreActiveTrip() async {
+    try {
+      final trip = await _remote.getActiveTrip();
+      if (trip == null) return;
+      final phase = _phaseForStatus(trip.status);
+      if (phase == null) return;
+      // We have a live assigned trip → we're effectively online; re-announce
+      // presence and restore the trip screen at the right phase.
+      _realtime.emit('driver:status', {'status': 'online'});
+      emit(state.copyWith(phase: phase, trip: trip));
+    } catch (_) {
+      // Best effort — offers/events will correct the screen if this fails.
+    }
   }
 
   Future<void> _onReconnect() async {

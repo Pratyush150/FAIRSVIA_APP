@@ -144,6 +144,33 @@ describe('UberNav API (e2e)', () => {
     tripId = res.body.id;
   });
 
+  it('GET /trips/active returns the live trip, and nothing for a fresh user', async () => {
+    // The rider from the previous test has a live (requested/matching) trip.
+    const active = await request(server)
+      .get('/api/v1/trips/active')
+      .set('Authorization', `Bearer ${token}`);
+    expect(active.status).toBe(200);
+    expect(active.body.id).toBe(tripId);
+    expect(['requested', 'matching']).toContain(active.body.status);
+
+    // A brand-new user with no trips gets an empty (null) active trip.
+    const p = `+197${Date.now() % 100000000}`;
+    await resetOtpLimits(p);
+    const req = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone: p });
+    const verify = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone: p, code: req.body.devCode });
+    const freshToken = verify.body.accessToken as string;
+
+    const none = await request(server)
+      .get('/api/v1/trips/active')
+      .set('Authorization', `Bearer ${freshToken}`);
+    expect(none.status).toBe(200);
+    expect(none.body.id).toBeUndefined();
+  });
+
   it('records the payment mode (defaults to card, accepts cash)', async () => {
     const cash = await request(server)
       .post('/api/v1/trips')

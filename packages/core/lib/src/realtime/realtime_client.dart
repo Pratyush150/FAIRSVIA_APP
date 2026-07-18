@@ -125,7 +125,13 @@ class SocketIoRealtimeClient implements RealtimeClient {
 
   @override
   void disconnect() {
-    _socket?.dispose();
+    // Disposing an already-closing socket can throw WebSocketConnectionClosed
+    // from deep in the transport; that's benign here (we're tearing it down).
+    try {
+      _socket?.dispose();
+    } catch (_) {
+      // ignore — the socket is going away regardless.
+    }
     _socket = null;
   }
 }

@@ -415,6 +415,28 @@ export class TripsService {
     return this.serialize(trip, userId);
   }
 
+  /** The caller's current non-terminal trip (as rider or driver), or null.
+   *  Lets an app that was killed/reopened mid-trip restore its live screen
+   *  instead of showing an idle home while a ride is still in flight. */
+  async getActiveTrip(userId: string) {
+    const trip = await this.prisma.trip.findFirst({
+      where: {
+        OR: [{ riderId: userId }, { driverId: userId }],
+        status: {
+          in: [
+            TripStatus.requested,
+            TripStatus.matching,
+            TripStatus.accepted,
+            TripStatus.arrived,
+            TripStatus.in_progress,
+          ],
+        },
+      },
+      orderBy: { requestedAt: 'desc' },
+    });
+    return trip ? this.serialize(trip, userId) : null;
+  }
+
   async cancelTrip(userId: string, tripId: string, reason?: string) {
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) throw new NotFoundException('Trip not found');

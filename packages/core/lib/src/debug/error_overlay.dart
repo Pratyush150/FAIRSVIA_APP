@@ -12,6 +12,16 @@ final ValueNotifier<String?> lastCaughtError = ValueNotifier<String?>(null);
 
 /// Records [error] (and the top of its [stack]) into [lastCaughtError].
 void reportError(Object error, [StackTrace? stack]) {
+  // Transient realtime-socket close errors are expected: the OS closes the
+  // WebSocket when the app is backgrounded and network blips drop it. The
+  // client auto-reconnects and the ConnectionBanner already tells the user, so
+  // these must not surface as a scary red error banner.
+  final text = error.toString();
+  if (text.contains('WebSocketConnectionClosed') ||
+      text.contains('WebSocketChannelException')) {
+    debugPrint('IGNORED transient socket-close error: $error');
+    return;
+  }
   final trace = stack?.toString() ?? '';
   final head = trace.isEmpty
       ? ''

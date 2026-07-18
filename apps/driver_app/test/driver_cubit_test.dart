@@ -87,6 +87,7 @@ void main() {
         comment: any(named: 'comment'),
         tags: any(named: 'tags'))).thenAnswer((_) async {});
     when(() => remote.setStatus(any())).thenAnswer((_) async {});
+    when(() => remote.getActiveTrip()).thenAnswer((_) async => null);
     when(() => remote.getTrip(any())).thenAnswer((_) async => trip);
     when(() => remote.arrived(any())).thenAnswer((_) async {});
     when(() => remote.start(any(), any())).thenAnswer((_) async {});
@@ -187,6 +188,44 @@ void main() {
       realtime.emitted.where((e) => e.$1 == 'driver:status').length,
       greaterThanOrEqualTo(2), // initial goOnline + reconnect re-announce
     );
+
+    await cubit.close();
+  });
+
+  test('init restores an active trip after a cold restart', () async {
+    // Backend reports a live accepted trip for a freshly-launched app.
+    when(() => remote.getActiveTrip()).thenAnswer((_) async => trip);
+
+    final cubit = DriverCubit(realtime, remote, ratings);
+    await cubit.init('token');
+    await tick();
+
+    // Restored straight into the en-route phase with the trip, and re-announced
+    // presence — no idle "go online" home while a ride is in flight.
+    expect(cubit.state.phase, DriverPhase.enRoute);
+    expect(cubit.state.trip?.id, 'trip-1');
+    expect(cubit.state.isOnline, isTrue);
+    expect(realtime.emitted.any((e) => e.$1 == 'driver:status'), isTrue);
+
+    await cubit.close();
+  });
+
+  test('init with an in-progress trip restores the on-trip phase', () async {
+    final onTrip = Trip(
+      id: 'trip-1',
+      status: TripStatus.inProgress,
+      tier: 'economy',
+      pickup: const TripEndpoint(point: GeoPoint(12.96, 77.63), address: 'A'),
+      dropoff: const TripEndpoint(point: GeoPoint(12.97, 77.59), address: 'B'),
+    );
+    when(() => remote.getActiveTrip()).thenAnswer((_) async => onTrip);
+
+    final cubit = DriverCubit(realtime, remote, ratings);
+    await cubit.init('token');
+    await tick();
+
+    expect(cubit.state.phase, DriverPhase.onTrip);
+    expect(cubit.state.trip?.id, 'trip-1');
 
     await cubit.close();
   });

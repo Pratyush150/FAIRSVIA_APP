@@ -110,6 +110,19 @@ class DriverRemoteDataSource {
     return Trip.fromJson(res.data!);
   }
 
+  /// The driver's current active trip, or null. Used to restore the live trip
+  /// screen after the app is killed and reopened mid-trip. When there's no
+  /// active trip the server replies 200 with an empty body, so treat anything
+  /// that isn't a non-empty JSON object as "no trip".
+  Future<Trip?> getActiveTrip() async {
+    final res = await _guard(() => _dio.get<dynamic>('/trips/active'));
+    final data = res.data;
+    if (data is Map && data.isNotEmpty) {
+      return Trip.fromJson(Map<String, dynamic>.from(data));
+    }
+    return null;
+  }
+
   Future<DriverEarnings> earnings({String range = 'today'}) async {
     final res = await _guard(
       () => _dio.get<Map<String, dynamic>>(

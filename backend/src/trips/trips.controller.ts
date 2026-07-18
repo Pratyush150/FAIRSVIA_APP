@@ -49,6 +49,12 @@ export class TripsController {
     return this.trips.listScheduled(user.userId);
   }
 
+  // Must also precede `:id`. Returns the caller's active trip, or null.
+  @Get('active')
+  active(@CurrentUser() user: AuthUser) {
+    return this.trips.getActiveTrip(user.userId);
+  }
+
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.trips.getTrip(user.userId, id);
