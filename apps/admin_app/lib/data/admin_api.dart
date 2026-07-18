@@ -404,14 +404,19 @@ class AdminPromo {
       ? '${value.toStringAsFixed(0)}% off'
       : '\$${value.toStringAsFixed(2)} off';
 
+  // Prisma serialises Decimal columns (value, minSubtotal) as JSON *strings*,
+  // so parse defensively rather than casting to num.
+  static double _num(Object? v) =>
+      v == null ? 0 : (v is num ? v.toDouble() : double.tryParse('$v') ?? 0);
+
   factory AdminPromo.fromJson(Map<String, dynamic> j) => AdminPromo(
         code: j['code'] as String,
         kind: j['kind'] as String? ?? 'flat',
-        value: (j['value'] as num?)?.toDouble() ?? 0,
+        value: _num(j['value']),
         active: j['active'] as bool? ?? true,
         usedCount: (j['usedCount'] as num?)?.toInt() ?? 0,
         usageLimit: (j['usageLimit'] as num?)?.toInt(),
-        minSubtotal: (j['minSubtotal'] as num?)?.toDouble() ?? 0,
+        minSubtotal: _num(j['minSubtotal']),
       );
 }
 

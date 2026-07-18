@@ -154,7 +154,11 @@ class _TopBar extends StatelessWidget {
           AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.md),
       child: Row(
         children: [
-          Text(title, style: theme.textTheme.headlineSmall),
+          Flexible(
+            child: Text(title,
+                style: theme.textTheme.headlineSmall,
+                overflow: TextOverflow.ellipsis),
+          ),
           const SizedBox(width: AppSpacing.md),
           if (loading)
             const SizedBox(
