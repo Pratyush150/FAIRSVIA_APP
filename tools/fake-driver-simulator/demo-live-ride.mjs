@@ -51,7 +51,12 @@ function readStartOtp(tripId) {
 }
 
 async function main() {
-  const driver = await login(phone('55'));
+  // Keep the phone so we can re-login for a fresh access token when the ride
+  // finally arrives — a demo can sit ONLINE for many minutes waiting for you to
+  // tap Confirm, and the 15-min access token would otherwise expire and the
+  // lifecycle POSTs (arrived/start/complete) would 401 mid-ride.
+  const driverPhone = phone('55');
+  const driver = await login(driverPhone);
   await onboardDriver(driver.token, 'economy');
   const sock = await connect(driver.token);
   console.log(`• bot driver ${driver.user.id} connected`);
@@ -84,6 +89,10 @@ async function main() {
     console.log(`\n🚕 OFFER ${offer.tripId} — $${offer.fare}. Accepting…`);
     sock.emit('trip:accept', { tripId: offer.tripId });
 
+    // Refresh the access token now that the ride is live — the wait before this
+    // offer may have outlived the original token. Same phone → same driver.
+    const token = (await login(driverPhone)).token;
+
     const pickup = { lat: offer.pickup.lat, lng: offer.pickup.lng };
     const dropoff = { lat: offer.dropoff.lat, lng: offer.dropoff.lng };
 
@@ -95,7 +104,7 @@ async function main() {
     // 2) Arrive.
     await api(`/trips/${offer.tripId}/arrived`, {
       method: 'POST',
-      token: driver.token,
+      token,
     });
     console.log('📍 ARRIVED at pickup');
     await wait(1200);
@@ -105,7 +114,7 @@ async function main() {
     console.log(`🔑 start OTP (from backend) = ${otp} → starting trip`);
     await api(`/trips/${offer.tripId}/start`, {
       method: 'POST',
-      token: driver.token,
+      token,
       body: { otp },
     });
     console.log('▶️  TRIP STARTED');
@@ -117,7 +126,7 @@ async function main() {
     // 5) Complete.
     const receipt = await api(`/trips/${offer.tripId}/complete`, {
       method: 'POST',
-      token: driver.token,
+      token,
     });
     console.log(`\n🏁 TRIP COMPLETE — fare $${receipt.fareFinal ?? receipt.fare}`);
     console.log('   (Your phone should show the receipt + rating prompt.)\n');
