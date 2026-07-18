@@ -59,7 +59,16 @@ class AppSheet extends StatelessWidget {
                   ),
                 ),
               ],
-              child,
+              // Scroll the content when it can't fit the available height —
+              // notably when the soft keyboard opens over a field in the sheet
+              // (promo code, custom tip). Flexible + shrink-wrapping scroll view
+              // keeps the sheet compact when content fits, and scrolls (instead
+              // of overflowing) when it doesn't.
+              Flexible(
+                child: SingleChildScrollView(
+                  child: child,
+                ),
+              ),
             ],
           ),
         ),

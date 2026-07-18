@@ -1046,6 +1046,7 @@ class _RideTierTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: AppCard(
@@ -1055,7 +1056,12 @@ class _RideTierTile extends StatelessWidget {
           horizontal: AppSpacing.md,
           vertical: AppSpacing.md,
         ),
-        color: selected ? AppColors.accentSoft : null,
+        // Theme-aware selected fill: a light mint in light mode, a dark-green
+        // tint in dark mode — otherwise the (light) on-surface text would sit on
+        // a light mint fill in dark mode and wash out. Mirrors _PayChip.
+        color: selected
+            ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
+            : null,
         child: Row(
           children: [
             Container(
@@ -1590,13 +1596,14 @@ class _TipChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final enabled = onTap != null || selected;
     return Material(
       color: Colors.transparent,
       child: Ink(
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.accentSoft
+              ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
               : theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(AppSpacing.radius),
           border: Border.all(
@@ -1639,13 +1646,14 @@ class _CustomTipChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final enabled = onTap != null || selected;
     return Material(
       color: Colors.transparent,
       child: Ink(
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.accentSoft
+              ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
               : theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(AppSpacing.radius),
           border: Border.all(
