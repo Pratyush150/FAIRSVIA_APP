@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +20,41 @@ class OtpPage extends StatefulWidget {
 
 class _OtpPageState extends State<OtpPage> {
   String _code = '';
+
+  // Resend cooldown — a code was just sent when we landed here.
+  static const int _resendSeconds = 30;
+  Timer? _timer;
+  int _cooldown = _resendSeconds;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCooldown();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startCooldown() {
+    _timer?.cancel();
+    setState(() => _cooldown = _resendSeconds);
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      setState(() => _cooldown--);
+      if (_cooldown <= 0) t.cancel();
+    });
+  }
+
+  void _resend(BuildContext context, String phone) {
+    context.read<AuthBloc>().add(AuthOtpRequested(phone));
+    _startCooldown();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('New code sent.')));
+  }
 
   void _submit(BuildContext context) {
     context.read<AuthBloc>().add(AuthOtpSubmitted(_code));
@@ -125,6 +162,21 @@ class _OtpPageState extends State<OtpPage> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: AppSpacing.lg),
+                  Center(
+                    child: _cooldown > 0
+                        ? Text(
+                            'Resend code in ${_cooldown}s',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                                color: AppColors.textTertiaryLight),
+                          )
+                        : TextButton(
+                            onPressed: state.busy || state.phone == null
+                                ? null
+                                : () => _resend(context, state.phone!),
+                            child: const Text('Resend code'),
+                          ),
+                  ),
                   const Spacer(),
                   PrimaryButton(
                     label: 'Verify',
