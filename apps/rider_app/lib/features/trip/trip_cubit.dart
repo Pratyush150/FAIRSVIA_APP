@@ -87,6 +87,8 @@ class TripCubit extends Cubit<TripState> {
     emit(state.copyWith(
       phase: TripPhase.driverEnRoute,
       driver: AssignedDriver.fromAcceptedEvent(data),
+      // Route the driver takes to reach the pickup — drawn during the approach.
+      driverRoutePolyline: data['driverPolyline'] as String?,
     ));
   }
 

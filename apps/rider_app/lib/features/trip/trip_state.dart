@@ -27,6 +27,7 @@ class TripState extends Equatable {
     this.trip,
     this.driver,
     this.driverLocation,
+    this.driverRoutePolyline,
     this.fareFinal,
     this.receipt,
     this.tipAmount,
@@ -52,6 +53,11 @@ class TripState extends Equatable {
   final Trip? trip;
   final AssignedDriver? driver;
   final GeoPoint? driverLocation;
+
+  /// Encoded polyline of the driver's route TO the pickup, shown on the map
+  /// while the driver is en route/arriving (the "approach" leg). Null falls back
+  /// to the trip route.
+  final String? driverRoutePolyline;
   final double? fareFinal;
   final Receipt? receipt;
   final double? tipAmount;
@@ -113,6 +119,7 @@ class TripState extends Equatable {
     Object? trip = _s,
     Object? driver = _s,
     Object? driverLocation = _s,
+    Object? driverRoutePolyline = _s,
     Object? fareFinal = _s,
     Object? receipt = _s,
     Object? tipAmount = _s,
@@ -142,6 +149,9 @@ class TripState extends Equatable {
       driverLocation: driverLocation == _s
           ? this.driverLocation
           : driverLocation as GeoPoint?,
+      driverRoutePolyline: driverRoutePolyline == _s
+          ? this.driverRoutePolyline
+          : driverRoutePolyline as String?,
       fareFinal: fareFinal == _s ? this.fareFinal : fareFinal as double?,
       receipt: receipt == _s ? this.receipt : receipt as Receipt?,
       tipAmount: tipAmount == _s ? this.tipAmount : tipAmount as double?,
@@ -173,6 +183,7 @@ class TripState extends Equatable {
         trip,
         driver,
         driverLocation,
+        driverRoutePolyline,
         fareFinal,
         receipt,
         tipAmount,

@@ -136,8 +136,15 @@ class _AppMapState extends State<AppMap> {
                 point: m.point,
                 width: 44,
                 height: 44,
-                // Anchor the pin tip at the geographic point.
-                alignment: Alignment.topCenter,
+                // Anchor each glyph on its coordinate correctly: teardrop pins
+                // (dropoff/plain, an Icons.location_on) touch the point with
+                // their bottom tip; the round pickup dot and the moving car sit
+                // CENTERED on the point, so the car tracks the route line
+                // instead of floating beside it.
+                alignment: (m.kind == MapMarkerKind.dropoff ||
+                        m.kind == MapMarkerKind.plain)
+                    ? Alignment.bottomCenter
+                    : Alignment.center,
                 child: _MarkerPin(kind: m.kind),
               ),
           ],

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Trip, TripStatus } from '@prisma/client';
@@ -9,6 +9,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TripStateMachine } from '../trips/trip-state-machine';
 import { FavoritesService } from '../favorites/favorites.service';
+import { GEO_PROVIDER, GeoProvider } from '../geo/geo-provider.interface';
 import {
   QUEUE_DISPATCH,
   DISPATCH_JOB,
@@ -55,6 +56,7 @@ export class DispatchService {
     private readonly notifications: NotificationsService,
     private readonly stateMachine: TripStateMachine,
     private readonly favorites: FavoritesService,
+    @Inject(GEO_PROVIDER) private readonly geo: GeoProvider,
     @InjectQueue(QUEUE_DISPATCH) private readonly queue: Queue,
   ) {}
 
@@ -323,6 +325,13 @@ export class DispatchService {
       include: { driverProfile: true },
     });
 
+    // Route from the driver's current position TO the pickup, so the rider's map
+    // can draw the approach leg (driver → you) while the driver is en route,
+    // instead of the trip route. Best-effort: if the driver's position is
+    // unknown or routing fails, omit it and the client falls back to the trip
+    // route. Provider-agnostic — uses whatever GeoProvider is configured.
+    const driverPolyline = await this.approachPolyline(driverId, trip);
+
     this.realtime.emitToUser(trip.riderId, 'trip:accepted', {
       tripId: trip.id,
       driver: {
@@ -337,6 +346,7 @@ export class DispatchService {
         plate: driver?.driverProfile?.plateNumber,
       },
       polyline: trip.routePolyline,
+      driverPolyline,
     });
     this.realtime.emitToUser(driverId, 'trip:assigned', { tripId: trip.id });
     void this.notifications.notifyTrip(trip.riderId, 'accepted', {
@@ -344,5 +354,32 @@ export class DispatchService {
     });
     this.logger.log(`Trip ${trip.id} assigned to driver ${driverId}`);
     return true;
+  }
+
+  /**
+   * Best-effort encoded polyline from the driver's last-known position to the
+   * trip pickup. Returns undefined if the position is unknown or routing fails.
+   */
+  private async approachPolyline(
+    driverId: string,
+    trip: Trip,
+  ): Promise<string | undefined> {
+    try {
+      const [lat, lng] = await this.redis.client.hmget(
+        RedisKeys.driverLoc(driverId),
+        'lat',
+        'lng',
+      );
+      const dlat = lat != null ? Number(lat) : NaN;
+      const dlng = lng != null ? Number(lng) : NaN;
+      if (!Number.isFinite(dlat) || !Number.isFinite(dlng)) return undefined;
+      const approach = await this.geo.route(
+        { lat: dlat, lng: dlng },
+        { lat: trip.pickupLat, lng: trip.pickupLng },
+      );
+      return approach.polyline || undefined;
+    } catch {
+      return undefined;
+    }
   }
 }

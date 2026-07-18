@@ -120,16 +120,35 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   }
 
   List<LatLng> _route(TripState state) {
-    final encoded = state.estimate?.polyline;
+    // While the driver is on the way, draw THEIR route to the pickup (the
+    // approach leg) so the line matches where the car is actually going; once
+    // the trip starts, fall back to the pickup→destination trip route.
+    final approaching = state.phase == TripPhase.driverEnRoute ||
+        state.phase == TripPhase.driverArrived;
+    final approachRoute = state.driverRoutePolyline;
+    final encoded = (approaching &&
+            approachRoute != null &&
+            approachRoute.isNotEmpty)
+        ? approachRoute
+        : state.estimate?.polyline;
     if (encoded == null || encoded.isEmpty) return const [];
     return MapUtils.decodePolyline(encoded);
   }
 
-  /// Fit pickup + dropoff once an estimate exists (stable during the trip, so
-  /// AppMap only re-fits when the endpoints actually change).
+  /// What the camera frames. During the approach we fit the driver→pickup leg
+  /// (using the approach polyline's endpoints, which stay fixed for the whole
+  /// approach — so the camera frames the leg once instead of chasing the car
+  /// on every GPS tick). Otherwise we fit pickup→dropoff.
   List<LatLng>? _fitBounds(TripState state) {
     final e = state.estimate;
     if (e == null) return null;
+    final approaching = state.phase == TripPhase.driverEnRoute ||
+        state.phase == TripPhase.driverArrived;
+    final approachRoute = state.driverRoutePolyline;
+    if (approaching && approachRoute != null && approachRoute.isNotEmpty) {
+      final pts = MapUtils.decodePolyline(approachRoute);
+      if (pts.length >= 2) return [pts.first, pts.last];
+    }
     return [MapUtils.toLatLng(e.pickup), MapUtils.toLatLng(e.dropoff)];
   }
 

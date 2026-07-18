@@ -15,6 +15,7 @@ describe('DispatchService', () => {
     const favorites = {
       favoriteDriverIds: jest.fn().mockResolvedValue(new Set<string>()),
     };
+    const geo = { route: jest.fn() };
     const svc = new DispatchService(
       {} as never,
       redis as never,
@@ -22,6 +23,7 @@ describe('DispatchService', () => {
       {} as never,
       {} as never,
       favorites as never,
+      geo as never,
       queue as never,
     );
     return { svc, redis, queue, favorites };
@@ -106,6 +108,7 @@ describe('DispatchService', () => {
       notifications as never,
       stateMachine as never,
       favorites as never,
+      { route: jest.fn() } as never,
       {} as never,
     );
     // Skip the real inter-sweep delay so the test is fast.
