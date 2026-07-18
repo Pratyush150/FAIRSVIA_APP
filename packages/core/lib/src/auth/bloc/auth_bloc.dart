@@ -16,6 +16,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthOtpRequested>(_onOtpRequested);
     on<AuthOtpSubmitted>(_onOtpSubmitted);
     on<AuthBackToPhone>(_onBackToPhone);
+    on<AuthProfileCompleted>(
+      (event, emit) => emit(state.copyWith(user: event.user)),
+    );
     on<AuthSignedOut>(_onSignedOut);
   }
 

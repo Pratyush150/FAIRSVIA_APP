@@ -35,6 +35,16 @@ class AuthBackToPhone extends AuthEvent {
   const AuthBackToPhone();
 }
 
+/// The user finished first-time profile setup (name/email); refresh the session
+/// user so the router advances from the setup screen to home.
+class AuthProfileCompleted extends AuthEvent {
+  const AuthProfileCompleted(this.user);
+  final AppUser user;
+
+  @override
+  List<Object?> get props => [user];
+}
+
 /// Log out and clear the stored session.
 class AuthSignedOut extends AuthEvent {
   const AuthSignedOut();
