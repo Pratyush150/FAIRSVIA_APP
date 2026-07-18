@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_models/shared_models.dart';
 
@@ -1364,7 +1365,7 @@ class _CompletedSheet extends StatelessWidget {
                       size: 16, color: AppColors.warning),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Pay \$${(fare + tip).toStringAsFixed(0)} in cash to your driver',
+                    'Pay \$${_money(fare + tip)} in cash to your driver',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: AppColors.warning),
                   ),
@@ -1415,12 +1416,23 @@ class _CompletedSheet extends StatelessWidget {
                     ),
                   ),
                 ),
+              // Custom amount — a rider isn't limited to the presets.
+              Expanded(
+                child: _CustomTipChip(
+                  // Highlight when the added tip isn't one of the presets.
+                  selected: state.tipAmount != null &&
+                      !const [2.0, 3.0, 5.0].contains(state.tipAmount),
+                  onTap: (state.tipping || state.tipAmount != null)
+                      ? null
+                      : () => _promptCustomTip(context, cubit),
+                ),
+              ),
             ],
           ),
           if (state.tipAmount != null)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: Text('Tip of \$${state.tipAmount!.toStringAsFixed(0)} added.',
+              child: Text('Tip of \$${_money(state.tipAmount!)} added.',
                   style: theme.textTheme.bodySmall),
             ),
           const SizedBox(height: AppSpacing.xl),
@@ -1452,7 +1464,9 @@ class _ReceiptRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: style),
-          Text('\$${value.toStringAsFixed(0)}', style: style),
+          // Show cents so a custom tip like $7.50 sums correctly (whole amounts
+          // still read cleanly as $7.00).
+          Text('\$${value.toStringAsFixed(2)}', style: style),
         ],
       ),
     );
@@ -1507,6 +1521,107 @@ class _TipChip extends StatelessWidget {
     );
   }
 }
+
+/// A tip chip that lets the rider enter any amount, styled like [_TipChip].
+class _CustomTipChip extends StatelessWidget {
+  const _CustomTipChip({required this.selected, this.onTap});
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabled = onTap != null || selected;
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.accentSoft
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          border: Border.all(
+            color: selected ? AppColors.accent : theme.dividerColor,
+            width: selected ? 1.6 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          child: Container(
+            height: 48,
+            alignment: Alignment.center,
+            child: Text(
+              'Custom',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: selected
+                    ? AppColors.accent
+                    : (enabled ? theme.colorScheme.onSurface : null),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Prompt for a custom tip amount and submit it.
+Future<void> _promptCustomTip(BuildContext context, TripCubit cubit) async {
+  final controller = TextEditingController();
+  final amount = await showDialog<double>(
+    context: context,
+    builder: (dialogCtx) {
+      String? error;
+      return StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Add a tip'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            ],
+            decoration: InputDecoration(
+              prefixText: '\$ ',
+              hintText: '0.00',
+              errorText: error,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final v = double.tryParse(controller.text.trim());
+                if (v == null || v <= 0) {
+                  setLocal(() => error = 'Enter an amount');
+                  return;
+                }
+                if (v > 500) {
+                  setLocal(() => error = 'Max \$500');
+                  return;
+                }
+                Navigator.pop(dialogCtx, v);
+              },
+              child: const Text('Add tip'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+  if (amount != null) cubit.tipDriver(amount);
+}
+
+/// Format a dollar amount without trailing `.00` (so `$4` not `$4.00`, but
+/// `$4.50` keeps its cents).
+String _money(double v) =>
+    v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
 class _InfoCard extends StatelessWidget {
   const _InfoCard({required this.child});

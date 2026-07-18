@@ -7,7 +7,7 @@ import { execSync } from 'node:child_process';
 import { Driver } from './src/driver.mjs';
 import { Metrics } from './src/metrics.mjs';
 import { setRegion } from './src/geo.mjs';
-import { wait } from './src/client.mjs';
+import { wait, login } from './src/client.mjs';
 
 setRegion(['Brickell']); // spawn drivers in the Brickell core
 
@@ -54,6 +54,22 @@ for (const d of drivers) {
   }
 }
 console.log('demo fleet ready — waiting for a rider to book. Ctrl-C to stop.');
+
+// JWT access tokens expire (~15 min); the sockets stay connected but REST calls
+// (arrived/start/complete) would start 401ing mid-trip. Re-login every 10 min to
+// keep each driver's token fresh so long demo sessions don't silently break.
+setInterval(async () => {
+  for (const d of drivers) {
+    if (!d.phone) continue;
+    try {
+      const { token } = await login(d.phone);
+      d.token = token;
+    } catch (e) {
+      console.log(`  token refresh failed for ${d.tier}: ${e.message}`);
+    }
+  }
+  console.log('  refreshed driver tokens');
+}, 10 * 60 * 1000);
 
 // Keep the process (and the sockets) alive indefinitely.
 setInterval(() => {}, 1 << 30);

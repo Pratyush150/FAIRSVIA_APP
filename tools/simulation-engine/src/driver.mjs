@@ -27,7 +27,8 @@ export class Driver {
   }
 
   async setup() {
-    const { token } = await login(phone());
+    this.phone = phone(); // kept so the token can be refreshed by re-login
+    const { token } = await login(this.phone);
     this.token = token;
     await onboardDriver(token, this.tier);
     this.socket = await connect(token);
