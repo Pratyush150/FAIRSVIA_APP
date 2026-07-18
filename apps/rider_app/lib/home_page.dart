@@ -748,17 +748,54 @@ class _PaymentModeToggle extends StatelessWidget {
   const _PaymentModeToggle({required this.state});
   final TripState state;
 
+  /// The saved card currently in effect: the explicitly chosen one, else the
+  /// default, else the first. Null when there are no saved cards.
+  Map<String, dynamic>? get _activeCard {
+    final cards = state.paymentMethods;
+    if (cards.isEmpty) return null;
+    final id = state.selectedMethodId;
+    if (id != null) {
+      for (final c in cards) {
+        if (c['id'] == id) return c;
+      }
+    }
+    for (final c in cards) {
+      if (c['isDefault'] == true) return c;
+    }
+    return cards.first;
+  }
+
+  static String _cardLabel(Map<String, dynamic> c) {
+    final brand = (c['brand'] as String?)?.trim();
+    final last4 = (c['last4'] as String?)?.trim();
+    final b = (brand == null || brand.isEmpty) ? 'Card' : brand;
+    return last4 == null || last4.isEmpty ? b : '$b •••• $last4';
+  }
+
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<TripCubit>();
+    final card = _activeCard;
+    final cardSelected = state.paymentMode == 'card';
+    final cardLabel = card == null ? 'Card' : _cardLabel(card);
+    // With >1 saved card, tapping Card opens a picker; otherwise it just
+    // selects card mode (backend uses the default / mock method).
+    final hasChoice = state.paymentMethods.length > 1;
     return Row(
       children: [
         Expanded(
           child: _PayChip(
             icon: Icons.credit_card,
-            label: 'Card',
-            selected: state.paymentMode == 'card',
-            onTap: () => cubit.setPaymentMode('card'),
+            label: cardLabel,
+            selected: cardSelected,
+            trailing: hasChoice ? Icons.expand_more : null,
+            onTap: () {
+              if (hasChoice) {
+                _showCardPicker(context, cubit);
+              } else {
+                cubit.setPaymentMode('card');
+              }
+            },
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -773,6 +810,46 @@ class _PaymentModeToggle extends StatelessWidget {
       ],
     );
   }
+
+  Future<void> _showCardPicker(BuildContext context, TripCubit cubit) async {
+    final cards = state.paymentMethods;
+    final activeId = _activeCard?['id'];
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetCtx) {
+        final theme = Theme.of(sheetCtx);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+                child: Text('Pay with',
+                    style: theme.textTheme.titleMedium),
+              ),
+              for (final c in cards)
+                ListTile(
+                  leading: const Icon(Icons.credit_card),
+                  title: Text(_cardLabel(c)),
+                  trailing: c['id'] == activeId
+                      ? const Icon(Icons.check, color: AppColors.accent)
+                      : null,
+                  onTap: () {
+                    AppHaptics.selection();
+                    cubit.selectPaymentCard(c['id'] as String);
+                    Navigator.of(sheetCtx).pop();
+                  },
+                ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _PayChip extends StatelessWidget {
@@ -781,12 +858,14 @@ class _PayChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.trailing,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final IconData? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -818,12 +897,19 @@ class _PayChip extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: selected ? AppColors.accent : null),
             const SizedBox(width: AppSpacing.sm),
-            Text(
-              label,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: selected ? AppColors.accent : null,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: selected ? AppColors.accent : null,
+                ),
               ),
             ),
+            if (trailing != null)
+              Icon(trailing,
+                  size: 18, color: selected ? AppColors.accent : null),
           ],
         ),
       ),

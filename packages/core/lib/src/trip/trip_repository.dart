@@ -32,6 +32,7 @@ class TripRepository {
     String? dropoffAddr,
     String? promoCode,
     String? paymentMode,
+    String? paymentMethodId,
     DateTime? scheduledAt,
     List<TripStop> stops = const [],
   }) =>
@@ -43,6 +44,7 @@ class TripRepository {
         dropoffAddr: dropoffAddr,
         promoCode: promoCode,
         paymentMode: paymentMode,
+        paymentMethodId: paymentMethodId,
         scheduledAt: scheduledAt,
         stops: stops,
       );

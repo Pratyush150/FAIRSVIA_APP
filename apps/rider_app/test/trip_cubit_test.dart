@@ -150,6 +150,110 @@ void main() {
   );
 
   blocTest<TripCubit, TripState>(
+    'selectPaymentCard sets card mode + id; confirmRide passes paymentMethodId',
+    setUp: () => when(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: any(named: 'tier'),
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: any(named: 'paymentMode'),
+        paymentMethodId: any(named: 'paymentMethodId'),
+        scheduledAt: any(named: 'scheduledAt'),
+      ),
+    ).thenAnswer((_) async => trip),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.choosingRide,
+      pickup: pickup,
+      dropoff: dropoff,
+      estimate: estimate,
+      selectedTier: 'economy',
+    ),
+    act: (c) {
+      c.selectPaymentCard('pm_1');
+      c.confirmRide();
+    },
+    verify: (_) => verify(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: any(named: 'tier'),
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: 'card',
+        paymentMethodId: 'pm_1',
+        scheduledAt: any(named: 'scheduledAt'),
+      ),
+    ).called(1),
+  );
+
+  blocTest<TripCubit, TripState>(
+    'switching to cash clears the chosen card so no paymentMethodId is sent',
+    setUp: () => when(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: any(named: 'tier'),
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: any(named: 'paymentMode'),
+        paymentMethodId: any(named: 'paymentMethodId'),
+        scheduledAt: any(named: 'scheduledAt'),
+      ),
+    ).thenAnswer((_) async => trip),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.choosingRide,
+      pickup: pickup,
+      dropoff: dropoff,
+      estimate: estimate,
+      selectedTier: 'economy',
+      paymentMode: 'card',
+      selectedMethodId: 'pm_1',
+    ),
+    act: (c) {
+      c.setPaymentMode('cash');
+      c.confirmRide();
+    },
+    verify: (_) => verify(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: any(named: 'tier'),
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: 'cash',
+        paymentMethodId: null,
+        scheduledAt: any(named: 'scheduledAt'),
+      ),
+    ).called(1),
+  );
+
+  blocTest<TripCubit, TripState>(
+    'loadPaymentMethods stores the saved cards on state',
+    setUp: () => when(() => payments.methods()).thenAnswer(
+      (_) async => [
+        {'id': 'pm_1', 'brand': 'Visa', 'last4': '4242', 'isDefault': true},
+      ],
+    ),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    act: (c) => c.loadPaymentMethods(),
+    expect: () => [
+      isA<TripState>().having(
+        (s) => s.paymentMethods.first['last4'],
+        'first card last4',
+        '4242',
+      ),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
     'cancelTrip cancels on the backend and resets to idle',
     setUp: () =>
         when(() => repo.cancelTrip(any(), reason: any(named: 'reason')))

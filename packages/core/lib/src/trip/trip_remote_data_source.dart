@@ -38,6 +38,7 @@ class TripRemoteDataSource {
     String? dropoffAddr,
     String? promoCode,
     String? paymentMode,
+    String? paymentMethodId,
     DateTime? scheduledAt,
     List<TripStop> stops = const [],
   }) async {
@@ -54,6 +55,7 @@ class TripRemoteDataSource {
           'dropoffAddr': ?dropoffAddr,
           'promoCode': ?promoCode,
           'paymentMode': ?paymentMode,
+          'paymentMethodId': ?paymentMethodId,
           'scheduledAt': ?scheduledAt?.toUtc().toIso8601String(),
           if (stops.isNotEmpty) 'stops': stops.map((s) => s.toJson()).toList(),
         },

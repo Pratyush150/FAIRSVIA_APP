@@ -186,10 +186,26 @@ class TripCubit extends Cubit<TripState> {
         promoError: null,
         stops: const [],
       ));
+      unawaited(loadPaymentMethods());
     } on ApiException catch (e) {
       emit(state.copyWith(phase: TripPhase.error, error: e.message));
     }
   }
+
+  /// Fetch the rider's saved cards for the checkout payment picker (best-effort).
+  Future<void> loadPaymentMethods() async {
+    try {
+      final methods = await _payments.methods();
+      emit(state.copyWith(paymentMethods: methods));
+    } catch (_) {
+      // non-fatal — the picker just falls back to Card/Cash.
+    }
+  }
+
+  /// Choose a specific saved card (mode 'card') for the ride.
+  void selectPaymentCard(String methodId) => emit(
+        state.copyWith(paymentMode: 'card', selectedMethodId: methodId),
+      );
 
   void selectTier(String tier) => emit(state.copyWith(selectedTier: tier));
 
@@ -260,8 +276,11 @@ class TripCubit extends Cubit<TripState> {
   void removePromo() =>
       emit(state.copyWith(appliedPromo: null, promoError: null));
 
-  void setPaymentMode(String mode) =>
-      emit(state.copyWith(paymentMode: mode));
+  void setPaymentMode(String mode) => emit(state.copyWith(
+        paymentMode: mode,
+        // Cash clears any chosen card.
+        selectedMethodId: mode == 'cash' ? null : state.selectedMethodId,
+      ));
 
   /// Set (or clear, with null) the future time to schedule the ride for.
   void setScheduledAt(DateTime? when) =>
@@ -280,6 +299,7 @@ class TripCubit extends Cubit<TripState> {
         dropoffAddr: s.dropoffAddr,
         promoCode: s.appliedPromo?.code,
         paymentMode: s.paymentMode,
+        paymentMethodId: s.paymentMode == 'card' ? s.selectedMethodId : null,
         scheduledAt: s.scheduledAt,
         stops: s.stops,
       );

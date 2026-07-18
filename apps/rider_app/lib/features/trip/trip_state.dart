@@ -37,6 +37,8 @@ class TripState extends Equatable {
     this.applyingPromo = false,
     this.promoError,
     this.paymentMode = 'card',
+    this.paymentMethods = const [],
+    this.selectedMethodId,
     this.scheduledAt,
     this.stops = const [],
     this.connected = true,
@@ -75,6 +77,12 @@ class TripState extends Equatable {
 
   /// Rider's chosen payment mode for the next ride: `card` or `cash`.
   final String paymentMode;
+
+  /// Saved payment methods (raw maps: id, brand, last4) for the checkout picker.
+  final List<Map<String, dynamic>> paymentMethods;
+
+  /// The specific saved card chosen at checkout (null = default/cash).
+  final String? selectedMethodId;
 
   /// A future time to schedule the ride for; null means ride now.
   final DateTime? scheduledAt;
@@ -129,6 +137,8 @@ class TripState extends Equatable {
     bool? applyingPromo,
     Object? promoError = _s,
     String? paymentMode,
+    List<Map<String, dynamic>>? paymentMethods,
+    Object? selectedMethodId = _s,
     Object? scheduledAt = _s,
     List<TripStop>? stops,
     bool? connected,
@@ -163,6 +173,10 @@ class TripState extends Equatable {
       applyingPromo: applyingPromo ?? this.applyingPromo,
       promoError: promoError == _s ? this.promoError : promoError as String?,
       paymentMode: paymentMode ?? this.paymentMode,
+      paymentMethods: paymentMethods ?? this.paymentMethods,
+      selectedMethodId: selectedMethodId == _s
+          ? this.selectedMethodId
+          : selectedMethodId as String?,
       scheduledAt:
           scheduledAt == _s ? this.scheduledAt : scheduledAt as DateTime?,
       stops: stops ?? this.stops,
@@ -193,6 +207,8 @@ class TripState extends Equatable {
         applyingPromo,
         promoError,
         paymentMode,
+        paymentMethods,
+        selectedMethodId,
         scheduledAt,
         stops,
         connected,
