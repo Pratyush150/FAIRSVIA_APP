@@ -58,8 +58,9 @@ class _PrimaryButtonState extends State<PrimaryButton> {
         child: FilledButton(
           statesController: _states,
           style: FilledButton.styleFrom(
-            backgroundColor: AppColors.accent,
-            disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.4),
+            // accentInk (not accent) so the white label clears WCAG AA (5.2:1).
+            backgroundColor: AppColors.accentInk,
+            disabledBackgroundColor: AppColors.accentInk.withValues(alpha: 0.4),
             foregroundColor: AppColors.onAccent,
             elevation: 0,
             shape: RoundedRectangleBorder(

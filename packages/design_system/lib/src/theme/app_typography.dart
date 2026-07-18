@@ -9,6 +9,13 @@ class AppTypography {
   /// Package-qualified family name so apps pick it up without re-declaring.
   static const String fontFamily = 'packages/design_system/PlusJakartaSans';
 
+  /// Tabular (monospaced) figures — every digit takes the same width so
+  /// live-updating fares, ETAs, countdowns, and ratings don't jitter as digits
+  /// change. Apply to any numeric text: `style.tabular()`.
+  static const List<FontFeature> tabularFigures = [
+    FontFeature.tabularFigures(),
+  ];
+
   static TextTheme textTheme(Color primary, Color secondary) {
     TextStyle s(
       double size,
@@ -42,4 +49,11 @@ class AppTypography {
       labelSmall: s(11, FontWeight.w700, height: 1.2, spacing: 0.4),
     );
   }
+}
+
+/// Ergonomic tabular-figures application: `theme.textTheme.titleMedium?.tabular()`.
+extension NumericTextStyle on TextStyle {
+  /// This style with tabular (monospaced) figures — for fares, ETAs, ratings.
+  TextStyle tabular() =>
+      copyWith(fontFeatures: AppTypography.tabularFigures);
 }

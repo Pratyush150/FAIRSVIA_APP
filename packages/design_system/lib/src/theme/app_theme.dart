@@ -32,7 +32,9 @@ class AppTheme {
       primary: AppColors.accent,
       onPrimary: AppColors.onAccent,
       primaryContainer: isDark ? AppColors.accentSoftDark : AppColors.accentSoft,
-      onPrimaryContainer: AppColors.accent,
+      // Emerald text on the light container fails AA; use the darker ink on
+      // light, keep bright emerald on the dark container (already 6.6:1).
+      onPrimaryContainer: isDark ? AppColors.accent : AppColors.accentInk,
       secondary: textPrimary,
       onSecondary: surface,
       surface: surface,
@@ -106,9 +108,9 @@ class AppTheme {
 
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.accent,
+          backgroundColor: AppColors.accentInk,
           foregroundColor: AppColors.onAccent,
-          disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.4),
+          disabledBackgroundColor: AppColors.accentInk.withValues(alpha: 0.4),
           minimumSize: const Size(0, 52),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           textStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
@@ -133,7 +135,8 @@ class AppTheme {
 
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.accent,
+          // Emerald text on light fails AA; use the darker ink on light.
+          foregroundColor: isDark ? AppColors.accent : AppColors.accentInk,
           textStyle: text.labelLarge,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
@@ -169,7 +172,8 @@ class AppTheme {
         selectedColor: isDark ? AppColors.accentSoftDark : AppColors.accentSoft,
         side: BorderSide(color: border),
         labelStyle: text.labelMedium,
-        secondaryLabelStyle: text.labelMedium?.copyWith(color: AppColors.accent),
+        secondaryLabelStyle: text.labelMedium
+            ?.copyWith(color: isDark ? AppColors.accent : AppColors.accentInk),
         shape: const StadiumBorder(),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
@@ -216,17 +220,18 @@ class AppTheme {
 
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: surface,
-        selectedIconTheme: const IconThemeData(color: AppColors.accent),
+        selectedIconTheme: IconThemeData(
+            color: isDark ? AppColors.accent : AppColors.accentInk),
         unselectedIconTheme: IconThemeData(color: textSecondary),
-        selectedLabelTextStyle:
-            text.labelMedium?.copyWith(color: AppColors.accent),
+        selectedLabelTextStyle: text.labelMedium
+            ?.copyWith(color: isDark ? AppColors.accent : AppColors.accentInk),
         unselectedLabelTextStyle: text.labelMedium,
         indicatorColor: isDark ? AppColors.accentSoftDark : AppColors.accentSoft,
         useIndicator: true,
       ),
 
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: AppColors.accent,
+        backgroundColor: AppColors.accentInk,
         foregroundColor: AppColors.onAccent,
         elevation: 2,
         shape: RoundedRectangleBorder(

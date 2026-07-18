@@ -7,9 +7,19 @@ class AppColors {
   AppColors._();
 
   // --- Brand (emerald) -------------------------------------------------------
-  /// Primary brand + CTA colour.
+  /// Primary brand colour — the emerald identity. Use for large fills, the
+  /// switch track, dark-mode accent, decorative brand moments. NOTE: white text
+  /// on this only reaches 2.62:1 (fails WCAG AA) — for text-bearing surfaces
+  /// (filled CTA with a white label, emerald text/icon on light) use
+  /// [accentInk] instead.
   static const Color accent = Color(0xFF12B76A);
   static const Color accentPressed = Color(0xFF0E9E5B);
+
+  /// Accessible emerald for text-bearing surfaces: white label on this = 5.20:1
+  /// (passes AA), and it's legible as emerald text/icons on light backgrounds.
+  static const Color accentInk = Color(0xFF0A7D48);
+  static const Color accentInkPressed = Color(0xFF086A3D);
+
   /// Tinted brand wash for selected states, chips, highlights (light mode).
   static const Color accentSoft = Color(0xFFE7F6EF);
   static const Color accentSoftDark = Color(0xFF10241B);
@@ -32,10 +42,12 @@ class AppColors {
   // --- Text ------------------------------------------------------------------
   static const Color textPrimaryLight = Color(0xFF1C1917);
   static const Color textSecondaryLight = Color(0xFF57534E);
-  static const Color textTertiaryLight = Color(0xFF8A837D);
+  // Darkened from #8A837D (3.4:1, failed AA) to ~4.6:1 on light surfaces.
+  static const Color textTertiaryLight = Color(0xFF6F6862);
   static const Color textPrimaryDark = Color(0xFFFAF9F7);
   static const Color textSecondaryDark = Color(0xFFA8A29E);
-  static const Color textTertiaryDark = Color(0xFF78716C);
+  // Lightened from #78716C (3.9:1, failed AA) to ~4.7:1 on dark surfaces.
+  static const Color textTertiaryDark = Color(0xFF8A837D);
 
   // --- Lines -----------------------------------------------------------------
   static const Color borderLight = Color(0xFFE7E3DE);

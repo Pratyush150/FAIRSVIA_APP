@@ -985,7 +985,7 @@ class _RideTierTile extends StatelessWidget {
             ),
             Text(
               '\$${tier.fare.toStringAsFixed(0)}',
-              style: theme.textTheme.titleLarge,
+              style: theme.textTheme.titleLarge?.tabular(),
             ),
           ],
         ),
@@ -1470,7 +1470,7 @@ class _ReceiptRow extends StatelessWidget {
           Text(label, style: style),
           // Show cents so a custom tip like $7.50 sums correctly (whole amounts
           // still read cleanly as $7.00).
-          Text('\$${value.toStringAsFixed(2)}', style: style),
+          Text('\$${value.toStringAsFixed(2)}', style: style?.tabular()),
         ],
       ),
     );
