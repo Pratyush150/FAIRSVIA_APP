@@ -432,12 +432,18 @@ class _LifecycleSheet extends StatelessWidget {
             Expanded(
               child: Text(title, style: theme.textTheme.headlineSmall),
             ),
-            if (tripId != null)
+            if (tripId != null) ...[
+              IconButton(
+                tooltip: 'Safety',
+                icon: const Icon(Icons.shield_outlined, color: AppColors.error),
+                onPressed: () => openDriverSafety(context, tripId!),
+              ),
               IconButton(
                 tooltip: 'Message rider',
                 icon: const Icon(Icons.chat_bubble_rounded),
                 onPressed: () => openDriverChat(context, tripId!),
               ),
+            ],
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -451,6 +457,31 @@ class _LifecycleSheet extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Opens the safety toolkit (SOS) for the driver's active trip. Drivers get the
+/// same safety affordance riders have. Location is best-effort so an alert still
+/// fires if GPS is momentarily unavailable.
+Future<void> openDriverSafety(BuildContext context, String tripId) async {
+  double? lat;
+  double? lng;
+  try {
+    final pos = await Geolocator.getLastKnownPosition() ??
+        await Geolocator.getCurrentPosition();
+    lat = pos.latitude;
+    lng = pos.longitude;
+  } catch (_) {
+    // best-effort — send the alert without coordinates
+  }
+  if (!context.mounted) return;
+  await showSafetySheet(
+    context,
+    tripId: tripId,
+    safety: sl<SafetyRemoteDataSource>(),
+    shareText: 'I am driving an UberNav trip and may need help. Trip $tripId.',
+    lat: lat,
+    lng: lng,
+  );
 }
 
 /// Opens the in-trip chat with the rider.
@@ -495,12 +526,18 @@ class _StartTripSheetState extends State<_StartTripSheet> {
             Expanded(
               child: Text('Confirm rider', style: theme.textTheme.headlineSmall),
             ),
-            if (widget.tripId != null)
+            if (widget.tripId != null) ...[
+              IconButton(
+                tooltip: 'Safety',
+                icon: const Icon(Icons.shield_outlined, color: AppColors.error),
+                onPressed: () => openDriverSafety(context, widget.tripId!),
+              ),
               IconButton(
                 tooltip: 'Message rider',
                 icon: const Icon(Icons.chat_bubble_rounded),
                 onPressed: () => openDriverChat(context, widget.tripId!),
               ),
+            ],
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
