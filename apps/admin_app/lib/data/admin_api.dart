@@ -420,6 +420,68 @@ class AdminPromo {
       );
 }
 
+class AdminFare {
+  const AdminFare({
+    required this.tier,
+    required this.label,
+    required this.baseFare,
+    required this.perMile,
+    required this.perMin,
+    required this.bookingFee,
+    required this.minFare,
+    required this.capacity,
+  });
+
+  final String tier;
+  final String label;
+  final double baseFare;
+  final double perMile;
+  final double perMin;
+  final double bookingFee;
+  final double minFare;
+  final int capacity;
+
+  static double _n(Object? v) =>
+      v == null ? 0 : (v is num ? v.toDouble() : double.tryParse('$v') ?? 0);
+
+  factory AdminFare.fromJson(Map<String, dynamic> j) => AdminFare(
+        tier: j['tier'] as String,
+        label: j['label'] as String? ?? j['tier'] as String,
+        baseFare: _n(j['baseFare']),
+        perMile: _n(j['perMile']),
+        perMin: _n(j['perMin']),
+        bookingFee: _n(j['bookingFee']),
+        minFare: _n(j['minFare']),
+        capacity: (j['capacity'] as num?)?.toInt() ?? 4,
+      );
+}
+
+class AdminSurgeCell {
+  const AdminSurgeCell({required this.cell, required this.demand});
+  final String cell;
+  final int demand;
+}
+
+class AdminSurge {
+  const AdminSurge({required this.override, required this.cap, required this.cells});
+  final double? override; // active override multiplier, or null
+  final double cap;
+  final List<AdminSurgeCell> cells;
+
+  static const empty = AdminSurge(override: null, cap: 2.0, cells: []);
+
+  factory AdminSurge.fromJson(Map<String, dynamic> j) => AdminSurge(
+        override: (j['override'] as num?)?.toDouble(),
+        cap: (j['cap'] as num?)?.toDouble() ?? 2.0,
+        cells: ((j['activeCells'] as List?) ?? [])
+            .map((e) => AdminSurgeCell(
+                  cell: (e as Map)['cell'] as String? ?? '?',
+                  demand: (e['demand'] as num?)?.toInt() ?? 0,
+                ))
+            .toList(),
+      );
+}
+
 /// REST calls for the admin dashboard (all role-gated on the backend).
 class AdminApi {
   AdminApi(this._dio);
@@ -495,6 +557,28 @@ class AdminApi {
 
   Future<void> setPromoActive(String code, bool active) => _guard(
         () => _dio.patch('/admin/promos/$code', data: {'active': active}),
+      );
+
+  Future<List<AdminFare>> fares() async {
+    final res = await _guard(() => _dio.get<List<dynamic>>('/admin/fares'));
+    return res.data!
+        .map((e) => AdminFare.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> updateFare(String tier, Map<String, dynamic> body) => _guard(
+        () => _dio.patch('/admin/fares/$tier', data: body),
+      );
+
+  Future<AdminSurge> surge() async {
+    final res =
+        await _guard(() => _dio.get<Map<String, dynamic>>('/admin/surge'));
+    return AdminSurge.fromJson(res.data!);
+  }
+
+  /// Set (or clear, with 1.0) the global surge override multiplier.
+  Future<void> setSurge(double multiplier) => _guard(
+        () => _dio.patch('/admin/surge', data: {'multiplier': multiplier}),
       );
 
   Future<void> setActive(String userId, bool isActive) => _guard(

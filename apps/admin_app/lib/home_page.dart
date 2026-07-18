@@ -96,6 +96,11 @@ class _AdminScaffold extends StatelessWidget {
                     selectedIcon: Icon(Icons.local_offer),
                     label: Text('Promos'),
                   ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.payments_outlined),
+                    selectedIcon: Icon(Icons.payments),
+                    label: Text('Pricing'),
+                  ),
                 ],
               ),
               const VerticalDivider(width: 1),
@@ -130,6 +135,7 @@ class _AdminScaffold extends StatelessWidget {
         AdminTab.live => 'Live map',
         AdminTab.support => 'Support',
         AdminTab.promos => 'Promotions',
+        AdminTab.pricing => 'Pricing & surge',
       };
 }
 
@@ -199,6 +205,7 @@ class _Body extends StatelessWidget {
       AdminTab.live => _LiveView(live: state.live),
       AdminTab.support => _SupportView(state: state),
       AdminTab.promos => _PromosView(promos: state.promos),
+      AdminTab.pricing => _PricingView(fares: state.fares, surge: state.surge),
     };
   }
 }
@@ -1281,6 +1288,155 @@ Future<void> _showCreatePromo(BuildContext context, AdminCubit cubit) async {
               }
             },
             child: const Text('Create'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// --- Pricing & surge --------------------------------------------------------
+
+class _PricingView extends StatelessWidget {
+  const _PricingView({required this.fares, required this.surge});
+  final List<AdminFare> fares;
+  final AdminSurge surge;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<AdminCubit>();
+    final theme = Theme.of(context);
+    final active = (surge.override ?? 1.0) > 1.0;
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      children: [
+        // Surge control.
+        Text('Surge override', style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          active
+              ? 'A ${surge.override!.toStringAsFixed(2)}× floor is active on all fares.'
+              : 'No override — fares follow organic demand (cap ${surge.cap.toStringAsFixed(1)}×).',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          children: [
+            for (final m in const [1.0, 1.25, 1.5, 1.75, 2.0])
+              ChoiceChip(
+                label: Text(m == 1.0 ? 'Off' : '$m×'),
+                selected: (surge.override ?? 1.0) == m,
+                onSelected: (_) => cubit.setSurge(m),
+              ),
+          ],
+        ),
+        if (surge.cells.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          Text('Live demand cells', style: theme.textTheme.labelLarge),
+          const SizedBox(height: AppSpacing.xs),
+          for (final c in surge.cells.take(6))
+            Text('${c.cell}  —  ${c.demand} recent requests',
+                style: theme.textTheme.bodySmall),
+        ],
+        const Divider(height: AppSpacing.xxl),
+        // Fares.
+        Text('Fares by tier', style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        for (final f in fares)
+          Card(
+            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: ListTile(
+              title: Text(f.label, style: theme.textTheme.titleSmall),
+              subtitle: Text(
+                'base \$${f.baseFare.toStringAsFixed(2)} · '
+                '\$${f.perMile.toStringAsFixed(2)}/mi · '
+                '\$${f.perMin.toStringAsFixed(2)}/min · '
+                'min \$${f.minFare.toStringAsFixed(2)} · '
+                'booking \$${f.bookingFee.toStringAsFixed(2)}',
+                style: theme.textTheme.bodySmall,
+              ),
+              trailing: TextButton(
+                onPressed: () => _showEditFare(context, cubit, f),
+                child: const Text('Edit'),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+Future<void> _showEditFare(
+    BuildContext context, AdminCubit cubit, AdminFare f) async {
+  final base = TextEditingController(text: f.baseFare.toStringAsFixed(2));
+  final perMile = TextEditingController(text: f.perMile.toStringAsFixed(2));
+  final perMin = TextEditingController(text: f.perMin.toStringAsFixed(2));
+  final minFare = TextEditingController(text: f.minFare.toStringAsFixed(2));
+  final booking = TextEditingController(text: f.bookingFee.toStringAsFixed(2));
+  String? error;
+
+  Widget field(String label, TextEditingController c) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: TextField(
+          controller: c,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: label, prefixText: '\$ '),
+        ),
+      );
+
+  await showDialog<void>(
+    context: context,
+    builder: (dialogCtx) => StatefulBuilder(
+      builder: (ctx, setLocal) => AlertDialog(
+        title: Text('Edit ${f.label} fare'),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              field('Base fare', base),
+              field('Per mile', perMile),
+              field('Per minute', perMin),
+              field('Minimum fare', minFare),
+              field('Booking fee', booking),
+              if (error != null)
+                Text(error!,
+                    style:
+                        const TextStyle(color: AppColors.error, fontSize: 12)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final b = double.tryParse(base.text.trim());
+              final pmi = double.tryParse(perMile.text.trim());
+              final pmn = double.tryParse(perMin.text.trim());
+              final mf = double.tryParse(minFare.text.trim());
+              final bf = double.tryParse(booking.text.trim());
+              if ([b, pmi, pmn, mf, bf].any((v) => v == null || v < 0)) {
+                setLocal(() => error = 'All values must be 0 or more');
+                return;
+              }
+              try {
+                await cubit.updateFare(f.tier, {
+                  'baseFare': b,
+                  'perMile': pmi,
+                  'perMin': pmn,
+                  'minFare': mf,
+                  'bookingFee': bf,
+                });
+                if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+              } catch (e) {
+                setLocal(() => error = e.toString());
+              }
+            },
+            child: const Text('Save'),
           ),
         ],
       ),

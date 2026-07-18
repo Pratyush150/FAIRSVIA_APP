@@ -6,7 +6,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/admin_api.dart';
 
-enum AdminTab { overview, trips, users, drivers, monitoring, live, support, promos }
+enum AdminTab {
+  overview,
+  trips,
+  users,
+  drivers,
+  monitoring,
+  live,
+  support,
+  promos,
+  pricing
+}
 
 class AdminState extends Equatable {
   const AdminState({
@@ -24,6 +34,8 @@ class AdminState extends Equatable {
     this.ticketFilter = 'open',
     this.driversPendingOnly = false,
     this.promos = const [],
+    this.fares = const [],
+    this.surge = AdminSurge.empty,
   });
 
   final AdminTab tab;
@@ -45,6 +57,8 @@ class AdminState extends Equatable {
   final bool driversPendingOnly;
 
   final List<AdminPromo> promos;
+  final List<AdminFare> fares;
+  final AdminSurge surge;
 
   AdminState copyWith({
     AdminTab? tab,
@@ -62,6 +76,8 @@ class AdminState extends Equatable {
     String? ticketFilter,
     bool? driversPendingOnly,
     List<AdminPromo>? promos,
+    List<AdminFare>? fares,
+    AdminSurge? surge,
   }) {
     return AdminState(
       tab: tab ?? this.tab,
@@ -78,6 +94,8 @@ class AdminState extends Equatable {
       ticketFilter: ticketFilter ?? this.ticketFilter,
       driversPendingOnly: driversPendingOnly ?? this.driversPendingOnly,
       promos: promos ?? this.promos,
+      fares: fares ?? this.fares,
+      surge: surge ?? this.surge,
     );
   }
 
@@ -97,6 +115,8 @@ class AdminState extends Equatable {
         ticketFilter,
         driversPendingOnly,
         promos,
+        fares,
+        surge,
       ];
 }
 
@@ -153,6 +173,10 @@ class AdminCubit extends Cubit<AdminState> {
           emit(state.copyWith(loading: false, tickets: tickets));
         case AdminTab.promos:
           emit(state.copyWith(loading: false, promos: await _api.promos()));
+        case AdminTab.pricing:
+          final fares = await _api.fares();
+          final surge = await _api.surge();
+          emit(state.copyWith(loading: false, fares: fares, surge: surge));
       }
     } on ApiException catch (e) {
       emit(state.copyWith(loading: false, error: e.message));
@@ -180,6 +204,7 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.drivers:
         case AdminTab.support:
         case AdminTab.promos:
+        case AdminTab.pricing:
           return; // not live-refreshed
       }
     } catch (_) {
@@ -229,6 +254,25 @@ class AdminCubit extends Cubit<AdminState> {
   Future<void> setPromoActive(AdminPromo promo, bool active) async {
     try {
       await _api.setPromoActive(promo.code, active);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+    }
+  }
+
+  Future<void> updateFare(String tier, Map<String, dynamic> body) async {
+    try {
+      await _api.updateFare(tier, body);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+      rethrow;
+    }
+  }
+
+  Future<void> setSurge(double multiplier) async {
+    try {
+      await _api.setSurge(multiplier);
       await refresh();
     } on ApiException catch (e) {
       emit(state.copyWith(error: e.message));
