@@ -46,6 +46,8 @@ export interface AppConfig {
   platformFeePercent: number;
   cancellationFee: number;
   fcmServerKey: string;
+  /** Google service-account JSON for FCM HTTP v1 push (real provider when set). */
+  fcmServiceAccountJson: string;
   adminPhones: string[];
   /** When true, driver documents are auto-approved at onboarding (dev default).
    *  When false, drivers onboard as pending and an admin must verify them
@@ -146,6 +148,7 @@ export default (): AppConfig => {
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '0.20'),
   cancellationFee: parseFloat(process.env.CANCELLATION_FEE ?? '5'),
   fcmServerKey: process.env.FCM_SERVER_KEY ?? '',
+  fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON ?? '',
   // Comma-separated phone numbers that are promoted to the admin role on login,
   // to bootstrap the self-hosted admin app without a manual DB edit.
   adminPhones: (process.env.ADMIN_PHONES ?? '')
