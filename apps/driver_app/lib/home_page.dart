@@ -512,6 +512,10 @@ class _StartTripSheet extends StatefulWidget {
 }
 
 class _StartTripSheetState extends State<_StartTripSheet> {
+  // Must match the backend's start-OTP length (trips.service generateOtp = 4).
+  // A mismatch leaves "Start trip" permanently disabled — the driver could
+  // never start a ride.
+  static const int _startCodeLength = 4;
   String _otp = '';
 
   @override
@@ -541,15 +545,17 @@ class _StartTripSheetState extends State<_StartTripSheet> {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text('Ask the rider for their 6-digit start code',
+        Text('Ask the rider for their $_startCodeLength-digit start code',
             style: theme.textTheme.bodyMedium),
         const SizedBox(height: AppSpacing.lg),
-        OtpInput(length: 6, onChanged: (v) => setState(() => _otp = v)),
+        OtpInput(
+            length: _startCodeLength,
+            onChanged: (v) => setState(() => _otp = v)),
         const SizedBox(height: AppSpacing.lg),
         PrimaryButton(
           label: 'Start trip',
           loading: widget.busy,
-          onPressed: _otp.length == 6 && !widget.busy
+          onPressed: _otp.length == _startCodeLength && !widget.busy
               ? () => widget.cubit.startTrip(_otp)
               : null,
         ),
