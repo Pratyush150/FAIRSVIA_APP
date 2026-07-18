@@ -81,15 +81,17 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   }
 
   Future<void> _openSearch() async {
-    final details = await Navigator.of(context).push<PlaceDetails>(
-      MaterialPageRoute(builder: (_) => const DestinationSearchPage()),
+    final choice = await Navigator.of(context).push<RouteChoice>(
+      MaterialPageRoute(
+        builder: (_) => DestinationSearchPage(initialPickup: _myLocation),
+      ),
     );
-    if (details != null && mounted) {
+    if (choice != null && mounted) {
       await context.read<TripCubit>().chooseDestination(
-            pickup: _myLocation,
-            pickupAddr: 'Current location',
-            dropoff: details.location,
-            dropoffAddr: details.address,
+            pickup: choice.pickup,
+            pickupAddr: choice.pickupAddr,
+            dropoff: choice.dropoff,
+            dropoffAddr: choice.dropoffAddr,
           );
     }
   }
@@ -532,7 +534,9 @@ class _StopsSection extends StatelessWidget {
   Future<void> _addStop(BuildContext context) async {
     final cubit = context.read<TripCubit>();
     final details = await Navigator.of(context).push<PlaceDetails>(
-      MaterialPageRoute(builder: (_) => const DestinationSearchPage()),
+      MaterialPageRoute(
+        builder: (_) => const DestinationSearchPage(singleDestination: true),
+      ),
     );
     if (details != null) {
       await cubit.addStop(

@@ -5,29 +5,101 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_models/shared_models.dart';
 
-/// Full-screen destination search. Debounced Places autocomplete via the
-/// backend proxy; returns the chosen [PlaceDetails] to the caller.
+/// The pickup + destination the rider chose on the search page.
+class RouteChoice {
+  const RouteChoice({
+    required this.pickup,
+    required this.pickupAddr,
+    required this.dropoff,
+    required this.dropoffAddr,
+  });
+
+  final GeoPoint pickup;
+  final String pickupAddr;
+  final GeoPoint dropoff;
+  final String dropoffAddr;
+}
+
+/// Full-screen route search with an editable **pickup** and **destination**
+/// (Uber-style). The active field drives debounced Places autocomplete via the
+/// backend proxy. Selecting a place fills the active field; once both ends are
+/// set it returns a [RouteChoice]. Pickup defaults to the rider's current
+/// location, so searching only a destination still works in one tap.
 class DestinationSearchPage extends StatefulWidget {
-  const DestinationSearchPage({super.key});
+  const DestinationSearchPage({
+    super.key,
+    this.initialPickup,
+    this.initialPickupLabel = 'Current location',
+    this.singleDestination = false,
+  });
+
+  final GeoPoint? initialPickup;
+  final String initialPickupLabel;
+
+  /// When true, only a single location field is shown and the chosen
+  /// [PlaceDetails] is returned (used for "add a stop"). Otherwise the page is
+  /// a pickup+destination route search that returns a [RouteChoice].
+  final bool singleDestination;
 
   @override
   State<DestinationSearchPage> createState() => _DestinationSearchPageState();
 }
 
+enum _Field { pickup, dropoff }
+
 class _DestinationSearchPageState extends State<DestinationSearchPage> {
-  final _controller = TextEditingController();
+  final _pickupCtrl = TextEditingController();
+  final _dropoffCtrl = TextEditingController();
+  final _pickupFocus = FocusNode();
+  final _dropoffFocus = FocusNode();
   final _repo = sl<TripRepository>();
+
   Timer? _debounce;
   List<PlacePrediction> _predictions = [];
   bool _loading = false;
   bool _resolving = false;
   String? _error;
 
+  // Chosen ends. Pickup starts at the rider's current location; dropoff empty.
+  late GeoPoint _pickup =
+      widget.initialPickup ?? const GeoPoint(0, 0); // unused in single mode
+  late String _pickupLabel = widget.initialPickupLabel;
+  GeoPoint? _dropoff;
+  String? _dropoffLabel;
+
+  _Field get _active =>
+      _pickupFocus.hasFocus ? _Field.pickup : _Field.dropoff;
+
+  @override
+  void initState() {
+    super.initState();
+    _pickupFocus.addListener(_onFocusChange);
+    _dropoffFocus.addListener(_onFocusChange);
+    // Start by editing the destination — the common case.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _dropoffFocus.requestFocus();
+    });
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
-    _controller.dispose();
+    _pickupCtrl.dispose();
+    _dropoffCtrl.dispose();
+    _pickupFocus.dispose();
+    _dropoffFocus.dispose();
     super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!mounted) return;
+    // Re-run suggestions for whichever field is now active.
+    setState(() {
+      _predictions = [];
+      _error = null;
+    });
+    final text = (_active == _Field.pickup ? _pickupCtrl : _dropoffCtrl).text;
+    _onChanged(text);
   }
 
   void _onChanged(String value) {
@@ -67,7 +139,36 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
     try {
       final details = await _repo.placeDetails(prediction.placeId);
       if (!mounted) return;
-      Navigator.of(context).pop(details);
+      // Single-location mode (add-a-stop): return the raw place.
+      if (widget.singleDestination) {
+        Navigator.of(context).pop(details);
+        return;
+      }
+      final field = _active;
+      setState(() {
+        _resolving = false;
+        _predictions = [];
+        if (field == _Field.pickup) {
+          _pickup = details.location;
+          _pickupLabel = details.address;
+          _pickupCtrl.text = prediction.primaryText;
+        } else {
+          _dropoff = details.location;
+          _dropoffLabel = details.address;
+          _dropoffCtrl.text = prediction.primaryText;
+        }
+      });
+      // Both ends known → return; otherwise move focus to the missing one.
+      if (_dropoff != null) {
+        Navigator.of(context).pop(RouteChoice(
+          pickup: _pickup,
+          pickupAddr: _pickupLabel,
+          dropoff: _dropoff!,
+          dropoffAddr: _dropoffLabel ?? 'Destination',
+        ));
+      } else {
+        _dropoffFocus.requestFocus();
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -82,46 +183,23 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Where to?'),
+        title: Text(widget.singleDestination ? 'Add a stop' : 'Plan your ride'),
         titleTextStyle: theme.textTheme.titleLarge,
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
-            child: TextField(
-              controller: _controller,
-              autofocus: true,
-              style: theme.textTheme.bodyLarge,
-              decoration: InputDecoration(
-                hintText: 'Search destination',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _loading
-                    ? const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2.4),
-                        ),
-                      )
-                    : (_controller.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded),
-                            onPressed: () {
-                              _controller.clear();
-                              _onChanged('');
-                              setState(() {});
-                            },
-                          )
-                        : null),
-              ),
-              onChanged: (v) {
-                _onChanged(v);
-                setState(() {});
-              },
-            ),
+          _RouteFields(
+            pickupCtrl: _pickupCtrl,
+            dropoffCtrl: _dropoffCtrl,
+            pickupFocus: _pickupFocus,
+            dropoffFocus: _dropoffFocus,
+            pickupHint: _pickupLabel,
+            showPickup: !widget.singleDestination,
+            onChanged: (v) {
+              _onChanged(v);
+              setState(() {});
+            },
+            loading: _loading,
           ),
           if (_error != null)
             Padding(
@@ -146,7 +224,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                 if (_predictions.isEmpty && !_loading && _error == null)
                   EmptyState(
                     icon: Icons.explore_outlined,
-                    title: 'Search for a destination',
+                    title: _active == _Field.pickup
+                        ? 'Set your pickup'
+                        : 'Search for a destination',
                     message:
                         'Type an address, landmark, or place to see suggestions.',
                   )
@@ -154,8 +234,11 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                   ListView.separated(
                     padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
                     itemCount: _predictions.length,
-                    separatorBuilder: (_, _) => const Divider(
-                        height: 1, indent: 72, endIndent: AppSpacing.lg),
+                    separatorBuilder: (_, _) => Divider(
+                        height: 1,
+                        indent: 72,
+                        endIndent: AppSpacing.lg,
+                        color: theme.dividerColor),
                     itemBuilder: (context, i) {
                       final p = _predictions[i];
                       return InkWell(
@@ -170,13 +253,14 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                               Container(
                                 height: 40,
                                 width: 40,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.surfaceMutedLight,
+                                decoration: BoxDecoration(
+                                  color:
+                                      theme.colorScheme.surfaceContainerHighest,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.location_on_rounded,
+                                child: Icon(Icons.location_on_rounded,
                                     size: 20,
-                                    color: AppColors.textSecondaryLight),
+                                    color: theme.colorScheme.onSurfaceVariant),
                               ),
                               const SizedBox(width: AppSpacing.md),
                               Expanded(
@@ -197,9 +281,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.north_east_rounded,
+                              Icon(Icons.north_east_rounded,
                                   size: 18,
-                                  color: AppColors.textTertiaryLight),
+                                  color: theme.colorScheme.outline),
                             ],
                           ),
                         ),
@@ -216,6 +300,131 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The stacked pickup (origin dot) + destination (square) fields with the
+/// connecting rail, mirroring Uber's route header.
+class _RouteFields extends StatelessWidget {
+  const _RouteFields({
+    required this.pickupCtrl,
+    required this.dropoffCtrl,
+    required this.pickupFocus,
+    required this.dropoffFocus,
+    required this.pickupHint,
+    required this.showPickup,
+    required this.onChanged,
+    required this.loading,
+  });
+
+  final TextEditingController pickupCtrl;
+  final TextEditingController dropoffCtrl;
+  final FocusNode pickupFocus;
+  final FocusNode dropoffFocus;
+  final String pickupHint;
+  final bool showPickup;
+  final ValueChanged<String> onChanged;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dropoffField = _FieldBox(
+      controller: dropoffCtrl,
+      focusNode: dropoffFocus,
+      hint: showPickup ? 'Where to?' : 'Search a place',
+      onChanged: onChanged,
+      trailing: loading
+          ? const Padding(
+              padding: EdgeInsets.all(12),
+              child: SizedBox(
+                height: 16,
+                width: 16,
+                child: CircularProgressIndicator(strokeWidth: 2.2),
+              ),
+            )
+          : null,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
+      child: showPickup
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Origin dot → rail → destination square.
+                Column(
+                  children: [
+                    const Icon(Icons.trip_origin,
+                        size: 14, color: AppColors.accent),
+                    Container(
+                      width: 2,
+                      height: 26,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: theme.dividerColor,
+                    ),
+                    const Icon(Icons.square, size: 12, color: AppColors.error),
+                  ],
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _FieldBox(
+                        controller: pickupCtrl,
+                        focusNode: pickupFocus,
+                        hint: pickupHint,
+                        onChanged: onChanged,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      dropoffField,
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : dropoffField,
+    );
+  }
+}
+
+class _FieldBox extends StatelessWidget {
+  const _FieldBox({
+    required this.controller,
+    required this.focusNode,
+    required this.hint,
+    required this.onChanged,
+    this.trailing,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hint;
+  final ValueChanged<String> onChanged;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      style: theme.textTheme.bodyLarge,
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: hint,
+        filled: true,
+        fillColor: theme.colorScheme.surfaceContainerHighest,
+        suffixIcon: trailing,
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      onChanged: onChanged,
     );
   }
 }
