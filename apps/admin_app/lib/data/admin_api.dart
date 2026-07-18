@@ -284,6 +284,7 @@ class AdminDriver {
     required this.id,
     required this.phone,
     required this.isActive,
+    required this.docsVerified,
     required this.rating,
     required this.totalTrips,
     required this.liveStatus,
@@ -294,6 +295,7 @@ class AdminDriver {
   final String id;
   final String phone;
   final bool isActive;
+  final bool docsVerified;
   final double rating;
   final int totalTrips;
   final String liveStatus;
@@ -311,6 +313,7 @@ class AdminDriver {
       id: j['id'] as String,
       phone: j['phone'] as String? ?? '',
       isActive: j['isActive'] as bool? ?? true,
+      docsVerified: j['docsVerified'] as bool? ?? false,
       rating: (j['rating'] as num?)?.toDouble() ?? 5,
       totalTrips: (j['totalTrips'] as num?)?.toInt() ?? 0,
       liveStatus: j['liveStatus'] as String? ?? 'offline',
@@ -377,6 +380,41 @@ class AdminSupportTicket {
       );
 }
 
+class AdminPromo {
+  const AdminPromo({
+    required this.code,
+    required this.kind,
+    required this.value,
+    required this.active,
+    required this.usedCount,
+    this.usageLimit,
+    required this.minSubtotal,
+  });
+
+  final String code;
+  final String kind; // 'flat' | 'percent'
+  final double value;
+  final bool active;
+  final int usedCount;
+  final int? usageLimit;
+  final double minSubtotal;
+
+  /// Human label for the discount, e.g. "20% (max $8)" or "$5 off".
+  String get label => kind == 'percent'
+      ? '${value.toStringAsFixed(0)}% off'
+      : '\$${value.toStringAsFixed(2)} off';
+
+  factory AdminPromo.fromJson(Map<String, dynamic> j) => AdminPromo(
+        code: j['code'] as String,
+        kind: j['kind'] as String? ?? 'flat',
+        value: (j['value'] as num?)?.toDouble() ?? 0,
+        active: j['active'] as bool? ?? true,
+        usedCount: (j['usedCount'] as num?)?.toInt() ?? 0,
+        usageLimit: (j['usageLimit'] as num?)?.toInt(),
+        minSubtotal: (j['minSubtotal'] as num?)?.toDouble() ?? 0,
+      );
+}
+
 /// REST calls for the admin dashboard (all role-gated on the backend).
 class AdminApi {
   AdminApi(this._dio);
@@ -420,16 +458,39 @@ class AdminApi {
         .toList();
   }
 
-  Future<List<AdminDriver>> drivers({int limit = 100}) async {
+  Future<List<AdminDriver>> drivers({int limit = 100, bool pending = false}) async {
     final res = await _guard(
       () => _dio.get<List<dynamic>>('/admin/drivers', queryParameters: {
         'limit': limit,
+        if (pending) 'pending': 'true',
       }),
     );
     return res.data!
         .map((e) => AdminDriver.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  /// Approve or reject a driver's documents (KYC gate for going online).
+  Future<void> verifyDriver(String driverId, bool approved) => _guard(
+        () => _dio.patch('/admin/drivers/$driverId/verify',
+            data: {'docsVerified': approved}),
+      );
+
+  Future<List<AdminPromo>> promos() async {
+    final res =
+        await _guard(() => _dio.get<List<dynamic>>('/admin/promos'));
+    return res.data!
+        .map((e) => AdminPromo.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> createPromo(Map<String, dynamic> body) => _guard(
+        () => _dio.post('/admin/promos', data: body),
+      );
+
+  Future<void> setPromoActive(String code, bool active) => _guard(
+        () => _dio.patch('/admin/promos/$code', data: {'active': active}),
+      );
 
   Future<void> setActive(String userId, bool isActive) => _guard(
         () => _dio.patch('/admin/users/$userId/active', data: {

@@ -91,6 +91,11 @@ class _AdminScaffold extends StatelessWidget {
                     selectedIcon: Icon(Icons.support_agent),
                     label: Text('Support'),
                   ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.local_offer_outlined),
+                    selectedIcon: Icon(Icons.local_offer),
+                    label: Text('Promos'),
+                  ),
                 ],
               ),
               const VerticalDivider(width: 1),
@@ -124,6 +129,7 @@ class _AdminScaffold extends StatelessWidget {
         AdminTab.monitoring => 'Monitoring',
         AdminTab.live => 'Live map',
         AdminTab.support => 'Support',
+        AdminTab.promos => 'Promotions',
       };
 }
 
@@ -181,10 +187,14 @@ class _Body extends StatelessWidget {
       AdminTab.overview => _OverviewView(state: state),
       AdminTab.trips => _TripsView(trips: state.trips),
       AdminTab.users => const _UsersView(),
-      AdminTab.drivers => _DriversView(drivers: state.drivers),
+      AdminTab.drivers => _DriversView(
+          drivers: state.drivers,
+          pendingOnly: state.driversPendingOnly,
+        ),
       AdminTab.monitoring => _MonitoringView(ops: state.ops),
       AdminTab.live => _LiveView(live: state.live),
       AdminTab.support => _SupportView(state: state),
+      AdminTab.promos => _PromosView(promos: state.promos),
     };
   }
 }
@@ -960,40 +970,318 @@ class _UserTile extends StatelessWidget {
 // --- Drivers ----------------------------------------------------------------
 
 class _DriversView extends StatelessWidget {
-  const _DriversView({required this.drivers});
+  const _DriversView({required this.drivers, required this.pendingOnly});
   final List<AdminDriver> drivers;
+  final bool pendingOnly;
 
   @override
   Widget build(BuildContext context) {
-    if (drivers.isEmpty) {
-      return const _Empty(text: 'No drivers onboarded yet.');
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      itemCount: drivers.length,
-      itemBuilder: (_, i) {
-        final d = drivers[i];
-        final theme = Theme.of(context);
-        final online = d.liveStatus != 'offline';
-        return Card(
-          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: ListTile(
-            leading: Icon(
-              Icons.circle,
-              size: 12,
-              color: online ? AppColors.success : theme.disabledColor,
-            ),
-            title: Text(d.name ?? d.phone),
-            subtitle: Text(
-              '${d.vehicle}  •  ★ ${d.rating.toStringAsFixed(2)}  •  ${d.totalTrips} trips',
-              style: theme.textTheme.bodySmall,
-            ),
-            trailing: Text(d.liveStatus, style: theme.textTheme.bodySmall),
+    final cubit = context.read<AdminCubit>();
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.lg, AppSpacing.xl, AppSpacing.sm),
+          child: Row(
+            children: [
+              Text('Drivers', style: theme.textTheme.titleMedium),
+              const SizedBox(width: AppSpacing.lg),
+              FilterChip(
+                label: const Text('Pending KYC only'),
+                selected: pendingOnly,
+                onSelected: cubit.setDriversPendingOnly,
+              ),
+            ],
           ),
-        );
-      },
+        ),
+        Expanded(
+          child: drivers.isEmpty
+              ? _Empty(
+                  text: pendingOnly
+                      ? 'No drivers awaiting verification.'
+                      : 'No drivers onboarded yet.')
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xl),
+                  itemCount: drivers.length,
+                  itemBuilder: (_, i) =>
+                      _DriverCard(driver: drivers[i], cubit: cubit),
+                ),
+        ),
+      ],
     );
   }
+}
+
+class _DriverCard extends StatelessWidget {
+  const _DriverCard({required this.driver, required this.cubit});
+  final AdminDriver driver;
+  final AdminCubit cubit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final d = driver;
+    final online = d.liveStatus != 'offline';
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          children: [
+            Icon(Icons.circle,
+                size: 12,
+                color: online ? AppColors.success : theme.disabledColor),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(d.name ?? d.phone,
+                            style: theme.textTheme.titleSmall,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      _KycChip(verified: d.docsVerified),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${d.vehicle}  •  ★ ${d.rating.toStringAsFixed(2)}  •  ${d.totalTrips} trips  •  ${d.liveStatus}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            // KYC action: approve pending drivers, or revoke a verified one.
+            if (d.docsVerified)
+              TextButton(
+                onPressed: () => cubit.verifyDriver(d, false),
+                child: const Text('Revoke'),
+              )
+            else
+              FilledButton(
+                onPressed: () => cubit.verifyDriver(d, true),
+                child: const Text('Approve'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _KycChip extends StatelessWidget {
+  const _KycChip({required this.verified});
+  final bool verified;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = verified ? AppColors.success : AppColors.warning;
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(AppSpacing.pill),
+      ),
+      child: Text(
+        verified ? 'Verified' : 'Pending KYC',
+        style: TextStyle(
+            color: color, fontSize: 11, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+// --- Promotions -------------------------------------------------------------
+
+class _PromosView extends StatelessWidget {
+  const _PromosView({required this.promos});
+  final List<AdminPromo> promos;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<AdminCubit>();
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl, AppSpacing.lg, AppSpacing.xl, AppSpacing.sm),
+          child: Row(
+            children: [
+              Text('Promo codes', style: theme.textTheme.titleMedium),
+              const Spacer(),
+              FilledButton.icon(
+                onPressed: () => _showCreatePromo(context, cubit),
+                icon: const Icon(Icons.add),
+                label: const Text('New promo'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: promos.isEmpty
+              ? const _Empty(text: 'No promo codes yet.')
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xl),
+                  itemCount: promos.length,
+                  itemBuilder: (_, i) {
+                    final p = promos[i];
+                    final usage = p.usageLimit == null
+                        ? '${p.usedCount} used'
+                        : '${p.usedCount}/${p.usageLimit} used';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: ListTile(
+                        title: Text(p.code, style: theme.textTheme.titleSmall),
+                        subtitle: Text(
+                          '${p.label}  •  min \$${p.minSubtotal.toStringAsFixed(0)}  •  $usage',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(p.active ? 'Active' : 'Off',
+                                style: theme.textTheme.bodySmall),
+                            Switch(
+                              value: p.active,
+                              onChanged: (v) => cubit.setPromoActive(p, v),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+Future<void> _showCreatePromo(BuildContext context, AdminCubit cubit) async {
+  final code = TextEditingController();
+  final value = TextEditingController();
+  final minSubtotal = TextEditingController();
+  final usageLimit = TextEditingController();
+  String kind = 'flat';
+  String? error;
+  await showDialog<void>(
+    context: context,
+    builder: (dialogCtx) => StatefulBuilder(
+      builder: (ctx, setLocal) => AlertDialog(
+        title: const Text('New promo code'),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: code,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                    labelText: 'Code', hintText: 'WELCOME10'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: kind,
+                      decoration: const InputDecoration(labelText: 'Type'),
+                      items: const [
+                        DropdownMenuItem(value: 'flat', child: Text('\$ off')),
+                        DropdownMenuItem(
+                            value: 'percent', child: Text('% off')),
+                      ],
+                      onChanged: (v) => setLocal(() => kind = v ?? 'flat'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: TextField(
+                      controller: value,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                          labelText: kind == 'percent' ? 'Percent' : 'Amount'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: minSubtotal,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          const InputDecoration(labelText: 'Min fare (opt)'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: TextField(
+                      controller: usageLimit,
+                      keyboardType: TextInputType.number,
+                      decoration:
+                          const InputDecoration(labelText: 'Usage cap (opt)'),
+                    ),
+                  ),
+                ],
+              ),
+              if (error != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(error!,
+                    style: const TextStyle(color: AppColors.error, fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final c = code.text.trim();
+              final v = double.tryParse(value.text.trim());
+              if (c.isEmpty || v == null || v <= 0) {
+                setLocal(() => error = 'Enter a code and a positive value');
+                return;
+              }
+              try {
+                await cubit.createPromo({
+                  'code': c,
+                  'kind': kind,
+                  'value': v,
+                  if (minSubtotal.text.trim().isNotEmpty)
+                    'minSubtotal': double.tryParse(minSubtotal.text.trim()),
+                  if (usageLimit.text.trim().isNotEmpty)
+                    'usageLimit': int.tryParse(usageLimit.text.trim()),
+                });
+                if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+              } catch (e) {
+                setLocal(() => error = e.toString());
+              }
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 // --- Monitoring -------------------------------------------------------------

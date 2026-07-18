@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/admin_api.dart';
 
-enum AdminTab { overview, trips, users, drivers, monitoring, live, support }
+enum AdminTab { overview, trips, users, drivers, monitoring, live, support, promos }
 
 class AdminState extends Equatable {
   const AdminState({
@@ -22,6 +22,8 @@ class AdminState extends Equatable {
     this.userQuery = '',
     this.tickets = const [],
     this.ticketFilter = 'open',
+    this.driversPendingOnly = false,
+    this.promos = const [],
   });
 
   final AdminTab tab;
@@ -39,6 +41,11 @@ class AdminState extends Equatable {
   /// '' means "all statuses".
   final String ticketFilter;
 
+  /// Drivers tab: show only unverified (pending KYC) drivers.
+  final bool driversPendingOnly;
+
+  final List<AdminPromo> promos;
+
   AdminState copyWith({
     AdminTab? tab,
     bool? loading,
@@ -53,6 +60,8 @@ class AdminState extends Equatable {
     String? userQuery,
     List<AdminSupportTicket>? tickets,
     String? ticketFilter,
+    bool? driversPendingOnly,
+    List<AdminPromo>? promos,
   }) {
     return AdminState(
       tab: tab ?? this.tab,
@@ -67,6 +76,8 @@ class AdminState extends Equatable {
       userQuery: userQuery ?? this.userQuery,
       tickets: tickets ?? this.tickets,
       ticketFilter: ticketFilter ?? this.ticketFilter,
+      driversPendingOnly: driversPendingOnly ?? this.driversPendingOnly,
+      promos: promos ?? this.promos,
     );
   }
 
@@ -84,6 +95,8 @@ class AdminState extends Equatable {
         userQuery,
         tickets,
         ticketFilter,
+        driversPendingOnly,
+        promos,
       ];
 }
 
@@ -124,7 +137,8 @@ class AdminCubit extends Cubit<AdminState> {
           final users = await _api.users(q: state.userQuery);
           emit(state.copyWith(loading: false, users: users));
         case AdminTab.drivers:
-          final drivers = await _api.drivers();
+          final drivers =
+              await _api.drivers(pending: state.driversPendingOnly);
           emit(state.copyWith(loading: false, drivers: drivers));
         case AdminTab.monitoring:
           final ops = await _api.metrics();
@@ -137,6 +151,8 @@ class AdminCubit extends Cubit<AdminState> {
             status: state.ticketFilter.isEmpty ? null : state.ticketFilter,
           );
           emit(state.copyWith(loading: false, tickets: tickets));
+        case AdminTab.promos:
+          emit(state.copyWith(loading: false, promos: await _api.promos()));
       }
     } on ApiException catch (e) {
       emit(state.copyWith(loading: false, error: e.message));
@@ -163,6 +179,7 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.users:
         case AdminTab.drivers:
         case AdminTab.support:
+        case AdminTab.promos:
           return; // not live-refreshed
       }
     } catch (_) {
@@ -177,6 +194,41 @@ class AdminCubit extends Cubit<AdminState> {
   Future<void> toggleActive(AdminUser user) async {
     try {
       await _api.setActive(user.id, !user.isActive);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+    }
+  }
+
+  void setDriversPendingOnly(bool pending) {
+    emit(state.copyWith(driversPendingOnly: pending));
+    unawaited(refresh());
+  }
+
+  /// Approve or reject a driver's documents (KYC gate for going online).
+  Future<void> verifyDriver(AdminDriver driver, bool approved) async {
+    try {
+      await _api.verifyDriver(driver.id, approved);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+    }
+  }
+
+  /// Create a promo code. Rethrows so the dialog can surface success/failure.
+  Future<void> createPromo(Map<String, dynamic> body) async {
+    try {
+      await _api.createPromo(body);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+      rethrow;
+    }
+  }
+
+  Future<void> setPromoActive(AdminPromo promo, bool active) async {
+    try {
+      await _api.setPromoActive(promo.code, active);
       await refresh();
     } on ApiException catch (e) {
       emit(state.copyWith(error: e.message));
