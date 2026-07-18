@@ -113,12 +113,12 @@ class _SafetySheetState extends State<_SafetySheet> {
                     children: [
                       Text('Emergency services',
                           style: theme.textTheme.titleMedium),
-                      Text('Call 112 for immediate help',
+                      Text('Call 911 for immediate help',
                           style: theme.textTheme.bodyMedium),
                     ],
                   ),
                 ),
-                Text('112',
+                Text('911',
                     style: theme.textTheme.headlineSmall
                         ?.copyWith(color: AppColors.error)),
               ],
