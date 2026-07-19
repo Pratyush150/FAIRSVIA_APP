@@ -28,6 +28,9 @@ model User {
   ratingAvg   Decimal  @default(5.00) @map("rating_avg") @db.Decimal(3, 2)
   ratingCount Int      @default(0) @map("rating_count")
   isActive    Boolean  @default(true) @map("is_active")
+  // Stripe Customer (cus_...) — created lazily on the first saved card so
+  // charges/holds reference a real customer, not the UberNav user id.
+  stripeCustomerId String? @map("stripe_customer_id") @db.VarChar(64)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -76,6 +79,12 @@ model DriverProfile {
   bgcStatus      String  @default("none") @map("bgc_status") @db.VarChar(12)
   bgcCandidateId String? @map("bgc_candidate_id")
   bgcReportId    String? @map("bgc_report_id")
+
+  // Stripe Connect Express payout account (acct_...). `payoutsEnabled` mirrors
+  // Stripe's charges/payouts-enabled flag, flipped by the account.updated
+  // webhook once onboarding (KYC + bank) is complete.
+  stripeAccountId String? @map("stripe_account_id") @db.VarChar(64)
+  payoutsEnabled  Boolean @default(false) @map("payouts_enabled")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -184,6 +193,9 @@ model Payment {
   kind             String   @default("ride") @db.VarChar(12) // ride|cancellation
   method           String   @default("card") @db.VarChar(4) // card|cash
   externalIntentId String?  @map("external_intent_id")
+  // Reused across retries of the same auth/capture/charge so a network retry
+  // never double-charges (Stripe Idempotency-Key header).
+  idempotencyKey   String?  @map("idempotency_key") @db.VarChar(64)
   driverPayout     Decimal? @map("driver_payout") @db.Decimal(10, 2)
   platformFee      Decimal? @map("platform_fee") @db.Decimal(10, 2)
   tip              Decimal  @default(0) @db.Decimal(10, 2)
@@ -195,6 +207,17 @@ model Payment {
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@map("payments")
+}
+
+/// A processed Stripe webhook event, keyed by Stripe's event id. Stripe may
+/// deliver the same event more than once; we upsert-on-first-see and skip any
+/// id we've already handled, so webhook processing is idempotent.
+model WebhookEvent {
+  id          String   @id @db.VarChar(64) // Stripe event id, e.g. evt_...
+  type        String   @db.VarChar(60)
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  @@map("webhook_events")
 }
 
 /// A single movement in a driver's payout balance. `amount` is signed:
