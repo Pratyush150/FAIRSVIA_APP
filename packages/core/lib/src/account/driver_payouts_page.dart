@@ -1,5 +1,6 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../driver/driver_remote_data_source.dart';
 import '../network/api_exception.dart';
@@ -73,6 +74,7 @@ class _DriverPayoutsPageState extends State<DriverPayoutsPage> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _ConnectPayoutSetup(driver: widget.driver),
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
@@ -122,6 +124,130 @@ class _DriverPayoutsPageState extends State<DriverPayoutsPage> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Stripe Connect onboarding banner. Shows a "set up direct deposit" CTA until
+/// the driver's account can receive payouts, then a subtle confirmation. Until
+/// onboarding is complete, withdrawals still work via the mock ledger.
+class _ConnectPayoutSetup extends StatefulWidget {
+  const _ConnectPayoutSetup({required this.driver});
+  final DriverRemoteDataSource driver;
+
+  @override
+  State<_ConnectPayoutSetup> createState() => _ConnectPayoutSetupState();
+}
+
+class _ConnectPayoutSetupState extends State<_ConnectPayoutSetup> {
+  ConnectStatus? _status;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _busy = true);
+    try {
+      final status = await widget.driver.connectStatus();
+      if (mounted) setState(() => _status = status);
+    } on ApiException {
+      // Non-fatal — leave the banner in its "set up" state.
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _startOnboarding() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final url = await widget.driver.connectOnboard();
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Finish setup in your browser, then tap "Check status".'),
+        ),
+      );
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = _status;
+
+    // Payouts ready — subtle confirmation row.
+    if (status != null && status.payoutsEnabled) {
+      return Container(
+        width: double.infinity,
+        color: AppColors.success.withValues(alpha: 0.10),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.verified, color: AppColors.success, size: 20),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'Direct deposit active — withdrawals go to your bank.',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Not yet enabled — show the setup CTA.
+    return Container(
+      color: AppColors.accentSoft.withValues(alpha: 0.35),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.account_balance_outlined, size: 20),
+              const SizedBox(width: AppSpacing.sm),
+              Text('Set up direct deposit', style: theme.textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Connect a bank account to get your earnings paid out automatically.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: PrimaryButton(
+                  label: status?.onboarded == true
+                      ? 'Continue setup'
+                      : 'Set up payouts',
+                  loading: _busy,
+                  onPressed: _busy ? null : _startOnboarding,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              TextButton(
+                onPressed: _busy ? null : _refresh,
+                child: const Text('Check status'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
