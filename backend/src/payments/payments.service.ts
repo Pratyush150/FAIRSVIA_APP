@@ -386,6 +386,111 @@ export class PaymentsService {
   }
 
   /**
+   * Start (or resume) Connect Express onboarding for a driver: create the
+   * connected account on first call, persist its id, and return a fresh hosted
+   * onboarding link (links are single-use / short-lived, so we always mint one).
+   */
+  async connectOnboard(userId: string): Promise<{ url: string; accountId: string }> {
+    const profile = await this.prisma.driverProfile.findUnique({
+      where: { userId },
+    });
+    if (!profile) {
+      throw new NotFoundException('Complete driver onboarding first');
+    }
+    let accountId = profile.stripeAccountId;
+    if (!accountId) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      accountId = await this.provider.createConnectAccount({
+        userId,
+        email: user?.email ?? undefined,
+      });
+      await this.prisma.driverProfile.update({
+        where: { userId },
+        data: { stripeAccountId: accountId },
+      });
+    }
+    const url = await this.provider.createAccountLink(
+      accountId,
+      this.config.get<string>('stripeConnectRefreshUrl') ?? '',
+      this.config.get<string>('stripeConnectReturnUrl') ?? '',
+    );
+    return { url, accountId };
+  }
+
+  /**
+   * Refresh a driver's payout readiness from the provider and persist the
+   * `payoutsEnabled` flag (the account.updated webhook does the same; this is
+   * the pull path the app polls after returning from onboarding).
+   */
+  async connectStatus(userId: string): Promise<{
+    onboarded: boolean;
+    payoutsEnabled: boolean;
+    detailsSubmitted: boolean;
+  }> {
+    const profile = await this.prisma.driverProfile.findUnique({
+      where: { userId },
+    });
+    if (!profile?.stripeAccountId) {
+      return { onboarded: false, payoutsEnabled: false, detailsSubmitted: false };
+    }
+    const status = await this.provider.getAccount(profile.stripeAccountId);
+    if (status.payoutsEnabled !== profile.payoutsEnabled) {
+      await this.prisma.driverProfile.update({
+        where: { userId },
+        data: { payoutsEnabled: status.payoutsEnabled },
+      });
+    }
+    return {
+      onboarded: true,
+      payoutsEnabled: status.payoutsEnabled,
+      detailsSubmitted: status.detailsSubmitted,
+    };
+  }
+
+  /**
+   * Pay out available balance to the driver. When Connect payouts are enabled we
+   * create a real transfer to their connected account, then record the ledger
+   * movement; otherwise we fall back to the mock withdrawal (dev / not-yet-
+   * onboarded). The balance guard lives in LedgerService for the mock path and
+   * is mirrored here for the transfer path.
+   */
+  async payout(userId: string, amount: number) {
+    const profile = await this.prisma.driverProfile.findUnique({
+      where: { userId },
+    });
+    if (profile?.stripeAccountId && profile.payoutsEnabled) {
+      const requested = round2(amount);
+      if (requested <= 0) {
+        throw new BadRequestException('Enter an amount greater than zero.');
+      }
+      const balance = await this.ledger.balance(userId);
+      if (requested > balance) {
+        throw new BadRequestException(
+          `You can withdraw up to $${balance.toFixed(2)}.`,
+        );
+      }
+      const transferId = await this.provider.createTransfer({
+        accountId: profile.stripeAccountId,
+        amount: requested,
+        currency: 'USD',
+        idempotencyKey: randomUUID(),
+      });
+      await this.ledger.record(userId, 'withdrawal', -requested, {
+        note: `Payout to bank (${transferId})`,
+      });
+      return {
+        withdrawn: requested,
+        balance: round2(balance - requested),
+        transferId,
+        mode: 'stripe' as const,
+      };
+    }
+    // No Connect payouts yet — simulated withdrawal.
+    const res = await this.ledger.withdraw(userId, amount);
+    return { ...res, transferId: null, mode: 'mock' as const };
+  }
+
+  /**
    * Return the rider's provider customer ref, creating (and persisting) one on
    * first use. Charges/holds reference this — never the raw UberNav user id.
    */

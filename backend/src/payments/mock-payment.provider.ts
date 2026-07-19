@@ -3,10 +3,13 @@ import { randomUUID } from 'node:crypto';
 import {
   AuthorizeParams,
   CardInfo,
+  ConnectAccountParams,
+  ConnectAccountStatus,
   CustomerParams,
   PaymentIntentResult,
   PaymentProvider,
   SetupIntentResult,
+  TransferParams,
 } from './payment-provider.interface';
 
 /**
@@ -70,6 +73,36 @@ export class MockPaymentProvider implements PaymentProvider {
   async listCards(_customerRef: string): Promise<CardInfo[]> {
     // The mock never holds real cards; card rows are added via addMethod.
     return [];
+  }
+
+  async createConnectAccount(params: ConnectAccountParams): Promise<string> {
+    const id = `mock_acct_${params.userId.slice(0, 8)}`;
+    this.logger.log(`createConnectAccount ${params.userId} → ${id}`);
+    return id;
+  }
+
+  async createAccountLink(
+    accountId: string,
+    _refreshUrl: string,
+    _returnUrl: string,
+  ): Promise<string> {
+    // No real onboarding in mock — hand back a placeholder the client can open
+    // (or skip). getAccount reports the mock account as fully enabled.
+    return `https://connect.stripe.test/onboard/${accountId}`;
+  }
+
+  async getAccount(_accountId: string): Promise<ConnectAccountStatus> {
+    // Mock accounts are treated as fully onboarded so dev payouts flow.
+    return { payoutsEnabled: true, detailsSubmitted: true, chargesEnabled: true };
+  }
+
+  async createTransfer(params: TransferParams): Promise<string> {
+    this.assertAmount(params.amount);
+    const id = `mock_tr_${randomUUID()}`;
+    this.logger.log(
+      `transfer ${params.currency} ${params.amount} → ${params.accountId} (${id})`,
+    );
+    return id;
   }
 
   private assertAmount(amount: number): void {

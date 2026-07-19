@@ -39,6 +39,27 @@ export interface CardInfo {
   last4?: string;
 }
 
+/** Details for opening a Connect Express account for a driver. */
+export interface ConnectAccountParams {
+  userId: string;
+  email?: string;
+}
+
+/** A Connect account's onboarding/payout readiness. */
+export interface ConnectAccountStatus {
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+  chargesEnabled: boolean;
+}
+
+/** A payout transfer to a connected account. */
+export interface TransferParams {
+  accountId: string;
+  amount: number;
+  currency: string;
+  idempotencyKey?: string;
+}
+
 /**
  * Abstraction over the payment gateway. The mock simulates the marketplace
  * flow (auth-hold → capture → payout) with no real charges; a Stripe
@@ -69,4 +90,20 @@ export interface PaymentProvider {
 
   /** List the customer's saved cards (to sync into our local table). */
   listCards(customerRef: string): Promise<CardInfo[]>;
+
+  /** Open a Connect Express account for a driver; returns the account ref. */
+  createConnectAccount(params: ConnectAccountParams): Promise<string>;
+
+  /** Hosted onboarding link the driver completes KYC + bank details on. */
+  createAccountLink(
+    accountId: string,
+    refreshUrl: string,
+    returnUrl: string,
+  ): Promise<string>;
+
+  /** Read a connected account's onboarding/payout readiness. */
+  getAccount(accountId: string): Promise<ConnectAccountStatus>;
+
+  /** Transfer funds to a connected account (driver payout); returns its id. */
+  createTransfer(params: TransferParams): Promise<string>;
 }

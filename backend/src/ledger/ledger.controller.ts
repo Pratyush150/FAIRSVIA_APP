@@ -11,6 +11,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { LedgerService } from './ledger.service';
+import { PaymentsService } from '../payments/payments.service';
 import { WithdrawDto } from './dto/withdraw.dto';
 
 /**
@@ -22,7 +23,10 @@ import { WithdrawDto } from './dto/withdraw.dto';
 @Controller('drivers/balance')
 @UseGuards(JwtAuthGuard)
 export class LedgerController {
-  constructor(private readonly ledger: LedgerService) {}
+  constructor(
+    private readonly ledger: LedgerService,
+    private readonly payments: PaymentsService,
+  ) {}
 
   @Get()
   summary(@CurrentUser() user: AuthUser) {
@@ -32,6 +36,8 @@ export class LedgerController {
   @Post('withdraw')
   @HttpCode(HttpStatus.OK)
   withdraw(@CurrentUser() user: AuthUser, @Body() dto: WithdrawDto) {
-    return this.ledger.withdraw(user.userId, dto.amount);
+    // Routes to a real Connect transfer when the driver's payouts are enabled,
+    // otherwise a simulated withdrawal.
+    return this.payments.payout(user.userId, dto.amount);
   }
 }

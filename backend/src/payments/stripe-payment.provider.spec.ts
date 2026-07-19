@@ -47,6 +47,17 @@ async function mockStripe(): Promise<{
         payload = { id: 'seti_1', client_secret: 'seti_1_secret' };
       } else if (url.startsWith('/payment_methods')) {
         payload = { data: [{ id: 'pm_1', card: { brand: 'visa', last4: '4242' } }] };
+      } else if (url.startsWith('/account_links')) {
+        payload = { url: 'https://connect.stripe.com/setup/acct_mock_1' };
+      } else if (url.startsWith('/accounts')) {
+        payload = {
+          id: 'acct_mock_1',
+          payouts_enabled: true,
+          details_submitted: true,
+          charges_enabled: true,
+        };
+      } else if (url.startsWith('/transfers')) {
+        payload = { id: 'tr_mock_1' };
       }
       res.end(JSON.stringify(payload));
     });
@@ -169,6 +180,83 @@ describe('StripePaymentProvider (real HTTP against a mock endpoint)', () => {
       expect(hits[0].method).toBe('GET');
       expect(hits[0].url).toContain('/payment_methods?customer=cus_mock_1');
       expect(hits[0].url).toContain('type=card');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('creates an Express connected account with the transfers capability', async () => {
+    const { base, server, hits } = await mockStripe();
+    try {
+      const provider = new StripePaymentProvider('sk_test_x', base);
+      const id = await provider.createConnectAccount({
+        userId: 'd1',
+        email: 'd@x.com',
+      });
+      expect(id).toBe('acct_mock_1');
+      expect(hits[0].url).toBe('/accounts');
+      const form = new URLSearchParams(hits[0].body);
+      expect(form.get('type')).toBe('express');
+      expect(form.get('capabilities[transfers][requested]')).toBe('true');
+      expect(form.get('metadata[userId]')).toBe('d1');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('creates an onboarding account link', async () => {
+    const { base, server, hits } = await mockStripe();
+    try {
+      const provider = new StripePaymentProvider('sk_test_x', base);
+      const url = await provider.createAccountLink(
+        'acct_mock_1',
+        'ubernav://refresh',
+        'ubernav://return',
+      );
+      expect(url).toBe('https://connect.stripe.com/setup/acct_mock_1');
+      expect(hits[0].url).toBe('/account_links');
+      const form = new URLSearchParams(hits[0].body);
+      expect(form.get('account')).toBe('acct_mock_1');
+      expect(form.get('type')).toBe('account_onboarding');
+      expect(form.get('return_url')).toBe('ubernav://return');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('reads a connected account payout readiness', async () => {
+    const { base, server, hits } = await mockStripe();
+    try {
+      const provider = new StripePaymentProvider('sk_test_x', base);
+      const status = await provider.getAccount('acct_mock_1');
+      expect(status).toEqual({
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+      });
+      expect(hits[0].method).toBe('GET');
+      expect(hits[0].url).toBe('/accounts/acct_mock_1');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('creates a payout transfer to the destination account', async () => {
+    const { base, server, hits } = await mockStripe();
+    try {
+      const provider = new StripePaymentProvider('sk_test_x', base);
+      const id = await provider.createTransfer({
+        accountId: 'acct_mock_1',
+        amount: 12.5,
+        currency: 'USD',
+        idempotencyKey: 'pay-1',
+      });
+      expect(id).toBe('tr_mock_1');
+      expect(hits[0].url).toBe('/transfers');
+      const form = new URLSearchParams(hits[0].body);
+      expect(form.get('amount')).toBe('1250');
+      expect(form.get('destination')).toBe('acct_mock_1');
+      expect(hits[0].idem).toBe('pay-1');
     } finally {
       server.close();
     }

@@ -2,10 +2,13 @@ import { BadGatewayException, Logger } from '@nestjs/common';
 import {
   AuthorizeParams,
   CardInfo,
+  ConnectAccountParams,
+  ConnectAccountStatus,
   CustomerParams,
   PaymentIntentResult,
   PaymentProvider,
   SetupIntentResult,
+  TransferParams,
 } from './payment-provider.interface';
 
 /**
@@ -126,6 +129,53 @@ export class StripePaymentProvider implements PaymentProvider {
       brand: pm.card?.brand as string | undefined,
       last4: pm.card?.last4 as string | undefined,
     }));
+  }
+
+  async createConnectAccount(params: ConnectAccountParams): Promise<string> {
+    const body: Record<string, string> = {
+      type: 'express',
+      'capabilities[transfers][requested]': 'true',
+      'metadata[userId]': params.userId,
+    };
+    if (params.email) body.email = params.email;
+    const data = await this.post('/accounts', body);
+    return data.id as string;
+  }
+
+  async createAccountLink(
+    accountId: string,
+    refreshUrl: string,
+    returnUrl: string,
+  ): Promise<string> {
+    const data = await this.post('/account_links', {
+      account: accountId,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: 'account_onboarding',
+    });
+    return data.url as string;
+  }
+
+  async getAccount(accountId: string): Promise<ConnectAccountStatus> {
+    const data = await this.get(`/accounts/${encodeURIComponent(accountId)}`);
+    return {
+      payoutsEnabled: Boolean(data.payouts_enabled),
+      detailsSubmitted: Boolean(data.details_submitted),
+      chargesEnabled: Boolean(data.charges_enabled),
+    };
+  }
+
+  async createTransfer(params: TransferParams): Promise<string> {
+    const data = await this.post(
+      '/transfers',
+      {
+        amount: String(this.minor(params.amount)),
+        currency: params.currency.toLowerCase(),
+        destination: params.accountId,
+      },
+      { idempotencyKey: params.idempotencyKey },
+    );
+    return data.id as string;
   }
 
   private minor(amount: number): number {

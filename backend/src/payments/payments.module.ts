@@ -3,13 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { PaymentsAdminController } from './payments-admin.controller';
+import { ConnectController } from './connect.controller';
 import { PAYMENT_PROVIDER } from './payment-provider.interface';
 import { MockPaymentProvider } from './mock-payment.provider';
 import { StripePaymentProvider } from './stripe-payment.provider';
 
 @Global()
 @Module({
-  controllers: [PaymentsController, PaymentsAdminController],
+  controllers: [PaymentsController, PaymentsAdminController, ConnectController],
   providers: [
     PaymentsService,
     {

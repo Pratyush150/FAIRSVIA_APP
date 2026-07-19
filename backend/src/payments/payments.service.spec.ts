@@ -39,12 +39,20 @@ describe('PaymentsService', () => {
           .mockResolvedValue({ id: 'r1', phone: '+15550000000', stripeCustomerId: 'cus_test' }),
         update: jest.fn().mockResolvedValue({}),
       },
+      driverProfile: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({}),
+      },
       ...overrides,
     } as never;
   }
 
   const ledger = {
     record: jest.fn().mockResolvedValue(null),
+    balance: jest.fn().mockResolvedValue(100),
+    withdraw: jest
+      .fn()
+      .mockResolvedValue({ withdrawn: 20, balance: 80 }),
   };
 
   function makeService(prisma: never, provider?: PaymentProvider) {
@@ -82,6 +90,14 @@ describe('PaymentsService', () => {
       createCustomer: jest.fn().mockResolvedValue('cus_test'),
       createSetupIntent: jest.fn(),
       listCards: jest.fn().mockResolvedValue([]),
+      createConnectAccount: jest.fn().mockResolvedValue('acct_test'),
+      createAccountLink: jest.fn().mockResolvedValue('https://onboard'),
+      getAccount: jest.fn().mockResolvedValue({
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+      }),
+      createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -129,6 +145,14 @@ describe('PaymentsService', () => {
       createCustomer: jest.fn().mockResolvedValue('cus_test'),
       createSetupIntent: jest.fn(),
       listCards: jest.fn().mockResolvedValue([]),
+      createConnectAccount: jest.fn().mockResolvedValue('acct_test'),
+      createAccountLink: jest.fn().mockResolvedValue('https://onboard'),
+      getAccount: jest.fn().mockResolvedValue({
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+      }),
+      createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -163,6 +187,14 @@ describe('PaymentsService', () => {
       createCustomer: jest.fn().mockResolvedValue('cus_test'),
       createSetupIntent: jest.fn(),
       listCards: jest.fn().mockResolvedValue([]),
+      createConnectAccount: jest.fn().mockResolvedValue('acct_test'),
+      createAccountLink: jest.fn().mockResolvedValue('https://onboard'),
+      getAccount: jest.fn().mockResolvedValue({
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+      }),
+      createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -232,6 +264,14 @@ describe('PaymentsService', () => {
       createCustomer: jest.fn().mockResolvedValue('cus_test'),
       createSetupIntent: jest.fn(),
       listCards: jest.fn().mockResolvedValue([]),
+      createConnectAccount: jest.fn().mockResolvedValue('acct_test'),
+      createAccountLink: jest.fn().mockResolvedValue('https://onboard'),
+      getAccount: jest.fn().mockResolvedValue({
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+      }),
+      createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -272,6 +312,14 @@ describe('PaymentsService', () => {
       createCustomer: jest.fn().mockResolvedValue('cus_test'),
       createSetupIntent: jest.fn(),
       listCards: jest.fn().mockResolvedValue([]),
+      createConnectAccount: jest.fn().mockResolvedValue('acct_test'),
+      createAccountLink: jest.fn().mockResolvedValue('https://onboard'),
+      getAccount: jest.fn().mockResolvedValue({
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+      }),
+      createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -349,6 +397,14 @@ describe('PaymentsService', () => {
       createCustomer,
       createSetupIntent,
       listCards: jest.fn().mockResolvedValue([]),
+      createConnectAccount: jest.fn().mockResolvedValue('acct_test'),
+      createAccountLink: jest.fn().mockResolvedValue('https://onboard'),
+      getAccount: jest.fn().mockResolvedValue({
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+      }),
+      createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -392,6 +448,14 @@ describe('PaymentsService', () => {
       createCustomer: jest.fn().mockResolvedValue('cus_test'),
       createSetupIntent: jest.fn(),
       listCards: jest.fn().mockResolvedValue([]),
+      createConnectAccount: jest.fn().mockResolvedValue('acct_test'),
+      createAccountLink: jest.fn().mockResolvedValue('https://onboard'),
+      getAccount: jest.fn().mockResolvedValue({
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+      }),
+      createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -421,6 +485,14 @@ describe('PaymentsService', () => {
       listCards: jest
         .fn()
         .mockResolvedValue([{ ref: 'pm_1', brand: 'visa', last4: '4242' }]),
+      createConnectAccount: jest.fn().mockResolvedValue('acct_test'),
+      createAccountLink: jest.fn().mockResolvedValue('https://onboard'),
+      getAccount: jest.fn().mockResolvedValue({
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+      }),
+      createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -437,6 +509,150 @@ describe('PaymentsService', () => {
       }),
     );
     expect(methods).toEqual([{ id: 'm1', externalId: 'pm_1' }]);
+  });
+
+  it('opens a Connect account on first onboard and returns a hosted link', async () => {
+    const prisma = makePrisma();
+    (prisma as any).driverProfile.findUnique.mockResolvedValue({
+      userId: 'd1',
+      stripeAccountId: null,
+    });
+    (prisma as any).user.findUnique.mockResolvedValue({
+      id: 'd1',
+      email: 'd@x.com',
+    });
+    const createConnectAccount = jest.fn().mockResolvedValue('acct_new');
+    const createAccountLink = jest
+      .fn()
+      .mockResolvedValue('https://connect.stripe.com/onboard/abc');
+    const provider = {
+      authorize: jest.fn(),
+      capture: jest.fn(),
+      charge: jest.fn(),
+      refund: jest.fn(),
+      createCustomer: jest.fn(),
+      createSetupIntent: jest.fn(),
+      listCards: jest.fn(),
+      createConnectAccount,
+      createAccountLink,
+      getAccount: jest.fn(),
+      createTransfer: jest.fn(),
+    } as PaymentProvider;
+
+    const svc = makeService(prisma, provider);
+    const res = await svc.connectOnboard('d1');
+
+    expect(createConnectAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'd1', email: 'd@x.com' }),
+    );
+    expect((prisma as any).driverProfile.update).toHaveBeenCalledWith({
+      where: { userId: 'd1' },
+      data: { stripeAccountId: 'acct_new' },
+    });
+    expect(res).toEqual({
+      url: 'https://connect.stripe.com/onboard/abc',
+      accountId: 'acct_new',
+    });
+  });
+
+  it('persists payoutsEnabled when Connect status flips to enabled', async () => {
+    const prisma = makePrisma();
+    (prisma as any).driverProfile.findUnique.mockResolvedValue({
+      userId: 'd1',
+      stripeAccountId: 'acct_1',
+      payoutsEnabled: false,
+    });
+    const getAccount = jest.fn().mockResolvedValue({
+      payoutsEnabled: true,
+      detailsSubmitted: true,
+      chargesEnabled: true,
+    });
+    const provider = {
+      authorize: jest.fn(),
+      capture: jest.fn(),
+      charge: jest.fn(),
+      refund: jest.fn(),
+      createCustomer: jest.fn(),
+      createSetupIntent: jest.fn(),
+      listCards: jest.fn(),
+      createConnectAccount: jest.fn(),
+      createAccountLink: jest.fn(),
+      getAccount,
+      createTransfer: jest.fn(),
+    } as PaymentProvider;
+
+    const svc = makeService(prisma, provider);
+    const res = await svc.connectStatus('d1');
+
+    expect((prisma as any).driverProfile.update).toHaveBeenCalledWith({
+      where: { userId: 'd1' },
+      data: { payoutsEnabled: true },
+    });
+    expect(res).toEqual({
+      onboarded: true,
+      payoutsEnabled: true,
+      detailsSubmitted: true,
+    });
+  });
+
+  it('pays out via a Connect transfer when payouts are enabled', async () => {
+    ledger.record.mockClear();
+    const prisma = makePrisma();
+    (prisma as any).driverProfile.findUnique.mockResolvedValue({
+      userId: 'd1',
+      stripeAccountId: 'acct_1',
+      payoutsEnabled: true,
+    });
+    ledger.balance.mockResolvedValueOnce(50);
+    const createTransfer = jest.fn().mockResolvedValue('tr_1');
+    const provider = {
+      authorize: jest.fn(),
+      capture: jest.fn(),
+      charge: jest.fn(),
+      refund: jest.fn(),
+      createCustomer: jest.fn(),
+      createSetupIntent: jest.fn(),
+      listCards: jest.fn(),
+      createConnectAccount: jest.fn(),
+      createAccountLink: jest.fn(),
+      getAccount: jest.fn(),
+      createTransfer,
+    } as PaymentProvider;
+
+    const svc = makeService(prisma, provider);
+    const res = await svc.payout('d1', 20);
+
+    expect(createTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: 'acct_1', amount: 20, currency: 'USD' }),
+    );
+    // Records the withdrawal referencing the transfer id.
+    expect(ledger.record).toHaveBeenCalledWith(
+      'd1',
+      'withdrawal',
+      -20,
+      expect.objectContaining({ note: expect.stringContaining('tr_1') }),
+    );
+    expect(res).toEqual({
+      withdrawn: 20,
+      balance: 30,
+      transferId: 'tr_1',
+      mode: 'stripe',
+    });
+  });
+
+  it('falls back to a mock withdrawal when payouts are not enabled', async () => {
+    const prisma = makePrisma(); // driverProfile.findUnique → null by default
+    ledger.withdraw.mockResolvedValueOnce({ withdrawn: 20, balance: 80 });
+    const svc = makeService(prisma);
+    const res = await svc.payout('d1', 20);
+
+    expect(ledger.withdraw).toHaveBeenCalledWith('d1', 20);
+    expect(res).toEqual({
+      withdrawn: 20,
+      balance: 80,
+      transferId: null,
+      mode: 'mock',
+    });
   });
 });
 
