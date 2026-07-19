@@ -6,7 +6,12 @@ import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // rawBody: keep the unparsed request buffer available (req.rawBody) so the
+  // Stripe webhook can verify the signature over the exact bytes Stripe signed.
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
 
   // Route all Nest logging through pino.
   app.useLogger(app.get(PinoLogger));

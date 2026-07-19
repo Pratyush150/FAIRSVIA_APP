@@ -1,7 +1,9 @@
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { MockPaymentProvider } from './mock-payment.provider';
 import { PaymentProvider } from './payment-provider.interface';
+import { signStripePayload } from './stripe-webhook.util';
 
 /**
  * Focused on the money math: the platform-fee / driver-payout split on
@@ -14,6 +16,7 @@ describe('PaymentsService', () => {
       if (k === 'platformFeePercent') return 0.2;
       if (k === 'stripeSecretKey') return undefined;
       if (k === 'stripePublishableKey') return 'pk_test_x';
+      if (k === 'stripeWebhookSecret') return 'whsec_test_123';
       return undefined;
     },
   } as unknown as ConfigService;
@@ -27,6 +30,7 @@ describe('PaymentsService', () => {
         findUnique: jest.fn(),
         upsert: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       paymentMethod: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -42,6 +46,10 @@ describe('PaymentsService', () => {
       driverProfile: {
         findUnique: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      webhookEvent: {
+        create: jest.fn().mockResolvedValue({}),
       },
       ...overrides,
     } as never;
@@ -653,6 +661,97 @@ describe('PaymentsService', () => {
       transferId: null,
       mode: 'mock',
     });
+  });
+
+  const webhookSecret = 'whsec_test_123';
+
+  it('marks the payment captured on a payment_intent.succeeded webhook', async () => {
+    const prisma = makePrisma();
+    const body = JSON.stringify({
+      id: 'evt_ok',
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_1' } },
+    });
+    const sig = signStripePayload(body, webhookSecret);
+
+    const svc = makeService(prisma);
+    const res = await svc.handleWebhook(Buffer.from(body), sig);
+
+    expect(res).toEqual({ received: true });
+    expect((prisma as any).webhookEvent.create).toHaveBeenCalledWith({
+      data: { id: 'evt_ok', type: 'payment_intent.succeeded' },
+    });
+    expect((prisma as any).payment.updateMany).toHaveBeenCalledWith({
+      where: { externalIntentId: 'pi_1' },
+      data: { status: 'captured' },
+    });
+  });
+
+  it('flips payoutsEnabled on an account.updated webhook', async () => {
+    const prisma = makePrisma();
+    const body = JSON.stringify({
+      id: 'evt_acct',
+      type: 'account.updated',
+      data: { object: { id: 'acct_1', payouts_enabled: true } },
+    });
+    const sig = signStripePayload(body, webhookSecret);
+
+    const svc = makeService(prisma);
+    await svc.handleWebhook(Buffer.from(body), sig);
+
+    expect((prisma as any).driverProfile.updateMany).toHaveBeenCalledWith({
+      where: { stripeAccountId: 'acct_1' },
+      data: { payoutsEnabled: true },
+    });
+  });
+
+  it('is idempotent — a duplicate event id is acknowledged, not re-processed', async () => {
+    const prisma = makePrisma();
+    (prisma as any).webhookEvent.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: 'x',
+      }),
+    );
+    const body = JSON.stringify({
+      id: 'evt_dup',
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_1' } },
+    });
+    const sig = signStripePayload(body, webhookSecret);
+
+    const svc = makeService(prisma);
+    const res = await svc.handleWebhook(Buffer.from(body), sig);
+
+    expect(res).toEqual({ received: true, duplicate: true });
+    // Not dispatched — the effect already happened on first delivery.
+    expect((prisma as any).payment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a webhook with a bad signature', async () => {
+    const prisma = makePrisma();
+    const body = JSON.stringify({ id: 'evt_x', type: 'noop', data: { object: {} } });
+    const svc = makeService(prisma);
+    await expect(
+      svc.handleWebhook(Buffer.from(body), 't=1,v1=deadbeef'),
+    ).rejects.toThrow(/signature failed/i);
+  });
+
+  it('rejects webhooks when no signing secret is configured', async () => {
+    const prisma = makePrisma();
+    const noSecretConfig = {
+      get: (k: string) => (k === 'platformFeePercent' ? 0.2 : undefined),
+    } as unknown as ConfigService;
+    const svc = new PaymentsService(
+      prisma,
+      noSecretConfig,
+      ledger as never,
+      new MockPaymentProvider(),
+    );
+    const body = JSON.stringify({ id: 'e', type: 't', data: { object: {} } });
+    await expect(
+      svc.handleWebhook(Buffer.from(body), 'sig'),
+    ).rejects.toThrow(/not configured/i);
   });
 });
 

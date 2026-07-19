@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import {
   PAYMENT_PROVIDER,
@@ -15,6 +16,11 @@ import {
 } from './payment-provider.interface';
 import { AddMethodDto } from './dto/add-method.dto';
 import { LedgerService } from '../ledger/ledger.service';
+import {
+  StripeEvent,
+  verifyStripeSignature,
+  WebhookVerificationError,
+} from './stripe-webhook.util';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -488,6 +494,70 @@ export class PaymentsService {
     // No Connect payouts yet — simulated withdrawal.
     const res = await this.ledger.withdraw(userId, amount);
     return { ...res, transferId: null, mode: 'mock' as const };
+  }
+
+  /**
+   * Verify + process an incoming Stripe webhook. Idempotent: the event id is
+   * claimed in webhook_events before dispatch, so a redelivery is a no-op. Only
+   * the events we act on are handled; the rest are acknowledged and ignored.
+   */
+  async handleWebhook(rawBody: Buffer, signature: string | undefined) {
+    const secret = this.config.get<string>('stripeWebhookSecret') ?? '';
+    if (!secret) {
+      throw new BadRequestException('Stripe webhooks are not configured');
+    }
+
+    let event: StripeEvent;
+    try {
+      event = verifyStripeSignature(rawBody, signature, secret);
+    } catch (e) {
+      if (e instanceof WebhookVerificationError) {
+        throw new BadRequestException(`Webhook signature failed: ${e.message}`);
+      }
+      throw e;
+    }
+
+    // Claim the event id atomically; a duplicate delivery hits the unique
+    // constraint and is acknowledged without re-processing.
+    try {
+      await this.prisma.webhookEvent.create({
+        data: { id: event.id, type: event.type },
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        return { received: true, duplicate: true };
+      }
+      throw e;
+    }
+
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        await this.prisma.payment.updateMany({
+          where: { externalIntentId: event.data.object.id as string },
+          data: { status: 'captured' },
+        });
+        break;
+      case 'payment_intent.payment_failed':
+        await this.prisma.payment.updateMany({
+          where: { externalIntentId: event.data.object.id as string },
+          data: { status: 'failed' },
+        });
+        break;
+      case 'account.updated':
+        await this.prisma.driverProfile.updateMany({
+          where: { stripeAccountId: event.data.object.id as string },
+          data: {
+            payoutsEnabled: Boolean(event.data.object.payouts_enabled),
+          },
+        });
+        break;
+      default:
+        this.logger.log(`Unhandled webhook event ${event.type}`);
+    }
+    return { received: true };
   }
 
   /**
