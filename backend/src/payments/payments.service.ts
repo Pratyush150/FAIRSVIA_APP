@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import {
   PAYMENT_PROVIDER,
@@ -59,13 +60,20 @@ export class PaymentsService {
       return;
     }
 
-    const method = await this.defaultMethod(trip.riderId);
+    const [customerRef, existing, method] = await Promise.all([
+      this.ensureCustomer(trip.riderId),
+      this.prisma.payment.findUnique({ where: { tripId } }),
+      this.defaultMethod(trip.riderId),
+    ]);
+    // One stable idempotency key per trip auth-hold, reused on retry.
+    const idempotencyKey = existing?.idempotencyKey ?? randomUUID();
     const intent = await this.provider.authorize({
       amount,
       currency: trip.currency,
-      customerRef: trip.riderId,
+      customerRef,
       methodRef: method?.externalId ?? undefined,
       description: `Ride ${tripId}`,
+      idempotencyKey,
     });
 
     await this.prisma.payment.upsert({
@@ -77,8 +85,13 @@ export class PaymentsService {
         status: intent.status,
         kind: 'ride',
         externalIntentId: intent.intentId,
+        idempotencyKey,
       },
-      update: { status: intent.status, externalIntentId: intent.intentId },
+      update: {
+        status: intent.status,
+        externalIntentId: intent.intentId,
+        idempotencyKey,
+      },
     });
   }
 
@@ -131,15 +144,24 @@ export class PaymentsService {
     const existing = await this.prisma.payment.findUnique({ where: { tripId } });
     // If a hold exists, capture it; otherwise charge directly.
     if (existing?.externalIntentId && existing.status === 'authorized') {
-      await this.provider.capture(existing.externalIntentId, final);
+      await this.provider.capture(
+        existing.externalIntentId,
+        final,
+        existing.idempotencyKey ? `${existing.idempotencyKey}-cap` : undefined,
+      );
     } else if (final > 0) {
-      const method = await this.defaultMethod(trip.riderId);
+      const [customerRef, method] = await Promise.all([
+        this.ensureCustomer(trip.riderId),
+        this.defaultMethod(trip.riderId),
+      ]);
+      const idempotencyKey = existing?.idempotencyKey ?? randomUUID();
       const intent = await this.provider.charge({
         amount: final,
         currency: trip.currency,
-        customerRef: trip.riderId,
+        customerRef,
         methodRef: method?.externalId ?? undefined,
         description: `Ride ${tripId}`,
+        idempotencyKey,
       });
       await this.prisma.payment.upsert({
         where: { tripId },
@@ -150,8 +172,9 @@ export class PaymentsService {
           status: 'captured',
           kind: 'ride',
           externalIntentId: intent.intentId,
+          idempotencyKey,
         },
-        update: { externalIntentId: intent.intentId },
+        update: { externalIntentId: intent.intentId, idempotencyKey },
       });
     }
 
@@ -175,13 +198,17 @@ export class PaymentsService {
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) return 0;
 
-    const method = await this.defaultMethod(trip.riderId);
+    const [customerRef, method] = await Promise.all([
+      this.ensureCustomer(trip.riderId),
+      this.defaultMethod(trip.riderId),
+    ]);
     const intent = await this.provider.charge({
       amount,
       currency: trip.currency,
-      customerRef: trip.riderId,
+      customerRef,
       methodRef: method?.externalId ?? undefined,
       description: `Cancellation fee ${tripId}`,
+      idempotencyKey: randomUUID(),
     });
     const platformFee = round2(amount * this.feePercent);
     await this.prisma.payment.upsert({
@@ -273,13 +300,17 @@ export class PaymentsService {
       throw new ForbiddenException('Only the rider can tip');
     }
 
-    const method = await this.defaultMethod(userId);
+    const [customerRef, method] = await Promise.all([
+      this.ensureCustomer(userId),
+      this.defaultMethod(userId),
+    ]);
     await this.provider.charge({
       amount,
       currency: trip.currency,
-      customerRef: userId,
+      customerRef,
       methodRef: method?.externalId ?? undefined,
       description: `Tip ${tripId}`,
+      idempotencyKey: randomUUID(),
     });
 
     const payment = await this.prisma.payment.findUnique({ where: { tripId } });
@@ -352,6 +383,80 @@ export class PaymentsService {
           }
         : null,
     };
+  }
+
+  /**
+   * Return the rider's provider customer ref, creating (and persisting) one on
+   * first use. Charges/holds reference this — never the raw UberNav user id.
+   */
+  private async ensureCustomer(userId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.stripeCustomerId) return user.stripeCustomerId;
+
+    const customerRef = await this.provider.createCustomer({
+      userId,
+      email: user.email ?? undefined,
+      name: user.fullName ?? undefined,
+      phone: user.phone,
+    });
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { stripeCustomerId: customerRef },
+    });
+    return customerRef;
+  }
+
+  /**
+   * Start a card-save: ensure the customer, mint a SetupIntent + ephemeral key,
+   * and hand back the secrets the client PaymentSheet needs (plus the
+   * publishable key so the SDK can initialise).
+   */
+  async createSetupIntent(userId: string) {
+    const customerRef = await this.ensureCustomer(userId);
+    const setup = await this.provider.createSetupIntent(customerRef);
+    return {
+      setupIntentClientSecret: setup.clientSecret,
+      customerId: customerRef,
+      ephemeralKeySecret: setup.ephemeralKeySecret ?? null,
+      publishableKey: this.config.get<string>('stripePublishableKey') ?? '',
+    };
+  }
+
+  /**
+   * Pull the customer's saved cards from the provider and upsert them into our
+   * local table (called after the client PaymentSheet saves a card). Keyed by
+   * the provider payment-method ref so re-syncing is idempotent.
+   */
+  async syncMethods(userId: string) {
+    const customerRef = await this.ensureCustomer(userId);
+    const cards = await this.provider.listCards(customerRef);
+    const provider = this.config.get<string>('stripeSecretKey') ? 'stripe' : 'mock';
+    for (const card of cards) {
+      const existing = await this.prisma.paymentMethod.findFirst({
+        where: { userId, externalId: card.ref },
+      });
+      if (existing) {
+        await this.prisma.paymentMethod.update({
+          where: { id: existing.id },
+          data: { brand: card.brand, last4: card.last4 },
+        });
+      } else {
+        const isFirst =
+          (await this.prisma.paymentMethod.count({ where: { userId } })) === 0;
+        await this.prisma.paymentMethod.create({
+          data: {
+            userId,
+            provider,
+            externalId: card.ref,
+            brand: card.brand,
+            last4: card.last4,
+            isDefault: isFirst,
+          },
+        });
+      }
+    }
+    return this.listMethods(userId);
   }
 
   private async defaultMethod(userId: string) {

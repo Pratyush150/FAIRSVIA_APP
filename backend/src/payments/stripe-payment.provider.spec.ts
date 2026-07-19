@@ -7,6 +7,8 @@ interface Hit {
   url?: string;
   auth?: string;
   body?: string;
+  idem?: string | string[];
+  ver?: string | string[];
 }
 
 /** A mock Stripe that records every request and replies per-path. */
@@ -27,6 +29,8 @@ async function mockStripe(): Promise<{
         url: req.url,
         auth: req.headers.authorization,
         body,
+        idem: req.headers['idempotency-key'],
+        ver: req.headers['stripe-version'],
       });
       if (fail.on) {
         res.writeHead(402, { 'Content-Type': 'application/json' });
@@ -34,7 +38,17 @@ async function mockStripe(): Promise<{
         return;
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ id: 'pi_mock_123', status: 'succeeded' }));
+      // Path-aware bodies so the customer/setup-intent/card-list flows parse.
+      const url = req.url ?? '';
+      let payload: Record<string, unknown> = { id: 'pi_mock_123', status: 'succeeded' };
+      if (url.startsWith('/customers')) payload = { id: 'cus_mock_1' };
+      else if (url.startsWith('/ephemeral_keys')) payload = { id: 'ek_1', secret: 'ek_secret_1' };
+      else if (url.startsWith('/setup_intents')) {
+        payload = { id: 'seti_1', client_secret: 'seti_1_secret' };
+      } else if (url.startsWith('/payment_methods')) {
+        payload = { data: [{ id: 'pm_1', card: { brand: 'visa', last4: '4242' } }] };
+      }
+      res.end(JSON.stringify(payload));
     });
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -86,6 +100,75 @@ describe('StripePaymentProvider (real HTTP against a mock endpoint)', () => {
       const form = new URLSearchParams(hits[0].body);
       expect(form.get('payment_intent')).toBe('pi_abc');
       expect(form.get('amount')).toBe('500');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('sends an Idempotency-Key header when one is supplied', async () => {
+    const { base, server, hits } = await mockStripe();
+    try {
+      const provider = new StripePaymentProvider('sk_test_x', base);
+      await provider.authorize({
+        amount: 10,
+        currency: 'USD',
+        idempotencyKey: 'idem-abc',
+      });
+      expect(hits[0].idem).toBe('idem-abc');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('creates a customer with the userId in metadata', async () => {
+    const { base, server, hits } = await mockStripe();
+    try {
+      const provider = new StripePaymentProvider('sk_test_x', base);
+      const ref = await provider.createCustomer({
+        userId: 'u1',
+        email: 'a@b.com',
+        phone: '+15550001111',
+      });
+      expect(ref).toBe('cus_mock_1');
+      expect(hits[0].url).toBe('/customers');
+      const form = new URLSearchParams(hits[0].body);
+      expect(form.get('metadata[userId]')).toBe('u1');
+      expect(form.get('email')).toBe('a@b.com');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('creates an ephemeral key (pinned version) then a setup intent', async () => {
+    const { base, server, hits } = await mockStripe();
+    try {
+      const provider = new StripePaymentProvider('sk_test_x', base);
+      const setup = await provider.createSetupIntent('cus_mock_1');
+      expect(setup).toEqual({
+        id: 'seti_1',
+        clientSecret: 'seti_1_secret',
+        customerRef: 'cus_mock_1',
+        ephemeralKeySecret: 'ek_secret_1',
+      });
+      // Ephemeral key first, carrying the pinned Stripe-Version header.
+      expect(hits[0].url).toBe('/ephemeral_keys');
+      expect(hits[0].ver).toBe('2024-06-20');
+      expect(hits[1].url).toBe('/setup_intents');
+      expect(new URLSearchParams(hits[1].body).get('customer')).toBe('cus_mock_1');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('lists a customer cards and maps brand/last4', async () => {
+    const { base, server, hits } = await mockStripe();
+    try {
+      const provider = new StripePaymentProvider('sk_test_x', base);
+      const cards = await provider.listCards('cus_mock_1');
+      expect(cards).toEqual([{ ref: 'pm_1', brand: 'visa', last4: '4242' }]);
+      expect(hits[0].method).toBe('GET');
+      expect(hits[0].url).toContain('/payment_methods?customer=cus_mock_1');
+      expect(hits[0].url).toContain('type=card');
     } finally {
       server.close();
     }

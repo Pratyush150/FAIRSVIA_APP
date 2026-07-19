@@ -1,18 +1,26 @@
 import { BadGatewayException, Logger } from '@nestjs/common';
 import {
   AuthorizeParams,
+  CardInfo,
+  CustomerParams,
   PaymentIntentResult,
   PaymentProvider,
+  SetupIntentResult,
 } from './payment-provider.interface';
 
 /**
  * Real Stripe provider via the REST API (no SDK dependency). Selected when
  * STRIPE_SECRET_KEY is set. NOTE: exercised only once a real test key +
  * saved payment methods exist; until then the mock provider is used.
- * Amounts are converted to the smallest currency unit (e.g. paise).
+ * Amounts are converted to the smallest currency unit (e.g. cents).
  */
 export class StripePaymentProvider implements PaymentProvider {
   private readonly logger = new Logger('StripePayments');
+
+  // Pinned API version for the ephemeral key — must match what the mobile SDK
+  // expects. flutter_stripe tracks recent Stripe versions; keep this current
+  // with the SDK when upgrading.
+  private static readonly EPHEMERAL_KEY_API_VERSION = '2024-06-20';
 
   constructor(
     private readonly secretKey: string,
@@ -36,14 +44,22 @@ export class StripePaymentProvider implements PaymentProvider {
     if (params.methodRef) body.payment_method = params.methodRef;
     if (params.description) body.description = params.description;
 
-    const data = await this.post('/payment_intents', body);
+    const data = await this.post('/payment_intents', body, {
+      idempotencyKey: params.idempotencyKey,
+    });
     return { intentId: data.id as string, status: 'authorized' };
   }
 
-  async capture(intentId: string, amount: number): Promise<PaymentIntentResult> {
-    const data = await this.post(`/payment_intents/${intentId}/capture`, {
-      amount_to_capture: String(this.minor(amount)),
-    });
+  async capture(
+    intentId: string,
+    amount: number,
+    idempotencyKey?: string,
+  ): Promise<PaymentIntentResult> {
+    const data = await this.post(
+      `/payment_intents/${intentId}/capture`,
+      { amount_to_capture: String(this.minor(amount)) },
+      { idempotencyKey },
+    );
     return { intentId: data.id as string, status: 'captured' };
   }
 
@@ -58,7 +74,9 @@ export class StripePaymentProvider implements PaymentProvider {
     };
     if (params.customerRef) body.customer = params.customerRef;
     if (params.methodRef) body.payment_method = params.methodRef;
-    const data = await this.post('/payment_intents', body);
+    const data = await this.post('/payment_intents', body, {
+      idempotencyKey: params.idempotencyKey,
+    });
     return { intentId: data.id as string, status: 'captured' };
   }
 
@@ -68,24 +86,90 @@ export class StripePaymentProvider implements PaymentProvider {
     await this.post('/refunds', body);
   }
 
+  async createCustomer(params: CustomerParams): Promise<string> {
+    const body: Record<string, string> = { 'metadata[userId]': params.userId };
+    if (params.email) body.email = params.email;
+    if (params.name) body.name = params.name;
+    if (params.phone) body.phone = params.phone;
+    const data = await this.post('/customers', body);
+    return data.id as string;
+  }
+
+  async createSetupIntent(customerRef: string): Promise<SetupIntentResult> {
+    // Ephemeral key first — the mobile SDK reads the customer's methods with it.
+    const ephemeral = await this.post(
+      '/ephemeral_keys',
+      { customer: customerRef },
+      { stripeVersion: StripePaymentProvider.EPHEMERAL_KEY_API_VERSION },
+    );
+    const intent = await this.post('/setup_intents', {
+      customer: customerRef,
+      usage: 'off_session',
+      'automatic_payment_methods[enabled]': 'true',
+      'automatic_payment_methods[allow_redirects]': 'never',
+    });
+    return {
+      id: intent.id as string,
+      clientSecret: intent.client_secret as string,
+      customerRef,
+      ephemeralKeySecret: ephemeral.secret as string,
+    };
+  }
+
+  async listCards(customerRef: string): Promise<CardInfo[]> {
+    const data = await this.get(
+      `/payment_methods?customer=${encodeURIComponent(customerRef)}&type=card`,
+    );
+    const list = (data.data as any[]) ?? [];
+    return list.map((pm) => ({
+      ref: pm.id as string,
+      brand: pm.card?.brand as string | undefined,
+      last4: pm.card?.last4 as string | undefined,
+    }));
+  }
+
   private minor(amount: number): number {
     return Math.round(amount * 100);
   }
 
-  private async post(path: string, body: Record<string, string>): Promise<any> {
+  private async post(
+    path: string,
+    body: Record<string, string>,
+    opts: { idempotencyKey?: string; stripeVersion?: string } = {},
+  ): Promise<any> {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    };
+    if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
+    if (opts.stripeVersion) headers['Stripe-Version'] = opts.stripeVersion;
     let res: Response;
     try {
       res = await fetch(`${this.base}${path}`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.secretKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers,
         body: new URLSearchParams(body).toString(),
       });
     } catch (e) {
       throw new BadGatewayException(`Stripe unreachable: ${(e as Error).message}`);
     }
+    return this.parse(res);
+  }
+
+  private async get(path: string): Promise<any> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.base}${path}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${this.secretKey}` },
+      });
+    } catch (e) {
+      throw new BadGatewayException(`Stripe unreachable: ${(e as Error).message}`);
+    }
+    return this.parse(res);
+  }
+
+  private async parse(res: Response): Promise<any> {
     const data = await res.json();
     if (!res.ok) {
       this.logger.error(`Stripe error: ${JSON.stringify(data.error ?? data)}`);

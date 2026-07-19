@@ -41,6 +41,14 @@ export interface AppConfig {
   osrmBaseUrl: string;
   nominatimBaseUrl: string;
   stripeSecretKey: string;
+  /** Publishable key (pk_...) — safe to hand to the client so flutter_stripe can
+   *  tokenize cards. Empty means the app keeps the mock add-card flow. */
+  stripePublishableKey: string;
+  /** Signing secret (whsec_...) for verifying incoming Stripe webhooks. */
+  stripeWebhookSecret: string;
+  /** Deep links Stripe Connect onboarding returns to (driver app). */
+  stripeConnectReturnUrl: string;
+  stripeConnectRefreshUrl: string;
   /** Stripe API host; overridable to a local mock endpoint for testing. */
   stripeApiBaseUrl: string;
   platformFeePercent: number;
@@ -144,6 +152,12 @@ export default (): AppConfig => {
   osrmBaseUrl: process.env.OSRM_BASE_URL ?? '',
   nominatimBaseUrl: process.env.NOMINATIM_BASE_URL ?? '',
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
+  stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? '',
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+  stripeConnectReturnUrl:
+    process.env.STRIPE_CONNECT_RETURN_URL ?? 'ubernav://connect/return',
+  stripeConnectRefreshUrl:
+    process.env.STRIPE_CONNECT_REFRESH_URL ?? 'ubernav://connect/refresh',
   stripeApiBaseUrl: process.env.STRIPE_API_BASE_URL ?? 'https://api.stripe.com/v1',
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '0.20'),
   cancellationFee: parseFloat(process.env.CANCELLATION_FEE ?? '5'),

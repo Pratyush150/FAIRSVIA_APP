@@ -13,6 +13,7 @@ describe('PaymentsService', () => {
     get: (k: string) => {
       if (k === 'platformFeePercent') return 0.2;
       if (k === 'stripeSecretKey') return undefined;
+      if (k === 'stripePublishableKey') return 'pk_test_x';
       return undefined;
     },
   } as unknown as ConfigService;
@@ -29,6 +30,14 @@ describe('PaymentsService', () => {
       },
       paymentMethod: {
         findFirst: jest.fn().mockResolvedValue(null),
+      },
+      // ensureCustomer reads/writes the user; default to a rider that already
+      // has a Stripe customer so charge paths don't try to create one.
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'r1', phone: '+15550000000', stripeCustomerId: 'cus_test' }),
+        update: jest.fn().mockResolvedValue({}),
       },
       ...overrides,
     } as never;
@@ -70,6 +79,9 @@ describe('PaymentsService', () => {
       capture,
       charge: jest.fn(),
       refund: jest.fn(),
+      createCustomer: jest.fn().mockResolvedValue('cus_test'),
+      createSetupIntent: jest.fn(),
+      listCards: jest.fn().mockResolvedValue([]),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -80,7 +92,9 @@ describe('PaymentsService', () => {
       platformFee: 20,
       driverPayout: 80,
     });
-    expect(capture).toHaveBeenCalledWith('mock_pi_x', 100);
+    // Third arg is the capture idempotency key (undefined here — no key on the
+    // existing hold in this fixture).
+    expect(capture).toHaveBeenCalledWith('mock_pi_x', 100, undefined);
     expect((prisma as any).payment.update).toHaveBeenCalledWith({
       where: { tripId: 't1' },
       data: {
@@ -112,6 +126,9 @@ describe('PaymentsService', () => {
       capture: jest.fn().mockResolvedValue({ status: 'captured' }),
       charge: jest.fn(),
       refund: jest.fn(),
+      createCustomer: jest.fn().mockResolvedValue('cus_test'),
+      createSetupIntent: jest.fn(),
+      listCards: jest.fn().mockResolvedValue([]),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -143,6 +160,9 @@ describe('PaymentsService', () => {
       capture: jest.fn(),
       charge,
       refund: jest.fn(),
+      createCustomer: jest.fn().mockResolvedValue('cus_test'),
+      createSetupIntent: jest.fn(),
+      listCards: jest.fn().mockResolvedValue([]),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -209,6 +229,9 @@ describe('PaymentsService', () => {
       capture: jest.fn(),
       charge,
       refund: jest.fn(),
+      createCustomer: jest.fn().mockResolvedValue('cus_test'),
+      createSetupIntent: jest.fn(),
+      listCards: jest.fn().mockResolvedValue([]),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -246,6 +269,9 @@ describe('PaymentsService', () => {
       capture: jest.fn(),
       charge: jest.fn(),
       refund,
+      createCustomer: jest.fn().mockResolvedValue('cus_test'),
+      createSetupIntent: jest.fn(),
+      listCards: jest.fn().mockResolvedValue([]),
     } as PaymentProvider;
 
     const svc = makeService(prisma, provider);
@@ -297,6 +323,120 @@ describe('PaymentsService', () => {
     const svc = makeService(prisma);
     // Only 20 remains refundable.
     await expect(svc.refundTrip('t1', 50)).rejects.toThrow(/between 0 and/);
+  });
+
+  it('creates a Stripe customer on first setup-intent and returns sheet secrets', async () => {
+    const prisma = makePrisma();
+    (prisma as any).user.findUnique.mockResolvedValue({
+      id: 'r1',
+      phone: '+15551112222',
+      email: 'r@x.com',
+      fullName: 'Rider One',
+      stripeCustomerId: null, // no customer yet
+    });
+    const createCustomer = jest.fn().mockResolvedValue('cus_new');
+    const createSetupIntent = jest.fn().mockResolvedValue({
+      id: 'seti_1',
+      clientSecret: 'seti_1_secret',
+      customerRef: 'cus_new',
+      ephemeralKeySecret: 'ek_secret',
+    });
+    const provider = {
+      authorize: jest.fn(),
+      capture: jest.fn(),
+      charge: jest.fn(),
+      refund: jest.fn(),
+      createCustomer,
+      createSetupIntent,
+      listCards: jest.fn().mockResolvedValue([]),
+    } as PaymentProvider;
+
+    const svc = makeService(prisma, provider);
+    const res = await svc.createSetupIntent('r1');
+
+    expect(createCustomer).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'r1', email: 'r@x.com', name: 'Rider One' }),
+    );
+    // The new customer id is persisted so it's reused next time.
+    expect((prisma as any).user.update).toHaveBeenCalledWith({
+      where: { id: 'r1' },
+      data: { stripeCustomerId: 'cus_new' },
+    });
+    expect(res).toEqual({
+      setupIntentClientSecret: 'seti_1_secret',
+      customerId: 'cus_new',
+      ephemeralKeySecret: 'ek_secret',
+      publishableKey: 'pk_test_x',
+    });
+  });
+
+  it('stamps an idempotency key on the trip auth-hold and passes it to the provider', async () => {
+    const prisma = makePrisma();
+    (prisma as any).trip.findUnique.mockResolvedValue({
+      id: 't1',
+      riderId: 'r1',
+      currency: 'USD',
+      fareEstimate: 25,
+      paymentMode: 'card',
+    });
+    (prisma as any).payment.findUnique.mockResolvedValue(null); // no prior key
+    (prisma as any).payment.upsert.mockResolvedValue({});
+    const authorize = jest
+      .fn()
+      .mockResolvedValue({ intentId: 'pi_1', status: 'authorized' });
+    const provider = {
+      authorize,
+      capture: jest.fn(),
+      charge: jest.fn(),
+      refund: jest.fn(),
+      createCustomer: jest.fn().mockResolvedValue('cus_test'),
+      createSetupIntent: jest.fn(),
+      listCards: jest.fn().mockResolvedValue([]),
+    } as PaymentProvider;
+
+    const svc = makeService(prisma, provider);
+    await svc.authorizeForTrip('t1');
+
+    const idem = authorize.mock.calls[0][0].idempotencyKey;
+    expect(typeof idem).toBe('string');
+    expect(idem.length).toBeGreaterThan(0);
+    // Same key is persisted on the payment row so a retry reuses it.
+    expect((prisma as any).payment.upsert.mock.calls[0][0].create.idempotencyKey).toBe(idem);
+  });
+
+  it('syncs the provider cards into the local payment methods', async () => {
+    const prisma = makePrisma();
+    (prisma as any).paymentMethod.count = jest.fn().mockResolvedValue(0);
+    (prisma as any).paymentMethod.create = jest.fn().mockResolvedValue({});
+    (prisma as any).paymentMethod.findMany = jest
+      .fn()
+      .mockResolvedValue([{ id: 'm1', externalId: 'pm_1' }]);
+    const provider = {
+      authorize: jest.fn(),
+      capture: jest.fn(),
+      charge: jest.fn(),
+      refund: jest.fn(),
+      createCustomer: jest.fn().mockResolvedValue('cus_test'),
+      createSetupIntent: jest.fn(),
+      listCards: jest
+        .fn()
+        .mockResolvedValue([{ ref: 'pm_1', brand: 'visa', last4: '4242' }]),
+    } as PaymentProvider;
+
+    const svc = makeService(prisma, provider);
+    const methods = await svc.syncMethods('r1');
+
+    const createArg = (prisma as any).paymentMethod.create.mock.calls[0][0];
+    expect(createArg.data).toEqual(
+      expect.objectContaining({
+        userId: 'r1',
+        externalId: 'pm_1',
+        brand: 'visa',
+        last4: '4242',
+        isDefault: true, // first card
+      }),
+    );
+    expect(methods).toEqual([{ id: 'm1', externalId: 'pm_1' }]);
   });
 });
 

@@ -30,6 +30,20 @@ export class PaymentsController {
     return this.payments.addMethod(user.userId, dto);
   }
 
+  /** Start a card-save: returns the PaymentSheet secrets + publishable key. */
+  @Post('setup-intent')
+  @HttpCode(HttpStatus.OK)
+  setupIntent(@CurrentUser() user: AuthUser) {
+    return this.payments.createSetupIntent(user.userId);
+  }
+
+  /** Sync saved cards from the provider after the PaymentSheet saves one. */
+  @Post('methods/sync')
+  @HttpCode(HttpStatus.OK)
+  syncMethods(@CurrentUser() user: AuthUser) {
+    return this.payments.syncMethods(user.userId);
+  }
+
   @Post(':tripId/tip')
   @HttpCode(HttpStatus.OK)
   tip(
