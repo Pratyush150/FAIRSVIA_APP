@@ -130,6 +130,11 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 title: 'Payment methods',
                 onTap: () => _open(PaymentMethodsPage(
                   payments: sl<PaymentsRemoteDataSource>(),
+                  // Real Stripe PaymentSheet if the app registered one, else the
+                  // mock add-card sheet.
+                  stripeCardAdder: sl.isRegistered<StripeCardAdder>()
+                      ? sl<StripeCardAdder>()
+                      : null,
                 )),
               ),
               _Item(

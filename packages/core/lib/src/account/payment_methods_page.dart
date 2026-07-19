@@ -6,12 +6,37 @@ import '../network/api_exception.dart';
 import '../trip/payments_remote_data_source.dart';
 import 'widgets/async_content.dart';
 
-/// List and add payment methods (`/payments/methods`). In the current
-/// mock-gateway build a "card" is brand + last-4 (no real PAN is ever entered
-/// or sent — Stripe tokenization slots in later).
+/// The outcome of a real (Stripe) add-card attempt.
+enum StripeCardResult {
+  /// A card was tokenized + saved.
+  added,
+
+  /// The user dismissed the PaymentSheet.
+  cancelled,
+
+  /// Real Stripe isn't configured (mock gateway) — use the fallback sheet.
+  unavailable,
+}
+
+/// Presents the native Stripe PaymentSheet to save a card. Implemented in the
+/// app layer (rider_app) with flutter_stripe and injected via DI, so `core`
+/// (and the Flutter-web admin app) never depend on the native plugin.
+typedef StripeCardAdder = Future<StripeCardResult> Function(
+  PaymentsRemoteDataSource payments,
+);
+
+/// List and add payment methods (`/payments/methods`). When a real Stripe
+/// [StripeCardAdder] is injected it drives card entry through the native
+/// PaymentSheet; otherwise (mock gateway) it falls back to a brand + last-4
+/// sheet (no real PAN is ever entered or sent).
 class PaymentMethodsPage extends StatefulWidget {
-  const PaymentMethodsPage({super.key, required this.payments});
+  const PaymentMethodsPage({
+    super.key,
+    required this.payments,
+    this.stripeCardAdder,
+  });
   final PaymentsRemoteDataSource payments;
+  final StripeCardAdder? stripeCardAdder;
 
   @override
   State<PaymentMethodsPage> createState() => _PaymentMethodsPageState();
@@ -21,7 +46,33 @@ class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
   int _reloadTick = 0;
   void _reload() => setState(() => _reloadTick++);
 
+  bool _addingStripe = false;
+
   Future<void> _addCard() async {
+    // Prefer the real Stripe PaymentSheet when an adder is injected; fall back
+    // to the mock brand + last-4 sheet when Stripe isn't configured.
+    final adder = widget.stripeCardAdder;
+    if (adder != null) {
+      setState(() => _addingStripe = true);
+      try {
+        final result = await adder(widget.payments);
+        if (result == StripeCardResult.added) {
+          _reload();
+          return;
+        }
+        if (result == StripeCardResult.cancelled) return;
+        // StripeCardResult.unavailable → fall through to the mock sheet.
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(e.message)));
+        }
+        return;
+      } finally {
+        if (mounted) setState(() => _addingStripe = false);
+      }
+    }
+    if (!mounted) return;
     final added = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -35,8 +86,14 @@ class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Payment methods')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addCard,
-        icon: const Icon(Icons.add),
+        onPressed: _addingStripe ? null : _addCard,
+        icon: _addingStripe
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.add),
         label: const Text('Add card'),
       ),
       body: AsyncContent<List<Map<String, dynamic>>>(
