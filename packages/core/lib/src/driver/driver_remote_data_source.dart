@@ -61,6 +61,30 @@ class PayoutBalance {
       );
 }
 
+/// A driver's Stripe Connect payout readiness (`GET /drivers/connect/status`).
+class ConnectStatus {
+  const ConnectStatus({
+    required this.onboarded,
+    required this.payoutsEnabled,
+    required this.detailsSubmitted,
+  });
+
+  /// A connected account exists (onboarding at least started).
+  final bool onboarded;
+
+  /// Stripe will pay out to the driver's bank (KYC + bank complete).
+  final bool payoutsEnabled;
+
+  /// The driver finished the hosted onboarding form.
+  final bool detailsSubmitted;
+
+  factory ConnectStatus.fromJson(Map<String, dynamic> j) => ConnectStatus(
+        onboarded: j['onboarded'] as bool? ?? false,
+        payoutsEnabled: j['payoutsEnabled'] as bool? ?? false,
+        detailsSubmitted: j['detailsSubmitted'] as bool? ?? false,
+      );
+}
+
 /// REST calls for the driver flow (status, onboarding, trip lifecycle, earnings).
 class DriverRemoteDataSource {
   DriverRemoteDataSource(this._dio);
@@ -121,6 +145,23 @@ class DriverRemoteDataSource {
       return Trip.fromJson(Map<String, dynamic>.from(data));
     }
     return null;
+  }
+
+  /// Start (or resume) Stripe Connect Express onboarding; returns the hosted
+  /// onboarding URL to open in a browser.
+  Future<String> connectOnboard() async {
+    final res = await _guard(
+      () => _dio.post<Map<String, dynamic>>('/drivers/connect/onboard'),
+    );
+    return res.data!['url'] as String;
+  }
+
+  /// Poll the driver's payout readiness (after returning from onboarding).
+  Future<ConnectStatus> connectStatus() async {
+    final res = await _guard(
+      () => _dio.get<Map<String, dynamic>>('/drivers/connect/status'),
+    );
+    return ConnectStatus.fromJson(res.data!);
   }
 
   Future<DriverEarnings> earnings({String range = 'today'}) async {

@@ -49,6 +49,35 @@ class Receipt {
   }
 }
 
+/// The secrets a client PaymentSheet needs to save a card, plus the publishable
+/// key. `isConfigured` is false when the backend is running the mock gateway
+/// (no publishable key) — the UI then falls back to the mock add-card flow.
+class StripeSetupIntent {
+  const StripeSetupIntent({
+    required this.publishableKey,
+    this.setupIntentClientSecret,
+    this.customerId,
+    this.ephemeralKeySecret,
+  });
+
+  final String publishableKey;
+  final String? setupIntentClientSecret;
+  final String? customerId;
+  final String? ephemeralKeySecret;
+
+  /// True only when real Stripe is wired (publishable key + a client secret).
+  bool get isConfigured =>
+      publishableKey.isNotEmpty &&
+      (setupIntentClientSecret?.isNotEmpty ?? false);
+
+  factory StripeSetupIntent.fromJson(Map<String, dynamic> j) => StripeSetupIntent(
+        publishableKey: j['publishableKey'] as String? ?? '',
+        setupIntentClientSecret: j['setupIntentClientSecret'] as String?,
+        customerId: j['customerId'] as String?,
+        ephemeralKeySecret: j['ephemeralKeySecret'] as String?,
+      );
+}
+
 /// Payment methods + tips + receipts (`/payments/...`).
 class PaymentsRemoteDataSource {
   PaymentsRemoteDataSource(this._dio);
@@ -93,6 +122,31 @@ class PaymentsRemoteDataSource {
         'last4': ?last4,
         'externalId': ?externalId,
       });
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Begin saving a real card: returns the PaymentSheet secrets + publishable
+  /// key. When the backend runs the mock gateway the publishable key is empty
+  /// (`isConfigured` false) and the caller uses the mock add-card flow instead.
+  Future<StripeSetupIntent> createSetupIntent() async {
+    try {
+      final res =
+          await _dio.post<Map<String, dynamic>>('/payments/setup-intent');
+      return StripeSetupIntent.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Pull the customer's saved cards from Stripe into our list (called after the
+  /// PaymentSheet saves a card). Returns the refreshed method list.
+  Future<List<Map<String, dynamic>>> syncMethods() async {
+    try {
+      final res =
+          await _dio.post<List<dynamic>>('/payments/methods/sync');
+      return res.data!.cast<Map<String, dynamic>>();
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }
