@@ -4,6 +4,19 @@ import 'package:latlong2/latlong.dart';
 
 import '../theme/app_colors.dart';
 
+// Polished map styling via MapTiler when a key is supplied
+// (--dart-define=MAPTILER_KEY=xxx, optionally MAPTILER_STYLE=streets-v2|
+// satellite|dataviz-dark|...). Without a key the map falls back to plain
+// OpenStreetMap tiles, so the app still renders a real map with no config.
+const String _maptilerKey = String.fromEnvironment('MAPTILER_KEY');
+const String _maptilerStyle =
+    String.fromEnvironment('MAPTILER_STYLE', defaultValue: 'streets-v2');
+
+/// The active raster tile URL template. MapTiler when keyed, else OSM.
+String get _tileUrlTemplate => _maptilerKey.isNotEmpty
+    ? 'https://api.maptiler.com/maps/$_maptilerStyle/{z}/{x}/{y}.png?key=$_maptilerKey'
+    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
 /// What a marker represents — drives its icon + colour.
 enum MapMarkerKind { pickup, dropoff, driver, plain }
 
@@ -113,8 +126,9 @@ class _AppMapState extends State<AppMap> {
       ),
       children: [
         TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          // OSM tile-usage policy asks for an identifying UA.
+          urlTemplate: _tileUrlTemplate,
+          // OSM tile-usage policy asks for an identifying UA (MapTiler is fine
+          // with it too).
           userAgentPackageName: 'in.novarobotics.ubernav',
           maxZoom: 19,
           tileProvider: widget.tileProvider,
