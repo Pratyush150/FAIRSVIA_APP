@@ -13,6 +13,7 @@ dependencies:
     sdk: flutter
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
+  flutter_polyline_points: ^2.1.0
   # Motion & polish primitives shared across all apps:
   #  - flutter_animate: declarative micro-animations (reveals, staggers, shimmer)
   #  - skeletonizer: Airbnb-style skeleton loaders in place of spinners

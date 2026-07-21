@@ -40,6 +40,9 @@ class _DriverHomeView extends StatefulWidget {
 class _DriverHomeViewState extends State<_DriverHomeView> {
   static const _fallback = LatLng(25.7743, -80.1937); // Miami, FL
   StreamSubscription<Position>? _posSub;
+  // The driver's own live position — drawn as the car marker so they can see
+  // themselves relative to the pickup (Uber-style).
+  LatLng? _myLocation;
 
   @override
   void initState() {
@@ -62,6 +65,7 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
     if (!await ensureLocationPermission()) return;
     _posSub = driverPositionStream().listen((pos) {
       if (!mounted) return;
+      setState(() => _myLocation = LatLng(pos.latitude, pos.longitude));
       context.read<DriverCubit>().sendLocation(
             pos.latitude,
             pos.longitude,
@@ -83,30 +87,52 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   }
 
   List<AppMapMarker> _markers(DriverState state) {
+    final markers = <AppMapMarker>[];
+    // The driver's own car — shown whenever we have a live fix and they're
+    // online (so they can see themselves heading to the pickup).
+    if (_myLocation != null && state.isOnline) {
+      markers.add(AppMapMarker(
+        point: _myLocation!,
+        kind: MapMarkerKind.driver,
+        label: 'You',
+      ));
+    }
     final trip = state.trip;
-    if (trip == null) return const [];
-    return [
-      AppMapMarker(
+    if (trip != null) {
+      markers.add(AppMapMarker(
         point: LatLng(trip.pickup.point.lat, trip.pickup.point.lng),
         kind: MapMarkerKind.pickup,
         label: 'Pickup',
-      ),
-      AppMapMarker(
+      ));
+      markers.add(AppMapMarker(
         point: LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng),
         kind: MapMarkerKind.dropoff,
         label: 'Dropoff',
-      ),
-    ];
+      ));
+    }
+    return markers;
   }
 
-  /// Fit both endpoints when there's an active trip.
+  /// The trip's route (pickup → dropoff), decoded for the map overlay.
+  List<LatLng> _route(DriverState state) {
+    final encoded = state.trip?.routePolyline;
+    if (encoded == null || encoded.isEmpty) return const [];
+    return decodePolyline(encoded);
+  }
+
+  /// Frame the map for the current phase: heading to pickup → show the driver +
+  /// the pickup; on a trip → show the whole route.
   List<LatLng>? _fitBounds(DriverState state) {
     final trip = state.trip;
     if (trip == null) return null;
-    return [
-      LatLng(trip.pickup.point.lat, trip.pickup.point.lng),
-      LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng),
-    ];
+    final pickup = LatLng(trip.pickup.point.lat, trip.pickup.point.lng);
+    final dropoff = LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng);
+    if ((state.phase == DriverPhase.enRoute ||
+            state.phase == DriverPhase.arrived) &&
+        _myLocation != null) {
+      return [_myLocation!, pickup];
+    }
+    return [pickup, dropoff];
   }
 
   @override
@@ -138,8 +164,9 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
               AppMap(
                 initialCenter: _markers(state).isNotEmpty
                     ? _markers(state).first.point
-                    : _fallback,
+                    : (_myLocation ?? _fallback),
                 markers: _markers(state),
+                route: _route(state),
                 fitBounds: _fitBounds(state),
               ),
               Positioned(
