@@ -180,9 +180,46 @@ class _MarkerPin extends StatelessWidget {
       case MapMarkerKind.dropoff:
         return const Icon(Icons.location_on, color: Color(0xFF2E7D32), size: 40);
       case MapMarkerKind.driver:
-        return const Icon(Icons.local_taxi, color: Color(0xFF1565C0), size: 34);
+        return const _DriverPuck();
       case MapMarkerKind.plain:
         return const Icon(Icons.location_on, color: AppColors.accent, size: 40);
     }
+  }
+}
+
+/// The moving vehicle marker — a white circular "puck" with a soft shadow and a
+/// crisp dark car glyph. Reads clearly on light *and* dark map tiles (a bare
+/// coloured icon disappears against roads), and matches the look riders expect
+/// from a ride-hailing app.
+class _DriverPuck extends StatelessWidget {
+  const _DriverPuck();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFF10121A), width: 1.6),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.30),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Icon(
+            Icons.directions_car_filled_rounded,
+            size: 20,
+            color: Color(0xFF10121A),
+          ),
+        ),
+      ),
+    );
   }
 }
