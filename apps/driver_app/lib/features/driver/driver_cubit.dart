@@ -25,8 +25,12 @@ class DriverCubit extends Cubit<DriverState> {
       ..add(_realtime.on('trip:offer').listen(
           (d) => _onOffer(RideOffer.fromJson(d))))
       ..add(_realtime.on('trip:offer_expired').listen((_) => _onOfferExpired()))
-      ..add(_realtime.on('trip:assigned').listen(
-          (d) => _onAssigned(d['tripId'] as String)))
+      ..add(_realtime.on('trip:assigned').listen((d) => _onAssigned(
+            d['tripId'] as String,
+            // Route from the driver's car to the pickup, so the map can show
+            // exactly where they're collecting the rider from.
+            approachPolyline: d['driverPolyline'] as String?,
+          )))
       ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
       // Reconnection resilience: re-announce presence and re-fetch the active
       // trip after a dropped socket so the driver's screen stays truthful.
@@ -248,7 +252,7 @@ class DriverCubit extends Cubit<DriverState> {
     }
   }
 
-  Future<void> _onAssigned(String tripId) async {
+  Future<void> _onAssigned(String tripId, {String? approachPolyline}) async {
     try {
       final trip = await _remote.getTrip(tripId);
       emit(state.copyWith(
@@ -256,6 +260,7 @@ class DriverCubit extends Cubit<DriverState> {
         trip: trip,
         offer: null,
         busy: false,
+        approachPolyline: approachPolyline,
       ));
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));

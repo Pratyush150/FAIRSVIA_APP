@@ -113,9 +113,15 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
     return markers;
   }
 
-  /// The trip's route (pickup → dropoff), decoded for the map overlay.
+  /// The route to draw. While heading to the pickup we show the *approach* leg
+  /// (driver → pickup) so it's obvious where the rider is being collected from;
+  /// once on the trip we show the trip route (pickup → dropoff).
   List<LatLng> _route(DriverState state) {
-    final encoded = state.trip?.routePolyline;
+    final approaching = state.phase == DriverPhase.enRoute ||
+        state.phase == DriverPhase.arrived;
+    final encoded = approaching
+        ? (state.approachPolyline ?? state.trip?.routePolyline)
+        : state.trip?.routePolyline;
     if (encoded == null || encoded.isEmpty) return const [];
     return decodePolyline(encoded);
   }

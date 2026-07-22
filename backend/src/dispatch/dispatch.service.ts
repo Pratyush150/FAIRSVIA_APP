@@ -348,7 +348,14 @@ export class DispatchService {
       polyline: trip.routePolyline,
       driverPolyline,
     });
-    this.realtime.emitToUser(driverId, 'trip:assigned', { tripId: trip.id });
+    // The driver needs the same geometry the rider gets: the approach leg
+    // (their car → the pickup) so their map can show exactly where they're
+    // collecting the rider from, plus the trip route for the on-trip leg.
+    this.realtime.emitToUser(driverId, 'trip:assigned', {
+      tripId: trip.id,
+      polyline: trip.routePolyline,
+      driverPolyline,
+    });
     void this.notifications.notifyTrip(trip.riderId, 'accepted', {
       tripId: trip.id,
     });

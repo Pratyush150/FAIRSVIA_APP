@@ -23,6 +23,7 @@ class DriverState extends Equatable {
     this.cashToCollect,
     this.needsOnboarding = false,
     this.connected = true,
+    this.approachPolyline,
   });
 
   final DriverPhase phase;
@@ -41,6 +42,11 @@ class DriverState extends Equatable {
   /// Live socket connectivity. False shows a "reconnecting" banner.
   final bool connected;
 
+  /// Encoded route from the driver's position to the pickup, sent on
+  /// `trip:assigned`. Drawn while heading to pickup so the driver sees exactly
+  /// where they're collecting the rider from (Uber-style approach leg).
+  final String? approachPolyline;
+
   bool get isOnline => phase != DriverPhase.offline;
 
   static const Object _s = Object();
@@ -57,6 +63,7 @@ class DriverState extends Equatable {
     Object? cashToCollect = _s,
     bool? needsOnboarding,
     bool? connected,
+    Object? approachPolyline = _s,
   }) {
     return DriverState(
       phase: phase ?? this.phase,
@@ -71,6 +78,9 @@ class DriverState extends Equatable {
           cashToCollect == _s ? this.cashToCollect : cashToCollect as double?,
       needsOnboarding: needsOnboarding ?? this.needsOnboarding,
       connected: connected ?? this.connected,
+      approachPolyline: approachPolyline == _s
+          ? this.approachPolyline
+          : approachPolyline as String?,
     );
   }
 
@@ -87,5 +97,6 @@ class DriverState extends Equatable {
         cashToCollect,
         needsOnboarding,
         connected,
+        approachPolyline,
       ];
 }
