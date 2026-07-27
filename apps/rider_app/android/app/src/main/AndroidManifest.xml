@@ -2,18 +2,17 @@
     <!-- Location for pickup + "my location" on the map -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Android 13+ runtime grant for ride-status push notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="rider_app"
+        android:label="UberNav Rider"
         android:name="${applicationName}"
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
-        <!-- TODO: paste your Google Maps Android API key here to render map tiles.
-             Get one at https://console.cloud.google.com (enable Maps SDK for Android). -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_ANDROID_API_KEY"/>
+        <!-- Maps render via flutter_map (MapTiler/OSM raster tiles) — no native
+             Google Maps SDK is linked, so no Google Maps API key is needed. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+import 'dart:math';
 
 import 'package:geolocator/geolocator.dart';
 
@@ -32,37 +34,155 @@ Future<bool> ensureLocationPermission() async {
       permission == LocationPermission.whileInUse;
 }
 
-Position _mockPositionAt(double lat, double lng) => Position(
+Position _mockPositionAt(double lat, double lng, {double heading = 90}) =>
+    Position(
       latitude: lat,
       longitude: lng,
       timestamp: DateTime.now(),
       accuracy: 5,
       altitude: 0,
       altitudeAccuracy: 0,
-      heading: 90,
+      heading: heading,
       headingAccuracy: 0,
       speed: 0,
       speedAccuracy: 0,
     );
 
+// ── Simulated driving (mock mode only) ──────────────────────────────────────
+// Walks the car ALONG THE ROAD ROUTE (the decoded polyline the backend already
+// computes) at a steady speed — so it tracks streets like Uber/Ola instead of
+// sliding in a straight line across buildings and water.
+const int _tickMs = 400;
+({double lat, double lng})? _simCurrent;
+double _simHeading = 90;
+
+List<({double lat, double lng})> _simPath = const [];
+int _simIdx = 0;
+double _simSpeedMps = 14; // ~50 km/h — brisk city driving
+
+/// Drive along [path] (road geometry) at [speedMps]. Replaces any current path.
+void driveSimulatedPath(
+  List<({double lat, double lng})> path, {
+  double speedMps = 14,
+}) {
+  if (_mockPoint == null || path.length < 2) return;
+  _simPath = path;
+  _simIdx = 0;
+  _simSpeedMps = speedMps;
+  _simCurrent = path.first;
+}
+
+/// Metres between two coordinates (haversine).
+double _distM(({double lat, double lng}) a, ({double lat, double lng}) b) {
+  const r = 6371000.0;
+  final dLat = (b.lat - a.lat) * pi / 180;
+  final dLng = (b.lng - a.lng) * pi / 180;
+  final la1 = a.lat * pi / 180;
+  final la2 = b.lat * pi / 180;
+  final h = sin(dLat / 2) * sin(dLat / 2) +
+      cos(la1) * cos(la2) * sin(dLng / 2) * sin(dLng / 2);
+  return 2 * r * asin(min(1.0, sqrt(h)));
+}
+
+/// True once the car has reached the end of its route.
+bool get simulatedArrived =>
+    _simPath.length >= 2 && _simIdx >= _simPath.length - 1;
+
+/// The part of the route NOT yet driven, starting at the car's exact current
+/// position. The map draws this so the line shrinks behind the car, like Uber.
+/// Empty once the destination is reached (line disappears on arrival).
+List<({double lat, double lng})> simulatedRemainingPath() {
+  if (_simPath.length < 2 || _simCurrent == null) return const [];
+  if (_simIdx >= _simPath.length - 1) return const [];
+  return [_simCurrent!, ..._simPath.sublist(_simIdx + 1)];
+}
+
+({double lat, double lng}) _advanceSim() {
+  var cur = _simCurrent!;
+  if (_simPath.length < 2 || _simIdx >= _simPath.length - 1) return cur;
+  // Distance to cover this tick.
+  var budget = _simSpeedMps * (_tickMs / 1000.0);
+  final from = cur;
+  while (budget > 0 && _simIdx < _simPath.length - 1) {
+    final next = _simPath[_simIdx + 1];
+    final segLeft = _distM(cur, next);
+    if (segLeft <= budget) {
+      budget -= segLeft;
+      cur = next;
+      _simIdx++;
+    } else {
+      final f = budget / segLeft;
+      cur = (
+        lat: cur.lat + (next.lat - cur.lat) * f,
+        lng: cur.lng + (next.lng - cur.lng) * f,
+      );
+      budget = 0;
+    }
+  }
+  if (cur.lat != from.lat || cur.lng != from.lng) {
+    _simHeading =
+        ((atan2(cur.lng - from.lng, cur.lat - from.lat) * 180 / pi) + 360) % 360;
+  }
+  _simCurrent = cur;
+  return cur;
+}
+
 Stream<Position> driverPositionStream() {
   final mock = _mockPoint;
   if (mock != null) {
-    // Emit immediately, then every 4s, so the backend registers the driver
-    // online and keeps presence fresh (the geo index expects periodic updates).
+    // Ticks fast so the car glides; when there's no active target it simply
+    // re-broadcasts the same point to keep presence fresh in the geo index.
     return Stream<Position>.multi((controller) {
-      controller.add(_mockPositionAt(mock.lat, mock.lng));
+      _simCurrent ??= (lat: mock.lat, lng: mock.lng);
+      controller.add(
+        _mockPositionAt(_simCurrent!.lat, _simCurrent!.lng, heading: _simHeading),
+      );
       final timer = Timer.periodic(
-        const Duration(seconds: 4),
-        (_) => controller.add(_mockPositionAt(mock.lat, mock.lng)),
+        const Duration(milliseconds: _tickMs),
+        (_) {
+          final p = _advanceSim();
+          controller.add(_mockPositionAt(p.lat, p.lng, heading: _simHeading));
+        },
       );
       controller.onCancel = timer.cancel;
     });
   }
   return Geolocator.getPositionStream(
-    locationSettings: const LocationSettings(
+    locationSettings: _platformLocationSettings(),
+  );
+}
+
+/// Real-GPS settings. On Android we run a **foreground service** so the OS keeps
+/// feeding location while the driver app is backgrounded (navigating, screen
+/// off) — without it Android throttles/stops updates and the rider's map freezes
+/// mid-ride. Elsewhere a plain high-accuracy stream is enough.
+LocationSettings _platformLocationSettings() {
+  if (Platform.isAndroid) {
+    return AndroidSettings(
       accuracy: LocationAccuracy.high,
       distanceFilter: 10,
-    ),
+      forceLocationManager: false,
+      foregroundNotificationConfig: const ForegroundNotificationConfig(
+        notificationTitle: 'UberNav Driver — online',
+        notificationText: 'Sharing your location so riders can track the ride.',
+        enableWakeLock: true,
+        setOngoing: true,
+      ),
+    );
+  }
+  if (Platform.isIOS) {
+    return AppleSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10,
+      // Keeps iOS delivering updates in the background (paired with the
+      // UIBackgroundModes:location entitlement in Info.plist).
+      allowBackgroundLocationUpdates: true,
+      pauseLocationUpdatesAutomatically: false,
+      showBackgroundLocationIndicator: true,
+    );
+  }
+  return const LocationSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 10,
   );
 }

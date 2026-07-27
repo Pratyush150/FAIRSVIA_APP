@@ -1,18 +1,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Driver needs foreground + background location while online -->
+    <!-- Driver needs foreground + background location while online so the car
+         keeps updating on the rider's map even when the app is backgrounded
+         mid-ride. geolocator runs a foreground service (below perms) to keep the
+         GPS alive; ACCESS_BACKGROUND_LOCATION is the Android 10+ grant for it. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <!-- Android 13+ runtime grant for the foreground-service + push notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="driver_app"
+        android:label="UberNav Driver"
         android:name="${applicationName}"
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
-        <!-- TODO: paste your Google Maps Android API key here (Maps SDK for Android). -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_ANDROID_API_KEY"/>
+        <!-- Maps render via flutter_map (MapTiler/OSM raster tiles) — no native
+             Google Maps SDK is linked, so no Google Maps API key is needed. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
