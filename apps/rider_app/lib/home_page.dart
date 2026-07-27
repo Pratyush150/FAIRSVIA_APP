@@ -8,6 +8,7 @@ import 'package:shared_models/shared_models.dart';
 import 'features/trip/destination_search_page.dart';
 import 'features/trip/location_service.dart';
 import 'features/trip/map_utils.dart';
+import 'features/trip/price_comparison_card.dart';
 import 'features/trip/trip_cubit.dart';
 
 /// Rider home: full-screen map with a bottom sheet that changes with the
@@ -522,6 +523,10 @@ class _RideOptions extends StatelessWidget {
             ],
           ),
         ),
+        if (estimate.comparison != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          PriceComparisonCard(comparison: estimate.comparison!),
+        ],
         const SizedBox(height: AppSpacing.sm),
         _PaymentModeToggle(state: state),
         const SizedBox(height: AppSpacing.sm),

@@ -22,6 +22,7 @@ import { StopDto } from './dto/stop.dto';
 import { CURRENCY } from '../pricing/fare-config';
 import { PricingService } from '../pricing/pricing.service';
 import { SurgeService } from '../surge/surge.service';
+import { ComparisonService } from '../comparison/comparison.service';
 import { PromoService } from '../promo/promo.service';
 import {
   MAX_LEAD_MS,
@@ -59,6 +60,7 @@ export class TripsService {
     private readonly payments: PaymentsService,
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService,
+    private readonly comparison: ComparisonService,
     @Inject(GEO_PROVIDER) private readonly geo: GeoProvider,
   ) {}
 
@@ -78,6 +80,15 @@ export class TripsService {
       dropoff,
       stops: dto.stops ?? [],
       tiers: this.pricing.estimateAllTiers(route.distanceM, route.durationS, surge),
+      // How our economy fare stacks up against modeled Uber/Lyft/Empower prices
+      // for this exact trip, with the cheapest provider flagged. Reuses the
+      // already-routed distance/time — no extra routing call.
+      comparison: this.comparison.compare(
+        route.distanceM,
+        route.durationS,
+        surge,
+        'economy',
+      ),
     };
   }
 

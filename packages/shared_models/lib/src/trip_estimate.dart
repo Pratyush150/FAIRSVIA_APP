@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import 'fare_tier.dart';
 import 'geo_point.dart';
+import 'price_comparison.dart';
 import 'trip_stop.dart';
 
 /// The response to POST /trips/estimate: route + a fare option per tier.
@@ -16,6 +17,7 @@ class TripEstimate extends Equatable {
     required this.dropoff,
     required this.tiers,
     this.stops = const [],
+    this.comparison,
   });
 
   final int distanceM;
@@ -27,6 +29,10 @@ class TripEstimate extends Equatable {
   final GeoPoint dropoff;
   final List<FareTier> tiers;
   final List<TripStop> stops;
+
+  /// UberNav vs modeled Uber/Lyft/Empower prices for this trip (may be null if
+  /// the backend omitted it).
+  final PriceComparison? comparison;
 
   /// Distance in statute miles (US market). The backend reports meters.
   double get distanceMi => distanceM / 1609.34;
@@ -45,6 +51,10 @@ class TripEstimate extends Equatable {
         stops: (json['stops'] as List<dynamic>? ?? const [])
             .map((s) => TripStop.fromJson(s as Map<String, dynamic>))
             .toList(),
+        comparison: json['comparison'] == null
+            ? null
+            : PriceComparison.fromJson(
+                json['comparison'] as Map<String, dynamic>),
       );
 
   @override
@@ -58,5 +68,6 @@ class TripEstimate extends Equatable {
         dropoff,
         tiers,
         stops,
+        comparison,
       ];
 }
