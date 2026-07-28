@@ -482,6 +482,51 @@ class AdminSurge {
       );
 }
 
+/// A competitor rate card for the price-comparison feature, with calibration
+/// provenance (whether it's been fitted from observed fares, and how well).
+class AdminComparisonModel {
+  const AdminComparisonModel({
+    required this.provider,
+    required this.displayName,
+    required this.productName,
+    required this.baseFare,
+    required this.perMile,
+    required this.perMin,
+    required this.bookingFee,
+    required this.minFare,
+    required this.calibrated,
+    required this.residualPct,
+  });
+
+  final String provider;
+  final String displayName;
+  final String productName;
+  final double baseFare;
+  final double perMile;
+  final double perMin;
+  final double bookingFee;
+  final double minFare;
+  final bool calibrated;
+  final double residualPct;
+
+  static double _n(Object? v) =>
+      v == null ? 0 : (v is num ? v.toDouble() : double.tryParse('$v') ?? 0);
+
+  factory AdminComparisonModel.fromJson(Map<String, dynamic> j) =>
+      AdminComparisonModel(
+        provider: j['provider'] as String,
+        displayName: j['displayName'] as String? ?? j['provider'] as String,
+        productName: j['productName'] as String? ?? '',
+        baseFare: _n(j['baseFare']),
+        perMile: _n(j['perMile']),
+        perMin: _n(j['perMin']),
+        bookingFee: _n(j['bookingFee']),
+        minFare: _n(j['minFare']),
+        calibrated: j['calibrated'] as bool? ?? false,
+        residualPct: _n(j['residualPct']),
+      );
+}
+
 /// REST calls for the admin dashboard (all role-gated on the backend).
 class AdminApi {
   AdminApi(this._dio);
@@ -579,6 +624,20 @@ class AdminApi {
   /// Set (or clear, with 1.0) the global surge override multiplier.
   Future<void> setSurge(double multiplier) => _guard(
         () => _dio.patch('/admin/surge', data: {'multiplier': multiplier}),
+      );
+
+  /// Competitor rate cards (Uber/Lyft/Empower) + their calibration status.
+  Future<List<AdminComparisonModel>> comparisonModels() async {
+    final res =
+        await _guard(() => _dio.get<List<dynamic>>('/comparison/models'));
+    return res.data!
+        .map((e) => AdminComparisonModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Record an observed real competitor fare to calibrate that provider's card.
+  Future<void> recordFareSample(Map<String, dynamic> body) => _guard(
+        () => _dio.post('/comparison/samples', data: body),
       );
 
   Future<void> setActive(String userId, bool isActive) => _guard(

@@ -15,7 +15,8 @@ enum AdminTab {
   live,
   support,
   promos,
-  pricing
+  pricing,
+  comparison
 }
 
 class AdminState extends Equatable {
@@ -36,6 +37,7 @@ class AdminState extends Equatable {
     this.promos = const [],
     this.fares = const [],
     this.surge = AdminSurge.empty,
+    this.comparisonModels = const [],
   });
 
   final AdminTab tab;
@@ -59,6 +61,7 @@ class AdminState extends Equatable {
   final List<AdminPromo> promos;
   final List<AdminFare> fares;
   final AdminSurge surge;
+  final List<AdminComparisonModel> comparisonModels;
 
   AdminState copyWith({
     AdminTab? tab,
@@ -78,6 +81,7 @@ class AdminState extends Equatable {
     List<AdminPromo>? promos,
     List<AdminFare>? fares,
     AdminSurge? surge,
+    List<AdminComparisonModel>? comparisonModels,
   }) {
     return AdminState(
       tab: tab ?? this.tab,
@@ -96,6 +100,7 @@ class AdminState extends Equatable {
       promos: promos ?? this.promos,
       fares: fares ?? this.fares,
       surge: surge ?? this.surge,
+      comparisonModels: comparisonModels ?? this.comparisonModels,
     );
   }
 
@@ -117,6 +122,7 @@ class AdminState extends Equatable {
         promos,
         fares,
         surge,
+        comparisonModels,
       ];
 }
 
@@ -177,6 +183,9 @@ class AdminCubit extends Cubit<AdminState> {
           final fares = await _api.fares();
           final surge = await _api.surge();
           emit(state.copyWith(loading: false, fares: fares, surge: surge));
+        case AdminTab.comparison:
+          final models = await _api.comparisonModels();
+          emit(state.copyWith(loading: false, comparisonModels: models));
       }
     } on ApiException catch (e) {
       emit(state.copyWith(loading: false, error: e.message));
@@ -205,6 +214,7 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.support:
         case AdminTab.promos:
         case AdminTab.pricing:
+        case AdminTab.comparison:
           return; // not live-refreshed
       }
     } catch (_) {
@@ -276,6 +286,19 @@ class AdminCubit extends Cubit<AdminState> {
       await refresh();
     } on ApiException catch (e) {
       emit(state.copyWith(error: e.message));
+    }
+  }
+
+  /// Record an observed real competitor fare; the backend re-fits that
+  /// provider's rate card once it has enough samples. Rethrows so the dialog
+  /// can surface success/failure.
+  Future<void> recordFareSample(Map<String, dynamic> body) async {
+    try {
+      await _api.recordFareSample(body);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+      rethrow;
     }
   }
 
