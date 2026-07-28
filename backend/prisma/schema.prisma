@@ -376,6 +376,50 @@ model FareConfig {
   @@map("fare_config")
 }
 
+/// Calibratable competitor rate card (Uber/Lyft/Empower) for the price-comparison
+/// feature. Seeded from code defaults (competitor-config.ts); `perMile`/`perMin`/
+/// `baseFare` are re-fitted from observed FareSample rows by CalibrationService so
+/// estimates track reality per market. `calibrated`/`sampleCount`/`residualPct`
+/// record the last fit's provenance and quality. These are MODELED estimates, not
+/// live quotes — see competitor-config.ts.
+model CompetitorFareModel {
+  provider         String   @id @db.VarChar(20)
+  displayName      String   @map("display_name") @db.VarChar(40)
+  productName      String   @map("product_name") @db.VarChar(40)
+  baseFare         Float    @map("base_fare")
+  perMile          Float    @map("per_mile")
+  perMin           Float    @map("per_min")
+  bookingFee       Float    @map("booking_fee")
+  minFare          Float    @map("min_fare")
+  surgeSensitivity Float    @map("surge_sensitivity")
+  calibrated       Boolean  @default(false)
+  sampleCount      Int      @default(0) @map("sample_count")
+  residualPct      Float    @default(0) @map("residual_pct")
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("competitor_fare_models")
+}
+
+/// An observed real competitor fare for a known trip, used to calibrate the
+/// CompetitorFareModel coefficients. `surgeAtSample` lets the fitter de-surge the
+/// sample so the fitted rate card reflects the base (non-surge) fare. Samples are
+/// gathered manually / from a small consented panel — never by scraping.
+model FareSample {
+  id            String   @id @default(uuid()) @db.Uuid
+  provider      String   @db.VarChar(20)
+  market        String   @default("miami") @db.VarChar(40)
+  distanceM     Int      @map("distance_m")
+  durationS     Int      @map("duration_s")
+  observedFare  Float    @map("observed_fare")
+  surgeAtSample Float    @default(1) @map("surge_at_sample")
+  hourBucket    Int      @default(0) @map("hour_bucket")
+  source        String   @default("manual") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([provider, market])
+  @@map("fare_samples")
+}
+
 /// A promotional discount code. `kind` is `flat` (fixed currency amount off) or
 /// `percent` (percentage off, optionally capped by `maxDiscount`). Usage is
 /// bounded globally (`usageLimit`/`usedCount`) and per-rider (`perUserLimit`).

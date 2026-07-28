@@ -70,6 +70,14 @@ class PriceComparisonCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           headline,
+          if (c.demandHigh) ...[
+            const SizedBox(height: AppSpacing.xs),
+            const _Headline(
+              icon: Icons.bolt_rounded,
+              color: AppColors.warning,
+              text: 'High demand — competitor prices may be higher',
+            ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           for (final q in c.quotes) _QuoteRow(quote: q, money: _money),
           const SizedBox(height: AppSpacing.xs),
@@ -146,7 +154,11 @@ class _QuoteRow extends StatelessWidget {
           ],
           const Spacer(),
           Text(
-            money(quote.price),
+            // Competitor estimates show a range (they're modeled, not exact);
+            // our own fare shows a single precise number.
+            quote.isOurs || !quote.hasRange
+                ? money(quote.price)
+                : '\$${quote.priceLow.round()}–\$${quote.priceHigh.round()}',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: isOurs ? FontWeight.w700 : FontWeight.w500,
               color: isOurs ? AppColors.accent : null,

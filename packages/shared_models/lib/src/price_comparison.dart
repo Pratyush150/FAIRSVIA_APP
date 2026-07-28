@@ -8,6 +8,9 @@ class ProviderQuote extends Equatable {
     required this.displayName,
     required this.productName,
     required this.price,
+    required this.priceLow,
+    required this.priceHigh,
+    required this.confidence,
     required this.currency,
     required this.isOurs,
     required this.estimated,
@@ -17,6 +20,14 @@ class ProviderQuote extends Equatable {
   final String displayName;
   final String productName;
   final double price;
+
+  /// Low/high band around a modeled price (equal to [price] for our exact fare).
+  final double priceLow;
+  final double priceHigh;
+
+  /// `exact` (our real fare), `high`, `medium`, or `low`.
+  final String confidence;
+
   final String currency;
 
   /// True for UberNav's own quote.
@@ -26,19 +37,38 @@ class ProviderQuote extends Equatable {
   /// quote — surfaced in the UI so riders are never misled.
   final bool estimated;
 
-  factory ProviderQuote.fromJson(Map<String, dynamic> json) => ProviderQuote(
-        provider: json['provider'] as String,
-        displayName: json['displayName'] as String,
-        productName: json['productName'] as String? ?? '',
-        price: (json['price'] as num).toDouble(),
-        currency: json['currency'] as String? ?? 'USD',
-        isOurs: json['isOurs'] as bool? ?? false,
-        estimated: json['estimated'] as bool? ?? false,
-      );
+  /// Whether the band is wide enough to be worth showing as a range.
+  bool get hasRange => (priceHigh - priceLow) >= 0.5;
+
+  factory ProviderQuote.fromJson(Map<String, dynamic> json) {
+    final price = (json['price'] as num).toDouble();
+    return ProviderQuote(
+      provider: json['provider'] as String,
+      displayName: json['displayName'] as String,
+      productName: json['productName'] as String? ?? '',
+      price: price,
+      priceLow: (json['priceLow'] as num?)?.toDouble() ?? price,
+      priceHigh: (json['priceHigh'] as num?)?.toDouble() ?? price,
+      confidence: json['confidence'] as String? ?? 'medium',
+      currency: json['currency'] as String? ?? 'USD',
+      isOurs: json['isOurs'] as bool? ?? false,
+      estimated: json['estimated'] as bool? ?? false,
+    );
+  }
 
   @override
-  List<Object?> get props =>
-      [provider, displayName, productName, price, currency, isOurs, estimated];
+  List<Object?> get props => [
+        provider,
+        displayName,
+        productName,
+        price,
+        priceLow,
+        priceHigh,
+        confidence,
+        currency,
+        isOurs,
+        estimated,
+      ];
 }
 
 /// The response to POST /comparison/estimate (also embedded in TripEstimate):
@@ -54,6 +84,7 @@ class PriceComparison extends Equatable {
     required this.ourIsCheapest,
     required this.maxSavings,
     required this.currency,
+    required this.demandHigh,
     required this.disclaimer,
   });
 
@@ -75,6 +106,10 @@ class PriceComparison extends Equatable {
 
   final String currency;
 
+  /// True when demand is high enough that modeled competitor prices are less
+  /// reliable and likely higher — the UI flags this.
+  final bool demandHigh;
+
   /// Honesty note ("competitor prices are estimates …").
   final String disclaimer;
 
@@ -92,6 +127,7 @@ class PriceComparison extends Equatable {
       ourIsCheapest: ours['isCheapest'] as bool? ?? false,
       maxSavings: (ours['maxSavings'] as num?)?.toDouble() ?? 0,
       currency: json['currency'] as String? ?? 'USD',
+      demandHigh: json['demandHigh'] as bool? ?? false,
       disclaimer: json['disclaimer'] as String? ?? '',
     );
   }
@@ -106,6 +142,7 @@ class PriceComparison extends Equatable {
         ourIsCheapest,
         maxSavings,
         currency,
+        demandHigh,
         disclaimer,
       ];
 }

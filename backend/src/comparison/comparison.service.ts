@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { PricingService } from '../pricing/pricing.service';
 import { CURRENCY, METERS_PER_MILE } from '../pricing/fare-config';
 import { COMPETITOR_MODELS, ProviderFareModel } from './competitor-config';
+import { CalibrationService } from './calibration.service';
+
+/** How sure we are of a modeled price. `exact` = our own real fare. */
+export type QuoteConfidence = 'exact' | 'high' | 'medium' | 'low';
 
 /** A single provider's price for the trip (ours or a modeled competitor). */
 export interface ProviderQuote {
@@ -9,6 +13,10 @@ export interface ProviderQuote {
   displayName: string;
   productName: string;
   price: number;
+  /** Low/high band around a modeled price (equals `price` for our exact fare). */
+  priceLow: number;
+  priceHigh: number;
+  confidence: QuoteConfidence;
   currency: string;
   /** True for our own price. */
   isOurs: boolean;
@@ -54,12 +62,19 @@ export interface PriceComparison {
     /** Per-competitor deltas. */
     vs: ProviderDelta[];
   };
+  /** True when demand (our surge proxy) is high enough that modeled competitor
+   *  prices are less reliable and likely higher — the UI flags this. */
+  demandHigh: boolean;
+
   /** Plain-language honesty note surfaced to the client. */
   disclaimer: string;
 }
 
 const OUR_PROVIDER = 'ubernav';
 const OUR_DISPLAY = 'UberNav';
+
+/** Surge at/above this is treated as "high demand" for the reliability flag. */
+const HIGH_DEMAND_SURGE = 1.2;
 
 export const COMPARISON_DISCLAIMER =
   'Competitor prices are estimates modeled from each provider’s published fare ' +
@@ -68,21 +83,26 @@ export const COMPARISON_DISCLAIMER =
 
 @Injectable()
 export class ComparisonService {
-  constructor(private readonly pricing: PricingService) {}
+  constructor(
+    private readonly pricing: PricingService,
+    private readonly calibration: CalibrationService,
+  ) {}
 
   /**
    * Compare our fare against every modeled competitor for a routed trip.
    *
    * Pure given (distanceM, durationS, surge, tier): our price comes from the
-   * real PricingService; competitor prices are modeled from their rate cards.
-   * The caller supplies distance/duration (already routed) so this does no I/O.
+   * real PricingService; competitor prices are modeled from their (calibrated)
+   * rate cards. The caller supplies distance/duration (already routed) so this
+   * does no I/O. `models` defaults to the live calibrated set; tests may inject
+   * a fixed set.
    */
   compare(
     distanceM: number,
     durationS: number,
     surge = 1,
     tier = 'economy',
-    models: ProviderFareModel[] = COMPETITOR_MODELS,
+    models: ProviderFareModel[] = this.calibration.models(),
   ): PriceComparison {
     const distanceMi = distanceM / METERS_PER_MILE;
     const durationMin = durationS / 60;
@@ -99,20 +119,39 @@ export class ComparisonService {
       displayName: OUR_DISPLAY,
       productName: ourEstimate.label,
       price: ourEstimate.fare,
+      // Our own fare is exact — no band.
+      priceLow: ourEstimate.fare,
+      priceHigh: ourEstimate.fare,
+      confidence: 'exact',
       currency: CURRENCY,
       isOurs: true,
       estimated: false,
     };
 
-    const competitorQuotes: ProviderQuote[] = models.map((m) => ({
-      provider: m.provider,
-      displayName: m.displayName,
-      productName: m.productName,
-      price: modelCompetitorFare(m, distanceMi, durationMin, surge),
-      currency: CURRENCY,
-      isOurs: false,
-      estimated: true,
-    }));
+    const competitorQuotes: ProviderQuote[] = models.map((m) => {
+      const price = modelCompetitorFare(m, distanceMi, durationMin, surge);
+      // Uncertainty = calibration residual (how well the model fits real fares)
+      // + a surge term (we're GUESSING their surge; the guess widens the band as
+      // demand rises, and only for providers that actually surge).
+      const baseUnc = m.residualPct != null && m.residualPct > 0
+        ? clamp(m.residualPct, 0.02, 0.1)
+        : 0.06;
+      const surgeUnc =
+        Math.max(0, surge - 1) * 0.4 * Math.min(1, m.surgeSensitivity);
+      const unc = clamp(baseUnc + surgeUnc, 0, 0.6);
+      return {
+        provider: m.provider,
+        displayName: m.displayName,
+        productName: m.productName,
+        price,
+        priceLow: round2(price * (1 - unc)),
+        priceHigh: round2(price * (1 + unc)),
+        confidence: unc < 0.05 ? 'high' : unc < 0.12 ? 'medium' : 'low',
+        currency: CURRENCY,
+        isOurs: false,
+        estimated: true,
+      };
+    });
 
     const quotes = [ourQuote, ...competitorQuotes].sort(
       (a, b) => a.price - b.price,
@@ -151,9 +190,14 @@ export class ComparisonService {
         maxSavings: round2(Math.max(0, priciest.price - ourQuote.price)),
         vs,
       },
+      demandHigh: surge >= HIGH_DEMAND_SURGE,
       disclaimer: COMPARISON_DISCLAIMER,
     };
   }
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
 }
 
 /**

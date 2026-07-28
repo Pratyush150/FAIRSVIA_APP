@@ -45,6 +45,11 @@ export interface ProviderFareModel {
    * Applied as: effectiveSurge = 1 + (ourSurge - 1) * surgeSensitivity.
    */
   surgeSensitivity: number;
+
+  /** True once fitted from real samples (set by CalibrationService). */
+  calibrated?: boolean;
+  /** Mean abs % error of the last fit — drives the estimate's confidence band. */
+  residualPct?: number;
 }
 
 /**
