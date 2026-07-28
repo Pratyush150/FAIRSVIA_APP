@@ -133,6 +133,17 @@ jobs:
       - name: Trip odometer + fare recompute
         working-directory: tools/fake-driver-simulator
         run: node odometer-ride.mjs
+      - name: Price comparison (multi-provider + minimum)
+        working-directory: tools/fake-driver-simulator
+        run: node comparison-check.mjs
+      - name: Seed admin for calibration loop
+        working-directory: tools/fake-driver-simulator
+        run: |
+          node -e "import('./lib.mjs').then(m => m.login('+13050000001')).then(() => console.log('admin user created'))"
+          psql "$DATABASE_URL" -c "UPDATE users SET role='admin' WHERE phone='+13050000001';"
+      - name: Price comparison calibration loop
+        working-directory: tools/fake-driver-simulator
+        run: node calibration-check.mjs
       - name: Marketplace simulation — smoke (dispatch + SLO gate)
         working-directory: tools/simulation-engine
         # No OSRM in CI → straight-line actor motion (still exercises the full
