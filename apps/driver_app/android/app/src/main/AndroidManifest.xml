@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <!-- geolocator's foreground location service takes a wake lock to keep the
+         GPS/CPU alive while the driver is online; without this the service throws
+         PlatformException(WAKE_LOCK) the moment the driver goes online. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <!-- Android 13+ runtime grant for the foreground-service + push notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.INTERNET"/>
