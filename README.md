@@ -36,15 +36,33 @@ A faithful, Uber-style ride-hailing platform: **Flutter** apps (Rider, Driver, A
   **reconnection resilience** (`trip:sync` rehydrates the active trip on reconnect) on both apps.
   Dark mode (system) across all apps. Verified: 44 unit + 19 e2e (backend), rider/driver bloc tests
   green, admin app builds for web + live API checked.
+- **Phase 5 — Surge & multi-provider price comparison** ✅ — demand-based **surge** (admin-set
+  multiplier, applied to every quote). **Price comparison**: every fare estimate is shown next to
+  modeled **Uber / Lyft / Empower** prices for the same trip, with the cheapest option flagged and
+  the max saving highlighted. Competitor prices are **estimates from published rate cards**, never
+  live scrapes (no free/legal public pricing API exists — the card states this plainly). The
+  estimator is **self-calibrating**: an admin records real observed competitor fares and the backend
+  re-fits that provider's rate card by least-squares, tightening accuracy over time. It's
+  **surge-aware and honest** — competitor quotes carry a price *range* + confidence band (widened by
+  demand uncertainty) while our own fare is exact, and a "high demand" flag surfaces when surge is
+  up. Operated from the admin app's **Compare** tab (rate cards + calibration status + record-a-fare
+  dialog). Verified: `comparison-check.mjs` (15 assertions) + `calibration-check.mjs` (10, proves a
+  fed model learns the true rates to <3% held-out error), rider `PriceComparisonCard` widget tests,
+  both gated in CI.
+- **Platform readiness (iOS + Android)** ✅ config — driver/rider **background location** +
+  notification permissions and `UIBackgroundModes` set for both platforms; iOS `Podfile`s and
+  `Info.plist`s committed. Android is validated on a real headless emulator. **iOS cannot be
+  compiled/run on this Linux server** (needs macOS + Xcode) — the config is kept iOS-ready and
+  committed, but no iOS build is claimed here.
 
 ## Repository layout
 
 ```
-backend/     NestJS modular monolith (auth, users, ... more modules per phase)
-infra/       docker-compose (Postgres+PostGIS, Redis, Adminer, backend)
-apps/        Flutter apps: rider_app, driver_app, admin_app   (Phase 0, pending)
-packages/    Shared Flutter packages: core, design_system, shared_models  (pending)
-tools/       fake-driver-simulator (Phase 2)
+backend/     NestJS modular monolith (auth, users, trips, dispatch, pricing, comparison, payments, admin, ...)
+infra/       docker-compose (Postgres+PostGIS, Redis, Adminer, backend) + prod profile (nginx + replicas)
+apps/        Flutter apps: rider_app, driver_app, admin_app
+packages/    Shared Flutter packages: core, design_system, shared_models
+tools/       fake-driver-simulator (+ comparison/calibration checks) and simulation-engine
 ```
 
 ## Running the backend (self-hosted, all in Docker)
@@ -73,8 +91,8 @@ response as `devCode` (no real SMS is sent). Read it from `docker compose logs b
 BASE=http://localhost:3000/api/v1
 # 1. request a code
 curl -X POST $BASE/auth/otp/request -H 'Content-Type: application/json' -d '{"phone":"+919876543210"}'
-# 2. verify it (use the devCode from the response) -> returns accessToken, refreshToken, user
-curl -X POST $BASE/auth/otp/verify  -H 'Content-Type: application/json' -d '{"phone":"+919876543210","code":"1234"}'
+# 2. verify it (use the 6-digit devCode from the response) -> returns accessToken, refreshToken, user
+curl -X POST $BASE/auth/otp/verify  -H 'Content-Type: application/json' -d '{"phone":"+919876543210","code":"123456"}'
 # 3. call an authed route
 curl $BASE/users/me -H "Authorization: Bearer <accessToken>"
 ```
@@ -92,7 +110,10 @@ curl $BASE/users/me -H "Authorization: Bearer <accessToken>"
 | GET  | `/users/me/places` · POST | JWT | Saved places (Home/Work) |
 | GET  | `/places/autocomplete?q=` | JWT | Places autocomplete (proxy) |
 | GET  | `/places/details?placeId=` | JWT | Resolve place → address + coords |
-| POST | `/trips/estimate` | JWT | Route + fare per tier |
+| POST | `/trips/estimate` | JWT | Route + fare per tier (+ price-comparison block) |
+| POST | `/comparison/estimate` | JWT | UberNav vs modeled Uber/Lyft/Empower for a trip |
+| GET  | `/comparison/models` | Admin | Competitor rate cards + calibration status |
+| POST | `/comparison/samples` | Admin | Record a real observed competitor fare (re-fits the model) |
 | POST | `/trips` | JWT | Create trip → `requested` |
 | GET  | `/trips/:id` · `/trips/history` | JWT | Trip(s) |
 | POST | `/trips/:id/cancel` | JWT | Cancel (state-machine guarded) |
@@ -118,7 +139,13 @@ curl $BASE/users/me -H "Authorization: Bearer <accessToken>"
 cd tools/fake-driver-simulator && npm install
 npm run full-ride          # scripted rider+driver → asserts the whole lifecycle
 DRIVERS=5 npm run simulate  # N roaming online drivers to match the real rider app against
+node comparison-check.mjs   # asserts the multi-provider comparison + minimum-price flag
+node calibration-check.mjs  # feeds observed fares, asserts the model self-calibrates (needs an admin)
 ```
+
+To film a rider demo hands-free, `tools/fake-driver-simulator/auto-driver.sh` runs the whole
+driver side (accept → drive to pickup → read the start OTP server-side → start → complete) while you
+just book and watch on the rider app.
 
 ### Google Maps key
 
@@ -217,8 +244,9 @@ cd apps/driver_app && flutter run --dart-define=API_BASE_URL=http://10.0.2.2:300
 cd apps/admin_app  && flutter run -d chrome
 ```
 
-Login: enter any phone (e.g. `+919876543210`), tap Continue, then read the 4-digit code from
-the OTP screen's dev hint (also in `docker compose logs backend`) and enter it.
+Login: enter any phone (e.g. `+919876543210`), tap Continue, then read the 6-digit code from
+the OTP screen's dev hint (also in `docker compose logs backend`) and enter it. (The 4-digit code
+you're asked for *mid-trip* is the separate driver-side start OTP.)
 
 ### Monorepo layout
 - `packages/shared_models` — pure-Dart domain models (`AppUser`, `AuthTokens`, `AuthSession`)
