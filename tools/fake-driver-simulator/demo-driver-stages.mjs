@@ -78,9 +78,11 @@ async function finish(tripId, otp) {
   const sock = await connect(driver.token);
   await wait(400);
 
+  // GET /trips/:id returns pickup/dropoff with flat lat/lng (not nested .point,
+  // which is the Flutter model's shape — a mismatch that used to crash here).
   const trip = await api(`/trips/${tripId}`, { token: driver.token });
-  const pickup = { lat: trip.pickup.point.lat, lng: trip.pickup.point.lng };
-  const dropoff = { lat: trip.dropoff.point.lat, lng: trip.dropoff.point.lng };
+  const pickup = { lat: trip.pickup.lat, lng: trip.pickup.lng };
+  const dropoff = { lat: trip.dropoff.lat, lng: trip.dropoff.lng };
 
   await api(`/trips/${tripId}/start`, {
     method: 'POST',
