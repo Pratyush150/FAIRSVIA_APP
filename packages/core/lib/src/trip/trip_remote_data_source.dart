@@ -115,12 +115,15 @@ class TripRemoteDataSource {
     }
   }
 
-  Future<void> cancel(String id, {String? reason}) async {
+  /// Cancels the trip and returns the cancellation fee charged (0 when none —
+  /// a fee only applies once a driver has committed).
+  Future<double> cancel(String id, {String? reason}) async {
     try {
-      await _dio.post<Map<String, dynamic>>(
+      final res = await _dio.post<Map<String, dynamic>>(
         '/trips/$id/cancel',
         data: {'reason': ?reason},
       );
+      return (res.data?['fee'] as num?)?.toDouble() ?? 0;
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }

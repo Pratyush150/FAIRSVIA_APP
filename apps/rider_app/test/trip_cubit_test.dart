@@ -257,7 +257,7 @@ void main() {
     'cancelTrip cancels on the backend and resets to idle',
     setUp: () =>
         when(() => repo.cancelTrip(any(), reason: any(named: 'reason')))
-            .thenAnswer((_) async {}),
+            .thenAnswer((_) async => 0.0),
     build: () => TripCubit(repo, realtime, payments, ratings),
     seed: () => TripState(phase: TripPhase.searching, trip: trip),
     act: (c) => c.cancelTrip(),

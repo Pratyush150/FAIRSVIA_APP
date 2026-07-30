@@ -315,16 +315,20 @@ class TripCubit extends Cubit<TripState> {
     }
   }
 
-  Future<void> cancelTrip() async {
+  /// Cancels the active trip and returns the cancellation fee charged (0 when
+  /// none), so the UI can tell the rider they were charged.
+  Future<double> cancelTrip() async {
     final trip = state.trip;
+    var fee = 0.0;
     if (trip != null) {
       try {
-        await _repository.cancelTrip(trip.id, reason: 'Cancelled by rider');
+        fee = await _repository.cancelTrip(trip.id, reason: 'Cancelled by rider');
       } catch (_) {
         // Best-effort: reset the UI regardless.
       }
     }
     emit(const TripState());
+    return fee;
   }
 
   void reset() => emit(const TripState());

@@ -1151,9 +1151,50 @@ class _FindingDriver extends StatelessWidget {
         const SizedBox(height: AppSpacing.lg),
         SecondaryButton(
           label: 'Cancel ride',
-          onPressed: () => context.read<TripCubit>().cancelTrip(),
+          onPressed: () => _confirmCancel(context, feeWarning: false),
         ),
       ],
+    );
+  }
+}
+
+/// Confirms a ride cancellation before calling through. When a driver is already
+/// on the way ([feeWarning]), warns that a cancellation fee may apply, then — if
+/// one was charged — tells the rider the exact amount. Prevents a silent charge.
+Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final cubit = context.read<TripCubit>();
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogCtx) => AlertDialog(
+      title: const Text('Cancel this ride?'),
+      content: Text(
+        feeWarning
+            ? 'Your driver is already on the way. Cancelling now may charge a '
+                'cancellation fee.'
+            : 'Are you sure you want to cancel this ride?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogCtx).pop(false),
+          child: const Text('Keep ride'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialogCtx).pop(true),
+          child: const Text('Cancel ride'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  final fee = await cubit.cancelTrip();
+  if (fee > 0) {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Ride cancelled. A \$${fee.toStringAsFixed(2)} cancellation fee was charged.',
+        ),
+      ),
     );
   }
 }
@@ -1291,7 +1332,7 @@ class _DriverInfoSheet extends StatelessWidget {
               child: SecondaryButton(
                 label: 'Cancel',
                 danger: true,
-                onPressed: () => context.read<TripCubit>().cancelTrip(),
+                onPressed: () => _confirmCancel(context, feeWarning: true),
               ),
             ),
           ],
