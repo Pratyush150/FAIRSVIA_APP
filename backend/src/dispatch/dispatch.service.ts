@@ -20,7 +20,9 @@ import {
 // *ghosts* (neither accepts nor declines) blocks this rider's sequential offer
 // loop for the whole window, so it directly bounds the worst-case match-latency
 // tail. 10s is still an easy human-tap window while keeping ghost recovery snappy.
-const OFFER_TTL_MS = 10000;
+// How long a driver has to accept an offer. Configurable so demos/recordings
+// can give a human time to switch apps; production keeps the snappy 10s.
+const OFFER_TTL_MS = Number(process.env.OFFER_TTL_MS ?? 10000);
 // Poll the response key fairly tightly: a driver auto-accepts in well under a
 // second, so this mostly sets the floor on match latency. Cheap Redis GETs.
 const RESPONSE_POLL_MS = 100;

@@ -114,9 +114,17 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   }
 
   /// The route to draw. While heading to the pickup we show the *approach* leg
-  /// (driver → pickup) so it's obvious where the rider is being collected from;
-  /// once on the trip we show the trip route (pickup → dropoff).
+  /// (driver → pickup); once on the trip we show the trip route.
+  ///
+  /// When the car is being simulated we draw only the *remaining* path from its
+  /// current position, so the line shrinks behind it as it drives (and vanishes
+  /// on arrival) — matching how Uber/Ola render an active route.
   List<LatLng> _route(DriverState state) {
+    final remaining = simulatedRemainingPath();
+    if (remaining.length >= 2) {
+      return [for (final p in remaining) LatLng(p.lat, p.lng)];
+    }
+    if (simulatedArrived) return const []; // reached it — no line left
     final approaching = state.phase == DriverPhase.enRoute ||
         state.phase == DriverPhase.arrived;
     final encoded = approaching
@@ -124,6 +132,25 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
         : state.trip?.routePolyline;
     if (encoded == null || encoded.isEmpty) return const [];
     return decodePolyline(encoded);
+  }
+
+  /// Decode a road polyline and pin its tail to the exact destination, so the
+  /// car finishes precisely ON the pickup/dropoff pin rather than wherever the
+  /// route geometry happens to end (which can be a few metres off).
+  List<({double lat, double lng})> _pathTo(
+    String? encoded,
+    double endLat,
+    double endLng,
+  ) {
+    final pts = decodePolyline(encoded ?? '');
+    final path = [for (final p in pts) (lat: p.latitude, lng: p.longitude)];
+    const eps = 0.00001; // ~1m
+    if (path.isEmpty ||
+        (path.last.lat - endLat).abs() > eps ||
+        (path.last.lng - endLng).abs() > eps) {
+      path.add((lat: endLat, lng: endLng));
+    }
+    return path;
   }
 
   /// Frame the map for the current phase: heading to pickup → show the driver +
@@ -153,6 +180,26 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
           _startStreamingLocation();
         } else {
           _stopStreamingLocation();
+        }
+        // Demo/QA: with a mocked location, drive the car ALONG THE ROAD ROUTE —
+        // the approach leg to the pickup, then the trip route to the dropoff —
+        // so it tracks streets like a real driver instead of sliding straight
+        // across the map.
+        final trip = state.trip;
+        if (trip != null) {
+          if (state.phase == DriverPhase.enRoute) {
+            driveSimulatedPath(_pathTo(
+              state.approachPolyline,
+              trip.pickup.point.lat,
+              trip.pickup.point.lng,
+            ));
+          } else if (state.phase == DriverPhase.onTrip) {
+            driveSimulatedPath(_pathTo(
+              trip.routePolyline,
+              trip.dropoff.point.lat,
+              trip.dropoff.point.lng,
+            ));
+          }
         }
         if (state.needsOnboarding) {
           _showOnboarding(context);
