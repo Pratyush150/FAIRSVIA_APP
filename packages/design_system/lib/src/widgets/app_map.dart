@@ -131,7 +131,13 @@ class _AppMapState extends State<AppMap> {
           // with it too).
           userAgentPackageName: 'in.novarobotics.ubernav',
           maxZoom: 19,
-          tileProvider: widget.tileProvider,
+          // A single tile that 404s / times out / is rate-limited must not throw
+          // an uncaught exception (red error overlay in debug, error spam in prod).
+          // silenceExceptions keeps the map usable when a tile fails; the callback
+          // is a no-op sink so nothing propagates to FlutterError.onError.
+          tileProvider:
+              widget.tileProvider ?? NetworkTileProvider(silenceExceptions: true),
+          errorTileCallback: (tile, error, stackTrace) {},
         ),
         if (widget.route.length >= 2)
           PolylineLayer(
