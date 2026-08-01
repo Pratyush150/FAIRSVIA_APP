@@ -43,7 +43,11 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
               ..showSnackBar(SnackBar(content: Text(state.error!)));
           },
           builder: (context, state) {
-            return Padding(
+            // Scrollable so the content never overflows when the keyboard
+            // shrinks the viewport (a fixed gap replaces the old Spacer, which
+            // caused a 2px bottom overflow on tall screens with the keyboard up).
+            return SingleChildScrollView(
+              child: Padding(
               padding: const EdgeInsets.all(AppSpacing.xl),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -94,7 +98,7 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                     ),
                     onSubmitted: _valid ? (_) => _submit(context) : null,
                   ),
-                  const Spacer(),
+                  const SizedBox(height: AppSpacing.huge),
                   Text(
                     'By continuing you agree to our Terms and Privacy Policy.',
                     textAlign: TextAlign.center,
@@ -110,6 +114,7 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                 ],
+              ),
               ),
             );
           },
