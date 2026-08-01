@@ -52,7 +52,19 @@ async function accept() {
   sock.emit('driver:location', { ...START, heading: 200, speed: 0 });
   console.log('driver online — waiting for a ride request…');
 
-  const offer = await once(sock, 'trip:offer', 180000);
+  // Real driver apps stream GPS continuously; keep pinging while we wait so the
+  // driver's presence stays fresh (dispatch evicts drivers that go silent past
+  // PRESENCE_STALE_MS). Without this a slow-to-book rider finds "no drivers".
+  const heartbeat = setInterval(
+    () => sock.emit('driver:location', { ...START, heading: 200, speed: 0 }),
+    5000,
+  );
+  let offer;
+  try {
+    offer = await once(sock, 'trip:offer', 180000);
+  } finally {
+    clearInterval(heartbeat);
+  }
   console.log(`offer received: ${offer.tripId} ($${offer.fare})`);
   // A beat before accepting, like a real driver reading the request.
   await wait(2500);
