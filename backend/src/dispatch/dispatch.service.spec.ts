@@ -67,6 +67,46 @@ describe('DispatchService', () => {
     expect(ok).toBe(false);
   });
 
+  it('evictStale keeps fresh drivers and evicts ghosts (stale GPS) from the pool', async () => {
+    const { svc, redis } = make();
+    const now = Date.now();
+    const ts: Record<string, string> = {
+      fresh: String(now - 2000), // pinged 2s ago → still here
+      ghost: String(now - 600000), // pinged 10min ago → gone
+    };
+    // pipeline().hget(...).exec() → [[null, ts], ...] in call order.
+    const calls: string[] = [];
+    (redis.client as Record<string, unknown>).pipeline = jest.fn(() => {
+      const p: {
+        hget: (k: string) => typeof p;
+        exec: () => Promise<Array<[null, string]>>;
+      } = {
+        hget: (k: string) => {
+          calls.push(k);
+          return p;
+        },
+        exec: async () =>
+          calls.map(
+            (k) =>
+              [null, k.includes('ghost') ? ts.ghost : ts.fresh] as [null, string],
+          ),
+      };
+      return p;
+    });
+    (redis.client as Record<string, unknown>).zrem = jest.fn().mockResolvedValue(1);
+
+    const fresh = await (
+      svc as unknown as {
+        evictStale(tier: string, ids: string[]): Promise<string[]>;
+      }
+    ).evictStale('economy', ['fresh', 'ghost']);
+
+    expect(fresh).toEqual(['fresh']);
+    expect(
+      (redis.client as unknown as { zrem: jest.Mock }).zrem,
+    ).toHaveBeenCalledWith(RedisKeys.driversGeo('economy'), 'ghost');
+  });
+
   it('favoritesFirst moves favourites to the front, keeping nearest order', () => {
     const { svc } = make();
     // `favoritesFirst` is a pure ordering helper on the distance-sorted list.

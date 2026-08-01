@@ -29,6 +29,13 @@ const RESPONSE_POLL_MS = 100;
 const START_RADIUS_KM = 3;
 const MAX_RADIUS_KM = 9;
 const RADIUS_STEP_KM = 2;
+// A driver whose app crashes / loses network without going offline never emits
+// `status:offline`, so their GEO-set entry lingers with a stale position and
+// dispatch keeps offering to a ghost (burned offer-TTLs, spurious no_drivers).
+// Online drivers stream GPS every few seconds, so a candidate with no ping in
+// this window is treated as gone and evicted from the pool. Self-healing: a
+// driver that reconnects is re-added on their next ping.
+const PRESENCE_STALE_MS = Number(process.env.PRESENCE_STALE_MS ?? 45000);
 // When a full expanding-ring sweep finds no *available* driver (every nearby
 // driver is busy on another trip), don't give up immediately — under bursty
 // demand near capacity a driver frees up within seconds. Keep the trip in
@@ -203,7 +210,7 @@ export class DispatchService {
   }
 
   private async nearestDrivers(trip: Trip, radiusKm: number): Promise<string[]> {
-    const result = await this.redis.client.geosearch(
+    const result = (await this.redis.client.geosearch(
       RedisKeys.driversGeo(trip.tier),
       'FROMLONLAT',
       trip.pickupLng,
@@ -212,8 +219,36 @@ export class DispatchService {
       radiusKm,
       'km',
       'ASC',
-    );
-    return result as string[];
+    )) as string[];
+    if (result.length === 0) return result;
+    return this.evictStale(trip.tier, result);
+  }
+
+  /**
+   * Drops ghost drivers — those whose last GPS ping is older than
+   * PRESENCE_STALE_MS — from the candidate list AND from the GEO pool, so we
+   * never offer a trip to a driver who has silently disappeared. Reads all
+   * timestamps in one pipeline to keep the hot path cheap.
+   */
+  private async evictStale(tier: string, ids: string[]): Promise<string[]> {
+    const pipeline = this.redis.client.pipeline();
+    for (const id of ids) pipeline.hget(RedisKeys.driverLoc(id), 'ts');
+    const res = await pipeline.exec();
+    const now = Date.now();
+    const fresh: string[] = [];
+    const stale: string[] = [];
+    ids.forEach((id, i) => {
+      const ts = res?.[i]?.[1] as string | null;
+      if (ts && now - Number(ts) <= PRESENCE_STALE_MS) {
+        fresh.push(id);
+      } else {
+        stale.push(id);
+      }
+    });
+    if (stale.length > 0) {
+      await this.redis.client.zrem(RedisKeys.driversGeo(tier), ...stale);
+    }
+    return fresh;
   }
 
   /** Offer to one driver under a lock; resolve when they accept/decline/expire. */
