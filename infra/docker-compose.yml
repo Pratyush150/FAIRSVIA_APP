@@ -73,13 +73,13 @@ services:
   #   cd infra/osm-data
   #   docker run --rm -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend \
   #     osrm-extract -p /opt/car.lua /data/florida-latest.osm.pbf
-  #   ...osrm-partition /data/florida-latest.osrm
-  #   ...osrm-customize /data/florida-latest.osrm
+  #   ...osrm-partition /data/bhukum.osrm
+  #   ...osrm-customize /data/bhukum.osrm
   osrm:
     image: ghcr.io/project-osrm/osrm-backend
     container_name: ubernav_osrm
     restart: unless-stopped
-    command: ["osrm-routed", "--algorithm", "mld", "/data/florida-latest.osrm"]
+    command: ["osrm-routed", "--algorithm", "mld", "/data/bhukum.osrm"]
     volumes:
       - ./osm-data:/data
     ports:
@@ -92,7 +92,7 @@ services:
     container_name: ubernav_nominatim
     restart: unless-stopped
     environment:
-      PBF_PATH: /nominatim/data/florida-latest.osm.pbf
+      PBF_PATH: /nominatim/data/bhukum.osm.pbf
       NOMINATIM_PASSWORD: nominatim
       IMPORT_STYLE: address
     volumes:
