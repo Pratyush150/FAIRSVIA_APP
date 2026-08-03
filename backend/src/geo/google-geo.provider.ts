@@ -56,6 +56,21 @@ export class GoogleGeoProvider implements GeoProvider {
     };
   }
 
+  async reverse(location: LatLng): Promise<PlaceDetails> {
+    const url = new URL(`${GoogleGeoProvider.base}/geocode/json`);
+    url.searchParams.set('latlng', `${location.lat},${location.lng}`);
+    url.searchParams.set('key', this.apiKey);
+
+    const data = await this.getJson(url);
+    const result = (data.results ?? [])[0];
+    const address = result?.formatted_address ?? 'Current location';
+    return {
+      placeId: result?.place_id ?? `latlng:${location.lat},${location.lng}`,
+      address,
+      location,
+    };
+  }
+
   async route(origin: LatLng, destination: LatLng): Promise<RouteResult> {
     const url = new URL(`${GoogleGeoProvider.base}/directions/json`);
     url.searchParams.set('origin', `${origin.lat},${origin.lng}`);

@@ -41,4 +41,17 @@ class PlacesRemoteDataSource {
       throw ApiException.fromDio(e);
     }
   }
+
+  /// Reverse-geocode raw coordinates (the rider's GPS) to a human address.
+  Future<PlaceDetails> reverse(double lat, double lng) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/places/reverse',
+        queryParameters: {'lat': lat, 'lng': lng},
+      );
+      return PlaceDetails.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
 }

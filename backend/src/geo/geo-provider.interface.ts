@@ -34,5 +34,7 @@ export interface RouteResult {
 export interface GeoProvider {
   autocomplete(query: string, sessionToken?: string): Promise<PlacePrediction[]>;
   placeDetails(placeId: string): Promise<PlaceDetails>;
+  /** Resolve raw coordinates (e.g. the rider's GPS) to a human address. */
+  reverse(location: LatLng): Promise<PlaceDetails>;
   route(origin: LatLng, destination: LatLng): Promise<RouteResult>;
 }

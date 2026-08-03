@@ -40,6 +40,7 @@ class _RiderHomeView extends StatefulWidget {
 class _RiderHomeViewState extends State<_RiderHomeView> {
   final _location = LocationService();
   GeoPoint _myLocation = LocationService.fallback;
+  String _myLocationAddr = 'Current location';
   List<SavedPlace> _savedPlaces = const [];
 
   @override
@@ -53,6 +54,16 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   Future<void> _loadLocation() async {
     final loc = await _location.currentOrFallback();
     if (mounted) setState(() => _myLocation = loc);
+    // Resolve the GPS to a real address so the pickup shows where the rider
+    // actually is (e.g. "Bhukum, Pune") instead of a generic label.
+    try {
+      final place = await sl<TripRepository>().reverseGeocode(loc.lat, loc.lng);
+      if (mounted && place.address.isNotEmpty) {
+        setState(() => _myLocationAddr = place.address);
+      }
+    } catch (_) {
+      // Non-fatal: keep the generic label if reverse-geocoding fails.
+    }
   }
 
   Future<void> _loadSavedPlaces() async {
@@ -68,7 +79,7 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   Future<void> _pickSaved(SavedPlace place) async {
     await context.read<TripCubit>().chooseDestination(
           pickup: _myLocation,
-          pickupAddr: 'Current location',
+          pickupAddr: _myLocationAddr,
           dropoff: place.point,
           dropoffAddr: place.address ?? place.label,
         );
@@ -84,7 +95,10 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   Future<void> _openSearch() async {
     final choice = await Navigator.of(context).push<RouteChoice>(
       MaterialPageRoute(
-        builder: (_) => DestinationSearchPage(initialPickup: _myLocation),
+        builder: (_) => DestinationSearchPage(
+          initialPickup: _myLocation,
+          initialPickupLabel: _myLocationAddr,
+        ),
       ),
     );
     if (choice != null && mounted) {

@@ -34,4 +34,15 @@ export class PlacesController {
   details(@Query('placeId') placeId: string) {
     return this.geo.placeDetails(placeId);
   }
+
+  /** Reverse-geocode the rider's GPS to a human address for the pickup label. */
+  @Get('reverse')
+  reverse(@Query('lat') lat: string, @Query('lng') lng: string) {
+    const latN = Number(lat);
+    const lngN = Number(lng);
+    if (Number.isNaN(latN) || Number.isNaN(lngN)) {
+      return { address: 'Current location', location: { lat: latN, lng: lngN } };
+    }
+    return this.geo.reverse({ lat: latN, lng: lngN });
+  }
 }

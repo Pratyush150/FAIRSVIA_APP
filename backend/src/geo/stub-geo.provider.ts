@@ -53,6 +53,14 @@ export class StubGeoProvider implements GeoProvider {
     };
   }
 
+  async reverse(location: LatLng): Promise<PlaceDetails> {
+    return {
+      placeId: this.encodePlaceId(location),
+      address: `Stub location (${location.lat.toFixed(5)}, ${location.lng.toFixed(5)})`,
+      location,
+    };
+  }
+
   async route(origin: LatLng, destination: LatLng): Promise<RouteResult> {
     const straight = haversineMeters(origin, destination);
     // Roads aren't straight; apply a modest detour factor.

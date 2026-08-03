@@ -66,6 +66,23 @@ export class OsmGeoProvider implements GeoProvider {
     });
   }
 
+  async reverse(location: LatLng): Promise<PlaceDetails> {
+    const url = new URL(`${this.nominatimBaseUrl}/reverse`);
+    url.searchParams.set('lat', String(location.lat));
+    url.searchParams.set('lon', String(location.lng));
+    url.searchParams.set('format', 'jsonv2');
+    url.searchParams.set('addressdetails', '1');
+
+    const r = (await this.getJson(url)) as any;
+    const display = String(r?.display_name ?? '');
+    const address = display || 'Current location';
+    return {
+      placeId: this.encodePlaceId(location, address),
+      address,
+      location,
+    };
+  }
+
   async placeDetails(placeId: string): Promise<PlaceDetails> {
     const decoded = this.decodePlaceId(placeId);
     if (!decoded) throw new NotFoundException('Unknown placeId');

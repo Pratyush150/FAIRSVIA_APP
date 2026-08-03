@@ -17,6 +17,10 @@ class TripRepository {
   Future<PlaceDetails> placeDetails(String placeId) =>
       _places.details(placeId);
 
+  /// Resolve the rider's GPS coordinates to a human address (pickup label).
+  Future<PlaceDetails> reverseGeocode(double lat, double lng) =>
+      _places.reverse(lat, lng);
+
   Future<TripEstimate> estimate(
     GeoPoint pickup,
     GeoPoint dropoff, {
