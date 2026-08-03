@@ -14,10 +14,18 @@
 //       -> starts the trip with the OTP, DRIVES to the dropoff, completes.
 import { api, connect, login, once, onboardDriver, wait } from './lib.mjs';
 
-const DEMO_DRIVER_PHONE = '+19800000077';
+const DEMO_DRIVER_PHONE = process.env.DEMO_DRIVER_PHONE || '+19800000077';
 
 // Start well away from the pickup so the rider watches the car approach.
-const START = { lat: 25.7885, lng: -80.1865 }; // ~1.6 km NE of downtown pickup
+// Override with DRIVER_START="lat,lng" to place the demo driver in another market.
+const START = (() => {
+  const s = process.env.DRIVER_START;
+  if (s) {
+    const [la, ln] = s.split(',').map(Number);
+    if (!Number.isNaN(la) && !Number.isNaN(ln)) return { lat: la, lng: ln };
+  }
+  return { lat: 25.7885, lng: -80.1865 }; // ~1.6 km NE of downtown Miami pickup
+})();
 
 // Pacing (ms) — tuned so each phase is clearly visible on camera.
 const APPROACH_MS = Number(process.env.APPROACH_MS ?? 26000);
