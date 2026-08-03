@@ -4,6 +4,16 @@
 <dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>UberNav uses your location to set your pickup point and show your ride on the map.</string>
+	<!-- Android sets usesCleartextTraffic=true; ATS is the iOS equivalent. Allows
+	     the HTTP dev/LAN backend (http://192.168.x). Cloudflare builds use HTTPS
+	     and don't need this; tighten to HTTPS-only for App Store release. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
