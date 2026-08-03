@@ -20,9 +20,14 @@ import {
 export class OsmGeoProvider implements GeoProvider {
   private readonly logger = new Logger('OsmGeo');
 
-  // Bias search ordering toward the Miami metro without hard-bounding results
-  // (the Florida extract is statewide). Order: left,top,right,bottom (lon,lat).
-  private static readonly miamiViewbox = '-80.45,25.95,-80.10,25.55';
+  // Bias search ordering toward the served market. Configurable so the same
+  // build can point at a different city's OSM extract (e.g. Bhukum/Pune) without
+  // a code change. Order: left,top,right,bottom (lon,lat). Empty GEO_COUNTRY_CODES
+  // disables the country filter entirely.
+  private static readonly viewbox =
+    process.env.GEO_VIEWBOX ?? '-80.45,25.95,-80.10,25.55';
+  private static readonly countryCodes =
+    process.env.GEO_COUNTRY_CODES ?? 'us';
   private static readonly userAgent = 'UberNav/1.0 (self-hosted)';
 
   constructor(
@@ -39,8 +44,10 @@ export class OsmGeoProvider implements GeoProvider {
     url.searchParams.set('format', 'jsonv2');
     url.searchParams.set('addressdetails', '1');
     url.searchParams.set('limit', '6');
-    url.searchParams.set('countrycodes', 'us');
-    url.searchParams.set('viewbox', OsmGeoProvider.miamiViewbox);
+    if (OsmGeoProvider.countryCodes) {
+      url.searchParams.set('countrycodes', OsmGeoProvider.countryCodes);
+    }
+    url.searchParams.set('viewbox', OsmGeoProvider.viewbox);
 
     const data = (await this.getJson(url)) as any[];
     return (data ?? []).map((r) => {
