@@ -38,7 +38,21 @@ class _DriverHomeView extends StatefulWidget {
 }
 
 class _DriverHomeViewState extends State<_DriverHomeView> {
-  static const _fallback = LatLng(25.7743, -80.1937); // Miami, FL
+  // City centre shown before the first GPS fix. Configurable per build with
+  // --dart-define=FALLBACK_LOCATION=<lat>,<lng> (matches the rider app); defaults
+  // to Miami when unset. Previously hardcoded to Miami, which left the driver map
+  // stranded there in other markets until a trip framed the camera.
+  static final LatLng _fallback = _parseFallback();
+  static LatLng _parseFallback() {
+    const raw = String.fromEnvironment('FALLBACK_LOCATION');
+    final parts = raw.split(',');
+    if (parts.length == 2) {
+      final lat = double.tryParse(parts[0].trim());
+      final lng = double.tryParse(parts[1].trim());
+      if (lat != null && lng != null) return LatLng(lat, lng);
+    }
+    return const LatLng(25.7743, -80.1937); // Miami, FL
+  }
   StreamSubscription<Position>? _posSub;
   // The driver's own live position — drawn as the car marker so they can see
   // themselves relative to the pickup (Uber-style).
@@ -218,6 +232,12 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
                 initialCenter: _markers(state).isNotEmpty
                     ? _markers(state).first.point
                     : (_myLocation ?? _fallback),
+                // Follow the driver's own GPS while idle (online, no trip) so the
+                // map tracks them instead of freezing on the opening centre. On a
+                // trip, fitBounds frames pickup/route instead.
+                recenter: (state.isOnline && state.trip == null)
+                    ? _myLocation
+                    : null,
                 markers: _markers(state),
                 route: _route(state),
                 fitBounds: _fitBounds(state),

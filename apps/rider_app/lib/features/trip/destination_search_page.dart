@@ -5,6 +5,9 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_models/shared_models.dart';
 
+import 'location_service.dart';
+import 'map_picker_page.dart';
+
 /// The pickup + destination the rider chose on the search page.
 class RouteChoice {
   const RouteChoice({
@@ -178,6 +181,59 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
     }
   }
 
+  /// Where the map picker should open for the field being edited. Prefer that
+  /// field's current point, then the pickup, then the configured city fallback
+  /// (Bhukum in this build) — never the unset (0,0) sentinel.
+  GeoPoint _mapStart() {
+    final p = _active == _Field.pickup ? _pickup : (_dropoff ?? _pickup);
+    final isSet = p.lat != 0 || p.lng != 0;
+    return isSet ? p : LocationService.fallback;
+  }
+
+  /// Open the "set location on the map" picker for the active field, then apply
+  /// the dropped point exactly like a picked prediction.
+  Future<void> _pickOnMap() async {
+    final field = _active;
+    final result = await Navigator.of(context).push<PlaceDetails>(
+      MaterialPageRoute(
+        builder: (_) => MapPickerPage(
+          initial: _mapStart(),
+          title: field == _Field.pickup
+              ? 'Set pickup on map'
+              : 'Set destination on map',
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    if (widget.singleDestination) {
+      Navigator.of(context).pop(result); // add-a-stop: return the raw place
+      return;
+    }
+    setState(() {
+      _predictions = [];
+      _error = null;
+      if (field == _Field.pickup) {
+        _pickup = result.location;
+        _pickupLabel = result.address;
+        _pickupCtrl.text = result.address;
+      } else {
+        _dropoff = result.location;
+        _dropoffLabel = result.address;
+        _dropoffCtrl.text = result.address;
+      }
+    });
+    if (_dropoff != null) {
+      Navigator.of(context).pop(RouteChoice(
+        pickup: _pickup,
+        pickupAddr: _pickupLabel,
+        dropoff: _dropoff!,
+        dropoffAddr: _dropoffLabel ?? 'Destination',
+      ));
+    } else {
+      _dropoffFocus.requestFocus();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -218,6 +274,37 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                 ],
               ),
             ),
+          // Always-available fallback to text search: drop a pin anywhere on the
+          // map. Essential where OSM place data is thin (e.g. rural Bhukum).
+          InkWell(
+            onTap: _resolving ? null : _pickOnMap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+              child: Row(
+                children: [
+                  Container(
+                    height: 40,
+                    width: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.accentSoft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.map_rounded,
+                        size: 20, color: AppColors.accent),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Text('Set location on the map',
+                        style: theme.textTheme.titleSmall),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      color: theme.colorScheme.outline),
+                ],
+              ),
+            ),
+          ),
+          Divider(height: 1, color: theme.dividerColor),
           Expanded(
             child: Stack(
               children: [

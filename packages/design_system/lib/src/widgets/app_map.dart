@@ -45,6 +45,8 @@ class AppMap extends StatefulWidget {
     this.route = const [],
     this.fitBounds,
     this.onMapReady,
+    this.onCenterChanged,
+    this.recenter,
     this.tileProvider,
   });
 
@@ -60,6 +62,15 @@ class AppMap extends StatefulWidget {
   final List<LatLng>? fitBounds;
 
   final VoidCallback? onMapReady;
+
+  /// Reports the map centre whenever the camera moves (pan/zoom). Used by the
+  /// "set location on the map" picker, where a fixed centre pin selects a point.
+  final ValueChanged<LatLng>? onCenterChanged;
+
+  /// Imperatively re-centres the camera whenever this value changes (keeping the
+  /// current zoom). Lets a screen *follow* a moving point — e.g. the driver's own
+  /// live GPS while idle — which [initialCenter] alone can't do (it's one-shot).
+  final LatLng? recenter;
 
   /// Overrides the tile source (defaults to OSM over the network). Injected in
   /// tests with an offline provider so no network is touched.
@@ -78,6 +89,20 @@ class _AppMapState extends State<AppMap> {
     if (!_sameBounds(old.fitBounds, widget.fitBounds)) {
       _fit();
     }
+    // Follow a moving point (e.g. the driver's live GPS). Skip while fitBounds is
+    // driving the camera, so an active trip's framing wins over idle following.
+    if (widget.recenter != null &&
+        widget.recenter != old.recenter &&
+        (widget.fitBounds == null || widget.fitBounds!.length < 2)) {
+      _moveTo(widget.recenter!);
+    }
+  }
+
+  void _moveTo(LatLng center) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _controller.move(center, _controller.camera.zoom);
+    });
   }
 
   bool _sameBounds(List<LatLng>? a, List<LatLng>? b) {
@@ -123,6 +148,9 @@ class _AppMapState extends State<AppMap> {
           _fit();
           widget.onMapReady?.call();
         },
+        onPositionChanged: widget.onCenterChanged == null
+            ? null
+            : (camera, _) => widget.onCenterChanged!(camera.center),
       ),
       children: [
         TileLayer(
