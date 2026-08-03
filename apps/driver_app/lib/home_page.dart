@@ -54,6 +54,12 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
     return const LatLng(25.7743, -80.1937); // Miami, FL
   }
   StreamSubscription<Position>? _posSub;
+  // Presence heartbeat: geolocator only emits when the driver MOVES
+  // (distanceFilter), so a driver parked waiting for rides stops pinging and
+  // gets evicted from the dispatch pool — the app still says "Online" but new
+  // requests find "no drivers" until they toggle offline/online. Re-send the
+  // last known position on this timer so presence stays fresh while stationary.
+  Timer? _heartbeat;
   // The driver's own live position — drawn as the car marker so they can see
   // themselves relative to the pickup (Uber-style).
   LatLng? _myLocation;
@@ -87,11 +93,20 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
             speed: pos.speed,
           );
     });
+    // Keep presence fresh while parked — well under the backend's stale window.
+    _heartbeat?.cancel();
+    _heartbeat = Timer.periodic(const Duration(seconds: 15), (_) {
+      final loc = _myLocation;
+      if (loc == null || !mounted) return;
+      context.read<DriverCubit>().sendLocation(loc.latitude, loc.longitude);
+    });
   }
 
   void _stopStreamingLocation() {
     _posSub?.cancel();
     _posSub = null;
+    _heartbeat?.cancel();
+    _heartbeat = null;
   }
 
   @override
