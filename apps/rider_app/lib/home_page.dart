@@ -1290,10 +1290,15 @@ class _DriverInfoSheet extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.sm, vertical: 3),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceMutedLight,
+                        color: theme.brightness == Brightness.dark
+                            ? AppColors.surfaceMutedDark
+                            : AppColors.surfaceMutedLight,
                         borderRadius:
                             BorderRadius.circular(AppSpacing.radiusSm),
-                        border: Border.all(color: AppColors.borderLight),
+                        border: Border.all(
+                            color: theme.brightness == Brightness.dark
+                                ? AppColors.borderDark
+                                : AppColors.borderLight),
                       ),
                       child: Text(driver!.plate!,
                           style: theme.textTheme.titleSmall

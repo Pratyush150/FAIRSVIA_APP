@@ -1,5 +1,15 @@
 # iOS build & test — Mac setup
 
+> **Status (validated 2026-08-04, Mac + Xcode 26.6, iOS 26.5/18.5 simulators):**
+> both apps build and run on the iOS Simulator. Full rider+driver E2E validated
+> on two simulators against a Mac-local backend (Homebrew Postgres 16 + Redis,
+> `npm run start:dev`, stub geo provider): signup → destination → tiers → book →
+> dispatch offer → accept → arrive → 4-digit start code → live tracking → chat →
+> complete → tip → rate → receipt, plus cancellation, SOS sheet, mock add-card,
+> payment methods, trip history, and dark mode. Use
+> `--dart-define=MOCK_LOCATION=25.7743,-80.1937` on simulators (Apple's default
+> GPS fix is Cupertino, which breaks the Florida-only fare estimates).
+
 iOS cannot be compiled on the Linux dev server (no Xcode). This is the checklist
 to build + run the two mobile apps on a Mac. Everything here is committed
 iOS-ready; the steps below are the Mac-only actions that can't run on Linux.

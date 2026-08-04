@@ -326,12 +326,17 @@ class _BottomSheet extends StatelessWidget {
                 Container(
                   height: 46,
                   width: 46,
-                  decoration: const BoxDecoration(
-                    color: AppColors.surfaceMutedLight,
+                  decoration: BoxDecoration(
+                    color: theme.brightness == Brightness.dark
+                        ? AppColors.surfaceMutedDark
+                        : AppColors.surfaceMutedLight,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.bedtime_rounded,
-                      color: AppColors.textTertiaryLight, size: 24),
+                  child: Icon(Icons.bedtime_rounded,
+                      color: theme.brightness == Brightness.dark
+                          ? AppColors.textTertiaryDark
+                          : AppColors.textTertiaryLight,
+                      size: 24),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -763,7 +768,10 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                                 CircularProgressIndicator(
                               value: v,
                               strokeWidth: 4,
-                              backgroundColor: AppColors.borderLight,
+                              backgroundColor:
+                                  theme.brightness == Brightness.dark
+                                      ? AppColors.borderDark
+                                      : AppColors.borderLight,
                               valueColor: AlwaysStoppedAnimation(
                                   low ? AppColors.error : AppColors.accent),
                             ),
