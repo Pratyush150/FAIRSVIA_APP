@@ -125,7 +125,10 @@ class DriverCubit extends Cubit<DriverState> {
     required String tier,
     String? color,
   }) async {
-    emit(state.copyWith(busy: true, error: null));
+    // Clear needsOnboarding immediately: the dialog is already up, and any
+    // interim emission that still carries needsOnboarding=true would make the
+    // page listener open a second copy of it.
+    emit(state.copyWith(busy: true, error: null, needsOnboarding: false));
     try {
       await _remote.onboarding(
         vehicleMake: make,
@@ -282,6 +285,11 @@ class DriverCubit extends Cubit<DriverState> {
     for (final s in _subs) {
       s.cancel();
     }
+    // The driver home only unmounts on sign-out (or app teardown). Disconnect
+    // so the dispatcher stops treating this driver as online — otherwise the
+    // ghost identity keeps receiving offers, and the next sign-in could act
+    // over the previous user's socket.
+    _realtime.disconnect();
     return super.close();
   }
 }

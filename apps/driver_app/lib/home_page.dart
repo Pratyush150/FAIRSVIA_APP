@@ -63,6 +63,7 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   // The driver's own live position — drawn as the car marker so they can see
   // themselves relative to the pickup (Uber-style).
   LatLng? _myLocation;
+  bool _onboardingShowing = false;
 
   @override
   void initState() {
@@ -298,11 +299,17 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   }
 
   Future<void> _showOnboarding(BuildContext context) async {
+    if (_onboardingShowing) return; // never stack a second copy
+    _onboardingShowing = true;
     final cubit = context.read<DriverCubit>();
-    await showDialog<void>(
-      context: context,
-      builder: (_) => _OnboardingDialog(cubit: cubit),
-    );
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => _OnboardingDialog(cubit: cubit),
+      );
+    } finally {
+      _onboardingShowing = false;
+    }
   }
 }
 

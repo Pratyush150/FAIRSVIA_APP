@@ -338,6 +338,10 @@ class TripCubit extends Cubit<TripState> {
     for (final s in _subs) {
       s.cancel();
     }
+    // The home page only unmounts on sign-out (or app teardown); drop the
+    // socket so the server doesn't keep treating this identity as present,
+    // and so the next sign-in connects with the new user's token.
+    _realtime.disconnect();
     return super.close();
   }
 }
