@@ -299,4 +299,65 @@ void main() {
     verify: (_) => verify(() => ratings.rate('t1', stars: 5, comment: null))
         .called(1),
   );
+
+  // Regression: killing the app mid-ride used to drop the rider on the idle
+  // "Where to?" home while a driver was actually en route, because init() only
+  // subscribed to socket events and never asked the server for a live trip.
+  blocTest<TripCubit, TripState>(
+    'init restores an in-flight trip after a cold start',
+    setUp: () {
+      when(() => repo.activeTrip()).thenAnswer(
+        (_) async => Trip(
+          id: 't1',
+          status: TripStatus.arrived,
+          tier: 'economy',
+          pickup: const TripEndpoint(point: pickup),
+          dropoff: const TripEndpoint(point: dropoff),
+          fareEstimate: 142.98,
+        ),
+      );
+    },
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    act: (c) => c.init('token'),
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.driverArrived)
+          .having((s) => s.trip?.id, 'trip.id', 't1'),
+    ],
+    verify: (_) => verify(() => repo.activeTrip()).called(1),
+  );
+
+  blocTest<TripCubit, TripState>(
+    'init stays idle when there is no active trip',
+    setUp: () =>
+        when(() => repo.activeTrip()).thenAnswer((_) async => null),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    act: (c) => c.init('token'),
+    expect: () => const <TripState>[],
+  );
+
+  // Regression: iOS tears the socket down while the app is suspended and
+  // socket.io's retry could stay wedged, leaving "Reconnecting…" up forever.
+  blocTest<TripCubit, TripState>(
+    'resumeFromBackground reconnects a dropped socket and re-syncs',
+    setUp: () => when(() => repo.activeTrip()).thenAnswer(
+      (_) async => Trip(
+        id: 't1',
+        status: TripStatus.inProgress,
+        tier: 'economy',
+        pickup: const TripEndpoint(point: pickup),
+        dropoff: const TripEndpoint(point: dropoff),
+        fareEstimate: 142.98,
+      ),
+    ),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    // FakeRealtimeClient reports isConnected == false, i.e. the suspended case.
+    act: (c) => c.resumeFromBackground('token'),
+    expect: () => [
+      isA<TripState>().having((s) => s.connected, 'connected', true),
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.onTrip)
+          .having((s) => s.trip?.id, 'trip.id', 't1'),
+    ],
+  );
 }

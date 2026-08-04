@@ -39,6 +39,43 @@ class TripCubit extends Cubit<TripState> {
       ..add(_realtime.connection.listen((up) {
         if (up != state.connected) emit(state.copyWith(connected: up));
       }));
+    // If the app was killed and reopened mid-ride, restore the live-tracking
+    // screen instead of dropping the rider on the idle "Where to?" home while
+    // a driver is actually on the way.
+    await _restoreActiveTrip();
+  }
+
+  /// Pull the server-authoritative in-flight trip (if any) on a cold start.
+  Future<void> _restoreActiveTrip() async {
+    try {
+      final trip = await _repository.activeTrip();
+      if (trip == null) return;
+      _applyTrip(trip);
+    } catch (_) {
+      // Best effort — socket events will correct the screen if this fails.
+    }
+  }
+
+  /// Re-establish the socket after the OS suspended the app. iOS tears the
+  /// WebSocket down while backgrounded and socket.io's own retry can stay
+  /// wedged, leaving "Reconnecting…" up forever — so reconnect explicitly and
+  /// re-sync whatever trip is live.
+  Future<void> resumeFromBackground(String token) async {
+    // Don't trust `isConnected` alone: after a suspend the socket.io client can
+    // still report `connected` while its transport is dead. Only skip the
+    // reconnect when the live connection stream also says we're up.
+    if (_realtime.isConnected && state.connected) {
+      _resync();
+      return;
+    }
+    try {
+      await _realtime.connect(token);
+      emit(state.copyWith(connected: true));
+      await _restoreActiveTrip();
+      _resync();
+    } catch (_) {
+      emit(state.copyWith(connected: false));
+    }
   }
 
   /// After a reconnect, ask the server for the current trip state.
@@ -57,6 +94,11 @@ class TripCubit extends Cubit<TripState> {
     } catch (_) {
       return;
     }
+    _applyTrip(trip);
+  }
+
+  /// Move the UI to the phase implied by [trip]'s server-side status.
+  void _applyTrip(Trip trip) {
     final phase = switch (trip.status) {
       TripStatus.requested || TripStatus.matching => TripPhase.searching,
       TripStatus.accepted => TripPhase.driverEnRoute,

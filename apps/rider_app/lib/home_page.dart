@@ -37,7 +37,8 @@ class _RiderHomeView extends StatefulWidget {
   State<_RiderHomeView> createState() => _RiderHomeViewState();
 }
 
-class _RiderHomeViewState extends State<_RiderHomeView> {
+class _RiderHomeViewState extends State<_RiderHomeView>
+    with WidgetsBindingObserver {
   final _location = LocationService();
   GeoPoint _myLocation = LocationService.fallback;
   String _myLocationAddr = 'Current location';
@@ -46,9 +47,30 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadLocation();
     _loadSavedPlaces();
     _connectSocket();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // iOS kills the WebSocket while the app is suspended; re-establish it on
+    // resume so live trip updates don't stay dead until a manual restart.
+    if (state == AppLifecycleState.resumed) _resumeSocket();
+  }
+
+  Future<void> _resumeSocket() async {
+    final token = await sl<TokenStorage>().readAccessToken();
+    if (token != null && mounted) {
+      await context.read<TripCubit>().resumeFromBackground(token);
+    }
   }
 
   Future<void> _loadLocation() async {

@@ -74,6 +74,27 @@ class DriverCubit extends Cubit<DriverState> {
     }
   }
 
+  /// Re-establish the socket after the OS suspended the app. iOS tears the
+  /// WebSocket down while backgrounded and socket.io's own retry can stay
+  /// wedged — leaving a driver who looks "Online" but receives no offers.
+  Future<void> resumeFromBackground(String token) async {
+    // Don't trust `isConnected` alone: after a suspend the socket.io client can
+    // still report `connected` while its transport is dead. Only skip the
+    // reconnect when the live connection stream also says we're up.
+    if (_realtime.isConnected && state.connected) {
+      await _onReconnect();
+      return;
+    }
+    try {
+      await _realtime.connect(token);
+      emit(state.copyWith(connected: true));
+      await _restoreActiveTrip();
+      await _onReconnect();
+    } catch (_) {
+      emit(state.copyWith(connected: false));
+    }
+  }
+
   Future<void> _onReconnect() async {
     if (state.isOnline) {
       _realtime.emit('driver:status', {'status': 'online'});

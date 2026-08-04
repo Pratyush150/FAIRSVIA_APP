@@ -37,7 +37,8 @@ class _DriverHomeView extends StatefulWidget {
   State<_DriverHomeView> createState() => _DriverHomeViewState();
 }
 
-class _DriverHomeViewState extends State<_DriverHomeView> {
+class _DriverHomeViewState extends State<_DriverHomeView>
+    with WidgetsBindingObserver {
   // City centre shown before the first GPS fix. Configurable per build with
   // --dart-define=FALLBACK_LOCATION=<lat>,<lng> (matches the rider app); defaults
   // to Miami when unset. Previously hardcoded to Miami, which left the driver map
@@ -68,13 +69,28 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _connect();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // iOS kills the WebSocket while the app is suspended; without this a driver
+    // returning from another app still reads "Online" but never gets an offer.
+    if (state == AppLifecycleState.resumed) _resumeSocket();
   }
 
   Future<void> _connect() async {
     final token = await sl<TokenStorage>().readAccessToken();
     if (token != null && mounted) {
       await context.read<DriverCubit>().init(token);
+    }
+  }
+
+  Future<void> _resumeSocket() async {
+    final token = await sl<TokenStorage>().readAccessToken();
+    if (token != null && mounted) {
+      await context.read<DriverCubit>().resumeFromBackground(token);
     }
   }
 
@@ -112,6 +128,7 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _stopStreamingLocation();
     super.dispose();
   }
