@@ -17,9 +17,9 @@
 	</dict>
 	<key>UIBackgroundModes</key>
 	<array>
+		<!-- Driver streams GPS in the background while online / on a trip. No push
+		     (FCM is server-side mock), so no remote-notification/fetch. -->
 		<string>location</string>
-		<string>fetch</string>
-		<string>remote-notification</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

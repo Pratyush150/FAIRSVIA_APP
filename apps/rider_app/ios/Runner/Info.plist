@@ -14,11 +14,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>fetch</string>
-		<string>remote-notification</string>
-	</array>
+	<!-- No UIBackgroundModes: the rider app uses foreground location only and has
+	     no push (FCM is server-side mock), so it declares no background modes. -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>https</string>
