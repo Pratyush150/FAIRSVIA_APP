@@ -10,6 +10,8 @@ class AssignedDriver extends Equatable {
     this.vehicleModel,
     this.vehicleColor,
     this.plate,
+    this.etaSec,
+    this.etaDistanceM,
   });
 
   /// The driver's user id (used to favourite them). Null on older payloads.
@@ -21,11 +23,26 @@ class AssignedDriver extends Equatable {
   final String? vehicleColor;
   final String? plate;
 
+  /// Live driver→pickup ETA (seconds) and distance (metres) from the backend's
+  /// approach route at match time. Null when the driver's position was unknown
+  /// or routing failed, so the UI simply omits the countdown rather than lying.
+  final int? etaSec;
+  final int? etaDistanceM;
+
   String get vehicleLabel => [
         if (vehicleColor != null) vehicleColor,
         vehicleMake,
         vehicleModel,
       ].whereType<String>().join(' ');
+
+  /// "Arriving in N min" when an ETA is known, else null (caller falls back to a
+  /// generic status like "On the way"). Rounds up so a 10s ETA reads "1 min".
+  String? get etaLabel {
+    final s = etaSec;
+    if (s == null || s <= 0) return null;
+    final mins = (s / 60).ceil();
+    return 'Arriving in $mins min';
+  }
 
   factory AssignedDriver.fromAcceptedEvent(Map<String, dynamic> json) {
     final driver = (json['driver'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -38,10 +55,21 @@ class AssignedDriver extends Equatable {
       vehicleModel: vehicle['model'] as String?,
       vehicleColor: vehicle['color'] as String?,
       plate: vehicle['plate'] as String?,
+      etaSec: (json['etaSec'] as num?)?.toInt(),
+      etaDistanceM: (json['etaDistanceM'] as num?)?.toInt(),
     );
   }
 
   @override
-  List<Object?> get props =>
-      [id, name, rating, vehicleMake, vehicleModel, vehicleColor, plate];
+  List<Object?> get props => [
+        id,
+        name,
+        rating,
+        vehicleMake,
+        vehicleModel,
+        vehicleColor,
+        plate,
+        etaSec,
+        etaDistanceM,
+      ];
 }

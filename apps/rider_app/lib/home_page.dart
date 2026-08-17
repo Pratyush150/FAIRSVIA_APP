@@ -42,6 +42,9 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   GeoPoint _myLocation = LocationService.fallback;
   String _myLocationAddr = 'Current location';
   List<SavedPlace> _savedPlaces = const [];
+  // Set when the rider taps "recenter": AppMap follows this to snap back to the
+  // rider's live position after they've panned the map away.
+  LatLng? _recenter;
 
   @override
   void initState() {
@@ -66,6 +69,16 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
     }
   }
 
+  /// Recenter the map on the rider's current location (refreshes GPS first).
+  Future<void> _recenterToMe() async {
+    final loc = await _location.currentOrFallback();
+    if (!mounted) return;
+    setState(() {
+      _myLocation = loc;
+      _recenter = MapUtils.toLatLng(loc);
+    });
+  }
+
   Future<void> _loadSavedPlaces() async {
     try {
       final places = await sl<UsersRemoteDataSource>().listPlaces();
@@ -86,9 +99,15 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   }
 
   Future<void> _connectSocket() async {
-    final token = await sl<TokenStorage>().readAccessToken();
-    if (token != null && mounted) {
-      await context.read<TripCubit>().init(token);
+    try {
+      final token = await sl<TokenStorage>().readAccessToken();
+      if (token != null && mounted) {
+        await context.read<TripCubit>().init(token);
+      }
+    } catch (_) {
+      // Connect can time out; the realtime client retries with backoff and the
+      // connection banner reflects status. Swallow so a slow/failed initial
+      // connect isn't an unhandled async error.
     }
   }
 
@@ -199,6 +218,10 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
                   markers: _markers(state),
                   route: _route(state),
                   fitBounds: _fitBounds(state),
+                  recenter: _recenter,
+                  // Keep pickup/dropoff/driver markers framed above the bottom
+                  // sheet (which covers ~40% of the screen) rather than behind it.
+                  boundsPadding: const EdgeInsets.fromLTRB(40, 96, 40, 300),
                 ),
                 Positioned(
                   top: 0,
@@ -211,15 +234,26 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
                     padding: const EdgeInsets.all(AppSpacing.md),
                     child: Align(
                       alignment: Alignment.topRight,
-                      child: AppCircleButton(
-                        icon: Icons.menu_rounded,
-                        tooltip: 'Account menu',
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AccountMenuPage(isDriver: false),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AppCircleButton(
+                            icon: Icons.menu_rounded,
+                            tooltip: 'Account menu',
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const AccountMenuPage(isDriver: false),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AppCircleButton(
+                            icon: Icons.my_location_rounded,
+                            tooltip: 'Recenter on my location',
+                            onPressed: _recenterToMe,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -485,7 +519,7 @@ class _RideOptions extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.sm),
             child: Text(
-              'Fares are higher due to demand (${estimate.surge}x)',
+              'Fares are higher due to demand (${estimate.surge.toStringAsFixed(1)}x)',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: AppColors.warning),
             ),
@@ -633,7 +667,7 @@ String _confirmLabel(TripState state) {
       ? net
       : fare.fare;
   final verb = state.scheduledAt != null ? 'Schedule' : 'Confirm';
-  return '$verb ${fare.label} · \$${amount.toStringAsFixed(0)}';
+  return '$verb ${fare.label} · \$${_money(amount)}';
 }
 
 String _formatSchedule(DateTime when) {
@@ -1245,7 +1279,9 @@ class _DriverInfoSheet extends StatelessWidget {
                   Text(
                     arrived
                         ? 'Your driver is here'
-                        : 'Your driver is on the way',
+                        // Live "Arriving in N min" from the backend approach ETA
+                        // when known, else a generic status.
+                        : (driver?.etaLabel ?? 'Your driver is on the way'),
                     style: theme.textTheme.headlineSmall,
                   ),
                 ],

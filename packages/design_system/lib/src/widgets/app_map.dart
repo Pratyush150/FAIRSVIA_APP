@@ -48,6 +48,7 @@ class AppMap extends StatefulWidget {
     this.onCenterChanged,
     this.recenter,
     this.tileProvider,
+    this.boundsPadding = const EdgeInsets.all(64),
   });
 
   final LatLng initialCenter;
@@ -75,6 +76,11 @@ class AppMap extends StatefulWidget {
   /// Overrides the tile source (defaults to OSM over the network). Injected in
   /// tests with an offline provider so no network is touched.
   final TileProvider? tileProvider;
+
+  /// Inset kept clear when fitting the camera to [fitBounds]. Screens with a
+  /// bottom sheet pass a large bottom inset so pickup/dropoff/driver markers are
+  /// framed *above* the sheet instead of hidden behind it.
+  final EdgeInsets boundsPadding;
 
   @override
   State<AppMap> createState() => _AppMapState();
@@ -125,7 +131,7 @@ class _AppMapState extends State<AppMap> {
       _controller.fitCamera(
         CameraFit.bounds(
           bounds: LatLngBounds.fromPoints(pts),
-          padding: const EdgeInsets.all(64),
+          padding: widget.boundsPadding,
         ),
       );
     });

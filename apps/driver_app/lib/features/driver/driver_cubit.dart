@@ -195,27 +195,40 @@ class DriverCubit extends Cubit<DriverState> {
     final trip = state.trip;
     if (trip == null) return;
     emit(state.copyWith(busy: true, error: null));
+
+    Map<String, dynamic> receipt;
     try {
-      final receipt = await _remote.complete(trip.id);
-      final earnings = await _remote.earnings(range: 'today');
-      // On a cash ride the driver collects the fare in person.
-      final isCash = receipt['paymentMode'] == 'cash';
-      final cash = isCash
-          ? (receipt['fareFinal'] as num?)?.toDouble()
-          : null;
-      // Park in `completed` so the driver can rate the rider before returning
-      // to the available pool.
-      emit(state.copyWith(
-        phase: DriverPhase.completed,
-        trip: null,
-        busy: false,
-        lastEarned: earnings.total,
-        lastTripId: trip.id,
-        riderRating: null,
-        cashToCollect: cash,
-      ));
+      receipt = await _remote.complete(trip.id);
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));
+      return;
+    } catch (_) {
+      emit(state.copyWith(
+          busy: false, error: 'Could not complete the trip. Try again.'));
+      return;
+    }
+
+    // The trip is completed server-side now — move to `completed` IMMEDIATELY so
+    // a follow-up failure (e.g. loading earnings) can't leave the driver stranded
+    // on the trip screen re-tapping "Complete" on an already-completed trip.
+    final isCash = receipt['paymentMode'] == 'cash';
+    final cash = isCash ? (receipt['fareFinal'] as num?)?.toDouble() : null;
+    emit(state.copyWith(
+      phase: DriverPhase.completed,
+      trip: null,
+      busy: false,
+      lastTripId: trip.id,
+      riderRating: null,
+      cashToCollect: cash,
+    ));
+
+    // Earnings total is a nice-to-have on the completion sheet — load it
+    // best-effort, never reverting the completion above.
+    try {
+      final earnings = await _remote.earnings(range: 'today');
+      if (!isClosed) emit(state.copyWith(lastEarned: earnings.total));
+    } catch (_) {
+      // Leave lastEarned as-is; the driver is already on the completed sheet.
     }
   }
 

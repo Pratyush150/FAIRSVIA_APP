@@ -71,9 +71,15 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   }
 
   Future<void> _connect() async {
-    final token = await sl<TokenStorage>().readAccessToken();
-    if (token != null && mounted) {
-      await context.read<DriverCubit>().init(token);
+    try {
+      final token = await sl<TokenStorage>().readAccessToken();
+      if (token != null && mounted) {
+        await context.read<DriverCubit>().init(token);
+      }
+    } catch (_) {
+      // Connect can time out; the realtime client retries with backoff and the
+      // connection banner reflects status. Swallow so a slow/failed initial
+      // connect isn't an unhandled async error.
     }
   }
 
@@ -691,6 +697,10 @@ class _OfferOverlayState extends State<_OfferOverlay> {
   late int _remaining;
   late final int _total;
   Timer? _timer;
+  // Set once the driver taps Accept. Stops the countdown from auto-declining a
+  // ride they already accepted (if trip:assigned is slower than the timer), and
+  // guards the buttons against a double-tap.
+  bool _accepted = false;
 
   @override
   void initState() {
@@ -706,9 +716,17 @@ class _OfferOverlayState extends State<_OfferOverlay> {
       if (_remaining > 0 && _remaining <= 3) AppHaptics.light();
       if (_remaining <= 0) {
         t.cancel();
-        context.read<DriverCubit>().declineOffer();
+        // Never auto-decline a ride the driver has already accepted.
+        if (!_accepted) context.read<DriverCubit>().declineOffer();
       }
     });
+  }
+
+  void _onAccept() {
+    if (_accepted) return;
+    setState(() => _accepted = true);
+    _timer?.cancel(); // no more countdown once accepted
+    context.read<DriverCubit>().acceptOffer();
   }
 
   @override
@@ -782,6 +800,35 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                     style: theme.textTheme.displaySmall),
                 Text('Est. fare · $miles mi trip',
                     style: theme.textTheme.bodyMedium),
+                // Who you're collecting + how far to reach them, so the driver
+                // isn't accepting blind. Both omitted gracefully on old payloads.
+                if (offer.riderName != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    children: [
+                      Icon(Icons.person_rounded,
+                          size: 16, color: theme.colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(offer.riderName!,
+                            style: theme.textTheme.bodyMedium,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      if (offer.riderRating != null) ...[
+                        const SizedBox(width: 6),
+                        const Icon(Icons.star_rounded,
+                            size: 14, color: AppColors.star),
+                        const SizedBox(width: 2),
+                        Text(offer.riderRating!.toStringAsFixed(1),
+                            style: theme.textTheme.labelLarge),
+                      ],
+                    ],
+                  ),
+                ],
+                if (offer.approachLabel != null)
+                  Text(offer.approachLabel!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: AppSpacing.lg),
                 AppCard(
                   child: Row(
@@ -820,16 +867,17 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                     Expanded(
                       child: SecondaryButton(
                         label: 'Decline',
-                        onPressed: () =>
-                            context.read<DriverCubit>().declineOffer(),
+                        onPressed: _accepted
+                            ? null
+                            : () => context.read<DriverCubit>().declineOffer(),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: PrimaryButton(
                         label: 'Accept',
-                        onPressed: () =>
-                            context.read<DriverCubit>().acceptOffer(),
+                        loading: _accepted,
+                        onPressed: _accepted ? null : _onAccept,
                       ),
                     ),
                       ],
