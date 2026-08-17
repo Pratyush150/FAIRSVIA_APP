@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { Prisma, TripStatus } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { MockPaymentProvider } from './mock-payment.provider';
 import { PaymentProvider } from './payment-provider.interface';
@@ -22,7 +22,7 @@ describe('PaymentsService', () => {
   } as unknown as ConfigService;
 
   function makePrisma(overrides: Record<string, unknown> = {}) {
-    return {
+    const prisma: any = {
       trip: {
         findUnique: jest.fn(),
       },
@@ -51,8 +51,15 @@ describe('PaymentsService', () => {
       webhookEvent: {
         create: jest.fn().mockResolvedValue({}),
       },
+      ledgerEntry: {
+        create: jest.fn().mockResolvedValue({}),
+      },
       ...overrides,
-    } as never;
+    };
+    // refund + webhook now run inside a transaction; the mock runs the callback
+    // against the same fake client.
+    prisma.$transaction = jest.fn((cb: any) => cb(prisma));
+    return prisma as never;
   }
 
   const ledger = {
@@ -219,10 +226,7 @@ describe('PaymentsService', () => {
       id: 't1',
       riderId: 'r1',
       currency: 'USD',
-    });
-    (prisma as any).payment.findUnique.mockResolvedValue({
-      tip: 0,
-      driverPayout: 80,
+      status: TripStatus.completed,
     });
     (prisma as any).payment.update.mockResolvedValue({
       tip: 15,
@@ -235,7 +239,7 @@ describe('PaymentsService', () => {
     expect(res).toEqual({ tip: 15, driverPayout: 95 });
     expect((prisma as any).payment.update).toHaveBeenCalledWith({
       where: { tripId: 't1' },
-      data: { tip: 15, driverPayout: 95 },
+      data: { tip: { increment: 15 }, driverPayout: { increment: 15 } },
     });
   });
 
@@ -340,13 +344,15 @@ describe('PaymentsService', () => {
       status: 'partial',
     });
     expect(refund).toHaveBeenCalledWith('mock_pi_x', 40);
-    // Driver clawback = 40 * (1 - 0.2) = 32.
-    expect(ledger.record).toHaveBeenCalledWith(
-      'd1',
-      'adjustment',
-      -32,
-      expect.objectContaining({ tripId: 't1' }),
-    );
+    // Driver clawback = 40 * (1 - 0.2) = 32, recorded in the same transaction.
+    expect((prisma as any).ledgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        driverId: 'd1',
+        type: 'adjustment',
+        amount: -32,
+        tripId: 't1',
+      }),
+    });
   });
 
   it('marks a payment fully refunded when the whole amount is returned', async () => {

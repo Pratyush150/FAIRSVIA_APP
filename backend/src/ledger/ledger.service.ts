@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 export type LedgerType =
@@ -79,16 +80,43 @@ export class LedgerService {
     if (requested <= 0) {
       throw new BadRequestException('Enter an amount greater than zero.');
     }
-    const balance = await this.balance(driverId);
-    if (requested > balance) {
-      throw new BadRequestException(
-        `You can withdraw up to $${balance.toFixed(2)}.`,
+    // Check balance and record the debit in ONE serializable transaction so two
+    // concurrent withdrawals can't both pass the guard and overdraw the driver.
+    // Postgres SSI raises a serialization failure on the losing writer.
+    try {
+      const result = await this.prisma.$transaction(
+        async (tx) => {
+          const agg = await tx.ledgerEntry.aggregate({
+            where: { driverId },
+            _sum: { amount: true },
+          });
+          const balance = round2(Number(agg._sum.amount ?? 0));
+          if (requested > balance) {
+            throw new BadRequestException(
+              `You can withdraw up to $${balance.toFixed(2)}.`,
+            );
+          }
+          await tx.ledgerEntry.create({
+            data: {
+              driverId,
+              type: 'withdrawal',
+              amount: round2(-requested),
+              note: 'Withdrawal to bank (mock)',
+            },
+          });
+          return { withdrawn: requested, balance: round2(balance - requested) };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
+      this.logger.log(`driver ${driverId} withdrew ${requested}`);
+      return result;
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      // Serialization conflict — a concurrent withdrawal won the race.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
+        throw new BadRequestException('Please try again.');
+      }
+      throw e;
     }
-    await this.record(driverId, 'withdrawal', -requested, {
-      note: 'Withdrawal to bank (mock)',
-    });
-    this.logger.log(`driver ${driverId} withdrew ${requested}`);
-    return { withdrawn: requested, balance: round2(balance - requested) };
   }
 }

@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PrismaService } from '../../common/prisma/prisma.service';
 
 export interface JwtPayload {
   sub: string;
@@ -15,7 +16,10 @@ export interface AuthUser {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -23,8 +27,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  // Return value is attached to request.user.
-  validate(payload: JwtPayload): AuthUser {
-    return { userId: payload.sub, role: payload.role };
+  // Load the user on every request so a demoted, deactivated, or deleted user
+  // loses access immediately — the role is read FRESH from the DB, never trusted
+  // from the (up-to-15-minute-stale) token claim. The return value is attached to
+  // request.user. NB: this is a DB read per authenticated request; add a short
+  // cache if it becomes a hot path.
+  async validate(payload: JwtPayload): Promise<AuthUser> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, role: true, isActive: true },
+    });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException();
+    }
+    return { userId: user.id, role: user.role };
   }
 }

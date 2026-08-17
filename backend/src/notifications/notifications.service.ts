@@ -84,7 +84,12 @@ export class NotificationsService {
         },
       })
       .catch((e) => this.logger.warn(`inbox persist failed: ${e}`));
-    await this.queue.add(NOTIFY_JOB, { userId, message }, DEFAULT_JOB_OPTS);
+    // Guard the enqueue itself so a Redis/queue outage can't surface as an
+    // unhandled promise rejection in the fire-and-forget (`void notifyTrip`)
+    // callers — which would crash the process on modern Node defaults.
+    await this.queue
+      .add(NOTIFY_JOB, { userId, message }, DEFAULT_JOB_OPTS)
+      .catch((e) => this.logger.warn(`push enqueue failed: ${e}`));
   }
 
   // --- In-app inbox ---

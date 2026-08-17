@@ -72,6 +72,17 @@ export class DriversService {
         profile.vehicleTier,
       );
     } else {
+      // Don't let a driver drop offline mid-trip — goOffline wipes the
+      // active-trip Redis linkage, which stops rider location streaming and trip
+      // metering. Make them finish the ride first.
+      const activeTrip = await this.redis.client.get(
+        RedisKeys.driverActiveTrip(userId),
+      );
+      if (activeTrip) {
+        throw new BadRequestException(
+          'Finish your current trip before going offline.',
+        );
+      }
       await this.goOffline(userId, profile.vehicleTier);
     }
 

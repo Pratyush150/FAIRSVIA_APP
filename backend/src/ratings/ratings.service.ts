@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { TripStatus } from '@prisma/client';
+import { Prisma, TripStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateRatingDto } from './dto/create-rating.dto';
 
@@ -38,60 +38,67 @@ export class RatingsService {
       throw new BadRequestException('No counterparty to rate');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.rating.findUnique({
-        where: { tripId_fromUser: { tripId, fromUser } },
-      });
+    const runTxn = () =>
+      this.prisma.$transaction(
+        async (tx) => {
+          const rating = await tx.rating.upsert({
+            where: { tripId_fromUser: { tripId, fromUser } },
+            create: {
+              tripId,
+              fromUser,
+              toUser,
+              stars: dto.stars,
+              comment: dto.comment,
+              tags: dto.tags ?? [],
+            },
+            update: {
+              stars: dto.stars,
+              comment: dto.comment,
+              tags: dto.tags ?? [],
+            },
+          });
 
-      const rating = await tx.rating.upsert({
-        where: { tripId_fromUser: { tripId, fromUser } },
-        create: {
-          tripId,
-          fromUser,
-          toUser,
-          stars: dto.stars,
-          comment: dto.comment,
-          tags: dto.tags ?? [],
-        },
-        update: {
-          stars: dto.stars,
-          comment: dto.comment,
-          tags: dto.tags ?? [],
-        },
-      });
+          // Recompute the ratee's average from the authoritative Rating rows
+          // (not an incremental read-modify-write on the user row), inside a
+          // serializable transaction — so concurrent ratings can neither lose an
+          // update nor drift the average via float accumulation.
+          const agg = await tx.rating.aggregate({
+            where: { toUser },
+            _avg: { stars: true },
+            _count: true,
+          });
+          await tx.user.update({
+            where: { id: toUser },
+            data: {
+              ratingAvg: round2(Number(agg._avg.stars ?? dto.stars)),
+              ratingCount: agg._count,
+            },
+          });
 
-      // Recompute the ratee's average incrementally.
-      const ratee = await tx.user.findUnique({ where: { id: toUser } });
-      if (ratee) {
-        const count = ratee.ratingCount;
-        const avg = Number(ratee.ratingAvg);
-        let newCount: number;
-        let newAvg: number;
-        if (existing) {
-          // Replace the old star value; count is unchanged.
-          newCount = count;
-          const total = avg * count - existing.stars + dto.stars;
-          newAvg = count > 0 ? round2(total / count) : dto.stars;
-        } else {
-          newCount = count + 1;
-          const total = avg * count + dto.stars;
-          newAvg = round2(total / newCount);
-        }
-        await tx.user.update({
-          where: { id: toUser },
-          data: { ratingAvg: newAvg, ratingCount: newCount },
-        });
+          return {
+            id: rating.id,
+            tripId,
+            toUser,
+            stars: rating.stars,
+            comment: rating.comment,
+            tags: rating.tags,
+          };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+
+    // One retry on a serialization conflict (concurrent rating of the same user).
+    try {
+      return await runTxn();
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2034'
+      ) {
+        return runTxn();
       }
-
-      return {
-        id: rating.id,
-        tripId,
-        toUser,
-        stars: rating.stars,
-        comment: rating.comment,
-        tags: rating.tags,
-      };
-    });
+      throw e;
+    }
   }
 
   /** The rating this user gave for a trip (or null). */

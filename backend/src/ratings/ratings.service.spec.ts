@@ -2,25 +2,27 @@ import { TripStatus } from '@prisma/client';
 import { RatingsService } from './ratings.service';
 
 /**
- * Verifies the two-way rating rules and, crucially, the incremental average
- * update — we never rescan history, so the running mean must be exact.
+ * Verifies the two-way rating rules and that the ratee's average is written from
+ * the authoritative aggregate over the Rating rows (recomputed in a serializable
+ * transaction — no incremental read-modify-write, so concurrent ratings can't
+ * lose an update or drift the mean).
  */
 describe('RatingsService', () => {
-  function makeTx(ratee: { ratingAvg: number; ratingCount: number } | null) {
+  function makeTx(agg: { avg: number; count: number }) {
     const tx = {
       rating: {
-        findUnique: jest.fn(),
-        upsert: jest
-          .fn()
-          .mockImplementation(({ create, update }: any) => ({
-            id: 'rt1',
-            tags: (create ?? update).tags ?? [],
-            stars: (create ?? update).stars,
-            comment: (create ?? update).comment,
-          })),
+        upsert: jest.fn().mockImplementation(({ create, update }: any) => ({
+          id: 'rt1',
+          tags: (create ?? update).tags ?? [],
+          stars: (create ?? update).stars,
+          comment: (create ?? update).comment,
+        })),
+        aggregate: jest.fn().mockResolvedValue({
+          _avg: { stars: agg.avg },
+          _count: agg.count,
+        }),
       },
       user: {
-        findUnique: jest.fn().mockResolvedValue(ratee),
         update: jest.fn().mockResolvedValue({}),
       },
     };
@@ -30,7 +32,6 @@ describe('RatingsService', () => {
   function makeService(trip: unknown, tx: ReturnType<typeof makeTx>) {
     const prisma = {
       trip: { findUnique: jest.fn().mockResolvedValue(trip) },
-      rating: { findUnique: jest.fn() },
       $transaction: jest.fn((cb: (t: unknown) => unknown) => cb(tx)),
     } as never;
     return new RatingsService(prisma);
@@ -43,10 +44,8 @@ describe('RatingsService', () => {
     status: TripStatus.completed,
   };
 
-  it('adds a first driver rating and sets the average to those stars', async () => {
-    // Driver starts at the default 5.00 / 0 ratings.
-    const tx = makeTx({ ratingAvg: 5, ratingCount: 0 });
-    tx.rating.findUnique.mockResolvedValue(null);
+  it('writes the ratee average + count from the authoritative aggregate', async () => {
+    const tx = makeTx({ avg: 4, count: 1 });
     const svc = makeService(completedTrip, tx);
 
     const res = await svc.rateTrip('r1', 't1', { stars: 4 });
@@ -58,10 +57,8 @@ describe('RatingsService', () => {
     });
   });
 
-  it('folds a new rating into the running average', async () => {
-    // Driver at 5.00 across 1 rating; a new 3-star pulls it to 4.00 / 2.
-    const tx = makeTx({ ratingAvg: 5, ratingCount: 1 });
-    tx.rating.findUnique.mockResolvedValue(null);
+  it('folds a new rating into the average (from the aggregate)', async () => {
+    const tx = makeTx({ avg: 4, count: 2 });
     const svc = makeService(completedTrip, tx);
 
     await svc.rateTrip('r1', 't1', { stars: 3 });
@@ -72,24 +69,20 @@ describe('RatingsService', () => {
     });
   });
 
-  it('replaces the old star value when re-rating (count unchanged)', async () => {
-    // Ratee avg 4.00 / 2 ratings; this rater previously gave 2 stars, now 4.
-    // total = 4*2 - 2 + 4 = 10 → 10/2 = 5.00, count still 2.
-    const tx = makeTx({ ratingAvg: 4, ratingCount: 2 });
-    tx.rating.findUnique.mockResolvedValue({ stars: 2 });
+  it('rounds the aggregate average to 2 decimals', async () => {
+    const tx = makeTx({ avg: 4.666666, count: 3 });
     const svc = makeService(completedTrip, tx);
 
-    await svc.rateTrip('r1', 't1', { stars: 4 });
+    await svc.rateTrip('r1', 't1', { stars: 5 });
 
     expect(tx.user.update).toHaveBeenCalledWith({
       where: { id: 'd1' },
-      data: { ratingAvg: 5, ratingCount: 2 },
+      data: { ratingAvg: 4.67, ratingCount: 3 },
     });
   });
 
   it('lets the driver rate the rider (direction flips)', async () => {
-    const tx = makeTx({ ratingAvg: 5, ratingCount: 0 });
-    tx.rating.findUnique.mockResolvedValue(null);
+    const tx = makeTx({ avg: 5, count: 1 });
     const svc = makeService(completedTrip, tx);
 
     const res = await svc.rateTrip('d1', 't1', { stars: 5 });
@@ -98,7 +91,7 @@ describe('RatingsService', () => {
   });
 
   it('rejects rating a trip that is not completed', async () => {
-    const tx = makeTx({ ratingAvg: 5, ratingCount: 0 });
+    const tx = makeTx({ avg: 5, count: 0 });
     const svc = makeService(
       { ...completedTrip, status: TripStatus.in_progress },
       tx,
@@ -109,7 +102,7 @@ describe('RatingsService', () => {
   });
 
   it('rejects a rating from a non-participant', async () => {
-    const tx = makeTx({ ratingAvg: 5, ratingCount: 0 });
+    const tx = makeTx({ avg: 5, count: 0 });
     const svc = makeService(completedTrip, tx);
     await expect(
       svc.rateTrip('stranger', 't1', { stars: 5 }),
