@@ -1,8 +1,18 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Google Maps SDK key, read from android/secrets.properties (gitignored) and
+// injected as the ${MAPS_API_KEY} manifest placeholder. Empty when absent so the
+// build never fails on a missing key (the map just won't render).
+val mapsSecretsFile = rootProject.file("secrets.properties")
+val mapsApiKey: String = Properties().apply {
+    if (mapsSecretsFile.exists()) mapsSecretsFile.inputStream().use { load(it) }
+}.getProperty("MAPS_API_KEY") ?: ""
 
 android {
     namespace = "in.novarobotics.ubernav.rider_app"
@@ -19,10 +29,11 @@ android {
         applicationId = "in.novarobotics.ubernav.rider_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = maxOf(flutter.minSdkVersion, 21)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {

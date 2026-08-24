@@ -1,7 +1,7 @@
-# Uncommented on purpose: flutter_stripe (rider) and geolocator/background
-# location (driver) need iOS 13+. Committing this so `pod install` succeeds on
-# the Mac without a manual edit. Keep in sync with IPHONEOS_DEPLOYMENT_TARGET.
-platform :ios, '13.0'
+# flutter_stripe (rider) + geolocator (driver) need iOS 13+, and the Google Maps
+# SDK (google_maps_flutter_ios) needs iOS 15+ — so the floor is 15.0. Committed so
+# `pod install` succeeds on the Mac. Keep in sync with IPHONEOS_DEPLOYMENT_TARGET.
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build
 # latency; disable.
@@ -44,8 +44,8 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      # Enforce the 13.0 floor on every pod so flutter_stripe/geolocator link.
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      # Enforce the 15.0 floor on every pod (Google Maps SDK needs it).
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
     end
   end
 end

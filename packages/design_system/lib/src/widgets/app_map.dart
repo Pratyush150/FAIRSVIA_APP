@@ -1,21 +1,12 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:latlong2/latlong.dart';
 
 import '../theme/app_colors.dart';
-
-// Polished map styling via MapTiler when a key is supplied
-// (--dart-define=MAPTILER_KEY=xxx, optionally MAPTILER_STYLE=streets-v2|
-// satellite|dataviz-dark|...). Without a key the map falls back to plain
-// OpenStreetMap tiles, so the app still renders a real map with no config.
-const String _maptilerKey = String.fromEnvironment('MAPTILER_KEY');
-const String _maptilerStyle =
-    String.fromEnvironment('MAPTILER_STYLE', defaultValue: 'streets-v2');
-
-/// The active raster tile URL template. MapTiler when keyed, else OSM.
-String get _tileUrlTemplate => _maptilerKey.isNotEmpty
-    ? 'https://api.maptiler.com/maps/$_maptilerStyle/{z}/{x}/{y}.png?key=$_maptilerKey'
-    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 /// What a marker represents — drives its icon + colour.
 enum MapMarkerKind { pickup, dropoff, driver, plain }
@@ -26,16 +17,22 @@ class AppMapMarker {
     required this.point,
     this.kind = MapMarkerKind.plain,
     this.label,
+    this.heading,
   });
 
   final LatLng point;
   final MapMarkerKind kind;
   final String? label;
+
+  /// Optional compass heading (degrees, 0 = north) for the driver marker. When
+  /// null, [AppMap] derives the heading from successive positions.
+  final double? heading;
 }
 
-/// Shared map built on OpenStreetMap tiles via flutter_map — no API key needed,
-/// renders on mobile and web alike. Wraps tiles + an optional route polyline +
-/// markers, and (when [fitBounds] is supplied) fits the camera to those points.
+/// Shared map built on the **Google Maps SDK**. Public API stays in latlong2
+/// [LatLng] (converted internally) so callers don't depend on the maps package.
+/// The driver marker **glides** between GPS updates and **rotates** to its travel
+/// bearing (like Uber), instead of jumping.
 class AppMap extends StatefulWidget {
   const AppMap({
     super.key,
@@ -54,40 +51,61 @@ class AppMap extends StatefulWidget {
   final LatLng initialCenter;
   final double initialZoom;
   final List<AppMapMarker> markers;
-
-  /// Decoded route to draw as a polyline (empty = none).
   final List<LatLng> route;
-
-  /// When set (and containing ≥2 points), the camera fits to these on build and
-  /// whenever the list changes — e.g. [pickup, dropoff] on the estimate screen.
   final List<LatLng>? fitBounds;
-
   final VoidCallback? onMapReady;
-
-  /// Reports the map centre whenever the camera moves (pan/zoom). Used by the
-  /// "set location on the map" picker, where a fixed centre pin selects a point.
   final ValueChanged<LatLng>? onCenterChanged;
-
-  /// Imperatively re-centres the camera whenever this value changes (keeping the
-  /// current zoom). Lets a screen *follow* a moving point — e.g. the driver's own
-  /// live GPS while idle — which [initialCenter] alone can't do (it's one-shot).
   final LatLng? recenter;
 
-  /// Overrides the tile source (defaults to OSM over the network). Injected in
-  /// tests with an offline provider so no network is touched.
-  final TileProvider? tileProvider;
+  /// Retained for source compatibility with the old flutter_map backend. Ignored.
+  final Object? tileProvider;
 
-  /// Inset kept clear when fitting the camera to [fitBounds]. Screens with a
-  /// bottom sheet pass a large bottom inset so pickup/dropoff/driver markers are
-  /// framed *above* the sheet instead of hidden behind it.
   final EdgeInsets boundsPadding;
 
   @override
   State<AppMap> createState() => _AppMapState();
 }
 
-class _AppMapState extends State<AppMap> {
-  final MapController _controller = MapController();
+gmaps.LatLng _g(LatLng p) => gmaps.LatLng(p.latitude, p.longitude);
+
+class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
+  final Completer<gmaps.GoogleMapController> _controller = Completer();
+  gmaps.LatLng? _lastCameraTarget;
+
+  // --- Driver-marker interpolation (the smooth "gliding car") ---
+  late final AnimationController _driverAnim;
+  LatLng? _driverFrom; // where the car is gliding from
+  LatLng? _driverTo; // ...to (the latest GPS fix)
+  double _driverBearing = 0;
+  gmaps.BitmapDescriptor? _driverIcon; // custom car puck, generated once
+
+  @override
+  void initState() {
+    super.initState();
+    _driverAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..addListener(() {
+        if (mounted) setState(() {}); // redraw the gliding car each tick
+      });
+    final initialDriver = _driverMarker(widget.markers)?.point;
+    _driverFrom = initialDriver;
+    _driverTo = initialDriver;
+    _makeDriverIcon();
+  }
+
+  @override
+  void dispose() {
+    _driverAnim.dispose();
+    super.dispose();
+  }
+
+  AppMapMarker? _driverMarker(List<AppMapMarker> ms) {
+    for (final m in ms) {
+      if (m.kind == MapMarkerKind.driver) return m;
+    }
+    return null;
+  }
 
   @override
   void didUpdateWidget(AppMap old) {
@@ -95,20 +113,50 @@ class _AppMapState extends State<AppMap> {
     if (!_sameBounds(old.fitBounds, widget.fitBounds)) {
       _fit();
     }
-    // Follow a moving point (e.g. the driver's live GPS). Skip while fitBounds is
-    // driving the camera, so an active trip's framing wins over idle following.
     if (widget.recenter != null &&
         widget.recenter != old.recenter &&
         (widget.fitBounds == null || widget.fitBounds!.length < 2)) {
       _moveTo(widget.recenter!);
     }
+    // Animate the driver from its current (possibly mid-glide) position to the
+    // new GPS fix, and rotate toward the direction of travel.
+    final next = _driverMarker(widget.markers)?.point;
+    final prevTarget = _driverTo;
+    if (next != null &&
+        (prevTarget == null ||
+            next.latitude != prevTarget.latitude ||
+            next.longitude != prevTarget.longitude)) {
+      final from = _currentDriverPoint() ?? next;
+      if (_distanceMeters(from, next) > 1.0) {
+        _driverBearing = _driverMarker(widget.markers)?.heading ??
+            _bearing(from, next);
+      }
+      _driverFrom = from;
+      _driverTo = next;
+      _driverAnim
+        ..reset()
+        ..forward();
+    } else if (next == null) {
+      _driverFrom = null;
+      _driverTo = null;
+    }
   }
 
-  void _moveTo(LatLng center) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _controller.move(center, _controller.camera.zoom);
-    });
+  /// The driver's on-screen point right now (interpolated mid-glide).
+  LatLng? _currentDriverPoint() {
+    final a = _driverFrom, b = _driverTo;
+    if (a == null || b == null) return null;
+    final t = _driverAnim.isAnimating ? _driverAnim.value : 1.0;
+    return LatLng(
+      a.latitude + (b.latitude - a.latitude) * t,
+      a.longitude + (b.longitude - a.longitude) * t,
+    );
+  }
+
+  Future<void> _moveTo(LatLng center) async {
+    final c = await _controller.future;
+    if (!mounted) return;
+    await c.animateCamera(gmaps.CameraUpdate.newLatLng(_g(center)));
   }
 
   bool _sameBounds(List<LatLng>? a, List<LatLng>? b) {
@@ -122,144 +170,196 @@ class _AppMapState extends State<AppMap> {
     return true;
   }
 
-  void _fit() {
+  Future<void> _fit() async {
     final pts = widget.fitBounds;
     if (pts == null || pts.length < 2) return;
-    // Defer to after the frame so the map has a size to fit within.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _controller.fitCamera(
-        CameraFit.bounds(
-          bounds: LatLngBounds.fromPoints(pts),
-          padding: widget.boundsPadding,
-        ),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FlutterMap(
-      mapController: _controller,
-      options: MapOptions(
-        initialCenter: widget.initialCenter,
-        initialZoom: widget.initialZoom,
-        minZoom: 3,
-        maxZoom: 19,
-        interactionOptions: const InteractionOptions(
-          // Pan + pinch-zoom, but no rotation (keeps north up, simpler UX).
-          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-        ),
-        onMapReady: () {
-          _fit();
-          widget.onMapReady?.call();
-        },
-        onPositionChanged: widget.onCenterChanged == null
-            ? null
-            : (camera, _) => widget.onCenterChanged!(camera.center),
-      ),
-      children: [
-        TileLayer(
-          urlTemplate: _tileUrlTemplate,
-          // OSM tile-usage policy asks for an identifying UA (MapTiler is fine
-          // with it too).
-          userAgentPackageName: 'in.novarobotics.ubernav',
-          maxZoom: 19,
-          // A single tile that 404s / times out / is rate-limited must not throw
-          // an uncaught exception (red error overlay in debug, error spam in prod).
-          // silenceExceptions keeps the map usable when a tile fails; the callback
-          // is a no-op sink so nothing propagates to FlutterError.onError.
-          tileProvider:
-              widget.tileProvider ?? NetworkTileProvider(silenceExceptions: true),
-          errorTileCallback: (tile, error, stackTrace) {},
-        ),
-        if (widget.route.length >= 2)
-          PolylineLayer(
-            polylines: [
-              Polyline(
-                points: widget.route,
-                color: AppColors.accent,
-                strokeWidth: 5,
-              ),
-            ],
-          ),
-        MarkerLayer(
-          markers: [
-            for (final m in widget.markers)
-              Marker(
-                point: m.point,
-                width: 44,
-                height: 44,
-                // Anchor each glyph on its coordinate correctly: teardrop pins
-                // (dropoff/plain, an Icons.location_on) touch the point with
-                // their bottom tip; the round pickup dot and the moving car sit
-                // CENTERED on the point, so the car tracks the route line
-                // instead of floating beside it.
-                alignment: (m.kind == MapMarkerKind.dropoff ||
-                        m.kind == MapMarkerKind.plain)
-                    ? Alignment.bottomCenter
-                    : Alignment.center,
-                child: _MarkerPin(kind: m.kind),
-              ),
-          ],
-        ),
-      ],
+    final c = await _controller.future;
+    if (!mounted) return;
+    await c.animateCamera(
+      gmaps.CameraUpdate.newLatLngBounds(_boundsOf(pts), 56),
     );
   }
-}
 
-class _MarkerPin extends StatelessWidget {
-  const _MarkerPin({required this.kind});
-  final MapMarkerKind kind;
+  gmaps.LatLngBounds _boundsOf(List<LatLng> pts) {
+    var minLat = pts.first.latitude, maxLat = pts.first.latitude;
+    var minLng = pts.first.longitude, maxLng = pts.first.longitude;
+    for (final p in pts) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+    return gmaps.LatLngBounds(
+      southwest: gmaps.LatLng(minLat, minLng),
+      northeast: gmaps.LatLng(maxLat, maxLng),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Set<gmaps.Marker> _buildMarkers() {
+    final out = <gmaps.Marker>{};
+    var i = 0;
+    for (final m in widget.markers) {
+      final isDriver = m.kind == MapMarkerKind.driver;
+      // The driver marker uses the interpolated (gliding) point + travel bearing;
+      // everything else is static.
+      final point = isDriver ? (_currentDriverPoint() ?? m.point) : m.point;
+      final icon = isDriver && _driverIcon != null
+          ? _driverIcon!
+          : _iconFor(m.kind);
+      out.add(gmaps.Marker(
+        markerId: gmaps.MarkerId('${m.kind.name}_${i++}'),
+        position: _g(point),
+        icon: icon,
+        anchor:
+            (isDriver || m.kind == MapMarkerKind.pickup)
+                ? const Offset(0.5, 0.5)
+                : const Offset(0.5, 1.0),
+        rotation: isDriver ? _driverBearing : (m.heading ?? 0),
+        flat: isDriver,
+        infoWindow: m.label != null
+            ? gmaps.InfoWindow(title: m.label)
+            : gmaps.InfoWindow.noText,
+      ));
+    }
+    return out;
+  }
+
+  gmaps.BitmapDescriptor _iconFor(MapMarkerKind kind) {
     switch (kind) {
       case MapMarkerKind.pickup:
-        return const Icon(Icons.trip_origin, color: AppColors.accent, size: 26);
+        return gmaps.BitmapDescriptor.defaultMarkerWithHue(
+            gmaps.BitmapDescriptor.hueGreen);
       case MapMarkerKind.dropoff:
-        return const Icon(Icons.location_on, color: Color(0xFF2E7D32), size: 40);
+        return gmaps.BitmapDescriptor.defaultMarkerWithHue(
+            gmaps.BitmapDescriptor.hueRed);
       case MapMarkerKind.driver:
-        return const _DriverPuck();
+        return gmaps.BitmapDescriptor.defaultMarkerWithHue(
+            gmaps.BitmapDescriptor.hueAzure);
       case MapMarkerKind.plain:
-        return const Icon(Icons.location_on, color: AppColors.accent, size: 40);
+        return gmaps.BitmapDescriptor.defaultMarkerWithHue(
+            gmaps.BitmapDescriptor.hueRose);
     }
   }
-}
 
-/// The moving vehicle marker — a white circular "puck" with a soft shadow and a
-/// crisp dark car glyph. Reads clearly on light *and* dark map tiles (a bare
-/// coloured icon disappears against roads), and matches the look riders expect
-/// from a ride-hailing app.
-class _DriverPuck extends StatelessWidget {
-  const _DriverPuck();
+  Set<gmaps.Polyline> _buildPolylines() {
+    if (widget.route.length < 2) return const {};
+    return {
+      gmaps.Polyline(
+        polylineId: const gmaps.PolylineId('route'),
+        points: [for (final p in widget.route) _g(p)],
+        color: AppColors.accent,
+        width: 5,
+      ),
+    };
+  }
+
+  /// Render a white circular "puck" with a dark navigation arrow to a bitmap,
+  /// once — the Uber-style vehicle marker that rotates to the travel bearing.
+  /// Falls back to the default marker if rendering fails.
+  Future<void> _makeDriverIcon() async {
+    try {
+      const dim = 108.0;
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final center = const Offset(dim / 2, dim / 2);
+      // soft shadow
+      canvas.drawCircle(
+        center,
+        36,
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.28)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      );
+      // white disc + dark ring
+      canvas.drawCircle(center, 32, Paint()..color = Colors.white);
+      canvas.drawCircle(
+        center,
+        32,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = const Color(0xFF10121A),
+      );
+      // navigation arrow glyph (points "up" = the marker's 0°/north, then the
+      // marker rotation aims it along the bearing)
+      final tp = TextPainter(textDirection: TextDirection.ltr)
+        ..text = TextSpan(
+          text: String.fromCharCode(Icons.navigation_rounded.codePoint),
+          style: TextStyle(
+            fontSize: 38,
+            fontFamily: Icons.navigation_rounded.fontFamily,
+            package: Icons.navigation_rounded.fontPackage,
+            color: const Color(0xFF10121A),
+          ),
+        )
+        ..layout();
+      tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+
+      final img =
+          await recorder.endRecording().toImage(dim.toInt(), dim.toInt());
+      final data = await img.toByteData(format: ui.ImageByteFormat.png);
+      if (data == null) return;
+      final bytes = data.buffer.asUint8List();
+      final icon = gmaps.BitmapDescriptor.bytes(bytes);
+      if (mounted) setState(() => _driverIcon = icon);
+    } catch (_) {
+      // Keep the default azure marker if custom rendering fails on a device.
+    }
+  }
+
+  double _bearing(LatLng a, LatLng b) {
+    final lat1 = a.latitude * math.pi / 180;
+    final lat2 = b.latitude * math.pi / 180;
+    final dLon = (b.longitude - a.longitude) * math.pi / 180;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    return (math.atan2(y, x) * 180 / math.pi + 360) % 360;
+  }
+
+  double _distanceMeters(LatLng a, LatLng b) {
+    const r = 6371000.0;
+    final dLat = (b.latitude - a.latitude) * math.pi / 180;
+    final dLon = (b.longitude - a.longitude) * math.pi / 180;
+    final la1 = a.latitude * math.pi / 180, la2 = b.latitude * math.pi / 180;
+    final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(la1) * math.cos(la2) * math.sin(dLon / 2) * math.sin(dLon / 2);
+    return 2 * r * math.asin(math.min(1.0, math.sqrt(h)));
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFF10121A), width: 1.6),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.30),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Center(
-          child: Icon(
-            Icons.directions_car_filled_rounded,
-            size: 20,
-            color: Color(0xFF10121A),
-          ),
-        ),
+    return gmaps.GoogleMap(
+      initialCameraPosition: gmaps.CameraPosition(
+        target: _g(widget.initialCenter),
+        zoom: widget.initialZoom,
       ),
+      markers: _buildMarkers(),
+      polylines: _buildPolylines(),
+      padding: widget.boundsPadding,
+      myLocationEnabled: false,
+      myLocationButtonEnabled: false,
+      zoomControlsEnabled: false,
+      compassEnabled: false,
+      mapToolbarEnabled: false,
+      rotateGesturesEnabled: false,
+      tiltGesturesEnabled: false,
+      onMapCreated: (c) {
+        if (!_controller.isCompleted) _controller.complete(c);
+        _fit();
+        widget.onMapReady?.call();
+      },
+      onCameraMove: widget.onCenterChanged == null
+          ? null
+          : (pos) => _lastCameraTarget = pos.target,
+      onCameraIdle: widget.onCenterChanged == null
+          ? null
+          : () {
+              final t = _lastCameraTarget;
+              if (t != null) {
+                widget.onCenterChanged!(LatLng(t.latitude, t.longitude));
+              }
+            },
     );
   }
 }
