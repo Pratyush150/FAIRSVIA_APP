@@ -56,7 +56,15 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
 
   Future<void> _loadLocation() async {
     final loc = await _location.currentOrFallback();
-    if (mounted) setState(() => _myLocation = loc);
+    if (mounted) {
+      setState(() {
+        _myLocation = loc;
+        // Move the camera to the resolved location. GoogleMap's initialCenter is
+        // one-shot, so without this the map stays on the fallback until the rider
+        // taps recenter (seen when GPS/permission resolves after the first frame).
+        _recenter = MapUtils.toLatLng(loc);
+      });
+    }
     // Resolve the GPS to a real address so the pickup shows where the rider
     // actually is (e.g. "Bhukum, Pune") instead of a generic label.
     try {
