@@ -72,6 +72,152 @@ Two ways the apps talk to the backend:
 
 ---
 
+## 3.5 Understanding the stack from scratch (zero experience needed)
+
+This section assumes you've never touched Flutter, Dart, or backend frameworks. Read it once and
+the rest of the codebase will make sense.
+
+### 3.5.1 The phone apps: Dart + Flutter
+
+**Dart** is a programming language (made by Google). It's the language *all three phone apps* are
+written in. If you know a little JavaScript or Python, Dart will feel familiar — variables,
+functions, classes, `if`/`for`, etc. You don't need to master it; you need to *recognize* it. Dart
+files end in **`.dart`**.
+
+**Flutter** is the *toolkit* that turns Dart code into an actual app that runs on Android, iOS, and
+the web — from **one** codebase. Instead of building an Android app and an iOS app separately,
+Flutter draws the whole screen itself, so it looks the same everywhere.
+
+**The one big idea in Flutter: everything is a "widget."**
+A widget is just a piece of the screen. A button is a widget. A text label is a widget. A whole
+page is a widget made of smaller widgets. You build a screen by **nesting** widgets inside each
+other, like Lego bricks:
+
+```dart
+Column(                       // stack children vertically
+  children: [
+    Text('Where to?'),        // a label widget
+    TextField(...),           // a text input widget
+    ElevatedButton(           // a button widget
+      onPressed: () { ... },  // what happens when tapped
+      child: Text('Confirm'),
+    ),
+  ],
+)
+```
+
+That code *describes* a screen with a label, a text box, and a Confirm button. Flutter reads that
+description and paints it. When you hear "widget tree," it just means "the nested structure of
+widgets that makes up the screen."
+
+**Two flavours of widgets:**
+- **StatelessWidget** — never changes after it's drawn (e.g. a static label).
+- **StatefulWidget** — can change over time (e.g. a map that updates as the driver moves). It keeps
+  some data ("state") and redraws itself when that data changes by calling `setState(...)`.
+
+**"State" = the data a screen currently shows.** Example: on the rider home, the state includes
+"where is the driver right now," "what's the ETA," "which ride tier is selected." When the state
+changes (driver moved), the screen redraws to match.
+
+**State management with bloc/cubit** (you'll see this everywhere in the code):
+For anything beyond a trivial screen, we don't cram all the logic into the widget. Instead we use a
+**Cubit** (from the `bloc` package) — think of it as the screen's **brain** kept *separate* from
+its **face** (the widget). The cubit holds the state and the logic ("request a ride," "driver
+accepted"); the widget just *shows* whatever the cubit's current state is and forwards taps to it.
+
+- `TripCubit` (rider) and `DriverCubit` (driver) are the two big brains.
+- The widget "listens" to the cubit; when the cubit `emit`s a new state, the widget rebuilds.
+- Why bother? It keeps logic testable and the UI simple. When you see `trip_cubit.dart`, that's the
+  rider's ride logic; `trip_state.dart` is the shape of the data it holds.
+
+**`pubspec.yaml` and packages:** every Flutter project has a `pubspec.yaml` file — the "shopping
+list" of outside code libraries ("packages") the app uses, e.g. `google_maps_flutter` (the map) or
+`geolocator` (GPS). Packages come from **pub.dev** (Flutter's app store for code). Running
+`flutter pub get` downloads them.
+
+**The monorepo layout (`apps/` + `packages/`):** we have three apps that share a lot of code
+(models, UI, networking). Rather than copy-paste, the shared code lives in **`packages/`** and each
+app in **`apps/`** "imports" it:
+- `packages/shared_models` — the data shapes (a `Trip`, a `RideOffer`, an `AssignedDriver`).
+- `packages/design_system` — shared UI (buttons, cards, and the **`AppMap`** map widget).
+- `packages/core` — shared plumbing (talking to the server, login, storage).
+- `apps/rider_app`, `apps/driver_app`, `apps/admin_app` — the three apps, each mostly screens that
+  wire those shared pieces together.
+
+**Hot reload:** while developing, Flutter can inject code changes into the *running* app in ~1
+second without restarting it. That's why Flutter development is fast.
+
+### 3.5.2 The server: Node.js + TypeScript + NestJS
+
+**Node.js** lets you run JavaScript/TypeScript *outside* a browser — e.g. on a server.
+**TypeScript** is JavaScript plus "types" (labels that say "this is a number," "this is a Trip")
+so mistakes are caught while coding instead of at runtime. Backend files end in **`.ts`**.
+
+**NestJS** is the framework that organizes the server into tidy, repeatable pieces. Three words to
+know:
+- **Module** — a folder grouping one topic (e.g. `trips/`, `payments/`, `dispatch/`). Each domain =
+  one module. This is the "one module per domain" structure.
+- **Controller** — the "front desk." It receives HTTP requests and decides which function handles
+  them. E.g. `POST /trips/estimate` lands in the trips controller.
+- **Service** — the "worker" that does the real logic (calculate the fare, run the match). The
+  controller is thin; the service is where the work happens (`*.service.ts`).
+
+**Dependency injection (sounds scary, isn't):** instead of a service creating the things it needs,
+NestJS *hands them to it* automatically. E.g. the dispatch service needs the database and Redis —
+it just lists them in its constructor and NestJS "injects" them. This keeps pieces swappable and
+testable (in tests we inject fakes).
+
+### 3.5.3 Databases: SQL vs Redis, and Prisma
+
+- **PostgreSQL (SQL)** stores data in **tables** — like spreadsheets with rows and columns. A
+  `trips` table has one row per trip. It's on disk, so data **survives restarts**. Use it for
+  anything permanent.
+- **Prisma** is an **ORM** — a translator so we read/write those tables using normal code
+  (`prisma.trip.findUnique(...)`) instead of raw SQL. The file `backend/prisma/schema.prisma`
+  *defines* every table (this is the source of truth for the data shape).
+- **Redis** stores data in memory as simple **key → value** pairs. It's extremely fast but
+  **temporary** (mostly). We use it for live things: a driver's current GPS, the set of online
+  drivers near a point (a "GEO set"), and short-lived locks during matching.
+
+Rule of thumb again: **permanent → Postgres, live/fast/throwaway → Redis.**
+
+### 3.5.4 How apps talk to the server: HTTP (REST) + WebSocket
+
+- **HTTP / REST API** — request/response. The app sends a request to a URL (an "endpoint") like
+  `POST /trips/estimate` and gets back one answer (the price). One question, one answer, done.
+  "REST" is just a convention for naming those endpoints.
+- **JSON** — the text format the request/answer is written in (a list of `"key": value` pairs).
+  Both sides speak JSON.
+- **WebSocket (via Socket.IO)** — a connection that **stays open**, so the server can push messages
+  to the app the moment something happens (driver moved, ride accepted), instead of the app having
+  to keep asking. Every live update in the app (`trip:offer`, `trip:accepted`,
+  `trip:driver_location`) travels over this.
+
+### 3.5.5 Login & security: OTP + JWT (in plain words)
+
+- **OTP (one-time password)** — you type your phone number, the server texts you a 6-digit code,
+  you type it back. That proves you own the number. (In development the code is shown on screen and
+  no real SMS is sent.)
+- **JWT (JSON Web Token)** — after OTP, the server gives the app a signed "wristband" (a token).
+  The app shows this token on every future request to prove who it is, so you don't log in each
+  time. Tokens expire and refresh automatically.
+
+### 3.5.6 Docker (running everything with one command)
+
+**Docker** packages a program plus everything it needs into a "container" that runs the same on any
+machine. Our `infra/docker-compose.yml` starts several containers at once — the backend, Postgres,
+Redis, and the map helpers — so you don't install each by hand. `docker compose up -d` = "start the
+whole kitchen"; `docker logs ubernav_backend` = "watch the server."
+
+### 3.5.7 Putting it together (one sentence)
+
+The **Flutter/Dart apps** (screens = widgets, logic = cubits) talk over **HTTP + WebSocket** to the
+**NestJS server** (modules → controllers → services), which stores permanent data in **Postgres**
+(via **Prisma**), keeps live data in **Redis**, calls **Google Maps** for routes/places, and runs
+inside **Docker** — with **OTP+JWT** guarding who's who.
+
+---
+
 ## 4. A ride, step by step — and which part handles each step
 
 This is the most useful section for debugging. If something breaks, find the step, then look at
