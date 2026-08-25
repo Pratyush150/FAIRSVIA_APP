@@ -1,4 +1,4 @@
-# UberNav — a full Uber-style ride-hailing platform
+# RideVela — a full Uber-style ride-hailing platform
 
 This document explains **everything** about the app in plain language: what each part does,
 how a ride flows from tap to receipt, where every feature lives, how to run and test it, and —
@@ -7,7 +7,7 @@ read top to bottom once; after that, use it as a map.
 
 ---
 
-## 1. What is UberNav? (the 30-second version)
+## 1. What is RideVela? (the 30-second version)
 
 It's a working clone of Uber. There are **three phone apps** and **one server**:
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# UberNav local CI gate — the same checks GitHub Actions runs, but against the
+# RideVela local CI gate — the same checks GitHub Actions runs, but against the
 # already-running Docker stack on this self-hosted box. Run before every commit:
 #
 #     ./tools/ci.sh            # full gate (backend unit+e2e, flutter analyze+test)

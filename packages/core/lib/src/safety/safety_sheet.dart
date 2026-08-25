@@ -145,7 +145,7 @@ class _SafetySheetState extends State<_SafetySheet> {
             )
           else
             PrimaryButton(
-              label: 'Alert UberNav Safety',
+              label: 'Alert RideVela Safety',
               loading: _alerting,
               onPressed: _alerting ? null : _alert,
             ),

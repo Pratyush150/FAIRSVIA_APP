@@ -71,7 +71,7 @@ export interface PriceComparison {
 }
 
 const OUR_PROVIDER = 'ubernav';
-const OUR_DISPLAY = 'UberNav';
+const OUR_DISPLAY = 'RideVela';
 
 /** Surge at/above this is treated as "high demand" for the reliability flag. */
 const HIGH_DEMAND_SURGE = 1.2;

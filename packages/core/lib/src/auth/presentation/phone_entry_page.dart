@@ -7,7 +7,7 @@ import '../bloc/auth_bloc.dart';
 
 /// Phone number entry — step 1 of the OTP login flow. Shared across apps.
 class PhoneEntryPage extends StatefulWidget {
-  const PhoneEntryPage({super.key, this.title = 'UberNav'});
+  const PhoneEntryPage({super.key, this.title = 'RideVela'});
 
   final String title;
 

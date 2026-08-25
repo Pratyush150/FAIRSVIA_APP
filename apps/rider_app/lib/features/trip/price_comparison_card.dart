@@ -2,7 +2,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_models/shared_models.dart';
 
-/// Shows how UberNav's fare for this trip compares to modeled Uber / Lyft /
+/// Shows how RideVela's fare for this trip compares to modeled Uber / Lyft /
 /// Empower prices, with the minimum-price provider flagged. Competitor prices
 /// are estimates (from published rate cards), which the card states plainly.
 class PriceComparisonCard extends StatelessWidget {

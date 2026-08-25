@@ -1,5 +1,5 @@
 name: admin_app
-description: UberNav admin dashboard (Flutter Web).
+description: RideVela admin dashboard (Flutter Web).
 publish_to: 'none'
 version: 1.0.0+1
 resolution: workspace

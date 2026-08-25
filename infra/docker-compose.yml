@@ -1,4 +1,4 @@
-# UberNav local infrastructure — everything runs on your own machine.
+# RideVela local infrastructure — everything runs on your own machine.
 # Usage: cd infra && docker compose up --build
 services:
   postgres:

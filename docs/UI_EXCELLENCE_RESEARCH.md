@@ -1,4 +1,4 @@
-# UberNav — UI Excellence Research
+# RideVela — UI Excellence Research
 
 **How to make the app "best in the market," mapped to our stack.**
 Research compiled July 2026. Target: current (2024–2025) best practice for a premium Flutter / Material 3 ride-hailing app.
@@ -16,7 +16,7 @@ This is deep, cited desk research benchmarking current best-in-class consumer / 
 
 Ground-truth specs (WCAG, Flutter APIs, pub.dev package metadata, GitHub source) are directly fetched and reliable.
 
-The final section — **[Concrete recommendations for UberNav](#7-concrete-recommendations-for-ubernav)** — is a prioritised punch-list keyed to our actual design-system code (`packages/design_system/`), including contrast ratios computed from our real hex values.
+The final section — **[Concrete recommendations for RideVela](#7-concrete-recommendations-for-ubernav)** — is a prioritised punch-list keyed to our actual design-system code (`packages/design_system/`), including contrast ratios computed from our real hex values.
 
 ---
 
@@ -28,7 +28,7 @@ The final section — **[Concrete recommendations for UberNav](#7-concrete-recom
 4. [Typography](#4-typography)
 5. [Spacing, layout, elevation, motion & haptics](#5-spacing-layout-elevation-motion--haptics)
 6. [Ride-hailing-specific UI patterns](#6-ride-hailing-specific-ui-patterns)
-7. [Concrete recommendations for UberNav](#7-concrete-recommendations-for-ubernav)
+7. [Concrete recommendations for RideVela](#7-concrete-recommendations-for-ubernav)
 8. [Sources](#sources)
 
 ---
@@ -491,7 +491,7 @@ Both Uber and Lyft treat safety as a **persistent, always-reachable Safety Toolk
 
 ---
 
-## 7. Concrete recommendations for UberNav
+## 7. Concrete recommendations for RideVela
 
 Keyed to our actual design system (`packages/design_system/lib/src/`). **Keep emerald `#12B76A` and Plus Jakarta Sans** — the changes below sharpen the system rather than replace it. Priorities: **P0 = correctness/accessibility (do first), P1 = premium polish, P2 = nice-to-have.**
 

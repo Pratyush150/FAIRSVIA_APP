@@ -1,5 +1,5 @@
 name: shared_models
-description: Domain models shared across the UberNav rider, driver, and admin apps.
+description: Domain models shared across the RideVela rider, driver, and admin apps.
 version: 0.0.1
 publish_to: none
 resolution: workspace

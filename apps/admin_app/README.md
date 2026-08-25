@@ -1,6 +1,6 @@
-# UberNav Admin
+# RideVela Admin
 
-Back-office admin panel for UberNav (ops, KYC/background-check review, fare/surge/promo
+Back-office admin panel for RideVela (ops, KYC/background-check review, fare/surge/promo
 config, refunds, live monitoring).
 
 ## Platform targets — web + Android only (no iOS by design)

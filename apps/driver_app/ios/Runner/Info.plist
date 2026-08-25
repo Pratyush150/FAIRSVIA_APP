@@ -5,9 +5,9 @@
 	<key>GMSApiKey</key>
 	<string>$(MAPS_API_KEY)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>UberNav uses your location to share your position with riders and navigate to pickups and drop-offs.</string>
+	<string>RideVela uses your location to share your position with riders and navigate to pickups and drop-offs.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>UberNav shares your location with riders and keeps navigating to pickups and drop-offs even when the app is in the background, so you never lose a ride.</string>
+	<string>RideVela shares your location with riders and keeps navigating to pickups and drop-offs even when the app is in the background, so you never lose a ride.</string>
 	<!-- Android sets usesCleartextTraffic=true; ATS is the iOS equivalent. Allows
 	     the HTTP dev/LAN backend; Cloudflare builds use HTTPS. Tighten for release. -->
 	<key>NSAppTransportSecurity</key>

@@ -1,5 +1,5 @@
 name: driver_app
-description: UberNav driver app.
+description: RideVela driver app.
 publish_to: 'none'
 version: 1.0.0+1
 resolution: workspace
