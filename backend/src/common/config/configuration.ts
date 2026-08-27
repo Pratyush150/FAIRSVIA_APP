@@ -61,6 +61,14 @@ export interface AppConfig {
    *  When false, drivers onboard as pending and an admin must verify them
    *  before they can go online. */
   driverAutoVerify: boolean;
+  /** AWS region + IAM credentials shared by SNS (SMS) and SES (email). Empty
+   *  keys select the mock providers. */
+  aws: { region: string; accessKeyId: string; secretAccessKey: string };
+  /** Transactional email provider: `ses` (real, when AWS creds + SES_FROM set)
+   *  or `mock`. */
+  emailProvider: string;
+  /** Verified SES sender address used as the From on outgoing email. */
+  sesFrom: string;
 }
 
 // Dev-only fallbacks. These MUST never be used in production — the guard below
@@ -170,5 +178,12 @@ export default (): AppConfig => {
     .map((p) => p.trim())
     .filter((p) => p.length > 0),
   driverAutoVerify: (process.env.DRIVER_AUTO_VERIFY ?? 'true') !== 'false',
+  aws: {
+    region: process.env.AWS_REGION ?? 'us-east-1',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
+  },
+  emailProvider: process.env.EMAIL_PROVIDER ?? 'mock',
+  sesFrom: process.env.SES_FROM ?? 'noreply@ridevela.com',
   };
 };

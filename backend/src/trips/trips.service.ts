@@ -33,6 +33,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../email/email.service';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { EstimateDto } from './dto/estimate.dto';
 import { TripStateMachine } from './trip-state-machine';
@@ -59,6 +60,7 @@ export class TripsService {
     private readonly dispatch: DispatchService,
     private readonly payments: PaymentsService,
     private readonly notifications: NotificationsService,
+    private readonly email: EmailService,
     private readonly config: ConfigService,
     private readonly comparison: ComparisonService,
     @Inject(GEO_PROVIDER) private readonly geo: GeoProvider,
@@ -350,6 +352,15 @@ export class TripsService {
     this.realtime.emitToUser(driverId, 'trip:completed', receipt);
     void this.notifications.notifyTrip(trip.riderId, 'completed', { tripId });
     void this.notifications.notifyTrip(driverId, 'completed', { tripId });
+    // Best-effort emailed receipt (SES when keyed, mock otherwise). Never blocks
+    // or fails the completion — EmailService swallows its own errors.
+    void (async () => {
+      const rider = await this.prisma.user.findUnique({
+        where: { id: trip.riderId },
+        select: { email: true },
+      });
+      await this.email.sendReceipt(rider?.email, tripId, split.fareFinal);
+    })();
     return receipt;
   }
 

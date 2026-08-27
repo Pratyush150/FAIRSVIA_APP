@@ -31,6 +31,7 @@ import { LedgerModule } from './ledger/ledger.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { SupportModule } from './support/support.module';
 import { BackgroundModule } from './background/background.module';
+import { EmailModule } from './email/email.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -47,6 +48,7 @@ import { HealthController } from './health/health.controller';
     RealtimeModule, // global RealtimeService
     TripStateModule, // global TripStateMachine
     NotificationsModule, // global NotificationsService
+    EmailModule, // global EmailService (SES / mock)
     AuthModule,
     UsersModule,
     GeoModule,

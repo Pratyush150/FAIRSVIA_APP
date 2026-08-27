@@ -8,6 +8,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { SMS_PROVIDER } from './sms/sms-provider.interface';
 import { MockSmsProvider } from './sms/mock-sms.provider';
 import { TwilioSmsProvider } from './sms/twilio-sms.provider';
+import { SnsSmsProvider } from './sms/sns-sms.provider';
+import { AwsCreds } from '../common/aws/aws-sigv4';
 
 @Module({
   imports: [
@@ -39,6 +41,10 @@ import { TwilioSmsProvider } from './sms/twilio-sms.provider';
               t.fromNumber,
               t.baseUrl,
             );
+          }
+          case 'sns': {
+            const aws = config.get<AwsCreds>('aws')!;
+            return new SnsSmsProvider(aws);
           }
           case 'mock':
           default:
