@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "version": "0.0.1",
-  "description": "Load tests for the RideVela backend: REST hot-path throughput and realistic end-to-end ride capacity.",
+  "description": "Load tests for the FairsVia backend: REST hot-path throughput and realistic end-to-end ride capacity.",
   "scripts": {
     "rest": "node rest-load.mjs",
     "ride": "node ride-load.mjs",

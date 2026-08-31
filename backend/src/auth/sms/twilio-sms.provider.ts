@@ -30,7 +30,7 @@ export class TwilioSmsProvider implements SmsProvider {
     const body = new URLSearchParams({
       To: phone,
       From: this.fromNumber,
-      Body: `Your RideVela verification code is ${code}. It expires shortly. Do not share it.`,
+      Body: `Your FairsVia verification code is ${code}. It expires shortly. Do not share it.`,
     });
 
     let res: Response;

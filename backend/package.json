@@ -1,7 +1,7 @@
 {
   "name": "ubernav-backend",
   "version": "0.1.0",
-  "description": "RideVela ride-hailing backend (NestJS modular monolith)",
+  "description": "FairsVia ride-hailing backend (NestJS modular monolith)",
   "private": true,
   "scripts": {
     "build": "nest build",

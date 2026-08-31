@@ -1,6 +1,6 @@
 # Florida Ride-Hailing Launch — Go-To-Market, Brand & Website Strategy
 
-**Working product codename:** RideVela (internal only — *not* the public brand; see §6)
+**Working product codename:** FairsVia (internal only — *not* the public brand; see §6)
 **Prepared:** August 2026 · **Audience:** Founder + future website-build team · **Status:** Master strategy doc
 
 ---
@@ -293,7 +293,7 @@ Compact template per persona: **Problem · Uses now · Why switch · Winning mes
 
 ### Brand-name exploration (RECOMMENDATION — all pending USPTO/Florida trademark clearance)
 
-"RideVela" is an internal codename and **cannot** be the public brand (uses the "Uber" mark). Recommended shortlist, chosen to be ownable, Florida-resonant, and pairable with a warm-coral identity (§15):
+"FairsVia" is an internal codename and **cannot** be the public brand (uses the "Uber" mark). Recommended shortlist, chosen to be ownable, Florida-resonant, and pairable with a warm-coral identity (§15):
 
 | Name | Rationale | Watch-out |
 |---|---|---|

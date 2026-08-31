@@ -1,4 +1,4 @@
-# RideVela load tests
+# FairsVia load tests
 
 Two Node-based load generators that drive the **real** backend (REST + WebSockets
 + Redis + BullMQ + Postgres). Both print latency percentiles and exit non-zero if

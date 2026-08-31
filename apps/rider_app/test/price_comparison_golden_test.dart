@@ -54,7 +54,7 @@ PriceComparison _comparison({
   final quotes = <ProviderQuote>[
     ProviderQuote(
       provider: 'ubernav',
-      displayName: 'RideVela',
+      displayName: 'FairsVia',
       productName: 'Economy',
       price: oursCheapest ? 9.00 : 16.67,
       priceLow: oursCheapest ? 9.00 : 16.67,

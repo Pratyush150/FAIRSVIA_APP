@@ -1,4 +1,4 @@
-# RideVela developer entry points. Run `make help` for the list.
+# FairsVia developer entry points. Run `make help` for the list.
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 

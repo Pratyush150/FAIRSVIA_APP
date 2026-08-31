@@ -34,12 +34,12 @@ export class EmailService {
     const money = `$${amount.toFixed(2)}`;
     await this.send({
       to,
-      subject: `Your RideVela receipt — ${money}`,
+      subject: `Your FairsVia receipt — ${money}`,
       html:
-        `<h2 style="font-family:sans-serif">Thanks for riding with RideVela</h2>` +
+        `<h2 style="font-family:sans-serif">Thanks for riding with FairsVia</h2>` +
         `<p style="font-family:sans-serif">Trip <strong>${tripId}</strong></p>` +
         `<p style="font-family:sans-serif">Total charged: <strong>${money}</strong></p>`,
-      text: `Thanks for riding with RideVela. Trip ${tripId}. Total charged: ${money}.`,
+      text: `Thanks for riding with FairsVia. Trip ${tripId}. Total charged: ${money}.`,
     });
   }
 }

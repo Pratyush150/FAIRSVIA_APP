@@ -16,7 +16,7 @@ PriceComparison _comparison({
   final quotes = <ProviderQuote>[
     ProviderQuote(
       provider: 'ubernav',
-      displayName: 'RideVela',
+      displayName: 'FairsVia',
       productName: 'Economy',
       price: oursCheapest ? 9.00 : 16.67,
       priceLow: oursCheapest ? 9.00 : 16.67,
@@ -74,7 +74,7 @@ void main() {
       await tester
           .pumpWidget(_wrap(PriceComparisonCard(comparison: _comparison(oursCheapest: false))));
 
-      expect(find.text('RideVela'), findsOneWidget);
+      expect(find.text('FairsVia'), findsOneWidget);
       expect(find.text('Uber'), findsOneWidget);
       expect(find.text('Empower'), findsOneWidget);
       // Our own fare is exact…
@@ -104,7 +104,7 @@ void main() {
       );
     });
 
-    testWidgets('celebrates when RideVela is the cheapest', (tester) async {
+    testWidgets('celebrates when FairsVia is the cheapest', (tester) async {
       await tester
           .pumpWidget(_wrap(PriceComparisonCard(comparison: _comparison(oursCheapest: true))));
 

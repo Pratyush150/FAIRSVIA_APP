@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// RideVela palette. Warm, premium neutrals (stone-tinted, not cold grey) with a
+/// FairsVia palette. Warm, premium neutrals (stone-tinted, not cold grey) with a
 /// single confident emerald brand — restraint over decoration. Legacy token
 /// names are preserved so existing screens keep compiling while values sharpen.
 class AppColors {

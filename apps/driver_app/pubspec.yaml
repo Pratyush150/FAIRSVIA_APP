@@ -1,5 +1,5 @@
 name: driver_app
-description: RideVela driver app.
+description: FairsVia driver app.
 publish_to: 'none'
 version: 1.0.0+1
 resolution: workspace

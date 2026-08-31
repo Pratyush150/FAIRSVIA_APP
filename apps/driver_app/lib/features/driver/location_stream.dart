@@ -163,7 +163,7 @@ LocationSettings _platformLocationSettings() {
       distanceFilter: 10,
       forceLocationManager: false,
       foregroundNotificationConfig: const ForegroundNotificationConfig(
-        notificationTitle: 'RideVela Driver — online',
+        notificationTitle: 'FairsVia Driver — online',
         notificationText: 'Sharing your location so riders can track the ride.',
         enableWakeLock: true,
         setOngoing: true,

@@ -9,7 +9,7 @@ import { RedisKeys } from '../src/common/redis/redis.keys';
  * Full-stack e2e against the real Postgres + Redis (run inside the backend
  * container). Exercises the auth + trip flow through the HTTP layer.
  */
-describe('RideVela API (e2e)', () => {
+describe('FairsVia API (e2e)', () => {
   let app: INestApplication;
   let server: ReturnType<INestApplication['getHttpServer']>;
   let redis: RedisService;

@@ -1,4 +1,4 @@
-# RideVela — Security Notes
+# FairsVia — Security Notes
 
 A security review pass (D2) audited authentication/authorization, injection,
 secrets/config/transport, and data exposure. The core authorization model was

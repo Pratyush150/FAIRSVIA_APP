@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# RideVela local CI gate — the same checks GitHub Actions runs, but against the
+# FairsVia local CI gate — the same checks GitHub Actions runs, but against the
 # already-running Docker stack on this self-hosted box. Run before every commit:
 #
 #     ./tools/ci.sh            # full gate (backend unit+e2e, flutter analyze+test)

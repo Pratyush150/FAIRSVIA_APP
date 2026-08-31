@@ -1,4 +1,4 @@
-// Headless visual + health smoke test for the three RideVela web apps.
+// Headless visual + health smoke test for the three FairsVia web apps.
 //
 // For each app it:
 //   1. Loads the app cold and screenshots the landing/login screen

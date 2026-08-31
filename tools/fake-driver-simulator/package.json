@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Simulated drivers + a scripted full-ride verification for RideVela dispatch/realtime.",
+  "description": "Simulated drivers + a scripted full-ride verification for FairsVia dispatch/realtime.",
   "scripts": {
     "full-ride": "node full-ride.mjs",
     "simulate": "node simulate.mjs"

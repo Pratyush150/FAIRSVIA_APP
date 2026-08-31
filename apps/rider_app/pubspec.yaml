@@ -1,5 +1,5 @@
 name: rider_app
-description: RideVela rider app.
+description: FairsVia rider app.
 publish_to: 'none'
 version: 1.0.0+1
 resolution: workspace

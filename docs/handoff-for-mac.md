@@ -6,7 +6,7 @@ on a Linux server that cannot compile iOS. Your job: build + run the apps on iOS
 Read `docs/ios-mac-setup.md` too.
 
 ## Project in one line
-RideVela — Uber-style ride-hailing: Flutter monorepo (`apps/rider_app`,
+FairsVia — Uber-style ride-hailing: Flutter monorepo (`apps/rider_app`,
 `apps/driver_app`, `apps/admin_app` [web]; shared `packages/core`,
 `design_system`, `shared_models`) + a NestJS/Postgres/PostGIS/Redis backend.
 

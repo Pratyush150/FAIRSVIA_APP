@@ -599,7 +599,7 @@ Future<void> openDriverSafety(BuildContext context, String tripId) async {
     context,
     tripId: tripId,
     safety: sl<SafetyRemoteDataSource>(),
-    shareText: 'I am driving a RideVela trip and may need help. Trip $tripId.',
+    shareText: 'I am driving a FairsVia trip and may need help. Trip $tripId.',
     lat: lat,
     lng: lng,
   );

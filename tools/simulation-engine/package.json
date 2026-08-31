@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Structured, scenario-driven simulation & load engine for RideVela: realistic rider/driver actors driving road-following trips, arrival modeling, aggregated metrics, and failure detection.",
+  "description": "Structured, scenario-driven simulation & load engine for FairsVia: realistic rider/driver actors driving road-following trips, arrival modeling, aggregated metrics, and failure detection.",
   "scripts": {
     "sim": "node run.mjs",
     "smoke": "node run.mjs smoke",
