@@ -146,6 +146,20 @@ void main() {
   );
 
   blocTest<TripCubit, TripState>(
+    'cancelTrip after a no-drivers bounce keeps the ride options',
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.choosingRide,
+      estimate: estimate,
+      selectedTier: 'economy',
+      error: 'No drivers available nearby right now — try again.',
+    ),
+    act: (c) => c.cancelTrip(),
+    expect: () => <TripState>[],
+    verify: (_) => verifyNever(() => repo.cancelTrip(any(), reason: any(named: 'reason'))),
+  );
+
+  blocTest<TripCubit, TripState>(
     'selectTier updates the selected tier',
     build: () => TripCubit(repo, realtime, payments, ratings),
     seed: () => const TripState(

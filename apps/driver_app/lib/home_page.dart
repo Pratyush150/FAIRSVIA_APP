@@ -345,7 +345,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
         return Scaffold(
           body: Stack(
             children: [
-              // Real OpenStreetMap tiles (no API key) — renders on mobile + web.
+              // Google Maps basemap (key from the gitignored native secrets).
               AppMap(
                 initialCenter: _markers(state).isNotEmpty
                     ? _markers(state).first.point

@@ -1278,7 +1278,16 @@ Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) as
   final cubit = context.read<TripCubit>();
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (dialogCtx) => AlertDialog(
+    // If the trip ends underneath the dialog (driver cancelled, no-drivers
+    // timeout, trip completed) close it instead of leaving a stale prompt
+    // whose "Cancel ride" would reset a flow that already moved on.
+    builder: (dialogCtx) => BlocListener<TripCubit, TripState>(
+      bloc: cubit,
+      listenWhen: (prev, curr) =>
+          TripCubit.isCancellable(prev.phase) &&
+          !TripCubit.isCancellable(curr.phase),
+      listener: (_, _) => Navigator.of(dialogCtx).pop(false),
+      child: AlertDialog(
       title: const Text('Cancel this ride?'),
       content: Text(
         feeWarning
@@ -1296,6 +1305,7 @@ Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) as
           child: const Text('Cancel ride'),
         ),
       ],
+      ),
     ),
   );
   if (confirmed != true) return;

@@ -391,7 +391,22 @@ class TripCubit extends Cubit<TripState> {
 
   /// Cancels the active trip and returns the cancellation fee charged (0 when
   /// none), so the UI can tell the rider they were charged.
+  /// Phases in which the rider has a live request/assignment to cancel.
+  static bool isCancellable(TripPhase phase) => switch (phase) {
+        TripPhase.requesting ||
+        TripPhase.searching ||
+        TripPhase.driverEnRoute ||
+        TripPhase.driverArrived =>
+          true,
+        _ => false,
+      };
+
   Future<double> cancelTrip() async {
+    // The trip may have ended while the confirm dialog was open (e.g. the
+    // no-drivers timeout bounced us back to the ride options). There is
+    // nothing to cancel then — keep the chosen destination and tiers instead
+    // of wiping the whole flow back to Home.
+    if (!isCancellable(state.phase)) return 0;
     final trip = state.trip;
     var fee = 0.0;
     if (trip != null) {
