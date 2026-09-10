@@ -31,6 +31,13 @@ export class AdminController {
     return this.diagnostics.snapshot();
   }
 
+  /** LIVE probe: actually pings each configured API and reports OK or the
+   *  exact error (read-only — sends no SMS/email, charges nothing). */
+  @Get('diagnostics/probe')
+  providerProbe() {
+    return this.diagnostics.probe();
+  }
+
   @Get('stats')
   stats() {
     return this.admin.stats();

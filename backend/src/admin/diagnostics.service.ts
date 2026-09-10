@@ -1,7 +1,18 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { signAwsRequest } from '../common/aws/aws-sigv4';
 
 export type ProviderMode = 'real' | 'mock' | 'stub';
+
+export interface ProbeResult {
+  key: string;
+  feature: string;
+  configured: boolean;
+  /** true = live call succeeded, false = failed, null = not probed (mock/no key) */
+  ok: boolean | null;
+  detail: string;
+  latencyMs?: number;
+}
 
 export interface ProviderStatus {
   /** stable key, e.g. 'maps' */
@@ -63,6 +74,130 @@ export class DiagnosticsService implements OnModuleInit {
       summary: { real, notReal: providers.length - real, total: providers.length },
       providers,
     };
+  }
+
+  /**
+   * LIVE probe — actually calls each configured provider with a harmless,
+   * read-only request and reports OK or the exact error. Safe: it never sends
+   * an SMS/email or charges a card. Hit GET /admin/diagnostics/probe whenever
+   * something breaks to see instantly which API failed and why.
+   */
+  async probe(): Promise<{ generatedAt: string; results: ProbeResult[] }> {
+    const results: ProbeResult[] = [
+      await this.probeMaps(),
+      await this.probeStripe(),
+    ];
+    const aws = await this.probeAws();
+    results.push({ ...aws, key: 'sms', feature: 'SMS (Amazon SNS)' });
+    results.push({ ...aws, key: 'email', feature: 'Email (Amazon SES)' });
+    results.push(
+      this.configOnly(
+        'push',
+        'Push (Firebase FCM)',
+        this.has(this.config.get<string>('fcmServiceAccountJson')),
+      ),
+    );
+    const checkr = this.config.get<{ apiKey: string }>('checkr');
+    results.push(
+      this.configOnly('background', 'Background (Checkr)', this.has(checkr?.apiKey)),
+    );
+    return { generatedAt: new Date().toISOString(), results };
+  }
+
+  private configOnly(key: string, feature: string, configured: boolean): ProbeResult {
+    return {
+      key,
+      feature,
+      configured,
+      ok: null,
+      detail: configured
+        ? 'configured (real) — live send not probed to avoid side effects'
+        : 'mock (no key)',
+    };
+  }
+
+  private fetchT(url: string, init?: RequestInit): Promise<Response> {
+    return fetch(url, { ...init, signal: AbortSignal.timeout(6000) });
+  }
+
+  private async probeMaps(): Promise<ProbeResult> {
+    const key = this.config.get<string>('googleMapsApiKey');
+    if (!this.has(key))
+      return { key: 'maps', feature: 'Google Maps', configured: false, ok: null, detail: 'stub/OSM (no key)' };
+    const t = Date.now();
+    try {
+      const d = (await (
+        await this.fetchT(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=Orlando,FL&key=${key}`,
+        )
+      ).json()) as { status?: string; error_message?: string };
+      const ok = d.status === 'OK';
+      return {
+        key: 'maps',
+        feature: 'Google Maps',
+        configured: true,
+        ok,
+        detail: ok ? 'Geocoding OK' : `${d.status}${d.error_message ? ' — ' + d.error_message : ''}`,
+        latencyMs: Date.now() - t,
+      };
+    } catch (e) {
+      return { key: 'maps', feature: 'Google Maps', configured: true, ok: false, detail: (e as Error).message, latencyMs: Date.now() - t };
+    }
+  }
+
+  private async probeStripe(): Promise<ProbeResult> {
+    const key = this.config.get<string>('stripeSecretKey');
+    if (!this.has(key))
+      return { key: 'payments', feature: 'Stripe', configured: false, ok: null, detail: 'mock (no key)' };
+    const t = Date.now();
+    try {
+      const r = await this.fetchT('https://api.stripe.com/v1/balance', {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      const d = (await r.json()) as { object?: string; livemode?: boolean; error?: { message?: string } };
+      const ok = !!d.object;
+      return {
+        key: 'payments',
+        feature: 'Stripe',
+        configured: true,
+        ok,
+        detail: ok ? `authenticated (livemode=${d.livemode})` : `${d.error?.message ?? 'auth failed'}`,
+        latencyMs: Date.now() - t,
+      };
+    } catch (e) {
+      return { key: 'payments', feature: 'Stripe', configured: true, ok: false, detail: (e as Error).message, latencyMs: Date.now() - t };
+    }
+  }
+
+  /** One AWS creds check (STS GetCallerIdentity) — proves SNS + SES auth. */
+  private async probeAws(): Promise<ProbeResult> {
+    const aws = this.config.get<{ region: string; accessKeyId: string; secretAccessKey: string }>('aws');
+    if (!this.has(aws?.accessKeyId) || !this.has(aws?.secretAccessKey))
+      return { key: 'aws', feature: 'AWS', configured: false, ok: null, detail: 'mock (no AWS keys)' };
+    const t = Date.now();
+    try {
+      const signed = signAwsRequest({
+        creds: aws!,
+        service: 'sts',
+        method: 'POST',
+        path: '/',
+        body: 'Action=GetCallerIdentity&Version=2011-06-15',
+        contentType: 'application/x-www-form-urlencoded',
+      });
+      const txt = await (await this.fetchT(signed.url, { method: 'POST', headers: signed.headers, body: signed.body })).text();
+      const arn = /<Arn>(.*?)<\/Arn>/.exec(txt)?.[1];
+      const err = /<Message>(.*?)<\/Message>/.exec(txt)?.[1];
+      return {
+        key: 'aws',
+        feature: 'AWS',
+        configured: true,
+        ok: !!arn,
+        detail: arn ? `creds OK (${arn}); delivery needs SES/SNS verification` : `${err ?? 'auth failed'}`,
+        latencyMs: Date.now() - t,
+      };
+    } catch (e) {
+      return { key: 'aws', feature: 'AWS', configured: true, ok: false, detail: (e as Error).message, latencyMs: Date.now() - t };
+    }
   }
 
   private has(v: unknown): boolean {

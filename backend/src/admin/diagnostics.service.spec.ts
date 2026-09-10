@@ -40,4 +40,19 @@ describe('DiagnosticsService', () => {
     const d = new DiagnosticsService(cfg({ smsProvider: 'sns', emailProvider: 'mock' }));
     expect(d.snapshot().providers.find((p) => p.key === 'sms')!.ready).toBe(false);
   });
+
+  it('probe() reports all-unconfigured without making network calls', async () => {
+    const d = new DiagnosticsService(cfg({}));
+    const p = await d.probe();
+    expect(p.results).toHaveLength(6);
+    expect(p.results.every((r) => r.configured === false && r.ok === null)).toBe(true);
+    expect(p.results.map((r) => r.key).sort()).toEqual([
+      'background',
+      'email',
+      'maps',
+      'payments',
+      'push',
+      'sms',
+    ]);
+  });
 });
