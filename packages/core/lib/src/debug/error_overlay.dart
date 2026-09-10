@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 /// Holds the most recent uncaught error so it can be painted on screen. This
 /// exists so failures are visible during self-hosted web testing (SSH server,
@@ -22,13 +23,33 @@ void reportError(Object error, [StackTrace? stack]) {
     debugPrint('IGNORED transient socket-close error: $error');
     return;
   }
+  // Map-tile fetch failures are equally transient: flutter_map shows a blank
+  // tile and re-requests on the next pan/zoom, and simulators in particular
+  // drop the occasional request (errno 65 "No route to host").
+  if (text.contains('tile.openstreetmap.org')) {
+    debugPrint('IGNORED transient tile-fetch error: $error');
+    return;
+  }
   final trace = stack?.toString() ?? '';
   final head = trace.isEmpty
       ? ''
       : '\n\n${trace.split('\n').take(8).join('\n')}';
   // Also log so it still appears in the console for anyone who has it open.
   debugPrint('UNCAUGHT: $error$head');
-  lastCaughtError.value = '$error$head';
+  final message = '$error$head';
+  // Errors are often reported mid-build (FlutterError.onError fires while the
+  // framework is building/laying out). Setting the ValueNotifier then would
+  // mark the overlay dirty during build and throw a secondary
+  // "setState() called during build" — so defer to after the frame.
+  final phase = SchedulerBinding.instance.schedulerPhase;
+  if (phase == SchedulerPhase.idle ||
+      phase == SchedulerPhase.postFrameCallbacks) {
+    lastCaughtError.value = message;
+  } else {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      lastCaughtError.value = message;
+    });
+  }
 }
 
 /// Surfaces every bloc error (e.g. an exception thrown inside an event handler,

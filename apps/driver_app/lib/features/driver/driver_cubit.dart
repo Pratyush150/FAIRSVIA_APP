@@ -74,6 +74,27 @@ class DriverCubit extends Cubit<DriverState> {
     }
   }
 
+  /// Re-establish the socket after the OS suspended the app. iOS tears the
+  /// WebSocket down while backgrounded and socket.io's own retry can stay
+  /// wedged — leaving a driver who looks "Online" but receives no offers.
+  Future<void> resumeFromBackground(String token) async {
+    // Don't trust `isConnected` alone: after a suspend the socket.io client can
+    // still report `connected` while its transport is dead. Only skip the
+    // reconnect when the live connection stream also says we're up.
+    if (_realtime.isConnected && state.connected) {
+      await _onReconnect();
+      return;
+    }
+    try {
+      await _realtime.connect(token);
+      emit(state.copyWith(connected: true));
+      await _restoreActiveTrip();
+      await _onReconnect();
+    } catch (_) {
+      emit(state.copyWith(connected: false));
+    }
+  }
+
   Future<void> _onReconnect() async {
     if (state.isOnline) {
       _realtime.emit('driver:status', {'status': 'online'});
@@ -125,7 +146,10 @@ class DriverCubit extends Cubit<DriverState> {
     required String tier,
     String? color,
   }) async {
-    emit(state.copyWith(busy: true, error: null));
+    // Clear needsOnboarding immediately: the dialog is already up, and any
+    // interim emission that still carries needsOnboarding=true would make the
+    // page listener open a second copy of it.
+    emit(state.copyWith(busy: true, error: null, needsOnboarding: false));
     try {
       await _remote.onboarding(
         vehicleMake: make,
@@ -295,6 +319,11 @@ class DriverCubit extends Cubit<DriverState> {
     for (final s in _subs) {
       s.cancel();
     }
+    // The driver home only unmounts on sign-out (or app teardown). Disconnect
+    // so the dispatcher stops treating this driver as online — otherwise the
+    // ghost identity keeps receiving offers, and the next sign-in could act
+    // over the previous user's socket.
+    _realtime.disconnect();
     return super.close();
   }
 }

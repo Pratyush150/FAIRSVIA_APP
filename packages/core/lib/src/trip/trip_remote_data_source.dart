@@ -93,6 +93,19 @@ class TripRemoteDataSource {
     }
   }
 
+  /// The caller's in-flight trip, or null when there isn't one. Used to
+  /// restore the live-tracking screen after the app is killed mid-ride.
+  Future<Trip?> active() async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>('/trips/active');
+      final data = res.data;
+      if (data == null || data.isEmpty) return null;
+      return Trip.fromJson(data);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// The signed-in user's recent trips (rider or driver side), newest first.
   Future<List<Trip>> history() async {
     try {

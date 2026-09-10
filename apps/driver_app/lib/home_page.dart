@@ -37,7 +37,8 @@ class _DriverHomeView extends StatefulWidget {
   State<_DriverHomeView> createState() => _DriverHomeViewState();
 }
 
-class _DriverHomeViewState extends State<_DriverHomeView> {
+class _DriverHomeViewState extends State<_DriverHomeView>
+    with WidgetsBindingObserver {
   // City centre shown before the first GPS fix. Configurable per build with
   // --dart-define=FALLBACK_LOCATION=<lat>,<lng> (matches the rider app); defaults
   // to Miami when unset. Previously hardcoded to Miami, which left the driver map
@@ -63,11 +64,20 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   // The driver's own live position — drawn as the car marker so they can see
   // themselves relative to the pickup (Uber-style).
   LatLng? _myLocation;
+  bool _onboardingShowing = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _connect();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // iOS kills the WebSocket while the app is suspended; without this a driver
+    // returning from another app still reads "Online" but never gets an offer.
+    if (state == AppLifecycleState.resumed) _resumeSocket();
   }
 
   Future<void> _connect() async {
@@ -80,6 +90,13 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
       // Connect can time out; the realtime client retries with backoff and the
       // connection banner reflects status. Swallow so a slow/failed initial
       // connect isn't an unhandled async error.
+    }
+  }
+
+  Future<void> _resumeSocket() async {
+    final token = await sl<TokenStorage>().readAccessToken();
+    if (token != null && mounted) {
+      await context.read<DriverCubit>().resumeFromBackground(token);
     }
   }
 
@@ -117,6 +134,7 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _stopStreamingLocation();
     super.dispose();
   }
@@ -304,11 +322,17 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   }
 
   Future<void> _showOnboarding(BuildContext context) async {
+    if (_onboardingShowing) return; // never stack a second copy
+    _onboardingShowing = true;
     final cubit = context.read<DriverCubit>();
-    await showDialog<void>(
-      context: context,
-      builder: (_) => _OnboardingDialog(cubit: cubit),
-    );
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => _OnboardingDialog(cubit: cubit),
+      );
+    } finally {
+      _onboardingShowing = false;
+    }
   }
 }
 
@@ -332,12 +356,17 @@ class _BottomSheet extends StatelessWidget {
                 Container(
                   height: 46,
                   width: 46,
-                  decoration: const BoxDecoration(
-                    color: AppColors.surfaceMutedLight,
+                  decoration: BoxDecoration(
+                    color: theme.brightness == Brightness.dark
+                        ? AppColors.surfaceMutedDark
+                        : AppColors.surfaceMutedLight,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.bedtime_rounded,
-                      color: AppColors.textTertiaryLight, size: 24),
+                  child: Icon(Icons.bedtime_rounded,
+                      color: theme.brightness == Brightness.dark
+                          ? AppColors.textTertiaryDark
+                          : AppColors.textTertiaryLight,
+                      size: 24),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -781,7 +810,10 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                                 CircularProgressIndicator(
                               value: v,
                               strokeWidth: 4,
-                              backgroundColor: AppColors.borderLight,
+                              backgroundColor:
+                                  theme.brightness == Brightness.dark
+                                      ? AppColors.borderDark
+                                      : AppColors.borderLight,
                               valueColor: AlwaysStoppedAnimation(
                                   low ? AppColors.error : AppColors.accent),
                             ),

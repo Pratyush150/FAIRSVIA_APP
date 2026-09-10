@@ -56,6 +56,10 @@ class TripRepository {
   /// The rider's upcoming scheduled rides.
   Future<List<Trip>> scheduled() => _trips.scheduled();
 
+  /// The rider's in-flight trip, if any — used to restore live tracking after
+  /// the app is killed and reopened mid-ride.
+  Future<Trip?> activeTrip() => _trips.active();
+
   /// Prices a promo code against a fare subtotal (rejection reason on failure).
   Future<PromoQuote> quotePromo(String code, num subtotal) =>
       _trips.quotePromo(code, subtotal);

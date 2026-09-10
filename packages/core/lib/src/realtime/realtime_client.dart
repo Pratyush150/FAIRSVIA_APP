@@ -57,6 +57,11 @@ class SocketIoRealtimeClient implements RealtimeClient {
           .setTransports(['websocket'])
           .setAuth({'token': token})
           .disableAutoConnect()
+          // socket.io caches sockets per URL (multiplexing); a cached socket
+          // keeps the auth it was created with, so a sign-out → sign-in as a
+          // different user would silently keep acting as the OLD user. Force
+          // a genuinely new connection per connect() call.
+          .disableMultiplex()
           // Explicit reconnection policy: keep retrying with a capped backoff
           // rather than relying on library defaults, so a flaky link recovers.
           .enableReconnection()

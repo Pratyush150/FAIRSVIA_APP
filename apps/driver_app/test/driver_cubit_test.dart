@@ -246,6 +246,44 @@ void main() {
     await cubit.close();
   });
 
+  test('onboard() never re-emits needsOnboarding=true (double-dialog bug)',
+      () async {
+    // First goOnline is rejected until onboarding completes.
+    when(() => remote.setStatus('online')).thenThrow(
+        const ApiException('Complete driver onboarding first',
+            statusCode: 403));
+    final cubit = DriverCubit(realtime, remote, ratings);
+    await cubit.init('token');
+    await cubit.goOnline();
+    expect(cubit.state.needsOnboarding, isTrue);
+
+    // Now onboarding succeeds and going online works.
+    when(() => remote.setStatus('online')).thenAnswer((_) async {});
+    when(() => remote.onboarding(
+          vehicleMake: any(named: 'vehicleMake'),
+          vehicleModel: any(named: 'vehicleModel'),
+          plateNumber: any(named: 'plateNumber'),
+          vehicleTier: any(named: 'vehicleTier'),
+          vehicleColor: any(named: 'vehicleColor'),
+        )).thenAnswer((_) async {});
+
+    // Every state emitted during onboard() must already have the flag
+    // cleared — an interim needsOnboarding=true emission is what used to
+    // stack a second "Set up your vehicle" dialog on the home page.
+    final sawStaleFlag = <bool>[];
+    final sub = cubit.stream.listen(
+        (s) => sawStaleFlag.add(s.needsOnboarding));
+    await cubit.onboard(
+        make: 'Toyota', model: 'Camry', plate: 'FLA 1234', tier: 'economy');
+    await sub.cancel();
+
+    expect(sawStaleFlag, isNotEmpty);
+    expect(sawStaleFlag.any((v) => v), isFalse);
+    expect(cubit.state.phase, DriverPhase.online);
+
+    await cubit.close();
+  });
+
   test('socket up/down edges drive the connection banner state', () async {
     final cubit = DriverCubit(realtime, remote, ratings);
     await cubit.init('token');
