@@ -266,39 +266,50 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                   // sheet (which covers ~40% of the screen) rather than behind it.
                   boundsPadding: const EdgeInsets.fromLTRB(40, 96, 40, 300),
                 ),
+                // Banner and top controls share one column so the
+                // "Reconnecting…" bar pushes the buttons down instead of being
+                // drawn underneath them. The banner pads for the status bar
+                // itself, so the controls only take the inset while it's hidden.
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: ConnectionBanner(connected: state.connected),
-                ),
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Align(
-                      alignment: Alignment.topRight,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AppCircleButton(
-                            icon: Icons.menu_rounded,
-                            tooltip: 'Account menu',
-                            onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const AccountMenuPage(isDriver: false),
-                              ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ConnectionBanner(connected: state.connected),
+                      SafeArea(
+                        top: state.connected,
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          child: Align(
+                            alignment: Alignment.topRight,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AppCircleButton(
+                                  icon: Icons.menu_rounded,
+                                  tooltip: 'Account menu',
+                                  onPressed: () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const AccountMenuPage(
+                                          isDriver: false),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                AppCircleButton(
+                                  icon: Icons.my_location_rounded,
+                                  tooltip: 'Recenter on my location',
+                                  onPressed: _recenterToMe,
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: AppSpacing.sm),
-                          AppCircleButton(
-                            icon: Icons.my_location_rounded,
-                            tooltip: 'Recenter on my location',
-                            onPressed: _recenterToMe,
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
                 Align(
