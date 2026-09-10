@@ -182,6 +182,12 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   /// current position, so the line shrinks behind it as it drives (and vanishes
   /// on arrival) — matching how Uber/Ola render an active route.
   List<LatLng> _route(DriverState state) {
+    // No live leg → no line. Without this the simulated car's leftover path
+    // kept the previous trip's route on the map after "Done" (seen on iOS).
+    final active = state.phase == DriverPhase.enRoute ||
+        state.phase == DriverPhase.arrived ||
+        state.phase == DriverPhase.onTrip;
+    if (!active) return const [];
     final remaining = simulatedRemainingPath();
     if (remaining.length >= 2) {
       return [for (final p in remaining) LatLng(p.lat, p.lng)];
