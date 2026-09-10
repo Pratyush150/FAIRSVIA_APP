@@ -360,31 +360,43 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                 route: _route(state),
                 fitBounds: _fitBounds(state),
               ),
+              // Banner and the top controls share one column so the
+              // "Reconnecting…" bar pushes the status pill / menu button down
+              // instead of being drawn underneath them (seen on iOS). The
+              // banner already pads for the status bar, so the controls only
+              // take the top inset while it is hidden.
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
-                child: ConnectionBanner(connected: state.connected),
-              ),
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Row(
-                    children: [
-                      _StatusPill(online: state.isOnline),
-                      const Spacer(),
-                      AppCircleButton(
-                        icon: Icons.menu_rounded,
-                        tooltip: 'Account menu',
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AccountMenuPage(isDriver: true),
-                          ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ConnectionBanner(connected: state.connected),
+                    SafeArea(
+                      top: state.connected,
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Row(
+                          children: [
+                            _StatusPill(online: state.isOnline),
+                            const Spacer(),
+                            AppCircleButton(
+                              icon: Icons.menu_rounded,
+                              tooltip: 'Account menu',
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const AccountMenuPage(isDriver: true),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
               Align(
