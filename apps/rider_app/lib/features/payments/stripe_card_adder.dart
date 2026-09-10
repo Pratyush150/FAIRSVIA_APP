@@ -19,7 +19,7 @@ Future<StripeCardResult> addStripeCard(PaymentsRemoteDataSource payments) async 
 
   await Stripe.instance.initPaymentSheet(
     paymentSheetParameters: SetupPaymentSheetParameters(
-      merchantDisplayName: 'FairsVia',
+      merchantDisplayName: 'Ride App',
       customerId: setup.customerId,
       customerEphemeralKeySecret: setup.ephemeralKeySecret,
       setupIntentClientSecret: setup.setupIntentClientSecret,

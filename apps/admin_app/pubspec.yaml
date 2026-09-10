@@ -1,5 +1,5 @@
 name: admin_app
-description: FairsVia admin dashboard (Flutter Web).
+description: Ride App admin dashboard (Flutter Web).
 publish_to: 'none'
 version: 1.0.0+1
 resolution: workspace

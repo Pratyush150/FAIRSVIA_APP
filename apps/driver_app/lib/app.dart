@@ -23,7 +23,7 @@ class _DriverAppState extends State<DriverApp> {
     _authBloc = sl<AuthBloc>()..add(const AuthStarted());
     _router = createAppRouter(
       authBloc: _authBloc,
-      appTitle: 'FairsVia Driver',
+      appTitle: 'Ride App Driver',
       homeBuilder: (_) => const DriverHomePage(),
     );
   }
@@ -39,7 +39,7 @@ class _DriverAppState extends State<DriverApp> {
     return BlocProvider.value(
       value: _authBloc,
       child: MaterialApp.router(
-        title: 'FairsVia Driver',
+        title: 'Ride App Driver',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,

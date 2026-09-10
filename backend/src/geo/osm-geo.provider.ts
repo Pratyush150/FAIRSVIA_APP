@@ -28,7 +28,7 @@ export class OsmGeoProvider implements GeoProvider {
     process.env.GEO_VIEWBOX ?? '-80.45,25.95,-80.10,25.55';
   private static readonly countryCodes =
     process.env.GEO_COUNTRY_CODES ?? 'us';
-  private static readonly userAgent = 'FairsVia/1.0 (self-hosted)';
+  private static readonly userAgent = 'Ride App/1.0 (self-hosted)';
 
   constructor(
     private readonly osrmBaseUrl: string,

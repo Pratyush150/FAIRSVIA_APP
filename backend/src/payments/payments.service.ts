@@ -628,7 +628,7 @@ export class PaymentsService {
 
   /**
    * Return the rider's provider customer ref, creating (and persisting) one on
-   * first use. Charges/holds reference this — never the raw FairsVia user id.
+   * first use. Charges/holds reference this — never the raw Ride App user id.
    */
   private async ensureCustomer(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });

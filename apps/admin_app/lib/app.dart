@@ -23,7 +23,7 @@ class _AdminAppState extends State<AdminApp> {
     _authBloc = sl<AuthBloc>()..add(const AuthStarted());
     _router = createAppRouter(
       authBloc: _authBloc,
-      appTitle: 'FairsVia Admin',
+      appTitle: 'Ride App Admin',
       homeBuilder: (_) => const AdminHomePage(),
     );
   }
@@ -39,7 +39,7 @@ class _AdminAppState extends State<AdminApp> {
     return BlocProvider.value(
       value: _authBloc,
       child: MaterialApp.router(
-        title: 'FairsVia Admin',
+        title: 'Ride App Admin',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,

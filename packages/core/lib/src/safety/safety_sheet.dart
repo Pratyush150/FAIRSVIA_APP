@@ -145,7 +145,7 @@ class _SafetySheetState extends State<_SafetySheet> {
             )
           else
             PrimaryButton(
-              label: 'Alert FairsVia Safety',
+              label: 'Alert Ride App Safety',
               loading: _alerting,
               onPressed: _alerting ? null : _alert,
             ),

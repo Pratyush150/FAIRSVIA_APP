@@ -1438,7 +1438,7 @@ class _OnTripSheet extends StatelessWidget {
 void _openSafety(BuildContext context, TripState state) {
   final tripId = state.trip?.id;
   if (tripId == null) return;
-  final share = 'FairsVia trip to ${state.dropoffAddr ?? 'my destination'}. '
+  final share = 'Ride App trip to ${state.dropoffAddr ?? 'my destination'}. '
       'Driver: ${state.driver?.name ?? 'assigned'}. Please track my ride.';
   showSafetySheet(
     context,

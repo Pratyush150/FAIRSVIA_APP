@@ -184,6 +184,6 @@ export default (): AppConfig => {
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
   },
   emailProvider: process.env.EMAIL_PROVIDER ?? 'mock',
-  sesFrom: process.env.SES_FROM ?? 'noreply@fairsvia.com',
+  sesFrom: process.env.SES_FROM ?? 'noreply@rideapp.example.com',
   };
 };

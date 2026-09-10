@@ -24,7 +24,7 @@ describe('DiagnosticsService', () => {
         smsProvider: 'sns',
         aws: { accessKeyId: 'AKIA', secretAccessKey: 'secret', region: 'us-east-1' },
         emailProvider: 'ses',
-        sesFrom: 'noreply@fairsvia.com',
+        sesFrom: 'noreply@rideapp.example.com',
         fcmServiceAccountJson: '{"project_id":"x"}',
         checkr: { apiKey: 'checkr_live' },
       }),

@@ -1,4 +1,4 @@
-# FairsVia — The Architecture, Explained for a Non-Engineer
+# Ride App — The Architecture, Explained for a Non-Engineer
 
 This document explains **how the app is built** — not the code, but the *meaning* of it:
 which feature works how, which piece is responsible for what, and where to look when
@@ -12,7 +12,7 @@ It's written to be read top to bottom. Later sections assume the words defined e
 
 ## Part 0 — The 30-second mental model
 
-FairsVia is **three phone/web apps** talking to **one backend brain**:
+Ride App is **three phone/web apps** talking to **one backend brain**:
 
 - **Rider app** — a passenger books and pays.
 - **Driver app** — a driver goes online, gets ride offers, drives the trip.
@@ -39,7 +39,7 @@ All the app code lives in **one repository** with three runnable apps and three 
 - `packages/core` — the **engine room** shared by all apps: talking to the server, holding your login, the live socket, screen routing, and whole ready-made screens (chat, history, account).
 - `packages/design_system` — the **look and feel**: colors, fonts, buttons, the map widget. So all three apps look like one product.
 
-**Why this matters for you:** login, the map, the API connection, and the data shapes are written **once** and reused. A fix or a rebrand (the app was renamed UberNav → RideVela → FairsVia) happens in one place, not three.
+**Why this matters for you:** login, the map, the API connection, and the data shapes are written **once** and reused. A fix or a rebrand (the app was renamed UberNav → RideVela → Ride App) happens in one place, not three.
 
 ### 1.2 The backend (a NestJS "modular monolith")
 The backend is **one program divided into ~30 modules, one per topic** — `auth`, `trips`, `dispatch`, `payments`, `chat`, and so on. Each module owns its feature. This is deliberate: it's simple to run (one program) but cleanly separated inside (so the "hot path" — matching — can be split out later as you grow).
@@ -63,7 +63,7 @@ If a worker crashes mid-job, the job is retried and any server copy can pick it 
 ### 1.5 The live connection (WebSocket / Socket.IO) — what it is
 Normal web traffic (**HTTP**) is like **letters**: the phone asks a question, the server answers, the line closes. The server can't start a conversation. That's fine for "show my profile," useless for "a driver just accepted — *now*."
 
-A **WebSocket** is a **phone line that stays open**: once connected, either side can speak any time. FairsVia uses **Socket.IO** (a robust library on top of WebSockets that adds auto-reconnect and "rooms"). This is how the server *pushes* live events to phones. **This is the single most important concept for understanding the live features.**
+A **WebSocket** is a **phone line that stays open**: once connected, either side can speak any time. Ride App uses **Socket.IO** (a robust library on top of WebSockets that adds auto-reconnect and "rooms"). This is how the server *pushes* live events to phones. **This is the single most important concept for understanding the live features.**
 
 ---
 
@@ -138,7 +138,7 @@ Every step is written to an **append-only audit log** (`TripEvent`), so a disput
 ## Part 5 — What's REAL vs MOCK vs NOT BUILT (the status you asked for)
 
 ### ✅ Built and working today (has automated tests)
-Full ride lifecycle · dispatch/matching · live tracking · OTP-verified start · odometer fare · pricing + surge · promo codes · two-way ratings · driver earnings ledger · in-trip chat · support tickets · notifications inbox · favourite drivers · scheduled rides · price-comparison (FairsVia) · admin dashboard · auth/OTP/JWT.
+Full ride lifecycle · dispatch/matching · live tracking · OTP-verified start · odometer fare · pricing + surge · promo codes · two-way ratings · driver earnings ledger · in-trip chat · support tickets · notifications inbox · favourite drivers · scheduled rides · price-comparison (Ride App) · admin dashboard · auth/OTP/JWT.
 **Test coverage:** ~30 backend test files, ~49 end-to-end tests, ~15 Flutter tests — currently **167 unit + 48 end-to-end passing**.
 
 ### 🟡 Real, but only when you add the API key (mock by default)
@@ -209,9 +209,9 @@ When something's wrong, ask **"which of the four layers is it?"**:
 
 - **Phase 1 — one-city MVP:** ✅ **essentially done.** Rider app, driver app, dispatch, trip lifecycle, wallet/ledger, cash + card, admin console, and localization scaffolding are built and tested end-to-end (validated on a real phone + emulator).
 - **Phase 2 — commercial hardening:** 🟡 **partial.** Payments/SMS/email/push/background-checks/maps are all **coded and ready**, waiting only on API keys. Still to do for real launch: harden the three real-money paths (Part 6), build **real SOS**, **referrals**, **driver document upload**, and turn on the keyed providers.
-- **Phase 3 — second market + FairsVia scale:** 🔜 the price-comparison feature exists (as honest *estimates*); the global "market pack" multi-country design from the investor doc is **not** built (and is a much larger, different project — see the investor-questions notes).
+- **Phase 3 — second market + Ride App scale:** 🔜 the price-comparison feature exists (as honest *estimates*); the global "market pack" multi-country design from the investor doc is **not** built (and is a much larger, different project — see the investor-questions notes).
 
 ---
 
 ### The one-paragraph summary
-FairsVia is **three Flutter apps + one NestJS backend**, with **Postgres** as the permanent record, **Redis** as the fast live memory, a **job queue** so work survives crashes, and a **WebSocket** so the server can push live events. The **ride, matching, money-accounting, pricing, chat and ratings are genuinely built and tested.** The **payment/SMS/email/push/maps/background-check integrations are built but need their API keys** to go from mock to real. **Insurance, real SOS, referrals, turn-by-turn navigation, live re-routing, a prepaid wallet, and document upload are not built yet.** And **three real-money code paths need hardening before you handle actual funds.**
+Ride App is **three Flutter apps + one NestJS backend**, with **Postgres** as the permanent record, **Redis** as the fast live memory, a **job queue** so work survives crashes, and a **WebSocket** so the server can push live events. The **ride, matching, money-accounting, pricing, chat and ratings are genuinely built and tested.** The **payment/SMS/email/push/maps/background-check integrations are built but need their API keys** to go from mock to real. **Insurance, real SOS, referrals, turn-by-turn navigation, live re-routing, a prepaid wallet, and document upload are not built yet.** And **three real-money code paths need hardening before you handle actual funds.**

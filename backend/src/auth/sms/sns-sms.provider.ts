@@ -24,7 +24,7 @@ export class SnsSmsProvider implements SmsProvider {
   }
 
   async sendOtp(phone: string, code: string): Promise<void> {
-    const message = `Your FairsVia verification code is ${code}. It expires shortly. Do not share it.`;
+    const message = `Your Ride App verification code is ${code}. It expires shortly. Do not share it.`;
     const body = new URLSearchParams({
       Action: 'Publish',
       Version: '2010-03-31',

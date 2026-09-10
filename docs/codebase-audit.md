@@ -1,4 +1,4 @@
-# FairsVia Codebase Audit — Mistakes & Improvements
+# Ride App Codebase Audit — Mistakes & Improvements
 
 **Method:** three parallel read-only agents (backend correctness/security · Flutter client · architecture/tests/CI), each citing `file:line`. **Date:** 2026-08-17.
 

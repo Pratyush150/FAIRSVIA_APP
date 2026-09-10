@@ -30,7 +30,7 @@ class ProviderQuote extends Equatable {
 
   final String currency;
 
-  /// True for FairsVia's own quote.
+  /// True for Ride App's own quote.
   final bool isOurs;
 
   /// True when the price is a modeled estimate (all competitors), not a live

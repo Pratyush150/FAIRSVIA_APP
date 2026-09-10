@@ -23,7 +23,7 @@ class _RiderAppState extends State<RiderApp> {
     _authBloc = sl<AuthBloc>()..add(const AuthStarted());
     _router = createAppRouter(
       authBloc: _authBloc,
-      appTitle: 'FairsVia Rider',
+      appTitle: 'Ride App Rider',
       homeBuilder: (_) => const RiderHomePage(),
     );
   }
@@ -39,7 +39,7 @@ class _RiderAppState extends State<RiderApp> {
     return BlocProvider.value(
       value: _authBloc,
       child: MaterialApp.router(
-        title: 'FairsVia Rider',
+        title: 'Ride App Rider',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,

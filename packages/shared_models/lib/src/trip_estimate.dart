@@ -30,7 +30,7 @@ class TripEstimate extends Equatable {
   final List<FareTier> tiers;
   final List<TripStop> stops;
 
-  /// FairsVia vs modeled Uber/Lyft/Empower prices for this trip (may be null if
+  /// Ride App vs modeled Uber/Lyft/Empower prices for this trip (may be null if
   /// the backend omitted it).
   final PriceComparison? comparison;
 
