@@ -17,16 +17,21 @@ import 'package:shared_models/shared_models.dart';
 ///
 /// Output PNGs land in test/goldens/ .
 
-const _flutterRoot = '/home/nova-robotics/flutter';
-const _dsFonts =
-    '/home/nova-robotics/ubernav/packages/design_system/fonts';
+// Resolved at runtime so the suite runs on any machine (Linux CI box, Mac,
+// GitHub runner): `flutter test` exports FLUTTER_ROOT; otherwise walk up from
+// the Dart VM binary ($FLUTTER_ROOT/bin/cache/dart-sdk/bin/dart).
+final String _flutterRoot =
+    Platform.environment['FLUTTER_ROOT'] ??
+    File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.path;
+// `flutter test` runs with cwd = apps/rider_app.
+final String _dsFonts = Directory(
+  '${Directory.current.path}/../../packages/design_system/fonts',
+).resolveSymbolicLinksSync();
 
 Future<void> _loadFont(String family, List<String> paths) async {
   final loader = FontLoader(family);
   for (final p in paths) {
-    loader.addFont(
-      File(p).readAsBytes().then((b) => b.buffer.asByteData()),
-    );
+    loader.addFont(File(p).readAsBytes().then((b) => b.buffer.asByteData()));
   }
   await loader.load();
 }
@@ -106,30 +111,32 @@ PriceComparison _comparison({
 }
 
 Widget _frame(Widget card) => MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      home: Scaffold(
-        backgroundColor: AppColors.surfaceMutedLight,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: SizedBox(width: 360, child: card),
-          ),
-        ),
+  debugShowCheckedModeBanner: false,
+  theme: AppTheme.light,
+  home: Scaffold(
+    backgroundColor: AppColors.surfaceMutedLight,
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: SizedBox(width: 360, child: card),
       ),
-    );
+    ),
+  ),
+);
 
 Future<void> _shoot(
   WidgetTester tester,
   String name,
   PriceComparison comparison,
 ) async {
-  await tester.pumpWidget(_frame(
-    RepaintBoundary(
-      key: const Key('shot'),
-      child: PriceComparisonCard(comparison: comparison),
+  await tester.pumpWidget(
+    _frame(
+      RepaintBoundary(
+        key: const Key('shot'),
+        child: PriceComparisonCard(comparison: comparison),
+      ),
     ),
-  ));
+  );
   await tester.pumpAndSettle();
   await expectLater(
     find.byKey(const Key('shot')),
@@ -138,6 +145,19 @@ Future<void> _shoot(
 }
 
 void main() {
+  // The reference PNGs were rendered on Linux (the CI platform). macOS/Windows
+  // rasterize text with different antialiasing (~4% pixel diff, layout
+  // identical), so the pixel comparison is only meaningful on Linux.
+  if (!Platform.isLinux) {
+    test(
+      'golden suite',
+      () {},
+      skip:
+          'Goldens are Linux-rendered; text antialiasing differs on '
+          '${Platform.operatingSystem}. Run on the Linux CI box.',
+    );
+    return;
+  }
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     await _loadAllFonts();
