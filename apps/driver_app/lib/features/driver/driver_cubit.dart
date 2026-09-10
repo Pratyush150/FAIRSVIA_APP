@@ -128,7 +128,7 @@ class DriverCubit extends Cubit<DriverState> {
       // If the rider cancelled while we were offline, drop back to online.
       if (fresh.status == TripStatus.cancelled ||
           fresh.status == TripStatus.completed) {
-        emit(state.copyWith(phase: DriverPhase.online, trip: null));
+        emit(state.copyWith(phase: DriverPhase.online, trip: null, riderName: null));
       } else {
         emit(state.copyWith(trip: fresh));
       }
@@ -306,6 +306,7 @@ class DriverCubit extends Cubit<DriverState> {
     emit(state.copyWith(
       phase: DriverPhase.completed,
       trip: null,
+      riderName: null,
       busy: false,
       lastTripId: trip.id,
       riderRating: null,
@@ -378,6 +379,9 @@ class DriverCubit extends Cubit<DriverState> {
         offer: null,
         busy: false,
         approachPolyline: approachPolyline,
+        // The Trip model carries no rider profile; keep the name from the
+        // offer card so the chat header can address the rider by name.
+        riderName: state.offer?.riderName,
       ));
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));
@@ -389,6 +393,7 @@ class DriverCubit extends Cubit<DriverState> {
     emit(state.copyWith(
       phase: DriverPhase.online,
       trip: null,
+      riderName: null,
       offer: null,
       busy: false,
       error: 'The rider cancelled the trip',

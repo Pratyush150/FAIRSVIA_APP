@@ -68,6 +68,7 @@ void main() {
   late MockRatings ratings;
 
   final offerJson = <String, dynamic>{
+    'rider': {'name': 'Ava Rider', 'rating': 4.9},
     'tripId': 'trip-1',
     'pickup': {'lat': 12.96, 'lng': 77.63, 'address': 'A'},
     'dropoff': {'lat': 12.97, 'lng': 77.59, 'address': 'B'},
@@ -143,6 +144,8 @@ void main() {
     await tick();
     expect(cubit.state.phase, DriverPhase.enRoute);
     expect(cubit.state.trip?.id, 'trip-1');
+    // Rider name is carried over from the offer for the chat header.
+    expect(cubit.state.riderName, 'Ava Rider');
 
     await cubit.markArrived();
     expect(cubit.state.phase, DriverPhase.arrived);

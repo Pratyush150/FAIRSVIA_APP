@@ -750,12 +750,13 @@ Future<void> openDriverSafety(BuildContext context, String tripId) async {
 void openDriverChat(BuildContext context, String tripId) {
   final userId = context.read<AuthBloc>().state.user?.id;
   if (userId == null) return;
+  final riderName = context.read<DriverCubit>().state.riderName;
   Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => ChatPage(
         tripId: tripId,
         currentUserId: userId,
-        title: 'Rider',
+        title: riderName ?? 'Rider',
         chat: sl<ChatRemoteDataSource>(),
         realtime: sl<RealtimeClient>(),
       ),
