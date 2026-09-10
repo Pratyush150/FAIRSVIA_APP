@@ -20,9 +20,31 @@ class TripCubit extends Cubit<TripState> {
   final RatingsRemoteDataSource _ratings;
   final List<StreamSubscription<dynamic>> _subs = [];
 
-  /// Connect the socket and subscribe to trip lifecycle events.
+  /// Subscribe to trip lifecycle events, then connect the socket.
   Future<void> init(String token) async {
-    await _realtime.connect(token);
+    // Subscribe BEFORE connecting. The realtime streams are broadcast
+    // controllers that outlive any one socket and are re-bound to each new
+    // one, so registering first means a failed/slow first connect (connect
+    // error or timeout) can't leave the session deaf for good — which it did
+    // when connect() was awaited first and threw past the subscriptions.
+    // resumeFromBackground() therefore only needs to reconnect.
+    _subscribe();
+    try {
+      await _realtime.connect(token);
+    } catch (_) {
+      // Show the banner; socket.io keeps retrying with backoff and the
+      // `connection` stream flips us back to true when it lands.
+      emit(state.copyWith(connected: false));
+    }
+    // If the app was killed and reopened mid-ride, restore the live-tracking
+    // screen instead of dropping the rider on the idle "Where to?" home while
+    // a driver is actually on the way. REST, so it works even while the
+    // socket is still down.
+    await _restoreActiveTrip();
+  }
+
+  void _subscribe() {
+    if (_subs.isNotEmpty) return; // init() is one-shot per cubit
     _subs
       ..add(_realtime.on('trip:matching').listen((_) => _onMatching()))
       ..add(_realtime.on('trip:accepted').listen(_onAccepted))
@@ -39,10 +61,6 @@ class TripCubit extends Cubit<TripState> {
       ..add(_realtime.connection.listen((up) {
         if (up != state.connected) emit(state.copyWith(connected: up));
       }));
-    // If the app was killed and reopened mid-ride, restore the live-tracking
-    // screen instead of dropping the rider on the idle "Where to?" home while
-    // a driver is actually on the way.
-    await _restoreActiveTrip();
   }
 
   /// Pull the server-authoritative in-flight trip (if any) on a cold start.
@@ -114,7 +132,21 @@ class TripCubit extends Cubit<TripState> {
     if (phase == TripPhase.idle) {
       emit(const TripState());
     } else {
-      emit(state.copyWith(phase: phase, trip: trip));
+      // Rehydrate everything the map + sheets draw from the trip itself, not
+      // just the phase: after a kill+reopen mid-ride there is no `estimate`,
+      // so without these there were no pickup/dropoff markers, no route fit
+      // and an empty address on the on-trip sheet. The assigned driver and
+      // approach polyline aren't part of the Trip model, so those stay as-is
+      // (the UI shows "—"/no approach leg until the next socket event).
+      emit(state.copyWith(
+        phase: phase,
+        trip: trip,
+        pickup: trip.pickup.point,
+        pickupAddr: trip.pickup.address ?? state.pickupAddr,
+        dropoff: trip.dropoff.point,
+        dropoffAddr: trip.dropoff.address ?? state.dropoffAddr,
+        stops: trip.stops,
+      ));
     }
   }
 

@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:latlong2/latlong.dart';
 
 import '../theme/app_colors.dart';
+import 'map_styles.dart';
 
 /// What a marker represents — drives its icon + colour.
 enum MapMarkerKind { pickup, dropoff, driver, plain }
@@ -44,6 +45,7 @@ class AppMap extends StatefulWidget {
     this.onMapReady,
     this.onCenterChanged,
     this.recenter,
+    this.recenterSeq = 0,
     this.tileProvider,
     this.boundsPadding = const EdgeInsets.all(64),
   });
@@ -55,12 +57,30 @@ class AppMap extends StatefulWidget {
   final List<LatLng>? fitBounds;
   final VoidCallback? onMapReady;
   final ValueChanged<LatLng>? onCenterChanged;
+  /// Camera target to snap to. The camera moves when this point changes OR
+  /// when [recenterSeq] changes — see [recenterSeq].
   final LatLng? recenter;
+
+  /// Monotonic request token for [recenter]. [LatLng] has value equality, so
+  /// re-supplying the same point (a "recenter on me" tap while the GPS fix
+  /// hasn't moved — always the case with a mocked location) is otherwise
+  /// indistinguishable from no request at all. Bump this on every explicit
+  /// request; callers that only follow a moving point can leave it at 0.
+  final int recenterSeq;
 
   /// Retained for source compatibility with the old flutter_map backend. Ignored.
   final Object? tileProvider;
 
   final EdgeInsets boundsPadding;
+
+  /// Whether a rebuild from [old] to [next] carries a recenter request the
+  /// camera should honour. A request is suppressed while [fitBounds] frames
+  /// two or more points (the fit owns the camera then).
+  @visibleForTesting
+  static bool recenterChanged(AppMap old, AppMap next) =>
+      next.recenter != null &&
+      (next.recenter != old.recenter || next.recenterSeq != old.recenterSeq) &&
+      (next.fitBounds == null || next.fitBounds!.length < 2);
 
   @override
   State<AppMap> createState() => _AppMapState();
@@ -113,9 +133,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     if (!_sameBounds(old.fitBounds, widget.fitBounds)) {
       _fit();
     }
-    if (widget.recenter != null &&
-        widget.recenter != old.recenter &&
-        (widget.fitBounds == null || widget.fitBounds!.length < 2)) {
+    if (AppMap.recenterChanged(old, widget)) {
       _moveTo(widget.recenter!);
     }
     // Animate the driver from its current (possibly mid-glide) position to the
@@ -300,7 +318,11 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       final data = await img.toByteData(format: ui.ImageByteFormat.png);
       if (data == null) return;
       final bytes = data.buffer.asUint8List();
-      final icon = gmaps.BitmapDescriptor.bytes(bytes);
+      // The bitmap is rasterised at 108 px for crispness; without an explicit
+      // logical size the SDK draws it 1:1 in points (108 pt — ~4x a default
+      // marker). `width` scales it to ~36 pt on both platforms, keeping the
+      // aspect ratio (the source is square).
+      final icon = gmaps.BitmapDescriptor.bytes(bytes, width: 36);
       if (mounted) setState(() => _driverIcon = icon);
     } catch (_) {
       // Keep the default azure marker if custom rendering fails on a device.
@@ -329,11 +351,15 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return gmaps.GoogleMap(
       initialCameraPosition: gmaps.CameraPosition(
         target: _g(widget.initialCenter),
         zoom: widget.initialZoom,
       ),
+      // Themed basemap: a night style in dark mode (so the map doesn't glow
+      // white under light status-bar icons) and a de-cluttered light style.
+      style: dark ? mapNightStyle : mapLightStyle,
       markers: _buildMarkers(),
       polylines: _buildPolylines(),
       padding: widget.boundsPadding,

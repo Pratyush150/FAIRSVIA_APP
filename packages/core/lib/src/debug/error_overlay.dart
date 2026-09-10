@@ -23,13 +23,6 @@ void reportError(Object error, [StackTrace? stack]) {
     debugPrint('IGNORED transient socket-close error: $error');
     return;
   }
-  // Map-tile fetch failures are equally transient: flutter_map shows a blank
-  // tile and re-requests on the next pan/zoom, and simulators in particular
-  // drop the occasional request (errno 65 "No route to host").
-  if (text.contains('tile.openstreetmap.org')) {
-    debugPrint('IGNORED transient tile-fetch error: $error');
-    return;
-  }
   final trace = stack?.toString() ?? '';
   final head = trace.isEmpty
       ? ''

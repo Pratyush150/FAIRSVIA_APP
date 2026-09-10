@@ -44,8 +44,12 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   String _myLocationAddr = 'Current location';
   List<SavedPlace> _savedPlaces = const [];
   // Set when the rider taps "recenter": AppMap follows this to snap back to the
-  // rider's live position after they've panned the map away.
+  // rider's live position after they've panned the map away. `_recenterSeq` is
+  // bumped with every request because LatLng has value equality — re-storing
+  // the same point (GPS hasn't moved, or MOCK_LOCATION) would otherwise be a
+  // no-op and the button would feel dead.
   LatLng? _recenter;
+  int _recenterSeq = 0;
 
   @override
   void initState() {
@@ -85,6 +89,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         // one-shot, so without this the map stays on the fallback until the rider
         // taps recenter (seen when GPS/permission resolves after the first frame).
         _recenter = MapUtils.toLatLng(loc);
+        _recenterSeq++;
       });
     }
     // Resolve the GPS to a real address so the pickup shows where the rider
@@ -106,6 +111,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     setState(() {
       _myLocation = loc;
       _recenter = MapUtils.toLatLng(loc);
+      _recenterSeq++;
     });
   }
 
@@ -193,11 +199,13 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     final approaching = state.phase == TripPhase.driverEnRoute ||
         state.phase == TripPhase.driverArrived;
     final approachRoute = state.driverRoutePolyline;
+    // After a cold-start restore there is no estimate; the trip carries its own
+    // route polyline, so fall back to that rather than drawing nothing.
     final encoded = (approaching &&
             approachRoute != null &&
             approachRoute.isNotEmpty)
         ? approachRoute
-        : state.estimate?.polyline;
+        : (state.estimate?.polyline ?? state.trip?.routePolyline);
     if (encoded == null || encoded.isEmpty) return const [];
     return MapUtils.decodePolyline(encoded);
   }
@@ -207,8 +215,11 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   /// approach — so the camera frames the leg once instead of chasing the car
   /// on every GPS tick). Otherwise we fit pickup→dropoff.
   List<LatLng>? _fitBounds(TripState state) {
-    final e = state.estimate;
-    if (e == null) return null;
+    // Prefer the estimate's endpoints; after a cold-start restore there is no
+    // estimate, so frame the restored trip's pickup/dropoff instead.
+    final pickup = state.estimate?.pickup ?? state.pickup;
+    final dropoff = state.estimate?.dropoff ?? state.dropoff;
+    if (pickup == null || dropoff == null) return null;
     final approaching = state.phase == TripPhase.driverEnRoute ||
         state.phase == TripPhase.driverArrived;
     final approachRoute = state.driverRoutePolyline;
@@ -216,7 +227,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
       final pts = MapUtils.decodePolyline(approachRoute);
       if (pts.length >= 2) return [pts.first, pts.last];
     }
-    return [MapUtils.toLatLng(e.pickup), MapUtils.toLatLng(e.dropoff)];
+    return [MapUtils.toLatLng(pickup), MapUtils.toLatLng(dropoff)];
   }
 
   @override
@@ -242,13 +253,15 @@ class _RiderHomeViewState extends State<_RiderHomeView>
           return Scaffold(
             body: Stack(
               children: [
-                // Real OpenStreetMap tiles (no API key) — renders on mobile + web.
+                // Google Maps SDK via the shared AppMap (native on mobile, JS
+                // on web) — the basemap is styled per theme inside AppMap.
                 AppMap(
                   initialCenter: MapUtils.toLatLng(_myLocation),
                   markers: _markers(state),
                   route: _route(state),
                   fitBounds: _fitBounds(state),
                   recenter: _recenter,
+                  recenterSeq: _recenterSeq,
                   // Keep pickup/dropoff/driver markers framed above the bottom
                   // sheet (which covers ~40% of the screen) rather than behind it.
                   boundsPadding: const EdgeInsets.fromLTRB(40, 96, 40, 300),
@@ -1359,7 +1372,12 @@ class _DriverInfoSheet extends StatelessWidget {
                         const Icon(Icons.star_rounded,
                             size: 15, color: AppColors.star),
                         const SizedBox(width: 3),
-                        Text((driver?.rating ?? 5).toStringAsFixed(1),
+                        // No driver payload yet (e.g. restored after a cold
+                        // start) — show "—" rather than inventing a 5.0.
+                        Text(
+                            driver == null
+                                ? '—'
+                                : driver.rating.toStringAsFixed(1),
                             style: theme.textTheme.labelLarge),
                       ],
                     ),

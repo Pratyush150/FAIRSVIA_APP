@@ -31,11 +31,52 @@ class FakeRealtimeClient implements RealtimeClient {
   void emit(String event, Map<String, dynamic> data) {}
 }
 
+/// Realtime fake with pushable per-event streams, so tests can prove the
+/// cubit's subscriptions exist (and fire) regardless of what connect() did.
+class ScriptedRealtimeClient implements RealtimeClient {
+  ScriptedRealtimeClient({this.failConnect = false});
+
+  final bool failConnect;
+  final _events = <String, StreamController<Map<String, dynamic>>>{};
+  final _connection = StreamController<bool>.broadcast(sync: true);
+  int connectCalls = 0;
+
+  @override
+  Future<void> connect(String token) async {
+    connectCalls++;
+    if (failConnect) throw TimeoutException('socket connect timeout');
+  }
+
+  @override
+  void disconnect() {}
+  @override
+  bool get isConnected => false;
+  @override
+  Stream<Map<String, dynamic>> on(String event) => _events
+      .putIfAbsent(
+          event, () => StreamController<Map<String, dynamic>>.broadcast(sync: true))
+      .stream;
+  @override
+  Stream<void> get reconnects => const Stream.empty();
+  @override
+  Stream<bool> get connection => _connection.stream;
+  @override
+  void emit(String event, Map<String, dynamic> data) {}
+
+  /// Deliver a server event. Silently dropped when nobody ever subscribed to
+  /// [event] — exactly the "deaf session" failure this guards against.
+  void push(String event, Map<String, dynamic> data) =>
+      _events[event]?.add(data);
+
+  void setConnected(bool up) => _connection.add(up);
+}
+
 void main() {
   late MockTripRepository repo;
   late MockPayments payments;
   late MockRatings ratings;
   final realtime = FakeRealtimeClient();
+  late ScriptedRealtimeClient scripted;
 
   const pickup = GeoPoint(12.9611, 77.6387);
   const dropoff = GeoPoint(12.9674, 77.5904);
@@ -311,8 +352,9 @@ void main() {
           id: 't1',
           status: TripStatus.arrived,
           tier: 'economy',
-          pickup: const TripEndpoint(point: pickup),
-          dropoff: const TripEndpoint(point: dropoff),
+          pickup: const TripEndpoint(point: pickup, address: '12 Pickup St'),
+          dropoff: const TripEndpoint(point: dropoff, address: 'Dropoff Ave'),
+          routePolyline: 'abcd',
           fareEstimate: 142.98,
         ),
       );
@@ -322,9 +364,55 @@ void main() {
     expect: () => [
       isA<TripState>()
           .having((s) => s.phase, 'phase', TripPhase.driverArrived)
-          .having((s) => s.trip?.id, 'trip.id', 't1'),
+          .having((s) => s.trip?.id, 'trip.id', 't1')
+          // Regression: only phase+trip were restored, so the map had no
+          // pickup/dropoff markers and the sheets showed an empty address.
+          .having((s) => s.pickup, 'pickup', pickup)
+          .having((s) => s.dropoff, 'dropoff', dropoff)
+          .having((s) => s.pickupAddr, 'pickupAddr', '12 Pickup St')
+          .having((s) => s.dropoffAddr, 'dropoffAddr', 'Dropoff Ave')
+          .having((s) => s.trip?.routePolyline, 'trip.routePolyline', 'abcd')
+          // The driver isn't part of the Trip model: must stay unknown, not
+          // be fabricated.
+          .having((s) => s.driver, 'driver', isNull),
     ],
     verify: (_) => verify(() => repo.activeTrip()).called(1),
+  );
+
+  // Regression: init() awaited connect() BEFORE subscribing, so a first
+  // connect that threw (connect_error / 8 s timeout) left the session with no
+  // listeners at all — deaf for good, even once socket.io's own retry landed.
+  blocTest<TripCubit, TripState>(
+    'init subscribes before connecting: a failed first connect is not deaf',
+    setUp: () => when(() => repo.activeTrip()).thenAnswer(
+      (_) async => Trip(
+        id: 't1',
+        status: TripStatus.accepted,
+        tier: 'economy',
+        pickup: const TripEndpoint(point: pickup),
+        dropoff: const TripEndpoint(point: dropoff),
+      ),
+    ),
+    build: () => TripCubit(
+        repo, scripted = ScriptedRealtimeClient(failConnect: true), payments, ratings),
+    act: (c) async {
+      await c.init('token');
+      // The socket.io retry eventually lands and events flow again.
+      scripted.setConnected(true);
+      scripted.push('trip:arrived', {});
+    },
+    expect: () => [
+      // The failed connect is surfaced, not swallowed.
+      isA<TripState>().having((s) => s.connected, 'connected', false),
+      // Restore still ran (REST) despite the dead socket.
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.driverEnRoute)
+          .having((s) => s.connected, 'connected', false),
+      isA<TripState>().having((s) => s.connected, 'connected', true),
+      // …and the event subscription registered before connect() fires.
+      isA<TripState>().having((s) => s.phase, 'phase', TripPhase.driverArrived),
+    ],
+    verify: (_) => expect(scripted.connectCalls, 1),
   );
 
   blocTest<TripCubit, TripState>(
