@@ -370,7 +370,16 @@ export class DispatchService {
         this.realtime.emitToUser(driverId, 'trip:offer_expired', { tripId: trip.id });
         return false;
       }
-      return await this.assign(trip, driverId);
+      const assigned = await this.assign(trip, driverId);
+      if (!assigned) {
+        // The driver tapped Accept but the trip could not be committed to them
+        // (rider cancelled during the offer window, trip already taken, or the
+        // driver is still bound to another trip). Without this the driver app
+        // sits on the offer card with an infinite Accept spinner — it only ever
+        // learned about the not-accepted branch above.
+        this.realtime.emitToUser(driverId, 'trip:offer_expired', { tripId: trip.id });
+      }
+      return assigned;
     } finally {
       await this.redis.client.del(lockKey);
     }
@@ -408,7 +417,15 @@ export class DispatchService {
     accepted: boolean,
   ): Promise<boolean> {
     const offeree = await this.redis.client.get(RedisKeys.dispatchOffer(tripId));
-    if (offeree !== driverId) return false;
+    if (offeree !== driverId) {
+      // An accept that lands after the offer window closed (or for a trip that
+      // was never offered to this driver) must not leave the driver waiting on
+      // an assignment that will never come — tell them the offer is gone.
+      if (accepted) {
+        this.realtime.emitToUser(driverId, 'trip:offer_expired', { tripId });
+      }
+      return false;
+    }
     await this.redis.client.set(
       RedisKeys.dispatchResponse(tripId),
       `${accepted ? '1' : '0'}:${driverId}`,

@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:core/core.dart';
 import 'package:driver_app/features/driver/driver_cubit.dart';
+import 'package:driver_app/features/driver/location_stream.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_models/shared_models.dart';
@@ -16,8 +18,14 @@ class FakeRealtimeClient implements RealtimeClient {
   final List<(String, Map<String, dynamic>)> emitted = [];
   bool _connected = false;
 
+  /// When set, [connect] fails — models a slow/dead first socket handshake.
+  Object? connectError;
+
   @override
-  Future<void> connect(String token) async => _connected = true;
+  Future<void> connect(String token) async {
+    if (connectError != null) throw connectError!;
+    _connected = true;
+  }
 
   @override
   void disconnect() => _connected = false;
@@ -78,7 +86,20 @@ void main() {
     dropoff: const TripEndpoint(point: GeoPoint(12.97, 77.59), address: 'B'),
   );
 
+  // Location access is granted unless a test says otherwise; the real check
+  // talks to the geolocator plugin, which has no host under flutter_test.
+  LocationAccess access = LocationAccess.granted;
+  DriverCubit make({Duration acceptGrace = const Duration(seconds: 5)}) =>
+      DriverCubit(
+        realtime,
+        remote,
+        ratings,
+        checkLocation: () async => access,
+        acceptGrace: acceptGrace,
+      );
+
   setUp(() {
+    access = LocationAccess.granted;
     realtime = FakeRealtimeClient();
     remote = MockDriverRemote();
     ratings = MockRatings();
@@ -103,7 +124,7 @@ void main() {
   });
 
   test('drives the full offer → complete lifecycle', () async {
-    final cubit = DriverCubit(realtime, remote, ratings);
+    final cubit = make();
     await cubit.init('token');
     expect(realtime.isConnected, isTrue);
 
@@ -147,7 +168,7 @@ void main() {
   });
 
   test('declining an offer returns to online and emits trip:decline', () async {
-    final cubit = DriverCubit(realtime, remote, ratings);
+    final cubit = make();
     await cubit.init('token');
     await cubit.goOnline();
     realtime.push('trip:offer', offerJson);
@@ -162,7 +183,7 @@ void main() {
   });
 
   test('reconnect re-announces presence and re-syncs the active trip', () async {
-    final cubit = DriverCubit(realtime, remote, ratings);
+    final cubit = make();
     await cubit.init('token');
     await cubit.goOnline();
     realtime.push('trip:assigned', {'tripId': 'trip-1'});
@@ -196,7 +217,7 @@ void main() {
     // Backend reports a live accepted trip for a freshly-launched app.
     when(() => remote.getActiveTrip()).thenAnswer((_) async => trip);
 
-    final cubit = DriverCubit(realtime, remote, ratings);
+    final cubit = make();
     await cubit.init('token');
     await tick();
 
@@ -220,7 +241,7 @@ void main() {
     );
     when(() => remote.getActiveTrip()).thenAnswer((_) async => onTrip);
 
-    final cubit = DriverCubit(realtime, remote, ratings);
+    final cubit = make();
     await cubit.init('token');
     await tick();
 
@@ -231,7 +252,7 @@ void main() {
   });
 
   test('rider cancellation after assignment resets the driver', () async {
-    final cubit = DriverCubit(realtime, remote, ratings);
+    final cubit = make();
     await cubit.init('token');
     await cubit.goOnline();
     realtime.push('trip:assigned', {'tripId': 'trip-1'});
@@ -252,7 +273,7 @@ void main() {
     when(() => remote.setStatus('online')).thenThrow(
         const ApiException('Complete driver onboarding first',
             statusCode: 403));
-    final cubit = DriverCubit(realtime, remote, ratings);
+    final cubit = make();
     await cubit.init('token');
     await cubit.goOnline();
     expect(cubit.state.needsOnboarding, isTrue);
@@ -285,7 +306,7 @@ void main() {
   });
 
   test('socket up/down edges drive the connection banner state', () async {
-    final cubit = DriverCubit(realtime, remote, ratings);
+    final cubit = make();
     await cubit.init('token');
     expect(cubit.state.connected, isTrue); // optimistic default
 
@@ -296,6 +317,201 @@ void main() {
     realtime.pushConnection(true);
     await tick();
     expect(cubit.state.connected, isTrue);
+
+    await cubit.close();
+  });
+
+  // ── #1 Accept that never resolves ─────────────────────────────────────────
+  group('accepted offer that never assigns', () {
+    // expiresInSec 0 + zero grace so the safety timer fires immediately.
+    final instantOffer = <String, dynamic>{...offerJson, 'expiresInSec': 0};
+
+    blocTest<DriverCubit, DriverState>(
+      'safety timer resets to online with a visible error when neither '
+      'trip:assigned nor trip:offer_expired arrives',
+      build: () => make(acceptGrace: Duration.zero),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.push('trip:offer', instantOffer);
+        await tick();
+        cubit.acceptOffer();
+      },
+      wait: const Duration(milliseconds: 50),
+      expect: () => [
+        // goOnline
+        isA<DriverState>().having((s) => s.busy, 'busy', isTrue),
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.online)
+            .having((s) => s.busy, 'busy', isFalse),
+        // offer shown
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.offered)
+            .having((s) => s.offer?.tripId, 'offer', 'trip-1'),
+        // accept → spinner
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.offered)
+            .having((s) => s.busy, 'busy', isTrue),
+        // timer → back online, card gone, error surfaced
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.online)
+            .having((s) => s.offer, 'offer', isNull)
+            .having((s) => s.busy, 'busy', isFalse)
+            .having((s) => s.error, 'error',
+                'That ride was taken or cancelled'),
+      ],
+      verify: (cubit) {
+        expect(realtime.emitted.any((e) => e.$1 == 'trip:accept'), isTrue);
+      },
+    );
+
+    test('a new offer is accepted again after the timer reset', () async {
+      final cubit = make(acceptGrace: Duration.zero);
+      await cubit.init('token');
+      await cubit.goOnline();
+      realtime.push('trip:offer', instantOffer);
+      await tick();
+      cubit.acceptOffer();
+      await tick();
+      expect(cubit.state.phase, DriverPhase.online);
+
+      // Previously phase stayed `offered`, so _onOffer dropped this forever.
+      realtime.push('trip:offer', {...offerJson, 'tripId': 'trip-2'});
+      await tick();
+      expect(cubit.state.phase, DriverPhase.offered);
+      expect(cubit.state.offer?.tripId, 'trip-2');
+      await cubit.close();
+    });
+
+    test('trip:assigned before the timer cancels it (no spurious reset)',
+        () async {
+      final cubit = make(acceptGrace: Duration.zero);
+      await cubit.init('token');
+      await cubit.goOnline();
+      realtime.push('trip:offer', instantOffer);
+      await tick();
+      cubit.acceptOffer();
+      realtime.push('trip:assigned', {'tripId': 'trip-1'});
+      await tick();
+      await tick();
+      expect(cubit.state.phase, DriverPhase.enRoute);
+      expect(cubit.state.error, isNull);
+      await cubit.close();
+    });
+
+    test('trip:offer_expired while Accept is pending clears the card',
+        () async {
+      final cubit = make();
+      await cubit.init('token');
+      await cubit.goOnline();
+      realtime.push('trip:offer', offerJson);
+      await tick();
+      cubit.acceptOffer();
+      expect(cubit.state.busy, isTrue);
+
+      // Backend: accepted but assign() failed (rider cancelled mid-window).
+      realtime.push('trip:offer_expired', {'tripId': 'trip-1'});
+      await tick();
+      expect(cubit.state.phase, DriverPhase.online);
+      expect(cubit.state.offer, isNull);
+      expect(cubit.state.busy, isFalse);
+      expect(cubit.state.error, 'That ride was taken or cancelled');
+      await cubit.close();
+    });
+
+    test('a stale trip:offer_expired for another trip leaves the card alone',
+        () async {
+      final cubit = make();
+      await cubit.init('token');
+      await cubit.goOnline();
+      realtime.push('trip:offer', offerJson);
+      await tick();
+
+      realtime.push('trip:offer_expired', {'tripId': 'trip-OLD'});
+      await tick();
+      expect(cubit.state.phase, DriverPhase.offered);
+      expect(cubit.state.offer?.tripId, 'trip-1');
+      await cubit.close();
+    });
+  });
+
+  // ── #3 Location gate before going online ──────────────────────────────────
+  group('goOnline location gate', () {
+    blocTest<DriverCubit, DriverState>(
+      'stays offline with a settings-actionable error when permission is '
+      'permanently denied — never calls setStatus(online)',
+      build: () => make(),
+      setUp: () => access = LocationAccess.deniedForever,
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+      },
+      expect: () => [
+        isA<DriverState>()
+            .having((s) => s.busy, 'busy', isTrue)
+            .having((s) => s.locationIssue, 'locationIssue', isNull),
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.offline)
+            .having((s) => s.busy, 'busy', isFalse)
+            .having((s) => s.locationIssue, 'locationIssue',
+                LocationAccess.deniedForever)
+            .having((s) => s.error, 'error', contains('Settings')),
+      ],
+      verify: (_) {
+        verifyNever(() => remote.setStatus('online'));
+        expect(realtime.emitted.any((e) => e.$1 == 'driver:status'), isFalse);
+      },
+    );
+
+    test('services off → servicesOff issue, still offline', () async {
+      access = LocationAccess.servicesOff;
+      final cubit = make();
+      await cubit.init('token');
+      await cubit.goOnline();
+      expect(cubit.state.phase, DriverPhase.offline);
+      expect(cubit.state.locationIssue, LocationAccess.servicesOff);
+      verifyNever(() => remote.setStatus('online'));
+      await cubit.close();
+    });
+
+    test('granted on a retry clears the issue and goes online', () async {
+      access = LocationAccess.denied;
+      final cubit = make();
+      await cubit.init('token');
+      await cubit.goOnline();
+      expect(cubit.state.phase, DriverPhase.offline);
+      expect(cubit.state.locationIssue, LocationAccess.denied);
+
+      access = LocationAccess.granted;
+      await cubit.goOnline();
+      expect(cubit.state.phase, DriverPhase.online);
+      expect(cubit.state.locationIssue, isNull);
+      expect(cubit.state.error, isNull);
+      verify(() => remote.setStatus('online')).called(1);
+      await cubit.close();
+    });
+  });
+
+  // ── #6 Listeners registered before connect ────────────────────────────────
+  test('a failed first connect still leaves every socket listener wired',
+      () async {
+    realtime.connectError = TimeoutException('handshake');
+    final cubit = make();
+    await expectLater(cubit.init('token'), throwsA(isA<TimeoutException>()));
+
+    // The connection-edge listener must already be live…
+    realtime.pushConnection(false);
+    await tick();
+    expect(cubit.state.connected, isFalse);
+    realtime.pushConnection(true);
+    await tick();
+    expect(cubit.state.connected, isTrue);
+
+    // …and so must trip events, once the socket layer recovers on its own.
+    await cubit.goOnline();
+    realtime.push('trip:offer', offerJson);
+    await tick();
+    expect(cubit.state.phase, DriverPhase.offered);
 
     await cubit.close();
   });

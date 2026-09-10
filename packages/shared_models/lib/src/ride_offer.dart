@@ -38,12 +38,16 @@ class RideOffer extends Equatable {
   /// collect the rider". Null when the driver's position was unknown.
   final int? approachDistanceM;
 
-  /// "~X.X km to pickup" (or "~N m" under 1 km) when known, else null.
+  /// "~X.X mi to pickup" (or "< 500 ft to pickup" when practically there) when
+  /// known, else null. Imperial to match the trip-distance line on the same
+  /// offer card (US market) — a km figure next to a miles figure read wrong.
   String? get approachLabel {
     final m = approachDistanceM;
     if (m == null || m < 0) return null;
-    if (m < 1000) return '~$m m to pickup';
-    return '~${(m / 1000).toStringAsFixed(1)} km to pickup';
+    const metresPerMile = 1609.344;
+    const metresPerFoot = 0.3048;
+    if (m < 500 * metresPerFoot) return '< 500 ft to pickup';
+    return '~${(m / metresPerMile).toStringAsFixed(1)} mi to pickup';
   }
 
   factory RideOffer.fromJson(Map<String, dynamic> json) {

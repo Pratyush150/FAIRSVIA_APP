@@ -24,6 +24,7 @@ class DriverState extends Equatable {
     this.needsOnboarding = false,
     this.connected = true,
     this.approachPolyline,
+    this.locationIssue,
   });
 
   final DriverPhase phase;
@@ -47,6 +48,11 @@ class DriverState extends Equatable {
   /// where they're collecting the rider from (Uber-style approach leg).
   final String? approachPolyline;
 
+  /// Why the last "go online" was refused for lack of location access (null
+  /// when it wasn't). Lets the UI offer the right fix — open app settings for a
+  /// permanent denial, the location-services page when GPS is switched off.
+  final LocationAccess? locationIssue;
+
   bool get isOnline => phase != DriverPhase.offline;
 
   static const Object _s = Object();
@@ -64,6 +70,7 @@ class DriverState extends Equatable {
     bool? needsOnboarding,
     bool? connected,
     Object? approachPolyline = _s,
+    Object? locationIssue = _s,
   }) {
     return DriverState(
       phase: phase ?? this.phase,
@@ -81,6 +88,9 @@ class DriverState extends Equatable {
       approachPolyline: approachPolyline == _s
           ? this.approachPolyline
           : approachPolyline as String?,
+      locationIssue: locationIssue == _s
+          ? this.locationIssue
+          : locationIssue as LocationAccess?,
     );
   }
 
@@ -98,5 +108,6 @@ class DriverState extends Equatable {
         needsOnboarding,
         connected,
         approachPolyline,
+        locationIssue,
       ];
 }

@@ -23,12 +23,30 @@ void main() {
       expect(o.riderName, 'Priya');
       expect(o.riderRating, 4.7);
       expect(o.approachDistanceM, 2300);
-      expect(o.approachLabel, '~2.3 km to pickup');
+      // 2300 m = 1.43 mi — imperial, to match the "X.X mi trip" line on the
+      // same offer card.
+      expect(o.approachLabel, '~1.4 mi to pickup');
     });
 
-    test('approachLabel uses metres under 1 km', () {
+    test('approachLabel uses miles with one decimal for short approaches', () {
       final o = RideOffer.fromJson({...base(), 'approachDistanceM': 450});
-      expect(o.approachLabel, '~450 m to pickup');
+      expect(o.approachLabel, '~0.3 mi to pickup');
+    });
+
+    test('approachLabel reads "< 500 ft" when practically at the pickup', () {
+      // 500 ft = 152.4 m
+      expect(
+        RideOffer.fromJson({...base(), 'approachDistanceM': 100}).approachLabel,
+        '< 500 ft to pickup',
+      );
+      expect(
+        RideOffer.fromJson({...base(), 'approachDistanceM': 152}).approachLabel,
+        '< 500 ft to pickup',
+      );
+      expect(
+        RideOffer.fromJson({...base(), 'approachDistanceM': 153}).approachLabel,
+        '~0.1 mi to pickup',
+      );
     });
 
     test('back-compatible: old payload without rider/approach still parses', () {

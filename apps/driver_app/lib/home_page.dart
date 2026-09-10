@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:core/core.dart';
 import 'package:design_system/design_system.dart';
@@ -65,6 +66,14 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   // themselves relative to the pickup (Uber-style).
   LatLng? _myLocation;
   bool _onboardingShowing = false;
+  // Which simulated drive is currently running (phase + route). The listener
+  // fires on error changes too; restarting the sim on those teleported the car
+  // back to the route start on any mid-trip error snackbar.
+  String? _simKey;
+  // Memo for _fitBounds: it decodes the approach polyline, and the page
+  // rebuilds on every GPS tick.
+  String? _fitKey;
+  List<LatLng>? _fitCache;
 
   @override
   void initState() {
@@ -206,19 +215,71 @@ class _DriverHomeViewState extends State<_DriverHomeView>
     return path;
   }
 
-  /// Frame the map for the current phase: heading to pickup → show the driver +
-  /// the pickup; on a trip → show the whole route.
+  /// Frame the map for the current phase: heading to pickup → the approach leg
+  /// (its polyline endpoints, which stay fixed for the whole approach, so the
+  /// camera frames it ONCE instead of re-animating on every GPS tick and
+  /// fighting the driver's pans); on a trip → the whole route.
+  ///
+  /// Once the driver is at the pickup the leg is a point; fitting zero-area
+  /// bounds zooms the map to max, so anything under ~50 m falls back to a fixed
+  /// ~250 m box around the pickup (a street-level zoom via the same fitBounds
+  /// API — AppMap has no explicit zoom setter).
   List<LatLng>? _fitBounds(DriverState state) {
     final trip = state.trip;
     if (trip == null) return null;
+    final approaching = state.phase == DriverPhase.enRoute ||
+        state.phase == DriverPhase.arrived;
+    final key = '${trip.id}|${state.phase}|'
+        '${approaching ? state.approachPolyline : ''}';
+    if (key == _fitKey) return _fitCache;
     final pickup = LatLng(trip.pickup.point.lat, trip.pickup.point.lng);
     final dropoff = LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng);
-    if ((state.phase == DriverPhase.enRoute ||
-            state.phase == DriverPhase.arrived) &&
-        _myLocation != null) {
-      return [_myLocation!, pickup];
+    List<LatLng> bounds;
+    if (approaching) {
+      final encoded = state.approachPolyline;
+      final pts = (encoded == null || encoded.isEmpty)
+          ? const <LatLng>[]
+          : decodePolyline(encoded);
+      bounds = pts.length >= 2 ? [pts.first, pts.last] : [pickup, pickup];
+      if (_spanMeters(bounds) < 50) bounds = _boxAround(pickup, 125);
+    } else {
+      bounds = [pickup, dropoff];
+      if (_spanMeters(bounds) < 50) bounds = _boxAround(pickup, 125);
     }
-    return [pickup, dropoff];
+    _fitKey = key;
+    _fitCache = bounds;
+    return bounds;
+  }
+
+  /// Diagonal of the bounding box of [pts], in metres (equirectangular; fine
+  /// at city scale).
+  static double _spanMeters(List<LatLng> pts) {
+    var minLat = pts.first.latitude, maxLat = pts.first.latitude;
+    var minLng = pts.first.longitude, maxLng = pts.first.longitude;
+    for (final p in pts) {
+      minLat = math.min(minLat, p.latitude);
+      maxLat = math.max(maxLat, p.latitude);
+      minLng = math.min(minLng, p.longitude);
+      maxLng = math.max(maxLng, p.longitude);
+    }
+    const mPerDegLat = 111320.0;
+    final midLat = (minLat + maxLat) / 2 * math.pi / 180;
+    final dy = (maxLat - minLat) * mPerDegLat;
+    final dx = (maxLng - minLng) * mPerDegLat * math.cos(midLat);
+    return math.sqrt(dx * dx + dy * dy);
+  }
+
+  /// A square [halfSpanM] metres either side of [c] — a fixed street-level
+  /// frame around a single point.
+  static List<LatLng> _boxAround(LatLng c, double halfSpanM) {
+    const mPerDegLat = 111320.0;
+    final dLat = halfSpanM / mPerDegLat;
+    final dLng =
+        halfSpanM / (mPerDegLat * math.cos(c.latitude * math.pi / 180));
+    return [
+      LatLng(c.latitude - dLat, c.longitude - dLng),
+      LatLng(c.latitude + dLat, c.longitude + dLng),
+    ];
   }
 
   @override
@@ -238,28 +299,46 @@ class _DriverHomeViewState extends State<_DriverHomeView>
         // the approach leg to the pickup, then the trip route to the dropoff —
         // so it tracks streets like a real driver instead of sliding straight
         // across the map.
+        // Only (re)start the drive when the leg actually changes — this
+        // listener also fires for error/onboarding changes, and restarting
+        // then reset the car to the start of the route mid-drive.
         final trip = state.trip;
         if (trip != null) {
+          String? polyline;
+          double? endLat, endLng;
           if (state.phase == DriverPhase.enRoute) {
-            driveSimulatedPath(_pathTo(
-              state.approachPolyline,
-              trip.pickup.point.lat,
-              trip.pickup.point.lng,
-            ));
+            polyline = state.approachPolyline;
+            endLat = trip.pickup.point.lat;
+            endLng = trip.pickup.point.lng;
           } else if (state.phase == DriverPhase.onTrip) {
-            driveSimulatedPath(_pathTo(
-              trip.routePolyline,
-              trip.dropoff.point.lat,
-              trip.dropoff.point.lng,
-            ));
+            polyline = trip.routePolyline;
+            endLat = trip.dropoff.point.lat;
+            endLng = trip.dropoff.point.lng;
           }
+          if (endLat != null && endLng != null) {
+            final key = '${trip.id}|${state.phase}|${polyline ?? ''}';
+            if (key != _simKey) {
+              _simKey = key;
+              driveSimulatedPath(_pathTo(polyline, endLat, endLng));
+            }
+          }
+        } else {
+          _simKey = null;
         }
         if (state.needsOnboarding) {
           _showOnboarding(context);
         } else if (state.error != null) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(state.error!)));
+            ..showSnackBar(SnackBar(
+              content: Text(state.error!),
+              // Route the driver straight to the fix when we refused to go
+              // online for lack of location access.
+              action: _locationFixAction(state.locationIssue),
+              duration: state.locationIssue != null
+                  ? const Duration(seconds: 8)
+                  : const Duration(seconds: 4),
+            ));
         }
       },
       builder: (context, state) {
@@ -319,6 +398,27 @@ class _DriverHomeViewState extends State<_DriverHomeView>
         );
       },
     );
+  }
+
+  /// "Settings" for a permanent permission denial, "Turn on" when device
+  /// location services are off; nothing for a plain (re-askable) denial.
+  SnackBarAction? _locationFixAction(LocationAccess? issue) {
+    switch (issue) {
+      case LocationAccess.deniedForever:
+        return SnackBarAction(
+          label: 'Settings',
+          onPressed: () => unawaited(Geolocator.openAppSettings()),
+        );
+      case LocationAccess.servicesOff:
+        return SnackBarAction(
+          label: 'Turn on',
+          onPressed: () => unawaited(Geolocator.openLocationSettings()),
+        );
+      case LocationAccess.denied:
+      case LocationAccess.granted:
+      case null:
+        return null;
+    }
   }
 
   Future<void> _showOnboarding(BuildContext context) async {

@@ -5,26 +5,47 @@ import 'package:core/core.dart';
 import 'package:equatable/equatable.dart';
 import 'package:shared_models/shared_models.dart';
 
+import 'location_stream.dart';
+
 part 'driver_state.dart';
 
 /// Drives the driver experience: connect → go online → receive/accept offers →
 /// drive lifecycle. Location capture lives in the UI (geolocator) and is fed in
 /// via [sendLocation] so this cubit stays testable.
 class DriverCubit extends Cubit<DriverState> {
-  DriverCubit(this._realtime, this._remote, this._ratings)
-      : super(const DriverState());
+  DriverCubit(
+    this._realtime,
+    this._remote,
+    this._ratings, {
+    LocationAccessCheck? checkLocation,
+    Duration acceptGrace = const Duration(seconds: 5),
+  })  : _checkLocation = checkLocation ?? checkLocationAccess,
+        _acceptGrace = acceptGrace, // ignore: prefer_initializing_formals
+        super(const DriverState());
 
   final RealtimeClient _realtime;
   final DriverRemoteDataSource _remote;
   final RatingsRemoteDataSource _ratings;
   final List<StreamSubscription<dynamic>> _subs = [];
 
+  /// Pre-online location gate (see [goOnline]); injectable for tests.
+  final LocationAccessCheck _checkLocation;
+
+  /// How long past the offer window we wait for `trip:assigned` after the
+  /// driver tapped Accept before giving up on that offer (see [acceptOffer]).
+  final Duration _acceptGrace;
+  Timer? _acceptTimer;
+
   Future<void> init(String token) async {
-    await _realtime.connect(token);
+    // Register every listener BEFORE connecting: a slow/failed first connect
+    // used to throw out of here with nothing subscribed, leaving a session that
+    // later reconnected fine at the socket level but never heard an offer,
+    // assignment, cancellation or up/down edge.
     _subs
       ..add(_realtime.on('trip:offer').listen(
           (d) => _onOffer(RideOffer.fromJson(d))))
-      ..add(_realtime.on('trip:offer_expired').listen((_) => _onOfferExpired()))
+      ..add(_realtime.on('trip:offer_expired').listen(
+          (d) => _onOfferExpired(tripId: d['tripId'] as String?)))
       ..add(_realtime.on('trip:assigned').listen((d) => _onAssigned(
             d['tripId'] as String,
             // Route from the driver's car to the pickup, so the map can show
@@ -39,6 +60,7 @@ class DriverCubit extends Cubit<DriverState> {
       ..add(_realtime.connection.listen((up) {
         if (up != state.connected) emit(state.copyWith(connected: up));
       }));
+    await _realtime.connect(token);
     // If this app was killed and reopened mid-trip, restore the live trip
     // screen instead of showing the idle "go online" home.
     await _restoreActiveTrip();
@@ -116,7 +138,20 @@ class DriverCubit extends Cubit<DriverState> {
   }
 
   Future<void> goOnline() async {
-    emit(state.copyWith(busy: true, error: null));
+    emit(state.copyWith(busy: true, error: null, locationIssue: null));
+    // Gate on location access BEFORE flipping the server-side status: an
+    // online driver who can't stream GPS never enters the dispatch geo index,
+    // so they'd sit "Online" forever without a single offer. Stay offline and
+    // tell them what to fix instead.
+    final access = await _checkLocation();
+    if (access != LocationAccess.granted) {
+      emit(state.copyWith(
+        busy: false,
+        error: locationAccessMessage(access),
+        locationIssue: access,
+      ));
+      return;
+    }
     try {
       await _remote.setStatus('online');
       _realtime.emit('driver:status', {'status': 'online'});
@@ -132,6 +167,7 @@ class DriverCubit extends Cubit<DriverState> {
   }
 
   Future<void> goOffline() async {
+    _cancelAcceptTimer();
     try {
       await _remote.setStatus('offline');
     } catch (_) {/* best effort */}
@@ -181,9 +217,39 @@ class DriverCubit extends Cubit<DriverState> {
     if (offer == null) return;
     _realtime.emit('trip:accept', {'tripId': offer.tripId});
     emit(state.copyWith(busy: true));
+    // Safety net: if neither `trip:assigned` nor `trip:offer_expired` arrives
+    // within the offer window (+ grace), the accept was lost — the rider
+    // cancelled mid-window, the socket dropped, or the server never answered.
+    // Without this the driver stared at an infinite Accept spinner with
+    // Decline disabled, and no new offer could reach them (phase stuck at
+    // `offered`).
+    _cancelAcceptTimer();
+    _acceptTimer = Timer(
+      Duration(seconds: offer.expiresInSec) + _acceptGrace,
+      () {
+        _acceptTimer = null;
+        if (isClosed) return;
+        if (state.phase != DriverPhase.offered ||
+            state.offer?.tripId != offer.tripId) {
+          return;
+        }
+        emit(state.copyWith(
+          phase: DriverPhase.online,
+          offer: null,
+          busy: false,
+          error: 'That ride was taken or cancelled',
+        ));
+      },
+    );
+  }
+
+  void _cancelAcceptTimer() {
+    _acceptTimer?.cancel();
+    _acceptTimer = null;
   }
 
   void declineOffer() {
+    _cancelAcceptTimer();
     final offer = state.offer;
     if (offer != null) {
       _realtime.emit('trip:decline', {'tripId': offer.tripId});
@@ -280,18 +346,32 @@ class DriverCubit extends Cubit<DriverState> {
   void _onOffer(RideOffer offer) {
     // Only surface offers while idle-online.
     if (state.phase != DriverPhase.online) return;
-    emit(state.copyWith(phase: DriverPhase.offered, offer: offer));
+    // Drop any stale error (e.g. the previous "taken or cancelled" reset) so
+    // the page listener doesn't re-toast it over the new card on this phase
+    // change, and so a repeat of the same message can surface again later.
+    emit(state.copyWith(phase: DriverPhase.offered, offer: offer, error: null));
   }
 
-  void _onOfferExpired() {
-    if (state.phase == DriverPhase.offered) {
-      emit(state.copyWith(phase: DriverPhase.online, offer: null, busy: false));
-    }
+  /// The server withdrew an offer — the window elapsed, or the driver accepted
+  /// but the trip couldn't be assigned to them (rider cancelled mid-window,
+  /// taken by another driver). Clears the card even mid-Accept; a stale event
+  /// for some other trip is ignored so it can't wipe a newer offer.
+  void _onOfferExpired({String? tripId}) {
+    if (state.phase != DriverPhase.offered) return;
+    if (tripId != null && state.offer?.tripId != tripId) return;
+    _cancelAcceptTimer();
+    emit(state.copyWith(
+      phase: DriverPhase.online,
+      offer: null,
+      busy: false,
+      error: state.busy ? 'That ride was taken or cancelled' : null,
+    ));
   }
 
   Future<void> _onAssigned(String tripId, {String? approachPolyline}) async {
     try {
       final trip = await _remote.getTrip(tripId);
+      _cancelAcceptTimer();
       emit(state.copyWith(
         phase: DriverPhase.enRoute,
         trip: trip,
@@ -305,6 +385,7 @@ class DriverCubit extends Cubit<DriverState> {
   }
 
   void _onCancelledByRider() {
+    _cancelAcceptTimer();
     emit(state.copyWith(
       phase: DriverPhase.online,
       trip: null,
@@ -316,6 +397,7 @@ class DriverCubit extends Cubit<DriverState> {
 
   @override
   Future<void> close() {
+    _cancelAcceptTimer();
     for (final s in _subs) {
       s.cancel();
     }

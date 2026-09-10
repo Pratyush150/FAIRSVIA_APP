@@ -16,17 +16,18 @@ describe('DispatchService', () => {
       favoriteDriverIds: jest.fn().mockResolvedValue(new Set<string>()),
     };
     const geo = { route: jest.fn() };
+    const realtime = { emitToUser: jest.fn() };
     const svc = new DispatchService(
       {} as never,
       redis as never,
-      {} as never,
+      realtime as never,
       {} as never,
       {} as never,
       favorites as never,
       geo as never,
       queue as never,
     );
-    return { svc, redis, queue, favorites };
+    return { svc, redis, queue, favorites, realtime };
   }
 
   it('dispatchTrip enqueues a durable job keyed by tripId (de-dupe)', async () => {
@@ -65,6 +66,84 @@ describe('DispatchService', () => {
     redis.client.get.mockResolvedValue(null);
     const ok = await svc.respondToOffer('driver-A', 'trip-1', false);
     expect(ok).toBe(false);
+  });
+
+  // A late/foreign ACCEPT must tell the driver the offer is gone; otherwise the
+  // driver app waits forever for a trip:assigned that will never arrive.
+  it('respondToOffer(accept) on an expired offer emits trip:offer_expired to that driver', async () => {
+    const { svc, redis, realtime } = make();
+    redis.client.get.mockResolvedValue(null);
+    const ok = await svc.respondToOffer('driver-A', 'trip-1', true);
+    expect(ok).toBe(false);
+    expect(realtime.emitToUser).toHaveBeenCalledWith('driver-A', 'trip:offer_expired', {
+      tripId: 'trip-1',
+    });
+  });
+
+  it('respondToOffer(decline) on an expired offer stays silent', async () => {
+    const { svc, redis, realtime } = make();
+    redis.client.get.mockResolvedValue(null);
+    await svc.respondToOffer('driver-A', 'trip-1', false);
+    expect(realtime.emitToUser).not.toHaveBeenCalled();
+  });
+
+  // offerTo: the driver accepted in time, but assign() could not commit the
+  // trip (rider cancelled during the window / driver already bound to another
+  // trip). Previously nothing was emitted on this branch.
+  describe('offerTo when the accepted offer fails to assign', () => {
+    const trip = {
+      id: 'trip-1',
+      status: 'matching',
+      riderId: 'rider-1',
+      tier: 'economy',
+      pickupLat: 25.7,
+      pickupLng: -80.2,
+      dropoffLat: 25.8,
+      dropoffLng: -80.3,
+      fareEstimate: 12,
+      distanceM: 5000,
+      durationS: 600,
+    };
+    type Internals = {
+      offerTo: (driverId: string, trip: unknown, rider: unknown) => Promise<boolean>;
+      awaitResponse: () => Promise<boolean>;
+      assign: () => Promise<boolean>;
+      approachDistanceM: () => Promise<number | undefined>;
+    };
+
+    it('emits trip:offer_expired to the driver and returns false', async () => {
+      const { svc, redis, realtime } = make();
+      redis.client.set.mockResolvedValue('OK'); // offer lock acquired
+      const internals = svc as unknown as Internals;
+      internals.awaitResponse = jest.fn().mockResolvedValue(true); // driver accepted
+      internals.assign = jest.fn().mockResolvedValue(false); // ...but couldn't be committed
+      internals.approachDistanceM = jest.fn().mockResolvedValue(undefined);
+
+      const ok = await internals.offerTo('driver-A', trip, { name: 'Priya', rating: 4.8 });
+
+      expect(ok).toBe(false);
+      expect(realtime.emitToUser).toHaveBeenCalledWith('driver-A', 'trip:offer_expired', {
+        tripId: 'trip-1',
+      });
+    });
+
+    it('does not emit trip:offer_expired when the assignment succeeds', async () => {
+      const { svc, redis, realtime } = make();
+      redis.client.set.mockResolvedValue('OK');
+      const internals = svc as unknown as Internals;
+      internals.awaitResponse = jest.fn().mockResolvedValue(true);
+      internals.assign = jest.fn().mockResolvedValue(true);
+      internals.approachDistanceM = jest.fn().mockResolvedValue(undefined);
+
+      const ok = await internals.offerTo('driver-A', trip, { name: 'Priya', rating: 4.8 });
+
+      expect(ok).toBe(true);
+      expect(realtime.emitToUser).not.toHaveBeenCalledWith(
+        'driver-A',
+        'trip:offer_expired',
+        expect.anything(),
+      );
+    });
   });
 
   it('evictStale keeps fresh drivers and evicts ghosts (stale GPS) from the pool', async () => {
