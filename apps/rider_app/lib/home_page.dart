@@ -346,6 +346,9 @@ class _BottomSheetForPhase extends StatelessWidget {
     // phase's content changes height — so the flow feels like one continuous
     // surface rather than a stack of hard-swapped cards.
     return AppSheet(
+      footer: state.phase == TripPhase.choosingRide && state.estimate != null
+          ? _RideConfirmFooter(state: state)
+          : null,
       child: AnimatedSize(
         duration: AppMotion.normal,
         curve: AppMotion.standard,
@@ -611,7 +614,25 @@ class _RideOptions extends StatelessWidget {
         _ScheduleRow(state: state),
         const SizedBox(height: AppSpacing.sm),
         _PromoField(state: state),
-        const SizedBox(height: AppSpacing.md),
+      ],
+    );
+  }
+}
+
+/// Pinned footer for the ride-options sheet: the confirm CTA and the
+/// "change destination" escape hatch stay visible even when the options
+/// above (surge line, stops, comparison card, promo) overflow and scroll.
+class _RideConfirmFooter extends StatelessWidget {
+  const _RideConfirmFooter({required this.state});
+  final TripState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<TripCubit>();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         PrimaryButton(
           label: _confirmLabel(state),
           onPressed:

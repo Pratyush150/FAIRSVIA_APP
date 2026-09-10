@@ -11,6 +11,7 @@ class AppSheet extends StatelessWidget {
   const AppSheet({
     super.key,
     required this.child,
+    this.footer,
     this.padding = const EdgeInsets.fromLTRB(
       AppSpacing.x20,
       AppSpacing.md,
@@ -21,6 +22,11 @@ class AppSheet extends StatelessWidget {
   });
 
   final Widget child;
+
+  /// Optional pinned footer (e.g. the primary call-to-action). Rendered below
+  /// the scrollable [child] and never scrolled out of view, so a tall sheet
+  /// still shows its main action without the user having to scroll for it.
+  final Widget? footer;
   final EdgeInsets padding;
   final bool handle;
 
@@ -40,6 +46,7 @@ class AppSheet extends StatelessWidget {
         isDark: isDark,
         padding: padding,
         handle: handle,
+        footer: footer,
         child: child,
       ),
     );
@@ -51,12 +58,14 @@ class _SheetBody extends StatelessWidget {
     required this.isDark,
     required this.padding,
     required this.handle,
+    required this.footer,
     required this.child,
   });
 
   final bool isDark;
   final EdgeInsets padding;
   final bool handle;
+  final Widget? footer;
   final Widget child;
 
   @override
@@ -98,7 +107,22 @@ class _SheetBody extends StatelessWidget {
               // (promo code, custom tip). Flexible + shrink-wrapping scroll view
               // keeps the sheet compact when content fits, and scrolls (instead
               // of overflowing) when it doesn't.
-              Flexible(child: SingleChildScrollView(child: child)),
+              Flexible(
+                // The sheet is already laid out below the top inset (see
+                // AppSheet.build), so inner scrollables must not re-apply
+                // MediaQuery.padding.top as leading padding — without this a
+                // ListView inside the sheet showed a phantom status-bar-sized
+                // gap above its first row.
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeTop: true,
+                  child: SingleChildScrollView(child: child),
+                ),
+              ),
+              if (footer != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                footer!,
+              ],
             ],
           ),
         ),
