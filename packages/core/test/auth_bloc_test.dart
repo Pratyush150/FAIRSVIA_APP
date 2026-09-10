@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -89,5 +91,37 @@ void main() {
         const AuthState(phone: '+19876543210', error: 'Too many requests'),
       ],
     );
+
+    group('session expiry', () {
+      late StreamController<void> expired;
+
+      setUp(() => expired = StreamController<void>.broadcast());
+      tearDown(() => expired.close());
+
+      blocTest<AuthBloc, AuthState>(
+        'a sessionExpired tick while authenticated -> unauthenticated',
+        build: () => AuthBloc(repo, sessionExpired: expired.stream),
+        seed: () =>
+            const AuthState(status: AuthStatus.authenticated, user: user),
+        act: (_) => expired.add(null),
+        expect: () => [
+          const AuthState(status: AuthStatus.unauthenticated),
+        ],
+      );
+
+      blocTest<AuthBloc, AuthState>(
+        'AuthSessionExpired is ignored while not signed in (codeSent)',
+        build: () => AuthBloc(repo, sessionExpired: expired.stream),
+        seed: () => const AuthState(
+          status: AuthStatus.codeSent,
+          phone: '+19876543210',
+        ),
+        act: (bloc) {
+          expired.add(null);
+          bloc.add(const AuthSessionExpired());
+        },
+        expect: () => <AuthState>[],
+      );
+    });
   });
 }

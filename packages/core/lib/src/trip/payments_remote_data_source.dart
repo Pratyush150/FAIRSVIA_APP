@@ -14,9 +14,12 @@ class Receipt {
     this.driverPayout,
     this.method = 'card',
     this.refundedAmount = 0,
+    this.chargedAmount,
   });
 
   final String tripId;
+
+  /// The trip's fare (`fareFinal`, falling back to the estimate).
   final double fare;
   final String currency;
   final String? status;
@@ -30,8 +33,20 @@ class Receipt {
   /// Amount refunded to the rider (0 when none).
   final double refundedAmount;
 
+  /// The fare amount actually charged/collected on the payment record
+  /// (`payment.amount`; tips are charged separately and live in [tip]).
+  /// Null when no payment record exists yet.
+  final double? chargedAmount;
+
   bool get isCash => method == 'cash';
   bool get isRefunded => refundedAmount > 0;
+
+  /// What the rider ultimately paid: charged fare + tip, net of any refund.
+  /// Never negative (a refund can't exceed the charge server-side, but guard).
+  double get total {
+    final net = (chargedAmount ?? fare) + tip - refundedAmount;
+    return net < 0 ? 0 : net;
+  }
 
   factory Receipt.fromJson(Map<String, dynamic> j) {
     final p = j['payment'] as Map<String, dynamic>?;
@@ -45,6 +60,7 @@ class Receipt {
       driverPayout: (p?['driverPayout'] as num?)?.toDouble(),
       method: p?['method'] as String? ?? 'card',
       refundedAmount: (p?['refundedAmount'] as num?)?.toDouble() ?? 0,
+      chargedAmount: (p?['amount'] as num?)?.toDouble(),
     );
   }
 }

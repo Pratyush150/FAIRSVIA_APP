@@ -24,6 +24,7 @@ class _DriverAppState extends State<DriverApp> {
     _router = createAppRouter(
       authBloc: _authBloc,
       appTitle: 'FairsVia Driver',
+      nameSetupSubtitle: NameSetupPage.driverSubtitle,
       homeBuilder: (_) => const DriverHomePage(),
     );
   }

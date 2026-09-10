@@ -36,7 +36,6 @@ class ReceiptPage extends StatelessWidget {
 
   Widget _body(BuildContext context, Receipt r) {
     final theme = Theme.of(context);
-    final total = r.fare + r.tip;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
@@ -45,17 +44,27 @@ class ReceiptPage extends StatelessWidget {
         const SizedBox(height: AppSpacing.xs),
         _Trip(trip: trip),
         const SizedBox(height: AppSpacing.lg),
-        _row(context, 'Fare', Fmt.money(r.fare, r.currency)),
+        _row(context, 'Fare', Fmt.money(r.chargedAmount ?? r.fare, r.currency)),
         if (r.tip > 0) _row(context, 'Tip', Fmt.money(r.tip, r.currency)),
-        const Divider(height: AppSpacing.xl),
-        _row(context, 'Total', Fmt.money(total, r.currency), bold: true),
+        // Refund sits above the divider so "Total" is what was actually paid.
         if (r.isRefunded)
+          _row(
+            context,
+            'Refunded',
+            '- ${Fmt.money(r.refundedAmount, r.currency)}',
+          ),
+        const Divider(height: AppSpacing.xl),
+        _row(context, 'Total', Fmt.money(r.total, r.currency), bold: true),
+        if (r.isCash)
           Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: _row(
-              context,
-              'Refunded',
-              '- ${Fmt.money(r.refundedAmount, r.currency)}',
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Row(
+              children: [
+                const Icon(Icons.payments_outlined,
+                    size: 16, color: AppColors.textSecondaryLight),
+                const SizedBox(width: AppSpacing.xs),
+                Text('Paid in cash', style: theme.textTheme.bodyMedium),
+              ],
             ),
           ),
         if (showPayout && r.driverPayout != null) ...[

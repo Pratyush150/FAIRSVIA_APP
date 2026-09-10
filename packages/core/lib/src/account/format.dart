@@ -21,9 +21,12 @@ class Fmt {
       d == null ? '—' : '${d.day} ${_months[d.month - 1]}';
 
   /// Currency amount, e.g. "\$240" (USD shown as $, else "<code> 240").
+  /// Negatives carry the sign before the symbol: "-\$1.30", not "\$-1.30".
   static String money(double amount, [String currency = 'USD']) {
-    final n = amount.toStringAsFixed(amount.truncateToDouble() == amount ? 0 : 2);
-    return currency == 'USD' ? '\$$n' : '$currency $n';
+    final abs = amount.abs();
+    final n = abs.toStringAsFixed(abs.truncateToDouble() == abs ? 0 : 2);
+    final sign = amount < 0 ? '-' : '';
+    return currency == 'USD' ? '$sign\$$n' : '$sign$currency $n';
   }
 
   /// Human status label from the trip status enum name.

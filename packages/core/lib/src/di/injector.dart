@@ -50,7 +50,12 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
     ..registerSingleton<AuthRepository>(
       AuthRepository(sl<AuthRemoteDataSource>(), sl<TokenStorage>()),
     )
-    ..registerFactory<AuthBloc>(() => AuthBloc(sl<AuthRepository>()))
+    ..registerFactory<AuthBloc>(
+      () => AuthBloc(
+        sl<AuthRepository>(),
+        sessionExpired: sl<DioClient>().sessionExpired,
+      ),
+    )
     // Trip flow (Phase 1): places proxy + trip estimate/create/cancel.
     ..registerSingleton<PlacesRemoteDataSource>(
       PlacesRemoteDataSource(sl<DioClient>().authenticatedDio),

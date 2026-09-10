@@ -36,6 +36,7 @@ class _ChatPageState extends State<ChatPage> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   StreamSubscription<Map<String, dynamic>>? _sub;
+  StreamSubscription<void>? _reconnectSub;
   bool _loading = true;
   bool _sending = false;
   String? _error;
@@ -44,12 +45,17 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _sub = widget.realtime.on('trip:message').listen(_onIncoming);
+    // Messages the other party sent while our socket was down were never
+    // pushed to us; re-pull history on every reconnect. `_merge` dedupes by
+    // id, so nothing already on screen doubles up.
+    _reconnectSub = widget.realtime.reconnects.listen((_) => _load());
     _load();
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    _reconnectSub?.cancel();
     _input.dispose();
     _scroll.dispose();
     super.dispose();

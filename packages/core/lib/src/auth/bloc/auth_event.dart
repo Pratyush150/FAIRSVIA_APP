@@ -35,8 +35,9 @@ class AuthBackToPhone extends AuthEvent {
   const AuthBackToPhone();
 }
 
-/// The user finished first-time profile setup (name/email); refresh the session
-/// user so the router advances from the setup screen to home.
+/// The user finished first-time profile setup or edited their profile later
+/// (name/email); refresh the session user so the router advances from the
+/// setup screen to home and the cached user stays current.
 class AuthProfileCompleted extends AuthEvent {
   const AuthProfileCompleted(this.user);
   final AppUser user;
@@ -48,4 +49,11 @@ class AuthProfileCompleted extends AuthEvent {
 /// Log out and clear the stored session.
 class AuthSignedOut extends AuthEvent {
   const AuthSignedOut();
+}
+
+/// The network layer could not refresh an expired access token and has
+/// already cleared the stored tokens; drop to unauthenticated so the router
+/// sends the user back to sign-in instead of leaving every call to 401.
+class AuthSessionExpired extends AuthEvent {
+  const AuthSessionExpired();
 }

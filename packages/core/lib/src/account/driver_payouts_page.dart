@@ -14,6 +14,19 @@ class DriverPayoutsPage extends StatefulWidget {
 
   final DriverRemoteDataSource driver;
 
+  /// Client-side check mirroring the server's rule (`0 < amount <= balance`).
+  /// Returns an error message, or null when [raw] is an acceptable amount.
+  static String? validateWithdrawal(String raw, double max) {
+    final amount = double.tryParse(raw.trim());
+    if (amount == null) return 'Enter a valid amount.';
+    if (amount <= 0) return 'Enter an amount greater than zero.';
+    // Compare at cent precision so "12.60" against 12.6 never trips.
+    if ((amount * 100).round() > (max * 100).round()) {
+      return 'You can withdraw up to \$${max.toStringAsFixed(2)}.';
+    }
+    return null;
+  }
+
   @override
   State<DriverPayoutsPage> createState() => _DriverPayoutsPageState();
 }
@@ -22,30 +35,48 @@ class _DriverPayoutsPageState extends State<DriverPayoutsPage> {
   int _reloadKey = 0;
 
   Future<void> _withdraw(BuildContext context, double max) async {
-    final controller = TextEditingController(text: max.toStringAsFixed(0));
+    // Pre-fill with cents: rounding $12.60 to "13" exceeds the balance and
+    // the server rejects it.
+    final controller = TextEditingController(text: max.toStringAsFixed(2));
+    String? error;
     final amount = await showDialog<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Withdraw to bank'),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            prefixText: '\$ ',
-            helperText: 'Available: \$${max.toStringAsFixed(2)}',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Withdraw to bank'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              prefixText: '\$ ',
+              helperText: 'Available: \$${max.toStringAsFixed(2)}',
+              errorText: error,
+            ),
+            onChanged: (_) {
+              if (error != null) setDialogState(() => error = null);
+            },
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final problem =
+                    DriverPayoutsPage.validateWithdrawal(controller.text, max);
+                if (problem != null) {
+                  setDialogState(() => error = problem);
+                  return;
+                }
+                Navigator.pop(ctx, double.parse(controller.text.trim()));
+              },
+              child: const Text('Withdraw'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(ctx, double.tryParse(controller.text.trim())),
-            child: const Text('Withdraw'),
-          ),
-        ],
       ),
     );
     if (amount == null || !context.mounted) return;
@@ -53,7 +84,7 @@ class _DriverPayoutsPageState extends State<DriverPayoutsPage> {
     try {
       await widget.driver.withdraw(amount);
       messenger.showSnackBar(
-        SnackBar(content: Text('Withdrew \$${amount.toStringAsFixed(0)}')),
+        SnackBar(content: Text('Withdrew \$${amount.toStringAsFixed(2)}')),
       );
       if (mounted) setState(() => _reloadKey++);
     } on ApiException catch (e) {

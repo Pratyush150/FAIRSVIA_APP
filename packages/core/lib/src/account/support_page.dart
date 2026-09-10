@@ -171,8 +171,17 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
       );
       navigator.pop(ticket);
     } on ApiException catch (e) {
-      if (mounted) setState(() => _submitting = false);
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      // Anything non-API (parse error, unexpected null…) must still release
+      // the button, otherwise the sheet is stuck "submitting" forever.
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Something went wrong. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 

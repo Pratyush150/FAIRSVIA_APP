@@ -56,7 +56,11 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
         ),
       ),
     );
-    if (updated != null && mounted) setState(() => _user = updated);
+    if (updated == null || !mounted) return;
+    // Refresh AuthBloc's cached user too, so every other reader of
+    // `state.user` (home drawer, name gate, next visit here) sees the edit.
+    context.read<AuthBloc>().add(AuthProfileCompleted(updated));
+    setState(() => _user = updated);
   }
 
   void _open(Widget page) {

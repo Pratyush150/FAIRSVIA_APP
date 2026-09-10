@@ -14,6 +14,9 @@ GoRouter createAppRouter({
   required AuthBloc authBloc,
   required WidgetBuilder homeBuilder,
   String appTitle = 'FairsVia',
+  // The driver app passes [NameSetupPage.driverSubtitle]; riders keep the
+  // default copy.
+  String nameSetupSubtitle = NameSetupPage.riderSubtitle,
 }) {
   return GoRouter(
     initialLocation: '/',
@@ -50,7 +53,7 @@ GoRouter createAppRouter({
       GoRoute(path: '/otp', builder: (_, _) => const OtpPage()),
       GoRoute(
         path: '/profile-setup',
-        builder: (_, _) => const NameSetupPage(),
+        builder: (_, _) => NameSetupPage(subtitle: nameSetupSubtitle),
       ),
       GoRoute(path: '/home', builder: (context, _) => homeBuilder(context)),
     ],

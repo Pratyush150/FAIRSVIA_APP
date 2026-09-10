@@ -19,6 +19,13 @@ class AuthInterceptor extends Interceptor {
 
   Completer<bool>? _refreshing;
 
+  final _sessionExpired = StreamController<void>.broadcast();
+
+  /// Fires after a 401 whose token refresh failed: the stored tokens have been
+  /// cleared and the user must sign in again. [AuthBloc] listens and drops to
+  /// unauthenticated so the router leaves the signed-in shell.
+  Stream<void> get sessionExpired => _sessionExpired.stream;
+
   @override
   Future<void> onRequest(
     RequestOptions options,
@@ -47,7 +54,11 @@ class AuthInterceptor extends Interceptor {
 
     final refreshed = await _refreshTokens();
     if (!refreshed) {
+      // Only a real session can expire: a 401 with no refresh token (e.g. an
+      // unauthenticated call during sign-in) is just an error, not a sign-out.
+      final hadSession = await _storage.hasSession();
       await _storage.clear();
+      if (hadSession && !_sessionExpired.isClosed) _sessionExpired.add(null);
       return handler.next(err);
     }
 

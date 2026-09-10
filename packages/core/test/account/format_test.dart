@@ -15,6 +15,12 @@ void main() {
     test('uses the currency code for non-USD', () {
       expect(Fmt.money(10, 'EUR'), 'EUR 10');
     });
+
+    test('puts the sign before the symbol for negatives', () {
+      expect(Fmt.money(-1.30), '-\$1.30');
+      expect(Fmt.money(-2), '-\$2');
+      expect(Fmt.money(-1.30, 'EUR'), '-EUR 1.30');
+    });
   });
 
   group('Fmt.status', () {
