@@ -496,7 +496,7 @@ class _BottomSheet extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         state.lastEarned != null
-                            ? 'Earned today · \$${state.lastEarned!.toStringAsFixed(0)}'
+                            ? 'Earned today · ${Fmt.money(state.lastEarned!)}'
                             : 'Go online to start earning',
                         style: theme.textTheme.bodyMedium,
                       ),
@@ -621,7 +621,7 @@ class _CompletedSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Center(
             child: Text(
-                "Today's earnings · \$${state.lastEarned!.toStringAsFixed(0)}",
+                "Today's earnings · ${Fmt.money(state.lastEarned!)}",
                 style: theme.textTheme.bodyMedium),
           ),
         ],
@@ -639,7 +639,7 @@ class _CompletedSheet extends StatelessWidget {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    'Collect \$${state.cashToCollect!.toStringAsFixed(0)} in cash from the rider',
+                    'Collect ${Fmt.money(state.cashToCollect!)} in cash from the rider',
                     style: theme.textTheme.titleSmall
                         ?.copyWith(color: AppColors.warning),
                   ),
@@ -1083,8 +1083,14 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(controller: _make, decoration: const InputDecoration(labelText: 'Make')),
+          const SizedBox(height: AppSpacing.sm),
           TextField(controller: _model, decoration: const InputDecoration(labelText: 'Model')),
-          TextField(controller: _plate, decoration: const InputDecoration(labelText: 'Plate number')),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _plate,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(labelText: 'Plate number'),
+          ),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<String>(
             initialValue: _tier,
