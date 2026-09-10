@@ -374,7 +374,10 @@ class TripCubit extends Cubit<TripState> {
         promoCode: s.appliedPromo?.code,
         paymentMode: s.paymentMode,
         paymentMethodId: s.paymentMode == 'card' ? s.selectedMethodId : null,
-        scheduledAt: s.scheduledAt,
+        // The picker clamps to now+6 min, but the rider may sit on the sheet
+        // before confirming; re-clamp at send time so the backend's 5-minute
+        // lead rule can't reject a ride the UI already accepted.
+        scheduledAt: _sendableSchedule(s.scheduledAt),
         stops: s.stops,
       );
       // A scheduled ride isn't dispatched now — confirm it and return to idle
@@ -400,6 +403,12 @@ class TripCubit extends Cubit<TripState> {
           true,
         _ => false,
       };
+
+  static DateTime? _sendableSchedule(DateTime? when) {
+    if (when == null) return null;
+    final floor = DateTime.now().add(const Duration(minutes: 6));
+    return when.isBefore(floor) ? floor : when;
+  }
 
   Future<double> cancelTrip() async {
     // The trip may have ended while the confirm dialog was open (e.g. the

@@ -291,12 +291,17 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                                 AppCircleButton(
                                   icon: Icons.menu_rounded,
                                   tooltip: 'Account menu',
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const AccountMenuPage(
-                                          isDriver: false),
-                                    ),
-                                  ),
+                                  onPressed: () async {
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const AccountMenuPage(
+                                            isDriver: false),
+                                      ),
+                                    );
+                                    // Saved places may have changed in the
+                                    // account pages; refresh the quick-picks.
+                                    _loadSavedPlaces();
+                                  },
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
                                 AppCircleButton(
@@ -784,9 +789,11 @@ class _ScheduleRow extends StatelessWidget {
       time.hour,
       time.minute,
     );
-    // Must be at least 5 minutes ahead (backend rule).
-    if (when.isBefore(now.add(const Duration(minutes: 5)))) {
-      cubit.setScheduledAt(now.add(const Duration(minutes: 5)));
+    // Must be at least 5 minutes ahead (backend rule). Clamp with a minute of
+    // slack: clamping to exactly now+5 and sending a few seconds later was
+    // rejected by the backend with a 400.
+    if (when.isBefore(now.add(const Duration(minutes: 6)))) {
+      cubit.setScheduledAt(now.add(const Duration(minutes: 6)));
     } else {
       cubit.setScheduledAt(when);
     }
