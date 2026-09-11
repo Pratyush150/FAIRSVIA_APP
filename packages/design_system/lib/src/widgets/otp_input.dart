@@ -92,12 +92,18 @@ class _OtpInputState extends State<OtpInput> {
                 autofocus: index == 0,
                 textAlign: TextAlign.center,
                 keyboardType: TextInputType.number,
-                maxLength: 1,
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
                 ),
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                // Keep only the most recently typed digit: with `maxLength: 1`
+                // a box that already held a digit silently rejected the new
+                // one, so a stale digit could never be overwritten (seen on the
+                // driver's start-code entry — "1489" became "1481").
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  const _LastDigitFormatter(),
+                ],
                 decoration: InputDecoration(
                   counterText: '',
                   focusedBorder: OutlineInputBorder(
@@ -120,6 +126,25 @@ class _OtpInputState extends State<OtpInput> {
           ),
         );
       }),
+    );
+  }
+}
+
+/// Reduces any input to its last character so typing into an already-filled
+/// box replaces the digit instead of being dropped.
+class _LastDigitFormatter extends TextInputFormatter {
+  const _LastDigitFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.length <= 1) return newValue;
+    final last = newValue.text.substring(newValue.text.length - 1);
+    return TextEditingValue(
+      text: last,
+      selection: const TextSelection.collapsed(offset: 1),
     );
   }
 }

@@ -45,6 +45,23 @@ void main() {
   });
 
   group('OtpInput', () {
+    testWidgets('typing into a filled box replaces the digit', (tester) async {
+      String? value;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: OtpInput(length: 4, onChanged: (v) => value = v),
+        ),
+      ));
+      final fields = find.byType(TextField);
+      await tester.enterText(fields.at(3), '1');
+      await tester.pump();
+      expect(value, '1');
+      // Re-enter in the same (already filled) box: must overwrite, not drop.
+      await tester.enterText(fields.at(3), '19');
+      await tester.pump();
+      expect(value, '9');
+    });
+
     testWidgets('reports changes and fires onCompleted when all boxes filled',
         (tester) async {
       String? completed;
