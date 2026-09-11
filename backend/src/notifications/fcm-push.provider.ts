@@ -4,6 +4,7 @@ import {
   PushMessage,
   PushProvider,
   PushTarget,
+  StalePushTokenError,
 } from './push-provider.interface';
 
 /** The three fields we need out of a Google service-account JSON. */
@@ -71,9 +72,14 @@ export class FcmPushProvider implements PushProvider {
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      // A 404/UNREGISTERED means the device token is stale — surface it so the
-      // caller can prune it, but don't crash the notification pipeline.
-      throw new Error(`FCM send failed (${res.status}): ${detail.slice(0, 200)}`);
+      const message = `FCM send failed (${res.status}): ${detail.slice(0, 200)}`;
+      // A 404/UNREGISTERED means the device token is stale — surface it as a
+      // typed error so NotificationsService prunes the token instead of
+      // retrying it forever.
+      if (res.status === 404 || /UNREGISTERED|NOT_FOUND/i.test(detail)) {
+        throw new StalePushTokenError(message);
+      }
+      throw new Error(message);
     }
   }
 

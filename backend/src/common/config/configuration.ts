@@ -88,6 +88,12 @@ export default (): AppConfig => {
   // The OTP is only ever echoed back to the caller with the mock provider in a
   // non-production env — a real provider (or production) never reveals codes.
   const otpDevEcho = !isProd && smsProvider === 'mock';
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY ?? '';
+  const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? '';
+  // Dev default: auto-verify drivers (no admin in the loop). Production must
+  // set it to "false" explicitly — the guard below refuses to boot otherwise.
+  const driverAutoVerify =
+    (process.env.DRIVER_AUTO_VERIFY ?? (isProd ? 'false' : 'true')) !== 'false';
 
   if (isProd) {
     const problems: string[] = [];
@@ -115,6 +121,21 @@ export default (): AppConfig => {
     // provider factory, so reject those too.
     if (!smsProvider || smsProvider === 'mock') {
       problems.push('SMS_PROVIDER must be a real provider (not empty or "mock")');
+    }
+    // An empty STRIPE_SECRET_KEY silently selects the MockPaymentProvider in
+    // payments.module.ts — every ride would "succeed" without charging anyone.
+    // The webhook secret is required too, or Stripe's payment_failed /
+    // account.updated events are rejected and payment state silently drifts.
+    if (!stripeSecretKey) {
+      problems.push('STRIPE_SECRET_KEY is unset (would fall back to the mock payment provider)');
+    }
+    if (!stripeWebhookSecret) {
+      problems.push('STRIPE_WEBHOOK_SECRET is unset (Stripe webhooks would be rejected)');
+    }
+    // Auto-verify lets anyone self-onboard as a verified driver with no admin
+    // document review. It is a dev-only convenience.
+    if (driverAutoVerify) {
+      problems.push('DRIVER_AUTO_VERIFY must be "false" (drivers would self-verify)');
     }
     if (problems.length > 0) {
       throw new Error(
@@ -159,9 +180,9 @@ export default (): AppConfig => {
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
   osrmBaseUrl: process.env.OSRM_BASE_URL ?? '',
   nominatimBaseUrl: process.env.NOMINATIM_BASE_URL ?? '',
-  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
+  stripeSecretKey,
   stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? '',
-  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+  stripeWebhookSecret,
   stripeConnectReturnUrl:
     process.env.STRIPE_CONNECT_RETURN_URL ?? 'ubernav://connect/return',
   stripeConnectRefreshUrl:
@@ -177,7 +198,7 @@ export default (): AppConfig => {
     .split(',')
     .map((p) => p.trim())
     .filter((p) => p.length > 0),
-  driverAutoVerify: (process.env.DRIVER_AUTO_VERIFY ?? 'true') !== 'false',
+  driverAutoVerify,
   aws: {
     region: process.env.AWS_REGION ?? 'us-east-1',
     accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? '',

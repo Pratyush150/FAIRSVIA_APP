@@ -138,6 +138,15 @@ export class PricingService implements OnModuleInit {
     return this.compute(cfg, distanceM, durationS, surge);
   }
 
+  /** The configured minimum fare for a tier (the floor every fare respects). */
+  minFareFor(tier: string): number {
+    const cfg = this.cache[tier];
+    if (!cfg) {
+      throw new BadRequestException(`Unknown tier: ${tier}`);
+    }
+    return cfg.minFare;
+  }
+
   /** Estimate every tier for the same trip (what the rider chooses from). */
   estimateAllTiers(
     distanceM: number,

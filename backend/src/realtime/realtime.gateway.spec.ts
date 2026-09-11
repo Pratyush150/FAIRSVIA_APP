@@ -1,5 +1,7 @@
 import { RealtimeGateway } from './realtime.gateway';
 import { RedisKeys } from '../common/redis/redis.keys';
+import { RealtimeService } from './realtime.service';
+import { gatewayCors } from './gateway-cors';
 
 /**
  * handleDisconnect must evict a dropped/closed driver socket from the matchable
@@ -27,6 +29,7 @@ describe('RealtimeGateway.handleDisconnect', () => {
       null as never, // trips
       drivers as never,
       null as never, // chat
+      null as never, // prisma
     );
     return { gateway, goOffline };
   }
@@ -62,5 +65,86 @@ describe('RealtimeGateway.handleDisconnect', () => {
     const { gateway, goOffline } = makeGateway({});
     await gateway.handleDisconnect(client(undefined));
     expect(goOffline).not.toHaveBeenCalled();
+  });
+});
+
+describe('RealtimeGateway.handleConnection', () => {
+  function makeGateway(user: { id: string; role: string; isActive: boolean } | null) {
+    const findUnique = jest.fn().mockResolvedValue(user);
+    const gateway = new RealtimeGateway(
+      { verifyAsync: jest.fn().mockResolvedValue({ sub: 'u1', role: 'rider' }) } as never,
+      { get: () => ({ accessSecret: 's' }) } as never,
+      null as never, // realtime
+      null as never, // redis
+      null as never, // location
+      null as never, // dispatch
+      null as never, // trips
+      null as never, // drivers
+      null as never, // chat
+      { user: { findUnique } } as never,
+    );
+    const client = {
+      data: {} as { userId?: string; role?: string },
+      handshake: { auth: { token: 'jwt' }, headers: {} },
+      join: jest.fn().mockResolvedValue(undefined),
+      emit: jest.fn(),
+      disconnect: jest.fn(),
+    };
+    return { gateway, client, findUnique };
+  }
+
+  it('admits an active user and takes the role from the DB, not the token', async () => {
+    const { gateway, client } = makeGateway({ id: 'u1', role: 'driver', isActive: true });
+    await gateway.handleConnection(client as never);
+    expect(client.data).toEqual({ userId: 'u1', role: 'driver' });
+    expect(client.join).toHaveBeenCalledWith('user:u1');
+    expect(client.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('rejects a deactivated user even though the JWT signature is valid', async () => {
+    const { gateway, client } = makeGateway({ id: 'u1', role: 'rider', isActive: false });
+    await gateway.handleConnection(client as never);
+    expect(client.data.userId).toBeUndefined();
+    expect(client.emit).toHaveBeenCalledWith('error', { message: 'unauthorized' });
+    expect(client.disconnect).toHaveBeenCalledWith(true);
+  });
+
+  it('rejects a token for a user that no longer exists', async () => {
+    const { gateway, client } = makeGateway(null);
+    await gateway.handleConnection(client as never);
+    expect(client.join).not.toHaveBeenCalled();
+    expect(client.disconnect).toHaveBeenCalledWith(true);
+  });
+});
+
+describe('RealtimeService.disconnectUser', () => {
+  it('force-closes every socket in the user room', () => {
+    const disconnectSockets = jest.fn();
+    const server = { in: jest.fn(() => ({ disconnectSockets })) };
+    const svc = new RealtimeService();
+    svc.setServer(server as never);
+    svc.disconnectUser('u9');
+    expect(server.in).toHaveBeenCalledWith('user:u9');
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  it('is a no-op before the server is attached', () => {
+    expect(() => new RealtimeService().disconnectUser('u9')).not.toThrow();
+  });
+});
+
+describe('gatewayCors', () => {
+  it('reflects any origin outside production', () => {
+    expect(gatewayCors({ NODE_ENV: 'development' })).toEqual({ origin: true, credentials: true });
+  });
+
+  it('uses the CORS_ORIGINS allow-list in production', () => {
+    expect(
+      gatewayCors({ NODE_ENV: 'production', CORS_ORIGINS: 'https://a.com, https://b.com,' }),
+    ).toEqual({ origin: ['https://a.com', 'https://b.com'], credentials: true });
+  });
+
+  it('allows no browser origin in production when the list is empty', () => {
+    expect(gatewayCors({ NODE_ENV: 'production' }).origin).toBe(false);
   });
 });

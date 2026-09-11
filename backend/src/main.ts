@@ -41,11 +41,18 @@ async function bootstrap(): Promise<void> {
   });
 
   const config = app.get(ConfigService);
+  const isProd = config.get<string>('nodeEnv') === 'production';
+
+  // Behind nginx/Cloudflare the socket peer is the proxy; trust exactly one hop
+  // so req.ip (rate-limit key, logs) is the real client. Never in dev, where a
+  // spoofed X-Forwarded-For would let anyone pick their own limiter bucket.
+  if (isProd || process.env.TRUST_PROXY === '1') {
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
 
   // CORS: reflect any origin only in dev. In production require an explicit
   // allow-list (CORS_ORIGINS) so a hostile site can't make credentialed calls.
   const corsOrigins = config.get<string[]>('corsOrigins') ?? [];
-  const isProd = config.get<string>('nodeEnv') === 'production';
   app.enableCors({
     origin: isProd ? (corsOrigins.length > 0 ? corsOrigins : false) : true,
     credentials: true,

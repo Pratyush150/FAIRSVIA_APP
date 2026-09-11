@@ -6,6 +6,7 @@ import { RedisModule } from './common/redis/redis.module';
 import { QueueModule } from './common/queue/queue.module';
 import { LoggingModule } from './common/logging/logging.module';
 import { MetricsModule } from './common/metrics/metrics.module';
+import { ThrottleModule } from './common/throttle/throttle.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { GeoModule } from './geo/geo.module';
@@ -44,6 +45,7 @@ import { HealthController } from './health/health.controller';
     MetricsModule, // Prometheus /metrics + request interceptor
     PrismaModule,
     RedisModule,
+    ThrottleModule, // global per-IP rate limiting (Redis-backed)
     QueueModule, // global BullMQ connection
     RealtimeModule, // global RealtimeService
     TripStateModule, // global TripStateMachine

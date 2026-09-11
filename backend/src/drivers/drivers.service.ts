@@ -23,6 +23,18 @@ export class DriversService {
    *  driver onboards as pending and an admin must verify before they go online. */
   async onboarding(userId: string, dto: OnboardingDto) {
     const autoVerify = this.config.get<boolean>('driverAutoVerify') ?? true;
+    // Re-verification: a verified driver who changes an identity/vehicle
+    // document field (plate, licence) goes back to pending — the approval was
+    // for the old documents. DRIVER_AUTO_VERIFY (dev-only) keeps auto-approving.
+    const existing = await this.prisma.driverProfile.findUnique({
+      where: { userId },
+      select: { docsVerified: true, plateNumber: true, licenseNo: true },
+    });
+    const identityChanged =
+      !!existing &&
+      (existing.plateNumber !== dto.plateNumber ||
+        (existing.licenseNo ?? null) !== (dto.licenseNo ?? null));
+    const resetVerification = !autoVerify && !!existing?.docsVerified && identityChanged;
     const profile = await this.prisma.driverProfile.upsert({
       where: { userId },
       create: {
@@ -42,6 +54,7 @@ export class DriversService {
         plateNumber: dto.plateNumber,
         vehicleTier: dto.vehicleTier as RideTier,
         licenseNo: dto.licenseNo,
+        ...(resetVerification ? { docsVerified: false } : {}),
       },
     });
     await this.prisma.user.update({

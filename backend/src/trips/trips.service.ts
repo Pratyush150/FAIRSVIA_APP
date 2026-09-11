@@ -1,13 +1,15 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RideTier, Trip, TripStatus } from '@prisma/client';
-import { randomInt } from 'node:crypto';
+import { randomInt, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { RedisKeys } from '../common/redis/redis.keys';
@@ -46,8 +48,44 @@ const CANCELLABLE: TripStatus[] = [
   TripStatus.arrived,
 ];
 
+/** A driver may walk away from a ride only before it starts. */
+const DRIVER_CANCELLABLE: TripStatus[] = [
+  TripStatus.accepted,
+  TripStatus.arrived,
+];
+
+/** Statuses in which a rider already has a ride in flight: a second request
+ *  is refused (409) until this one ends. `scheduled` is excluded — a rider may
+ *  book a future ride while on (or waiting for) the current one. */
+export const ACTIVE_TRIP_STATUSES: TripStatus[] = [
+  TripStatus.requested,
+  TripStatus.matching,
+  TripStatus.accepted,
+  TripStatus.arrived,
+  TripStatus.in_progress,
+];
+
+/** Start-code brute-force guard: 4 digits = 10k codes, so bound the guesses
+ *  per trip and lock the trip for a cooling-off period once exhausted. */
+export const OTP_MAX_ATTEMPTS = 5;
+export const OTP_LOCK_SECONDS = 15 * 60;
+const otpAttemptsKey = (tripId: string) => `trip:${tripId}:otpAttempts`;
+const otpLockKey = (tripId: string) => `trip:${tripId}:otpLock`;
+
+/** No cancellation fee within this window after a driver accepts — the rider
+ *  gets a moment to change their mind before the driver has invested. */
+export const CANCEL_GRACE_MS = 2 * 60 * 1000;
+
+/** Bounds on the metered final fare relative to the up-front (gross) estimate.
+ *  The odometer is fed by driver-supplied GPS, so it must not be able to push
+ *  the fare arbitrarily above what the rider agreed to — or collapse it. */
+export const FARE_CLAMP_MIN = 0.8;
+export const FARE_CLAMP_MAX = 1.5;
+
 @Injectable()
 export class TripsService {
+  private readonly logger = new Logger('TripsService');
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
@@ -130,6 +168,26 @@ export class TripsService {
    */
   async createTrip(riderId: string, dto: CreateTripDto) {
     const scheduledAt = this.parseSchedule(dto.scheduledAt);
+    // One live ride per rider. Without this a rider (or a retrying client)
+    // can pile up concurrent requested/matching trips that each burn dispatch
+    // offers. A scheduled-for-later booking is allowed alongside a live one.
+    if (!scheduledAt) {
+      const inFlight = await this.prisma.trip.findFirst({
+        where: { riderId, status: { in: ACTIVE_TRIP_STATUSES } },
+        select: { id: true, status: true },
+      });
+      if (inFlight) {
+        throw new ConflictException(
+          `You already have a ride in progress (${inFlight.status}). Cancel it or wait for it to finish before requesting another.`,
+        );
+      }
+    }
+    // The chosen saved card must belong to this rider; otherwise (or when
+    // none is chosen) the default card is charged.
+    const paymentMethodId = await this.resolvePaymentMethod(
+      riderId,
+      dto.paymentMethodId,
+    );
     const pickup: LatLng = { lat: dto.pickupLat, lng: dto.pickupLng };
     const dropoff: LatLng = { lat: dto.dropoffLat, lng: dto.dropoffLng };
     const route = await this.routeFor(pickup, dropoff, dto.stops);
@@ -165,6 +223,7 @@ export class TripsService {
         currency: CURRENCY,
         startOtp: this.generateOtp(),
         paymentMode: dto.paymentMode ?? 'card',
+        paymentMethodId,
         scheduledAt,
       },
     });
@@ -223,6 +282,27 @@ export class TripsService {
   }
 
   /**
+   * Validates a rider-supplied saved-card id: it must be one of the rider's
+   * own methods. Returns the id to persist, or null (= default card) when none
+   * was supplied. A card belonging to someone else is a 400, not silently
+   * swapped for the default.
+   */
+  private async resolvePaymentMethod(
+    riderId: string,
+    paymentMethodId?: string,
+  ): Promise<string | null> {
+    if (!paymentMethodId) return null;
+    const method = await this.prisma.paymentMethod.findFirst({
+      where: { id: paymentMethodId, userId: riderId },
+      select: { id: true },
+    });
+    if (!method) {
+      throw new BadRequestException('Unknown payment method');
+    }
+    return method.id;
+  }
+
+  /**
    * Validates and parses a requested schedule time. Returns null for an
    * on-demand ride, or throws if the time is too soon or too far ahead.
    */
@@ -261,9 +341,7 @@ export class TripsService {
 
   async startTrip(driverId: string, tripId: string, otp: string) {
     const trip = await this.assertDriverTrip(driverId, tripId, TripStatus.arrived);
-    if (trip.startOtp !== otp) {
-      throw new BadRequestException('Incorrect start code');
-    }
+    await this.verifyStartOtp(trip, otp);
     await this.stateMachine.transition({
       tripId,
       from: TripStatus.arrived,
@@ -279,6 +357,7 @@ export class TripsService {
       await this.redis.client.hset(RedisKeys.tripMeterLast(tripId), {
         lat: loc.lat,
         lng: loc.lng,
+        ts: Date.now(),
       });
     }
     // Auth-hold the estimated fare when the ride starts (manual capture).
@@ -292,6 +371,53 @@ export class TripsService {
     this.realtime.emitToUser(trip.riderId, 'trip:started', { tripId });
     void this.notifications.notifyTrip(trip.riderId, 'started', { tripId });
     return { status: TripStatus.in_progress };
+  }
+
+  /**
+   * Constant-time start-code check with a per-trip attempt budget. After
+   * OTP_MAX_ATTEMPTS wrong guesses the trip is locked for OTP_LOCK_SECONDS and
+   * the rider is told (a driver guessing codes is a signal worth surfacing).
+   * A correct code clears the counter.
+   */
+  private async verifyStartOtp(trip: Trip, otp: string): Promise<void> {
+    const lockKey = otpLockKey(trip.id);
+    const attemptsKey = otpAttemptsKey(trip.id);
+    if (await this.redis.client.get(lockKey)) {
+      throw new BadRequestException(
+        'Too many incorrect start codes. Ask the rider to confirm the code and try again in a few minutes.',
+      );
+    }
+    const expected = Buffer.from(trip.startOtp ?? '', 'utf8');
+    const supplied = Buffer.from(String(otp ?? ''), 'utf8');
+    const matches =
+      expected.length > 0 &&
+      expected.length === supplied.length &&
+      timingSafeEqual(expected, supplied);
+    if (matches) {
+      await this.redis.client.del(attemptsKey);
+      return;
+    }
+    const attempts = await this.redis.client.incr(attemptsKey);
+    await this.redis.client.expire(attemptsKey, OTP_LOCK_SECONDS);
+    if (attempts >= OTP_MAX_ATTEMPTS) {
+      await this.redis.client.set(lockKey, '1', 'EX', OTP_LOCK_SECONDS);
+      await this.redis.client.del(attemptsKey);
+      this.realtime.emitToUser(trip.riderId, 'trip:otp_locked', {
+        tripId: trip.id,
+        lockSeconds: OTP_LOCK_SECONDS,
+      });
+      void this.notifications.notify(trip.riderId, {
+        title: 'Start code locked',
+        body: 'Your driver entered the wrong start code too many times. Share the code only with your driver.',
+        data: { kind: 'otp_locked', tripId: trip.id },
+      });
+      throw new BadRequestException(
+        'Too many incorrect start codes. Try again in 15 minutes.',
+      );
+    }
+    throw new BadRequestException(
+      `Incorrect start code (${OTP_MAX_ATTEMPTS - attempts} attempts left)`,
+    );
   }
 
   async completeTrip(driverId: string, tripId: string) {
@@ -323,18 +449,33 @@ export class TripsService {
       data: { totalTrips: { increment: 1 } },
     });
 
-    // Capture the fare and compute the platform-fee / driver-payout split.
-    let split = {
-      fareFinal: Number(fareFinal),
-      platformFee: 0,
-      driverPayout: Number(fareFinal),
+    // Capture the fare and compute the platform-fee / driver-payout split. If
+    // the capture fails the ride still happened, so: queue a durable retry
+    // (PaymentsProcessor, with backoff; captureForTrip is idempotent) and hand
+    // out a receipt that says the payment is PENDING — never a made-up split
+    // the ledger did not record (the old fallback reported the whole fare as
+    // driver payout with zero platform fee).
+    let split: {
+      fareFinal: number;
+      platformFee: number | null;
+      driverPayout: number | null;
     };
+    let paymentStatus: 'captured' | 'pending';
     try {
       split = await this.payments.captureForTrip(tripId);
+      paymentStatus = 'captured';
     } catch (e) {
+      this.logger.warn(
+        `capture failed at completion for trip ${tripId}, queueing retry: ${String(e)}`,
+      );
+      paymentStatus = 'pending';
+      split = { fareFinal: Number(fareFinal), platformFee: null, driverPayout: null };
+      await this.payments.enqueueCapture(tripId).catch((qe) =>
+        this.logger.error(`could not enqueue capture retry for ${tripId}: ${String(qe)}`),
+      );
       this.realtime.emitToUser(trip.riderId, 'trip:payment_warning', {
         tripId,
-        message: 'Payment could not be processed',
+        message: 'Payment could not be processed yet; we will retry.',
       });
     }
 
@@ -347,20 +488,24 @@ export class TripsService {
       distanceM,
       durationS,
       paymentMode: trip.paymentMode,
+      paymentStatus,
     };
     this.realtime.emitToUser(trip.riderId, 'trip:completed', receipt);
     this.realtime.emitToUser(driverId, 'trip:completed', receipt);
     void this.notifications.notifyTrip(trip.riderId, 'completed', { tripId });
     void this.notifications.notifyTrip(driverId, 'completed', { tripId });
     // Best-effort emailed receipt (SES when keyed, mock otherwise). Never blocks
-    // or fails the completion — EmailService swallows its own errors.
-    void (async () => {
-      const rider = await this.prisma.user.findUnique({
-        where: { id: trip.riderId },
-        select: { email: true },
-      });
-      await this.email.sendReceipt(rider?.email, tripId, split.fareFinal);
-    })();
+    // or fails the completion — EmailService swallows its own errors. When the
+    // capture is still pending the processor sends it once the fare lands.
+    if (paymentStatus === 'captured') {
+      void (async () => {
+        const rider = await this.prisma.user.findUnique({
+          where: { id: trip.riderId },
+          select: { email: true },
+        });
+        await this.email.sendReceipt(rider?.email, tripId, split.fareFinal);
+      })();
+    }
     return receipt;
   }
 
@@ -398,7 +543,7 @@ export class TripsService {
       ? Math.max(1, Math.round((Date.now() - trip.startedAt.getTime()) / 1000))
       : trip.durationS;
     const surge = trip.surgeMultiplier ? Number(trip.surgeMultiplier) : 1;
-    const gross = this.pricing.estimateForTier(
+    const metered = this.pricing.estimateForTier(
       trip.tier,
       distanceM,
       durationS ?? 0,
@@ -406,8 +551,29 @@ export class TripsService {
     ).fare;
     // Carry the up-front promo discount onto the final (odometer-based) fare.
     const discount = trip.promoDiscount ? Number(trip.promoDiscount) : 0;
+    // `fareEstimate` is stored net of the promo; the clamp is on gross fares.
+    const grossEstimate = estimate + discount;
+    const gross = this.clampFare(metered, grossEstimate, trip.tier);
     const fareFinal = Math.max(gross - discount, 0);
     return { fareFinal, distanceM, durationS };
+  }
+
+  /**
+   * Bound a metered (GPS-derived, driver-supplied) gross fare to
+   * [FARE_CLAMP_MIN, FARE_CLAMP_MAX] × the gross up-front estimate, then floor
+   * at the tier's minimum fare. Without a usable estimate the metered fare is
+   * only floored.
+   */
+  private clampFare(metered: number, grossEstimate: number, tier: string): number {
+    let fare = metered;
+    if (grossEstimate > 0) {
+      fare = Math.min(
+        Math.max(fare, grossEstimate * FARE_CLAMP_MIN),
+        grossEstimate * FARE_CLAMP_MAX,
+      );
+    }
+    fare = Math.max(fare, this.pricing.minFareFor(tier));
+    return Math.round(fare * 100) / 100;
   }
 
   private async assertDriverTrip(
@@ -481,9 +647,9 @@ export class TripsService {
     });
 
     // A fee applies only once a driver has committed (accepted/arrived) — a
-    // late cancel wastes the driver's trip to the pickup.
-    const feeApplies =
-      trip.status === TripStatus.accepted || trip.status === TripStatus.arrived;
+    // late cancel wastes the driver's trip to the pickup — and only after a
+    // short grace window from acceptance (no fee if acceptedAt is unknown).
+    const feeApplies = this.cancellationFeeApplies(trip);
 
     // If a driver was already assigned, notify them and return them to the pool.
     if (trip.driverId) {
@@ -493,15 +659,9 @@ export class TripsService {
         reason: reason ?? null,
       });
       void this.notifications.notifyTrip(trip.driverId, 'cancelled', { tripId });
-      await this.redis.client.set(
-        RedisKeys.driverStatus(trip.driverId),
-        'online',
-      );
-      await this.redis.client.del(
-        RedisKeys.driverActiveTrip(trip.driverId),
-        RedisKeys.driverActiveRider(trip.driverId),
-      );
+      await this.releaseDriver(trip.driverId);
     }
+    await this.releasePromo(trip);
 
     let fee = 0;
     if (feeApplies) {
@@ -517,6 +677,84 @@ export class TripsService {
     }
 
     return { status: TripStatus.cancelled, fee };
+  }
+
+  /**
+   * Driver-side cancel (rider no-show, can't reach the pickup, ...). Only the
+   * assigned driver, only before the ride starts, reason required. No rider
+   * fee — the driver walked away. The driver is released back to the pool and
+   * the rider is told (with the reason) so they can request again. The trip is
+   * marked cancelled rather than re-dispatched: the dispatch job is keyed per
+   * trip and the state machine has no accepted→requested edge, so re-opening
+   * is not a clean operation here.
+   */
+  async driverCancelTrip(driverId: string, tripId: string, reason: string) {
+    const trimmed = (reason ?? '').trim();
+    if (!trimmed) throw new BadRequestException('A reason is required');
+    const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) throw new NotFoundException('Trip not found');
+    if (trip.driverId !== driverId) {
+      throw new ForbiddenException('Not your trip');
+    }
+    if (!DRIVER_CANCELLABLE.includes(trip.status)) {
+      throw new BadRequestException(
+        `Trip in status ${trip.status} cannot be cancelled by the driver`,
+      );
+    }
+
+    await this.stateMachine.transition({
+      tripId,
+      from: trip.status,
+      to: TripStatus.cancelled,
+      actor: 'driver',
+      data: { cancelReason: trimmed, cancelledBy: 'driver' },
+      meta: { reason: trimmed, driverId },
+    });
+
+    await this.releaseDriver(driverId);
+    await this.releasePromo(trip);
+
+    this.realtime.emitToUser(trip.riderId, 'trip:cancelled', {
+      tripId,
+      by: 'driver',
+      reason: trimmed,
+    });
+    void this.notifications.notifyTrip(trip.riderId, 'cancelled', { tripId });
+    this.realtime.emitToUser(driverId, 'trip:cancelled', {
+      tripId,
+      by: 'driver',
+      reason: trimmed,
+    });
+
+    return { status: TripStatus.cancelled, fee: 0 };
+  }
+
+  /** Whether a rider cancel is charged: driver committed AND grace elapsed. */
+  private cancellationFeeApplies(trip: Trip): boolean {
+    const committed =
+      trip.status === TripStatus.accepted || trip.status === TripStatus.arrived;
+    if (!committed) return false;
+    if (!trip.acceptedAt) return false;
+    return Date.now() - trip.acceptedAt.getTime() >= CANCEL_GRACE_MS;
+  }
+
+  /** Return a driver to the available pool (clears their active-trip keys). */
+  private async releaseDriver(driverId: string): Promise<void> {
+    await this.redis.client.set(RedisKeys.driverStatus(driverId), 'online');
+    await this.redis.client.del(
+      RedisKeys.driverActiveTrip(driverId),
+      RedisKeys.driverActiveRider(driverId),
+    );
+  }
+
+  /** Hand back a promo redemption on a trip that never completed. */
+  private async releasePromo(trip: Trip): Promise<void> {
+    if (!trip.promoCode) return;
+    try {
+      await this.promo.release(trip.id);
+    } catch (e) {
+      this.logger.warn(`promo release failed for trip ${trip.id}: ${String(e)}`);
+    }
   }
 
   async history(userId: string) {

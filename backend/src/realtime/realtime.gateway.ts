@@ -19,6 +19,7 @@ import {
 } from './dto/ws-messages.dto';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { Server, Socket } from 'socket.io';
+import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { RedisKeys } from '../common/redis/redis.keys';
 import { DispatchService } from '../dispatch/dispatch.service';
@@ -27,6 +28,7 @@ import { LocationService } from '../location/location.service';
 import { TripsService } from '../trips/trips.service';
 import { ChatService } from '../chat/chat.service';
 import { RealtimeService } from './realtime.service';
+import { gatewayCors } from './gateway-cors';
 
 interface AuthedSocket extends Socket {
   data: { userId?: string; role?: string };
@@ -37,7 +39,7 @@ interface AuthedSocket extends Socket {
  * a personal room, and routes client events to the feature services. Uses the
  * Redis adapter so any node can emit to any room.
  */
-@WebSocketGateway({ cors: { origin: true } })
+@WebSocketGateway({ cors: gatewayCors() })
 // The global HTTP ValidationPipe does not cover WS payloads, so validate them
 // here. Lenient (strips unknown fields rather than erroring) to stay tolerant of
 // client version drift, but enforces types + geographic/length bounds.
@@ -59,6 +61,7 @@ export class RealtimeGateway
     private readonly trips: TripsService,
     private readonly drivers: DriversService,
     private readonly chat: ChatService,
+    private readonly prisma: PrismaService,
   ) {}
 
   afterInit(server: Server): void {
@@ -80,10 +83,18 @@ export class RealtimeGateway
         raw,
         { secret },
       );
-      client.data.userId = payload.sub;
-      client.data.role = payload.role;
-      await client.join(`user:${payload.sub}`);
-      this.logger.log(`Connected user ${payload.sub} (${payload.role})`);
+      // A valid signature isn't enough: the account must still exist and be
+      // active (mirrors JwtStrategy for HTTP). Role is read fresh from the DB —
+      // the token claim can be up to 15 min stale.
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, role: true, isActive: true },
+      });
+      if (!user || !user.isActive) throw new Error('user inactive');
+      client.data.userId = user.id;
+      client.data.role = user.role;
+      await client.join(`user:${user.id}`);
+      this.logger.log(`Connected user ${user.id} (${user.role})`);
     } catch {
       client.emit('error', { message: 'unauthorized' });
       client.disconnect(true);

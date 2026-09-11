@@ -4,6 +4,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -36,7 +37,7 @@ export class InboxController {
 
   @Post(':id/read')
   @HttpCode(HttpStatus.OK)
-  read(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  read(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.notifications.markRead(user.userId, id);
   }
 }

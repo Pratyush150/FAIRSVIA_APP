@@ -1,14 +1,17 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { Prisma, TripStatus } from '@prisma/client';
+import { Prisma, Trip, TripStatus } from '@prisma/client';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../common/prisma/prisma.service';
 import {
   PAYMENT_PROVIDER,
@@ -21,6 +24,12 @@ import {
   verifyStripeSignature,
   WebhookVerificationError,
 } from './stripe-webhook.util';
+import {
+  CAPTURE_JOB,
+  CAPTURE_JOB_OPTS,
+  CaptureJobData,
+  QUEUE_PAYMENTS,
+} from './payments.queue';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -35,7 +44,23 @@ export class PaymentsService {
     private readonly config: ConfigService,
     private readonly ledger: LedgerService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
+    @InjectQueue(QUEUE_PAYMENTS) private readonly queue: Queue<CaptureJobData>,
   ) {}
+
+  /**
+   * Durably schedule a retry of captureForTrip (see PaymentsProcessor). Called
+   * when the capture at completion fails: the trip is already completed, so
+   * the fare must still be collected later rather than silently forgotten.
+   * `jobId` is keyed to the trip so re-enqueueing is a no-op while a retry is
+   * pending.
+   */
+  async enqueueCapture(tripId: string): Promise<void> {
+    await this.queue.add(
+      CAPTURE_JOB,
+      { tripId },
+      { ...CAPTURE_JOB_OPTS, jobId: `capture-${tripId}` },
+    );
+  }
 
   private get feePercent(): number {
     return this.config.get<number>('platformFeePercent') ?? 0.2;
@@ -69,7 +94,7 @@ export class PaymentsService {
     const [customerRef, existing, method] = await Promise.all([
       this.ensureCustomer(trip.riderId),
       this.prisma.payment.findUnique({ where: { tripId } }),
-      this.defaultMethod(trip.riderId),
+      this.methodFor(trip),
     ]);
     // One stable idempotency key per trip auth-hold, reused on retry.
     const idempotencyKey = existing?.idempotencyKey ?? randomUUID();
@@ -178,7 +203,7 @@ export class PaymentsService {
     } else if (final > 0) {
       const [customerRef, method] = await Promise.all([
         this.ensureCustomer(trip.riderId),
-        this.defaultMethod(trip.riderId),
+        this.methodFor(trip),
       ]);
       const idempotencyKey = existing?.idempotencyKey ?? randomUUID();
       const intent = await this.provider.charge({
@@ -222,15 +247,46 @@ export class PaymentsService {
     return { fareFinal: collected, platformFee, driverPayout };
   }
 
-  /** A cancellation fee charged immediately (partly paid to the driver). */
+  /**
+   * A cancellation fee charged immediately (partly paid to the driver). A cash
+   * ride has no card to charge: the fee is recorded as owed (`pending`, method
+   * `cash`) for the driver/ops to collect, with no provider call and no driver
+   * credit (nothing was collected yet).
+   */
   async chargeCancellationFee(tripId: string, amount: number): Promise<number> {
     if (amount <= 0) return 0;
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) return 0;
+    const platformFee = round2(amount * this.feePercent);
+
+    if (trip.paymentMode === 'cash') {
+      await this.prisma.payment.upsert({
+        where: { tripId },
+        create: {
+          tripId,
+          amount,
+          currency: trip.currency,
+          status: 'pending',
+          kind: 'cancellation',
+          method: 'cash',
+          platformFee,
+          driverPayout: round2(amount - platformFee),
+        },
+        update: {
+          status: 'pending',
+          kind: 'cancellation',
+          method: 'cash',
+          amount,
+          platformFee,
+          driverPayout: round2(amount - platformFee),
+        },
+      });
+      return amount;
+    }
 
     const [customerRef, method] = await Promise.all([
       this.ensureCustomer(trip.riderId),
-      this.defaultMethod(trip.riderId),
+      this.methodFor(trip),
     ]);
     const intent = await this.provider.charge({
       amount,
@@ -238,9 +294,9 @@ export class PaymentsService {
       customerRef,
       methodRef: method?.externalId ?? undefined,
       description: `Cancellation fee ${tripId}`,
-      idempotencyKey: randomUUID(),
+      // Stable per trip: a retried cancel can never charge the fee twice.
+      idempotencyKey: `cancel-fee-${tripId}`,
     });
-    const platformFee = round2(amount * this.feePercent);
     await this.prisma.payment.upsert({
       where: { tripId },
       create: {
@@ -278,14 +334,31 @@ export class PaymentsService {
    * Refund a settled ride payment (full or partial), reversing the driver's
    * earning proportionally. Admin-initiated. Card payments hit the provider;
    * cash refunds are recorded only (settled with the rider out-of-band).
+   *
+   * Two phases so the provider call can never be duplicated:
+   *  1. RESERVE (serializable txn, committed): validate the remaining balance,
+   *     bump `refundedAmount`, write the driver clawback and insert a `pending`
+   *     PaymentRefund row. Two concurrent refunds can't both read the same
+   *     balance — the loser gets a serialization failure (surfaced as a retry)
+   *     with nothing sent to the provider.
+   *  2. PROVIDER: call Stripe keyed on the refund row's id (Idempotency-Key),
+   *     then mark the row `succeeded`. On failure the row is marked `failed`
+   *     and the reservation (amount + clawback) is reversed in a second txn,
+   *     so the books never show money returned that the rider didn't get.
    */
   async refundTrip(tripId: string, amount?: number, reason?: string) {
-    // Whole refund runs in one serializable transaction so two concurrent
-    // refunds can't both read the same `refundedAmount` and over-refund (or
-    // double-apply the driver clawback). The losing writer gets a serialization
-    // failure, surfaced as a retry.
+    let reserved: {
+      refundId: string;
+      refund: number;
+      refundedAmount: number;
+      status: string;
+      externalIntentId: string | null;
+      driverId: string | null;
+      clawback: number;
+      previousStatus: string;
+    };
     try {
-      return await this.prisma.$transaction(
+      reserved = await this.prisma.$transaction(
         async (tx) => {
           const payment = await tx.payment.findUnique({ where: { tripId } });
           if (!payment) throw new NotFoundException('No payment for this trip');
@@ -304,10 +377,6 @@ export class PaymentsService {
             );
           }
 
-          if (payment.externalIntentId) {
-            await this.provider.refund(payment.externalIntentId, refund);
-          }
-
           const refundedAmount = round2(already + refund);
           // 'partial' (not 'partially_refunded') to fit the status VarChar(12).
           const status = refundedAmount >= total ? 'refunded' : 'partial';
@@ -315,11 +384,21 @@ export class PaymentsService {
             where: { tripId },
             data: { refundedAmount, status, refundReason: reason ?? null },
           });
+          const record = await tx.paymentRefund.create({
+            data: {
+              paymentId: payment.id,
+              tripId,
+              amount: refund,
+              status: 'pending',
+              reason: reason ?? null,
+            },
+          });
 
           // Claw back the driver's share (net of platform fee), in the same txn.
           const trip = await tx.trip.findUnique({ where: { id: tripId } });
+          let clawback = 0;
           if (trip?.driverId) {
-            const clawback = round2(refund * (1 - this.feePercent));
+            clawback = round2(refund * (1 - this.feePercent));
             if (clawback !== 0) {
               await tx.ledgerEntry.create({
                 data: {
@@ -334,10 +413,14 @@ export class PaymentsService {
           }
 
           return {
-            tripId,
-            refunded: refund,
-            totalRefunded: refundedAmount,
+            refundId: record.id,
+            refund,
+            refundedAmount,
             status,
+            externalIntentId: payment.externalIntentId,
+            driverId: trip?.driverId ?? null,
+            clawback,
+            previousStatus: payment.status,
           };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -351,8 +434,93 @@ export class PaymentsService {
       }
       throw e;
     }
+
+    // Phase 2: the provider call, keyed on the committed record so a duplicate
+    // delivery (client retry, worker restart) is collapsed by Stripe.
+    let externalRefundId: string | null = null;
+    if (reserved.externalIntentId) {
+      try {
+        const res = await this.provider.refund(
+          reserved.externalIntentId,
+          reserved.refund,
+          `refund-${reserved.refundId}`,
+        );
+        externalRefundId = typeof res === 'string' ? res : null;
+      } catch (e) {
+        await this.failRefund(tripId, reserved, e);
+        throw new BadRequestException(
+          'The payment provider could not process the refund. Nothing was refunded.',
+        );
+      }
+    }
+    await this.prisma.paymentRefund.update({
+      where: { id: reserved.refundId },
+      data: { status: 'succeeded', externalRefundId },
+    });
+
+    return {
+      tripId,
+      refundId: reserved.refundId,
+      refunded: reserved.refund,
+      totalRefunded: reserved.refundedAmount,
+      status: reserved.status,
+    };
   }
 
+  /** Mark a reserved refund failed and reverse its reservation. */
+  private async failRefund(
+    tripId: string,
+    reserved: {
+      refundId: string;
+      refund: number;
+      driverId: string | null;
+      clawback: number;
+      previousStatus: string;
+    },
+    error: unknown,
+  ): Promise<void> {
+    this.logger.error(
+      `refund ${reserved.refundId} for trip ${tripId} failed at provider: ${String(error)}`,
+    );
+    await this.prisma.$transaction(async (tx) => {
+      await tx.paymentRefund.update({
+        where: { id: reserved.refundId },
+        data: {
+          status: 'failed',
+          failureMessage: String(
+            (error as { message?: string })?.message ?? error,
+          ).slice(0, 500),
+        },
+      });
+      await tx.payment.update({
+        where: { tripId },
+        data: {
+          refundedAmount: { decrement: reserved.refund },
+          status: reserved.previousStatus,
+        },
+      });
+      if (reserved.driverId && reserved.clawback !== 0) {
+        await tx.ledgerEntry.create({
+          data: {
+            driverId: reserved.driverId,
+            type: 'adjustment',
+            amount: reserved.clawback,
+            tripId,
+            note: 'Refund clawback reversed (provider refund failed)',
+          },
+        });
+      }
+    });
+  }
+
+  /**
+   * Tip the driver after a completed trip. One tip per trip: a second call is
+   * rejected with 409 rather than re-charging the card and double-crediting
+   * the driver (the previous per-trip idempotency key made the provider call a
+   * no-op while the DB/ledger increments still ran). Cash rides record the tip
+   * as handed over in cash — no card charge and no ledger credit, because the
+   * driver already holds the money.
+   */
   async addTip(userId: string, tripId: string, amount: number) {
     if (amount <= 0) throw new BadRequestException('Tip must be positive');
     const tip = round2(amount);
@@ -364,37 +532,51 @@ export class PaymentsService {
     if (trip.status !== TripStatus.completed) {
       throw new BadRequestException('You can only tip a completed trip');
     }
+    const payment = await this.prisma.payment.findUnique({ where: { tripId } });
+    if (!payment) {
+      throw new BadRequestException('This trip has no settled payment to tip on');
+    }
+    if (Number(payment.tip) > 0) {
+      throw new ConflictException('A tip was already added to this trip');
+    }
 
-    const [customerRef, method] = await Promise.all([
-      this.ensureCustomer(userId),
-      this.defaultMethod(userId),
-    ]);
-    await this.provider.charge({
-      amount: tip,
-      currency: trip.currency,
-      customerRef,
-      methodRef: method?.externalId ?? undefined,
-      description: `Tip ${tripId}`,
-      // Stable key per trip so a client retry can't double-charge the tip.
-      idempotencyKey: `tip-${tripId}`,
-    });
+    if (trip.paymentMode !== 'cash') {
+      const [customerRef, method] = await Promise.all([
+        this.ensureCustomer(userId),
+        this.methodFor(trip),
+      ]);
+      await this.provider.charge({
+        amount: tip,
+        currency: trip.currency,
+        customerRef,
+        methodRef: method?.externalId ?? undefined,
+        description: `Tip ${tripId}`,
+        // Stable key per trip so a client retry can't double-charge the tip.
+        idempotencyKey: `tip-${tripId}`,
+      });
+    }
 
-    // Atomic increment so concurrent tips can't lose an update (read-modify-write
-    // would race).
-    const updated = await this.prisma.payment.update({
-      where: { tripId },
+    // Guarded increment: only the first writer (tip still 0) applies. A race
+    // that slipped past the read above lands here as count 0 → 409.
+    const applied = await this.prisma.payment.updateMany({
+      where: { tripId, tip: 0 },
       data: { tip: { increment: tip }, driverPayout: { increment: tip } },
     });
-    // A tip is paid in full to the driver.
-    if (trip.driverId) {
+    if (applied.count === 0) {
+      throw new ConflictException('A tip was already added to this trip');
+    }
+    // A card tip is collected by the platform and paid in full to the driver.
+    // A cash tip is already in the driver's hand — nothing to credit.
+    if (trip.driverId && trip.paymentMode !== 'cash') {
       await this.ledger.record(trip.driverId, 'tip', tip, {
         tripId,
         note: 'Tip',
       });
     }
     return {
-      tip: Number(updated.tip),
-      driverPayout: Number(updated.driverPayout),
+      tip: round2(Number(payment.tip) + tip),
+      driverPayout: round2(Number(payment.driverPayout ?? 0) + tip),
+      paymentMode: trip.paymentMode,
     };
   }
 
@@ -704,5 +886,23 @@ export class PaymentsService {
     return this.prisma.paymentMethod.findFirst({
       where: { userId, isDefault: true },
     });
+  }
+
+  /**
+   * The saved card to charge for a trip: the method the rider picked at
+   * booking (validated to belong to them at creation and persisted on the
+   * trip), falling back to their default card only when none was chosen or it
+   * has since been removed.
+   */
+  private async methodFor(
+    trip: Pick<Trip, 'riderId' | 'paymentMethodId'>,
+  ) {
+    if (trip.paymentMethodId) {
+      const chosen = await this.prisma.paymentMethod.findFirst({
+        where: { id: trip.paymentMethodId, userId: trip.riderId },
+      });
+      if (chosen) return chosen;
+    }
+    return this.defaultMethod(trip.riderId);
   }
 }

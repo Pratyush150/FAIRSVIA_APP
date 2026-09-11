@@ -13,6 +13,8 @@ export const RedisKeys = {
   tripMeterLast: (id: string) => `trip:${id}:meterLast`,
   // In-trip chat: a capped list of messages, TTL'd after the ride.
   tripChat: (id: string) => `trip:${id}:chat`,
+  // Per-user chat send-rate window counter.
+  chatRate: (userId: string) => `chat:rate:${userId}`,
   // Surge: per-cell recent demand counter + an admin global override.
   surgeDemand: (cell: string) => `surge:demand:${cell}`,
   surgeOverride: () => 'surge:override',

@@ -17,6 +17,7 @@ import { TripsService } from './trips.service';
 import { EstimateDto } from './dto/estimate.dto';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { CancelTripDto } from './dto/cancel-trip.dto';
+import { DriverCancelTripDto } from './dto/driver-cancel-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
 
 @Controller('trips')
@@ -108,5 +109,16 @@ export class TripsController {
   @HttpCode(HttpStatus.OK)
   complete(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.trips.completeTrip(user.userId, id);
+  }
+
+  /** Assigned driver walks away before the ride starts (e.g. rider no-show). */
+  @Post(':id/driver-cancel')
+  @HttpCode(HttpStatus.OK)
+  driverCancel(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: DriverCancelTripDto,
+  ) {
+    return this.trips.driverCancelTrip(user.userId, id, dto.reason);
   }
 }

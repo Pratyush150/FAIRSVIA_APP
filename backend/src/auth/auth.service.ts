@@ -138,7 +138,16 @@ export class AuthService {
     return { ...tokens, user: this.toPublicUser(user) };
   }
 
-  /** Rotate a refresh token: verify, revoke old, issue a new pair. */
+  /**
+   * Rotate a refresh token: verify, revoke old, issue a new pair.
+   *
+   * Reuse detection: a refresh token is single-use. If a token that was already
+   * rotated (revoked) is presented again, either the legitimate client replayed
+   * it after a lost response or an attacker copied it — we can't tell which, so
+   * every refresh token of that user is revoked and both parties must log in
+   * again. The revoke is a conditional `updateMany` so two concurrent refreshes
+   * with the same token can't both win the race.
+   */
   async refresh(refreshToken: string): Promise<AuthTokens> {
     const jwtCfg = this.config.get<{ refreshSecret: string }>('jwt')!;
     let payload: { sub: string; jti: string };
@@ -152,18 +161,67 @@ export class AuthService {
     const record = await this.prisma.refreshToken.findFirst({
       where: { tokenHash, userId: payload.sub },
     });
-    if (!record || record.revoked || record.expiresAt < new Date()) {
+    if (!record) {
+      throw new UnauthorizedException('Refresh token expired or revoked.');
+    }
+    if (record.revoked) {
+      await this.onRefreshTokenReuse(payload.sub, record.id);
+    }
+    if (record.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token expired or revoked.');
     }
 
-    // Rotation: revoke the used token before issuing a new one.
-    await this.prisma.refreshToken.update({
-      where: { id: record.id },
+    // Rotation: atomically claim the token. count === 0 means another request
+    // revoked it between our read and this write — treat that as reuse too.
+    const claimed = await this.prisma.refreshToken.updateMany({
+      where: { id: record.id, revoked: false },
       data: { revoked: true },
     });
+    if (claimed.count === 0) {
+      await this.onRefreshTokenReuse(payload.sub, record.id);
+    }
 
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: payload.sub } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, role: true, isActive: true },
+    });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Account is not active.');
+    }
     return this.issueTokens(user.id, user.role);
+  }
+
+  /** Revoke every refresh token for the user and reject the request. */
+  private async onRefreshTokenReuse(userId: string, tokenId: string): Promise<never> {
+    const res = await this.prisma.refreshToken.updateMany({
+      where: { userId, revoked: false },
+      data: { revoked: true },
+    });
+    this.logger.warn(
+      `Refresh token reuse detected for user ${userId} (token ${tokenId}); ` +
+        `revoked ${res.count} active token(s).`,
+    );
+    throw new UnauthorizedException('Refresh token expired or revoked.');
+  }
+
+  /**
+   * Sign out: revoke the presented refresh token (if the body carries one and
+   * it belongs to the caller) or, with no token, every refresh token the caller
+   * has — i.e. sign out of all devices. Access tokens stay valid until they
+   * expire (≤15 min); the JwtStrategy's per-request DB check covers deactivation.
+   */
+  async logout(
+    userId: string,
+    refreshToken?: string,
+  ): Promise<{ ok: true; revoked: number }> {
+    const where = refreshToken
+      ? { userId, tokenHash: this.sha256(refreshToken), revoked: false }
+      : { userId, revoked: false };
+    const res = await this.prisma.refreshToken.updateMany({
+      where,
+      data: { revoked: true },
+    });
+    return { ok: true, revoked: res.count };
   }
 
   /** Sign an access JWT and a rotating refresh JWT (hash persisted for revocation). */
@@ -194,6 +252,12 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: { userId, tokenHash: this.sha256(refreshToken), expiresAt },
     });
+    // Opportunistic cleanup (there is no scheduler in this codebase): drop this
+    // user's tokens whose JWT has already expired. Revoked-but-unexpired rows
+    // are kept on purpose — they're what makes reuse detection possible.
+    await this.prisma.refreshToken
+      .deleteMany({ where: { userId, expiresAt: { lt: new Date() } } })
+      .catch((e) => this.logger.warn(`refresh-token cleanup failed: ${e}`));
 
     return { accessToken, refreshToken };
   }

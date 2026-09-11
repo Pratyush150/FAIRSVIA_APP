@@ -83,10 +83,15 @@ export class StripePaymentProvider implements PaymentProvider {
     return { intentId: data.id as string, status: 'captured' };
   }
 
-  async refund(intentId: string, amount?: number): Promise<void> {
+  async refund(
+    intentId: string,
+    amount?: number,
+    idempotencyKey?: string,
+  ): Promise<string> {
     const body: Record<string, string> = { payment_intent: intentId };
     if (amount != null) body.amount = String(this.minor(amount));
-    await this.post('/refunds', body);
+    const data = await this.post('/refunds', body, { idempotencyKey });
+    return data.id as string;
   }
 
   async createCustomer(params: CustomerParams): Promise<string> {

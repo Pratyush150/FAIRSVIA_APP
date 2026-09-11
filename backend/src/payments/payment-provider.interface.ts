@@ -79,8 +79,14 @@ export interface PaymentProvider {
   /** Immediate charge (tips, cancellation fees). */
   charge(params: AuthorizeParams): Promise<PaymentIntentResult>;
 
-  /** Void/refund an intent (optionally a partial amount). */
-  refund(intentId: string, amount?: number): Promise<void>;
+  /** Void/refund an intent (optionally a partial amount). `idempotencyKey`
+   *  is derived from our committed refund record so a retry never refunds
+   *  twice; returns the provider's refund id when it has one. */
+  refund(
+    intentId: string,
+    amount?: number,
+    idempotencyKey?: string,
+  ): Promise<string | void>;
 
   /** Create a Customer for a rider; returns the provider customer ref. */
   createCustomer(params: CustomerParams): Promise<string>;

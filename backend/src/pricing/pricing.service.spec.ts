@@ -1,4 +1,5 @@
 import { PricingService } from './pricing.service';
+import { FARE_CONFIG } from './fare-config';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 describe('PricingService', () => {
@@ -43,5 +44,11 @@ describe('PricingService', () => {
 
   it('rejects an unknown tier', () => {
     expect(() => pricing.estimateForTier('gold', 5000, 600)).toThrow();
+  });
+
+  it('exposes each tier minimum fare and rejects unknown tiers', () => {
+    expect(pricing.minFareFor('economy')).toBe(FARE_CONFIG.economy.minFare);
+    expect(pricing.minFareFor('premium')).toBe(FARE_CONFIG.premium.minFare);
+    expect(() => pricing.minFareFor('rocket')).toThrow(/Unknown tier/);
   });
 });

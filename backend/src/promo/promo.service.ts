@@ -67,9 +67,13 @@ export class PromoService {
   }
 
   /**
-   * Atomically redeems a code for a rider: guards the global usage limit with a
-   * conditional UPDATE, then records the redemption. Returns the discount, or
-   * null if the code lost a race for its last slot (caller charges full fare).
+   * Atomically redeems a code for a rider. The per-user count, the guarded
+   * global-slot decrement and the redemption insert all run in ONE serializable
+   * transaction, so two concurrent requests from the same rider can't both pass
+   * the per-user check (count-then-insert race). Returns the discount, or 0 if
+   * the code is invalid, lost the race for its last slot, or the transaction
+   * had to be aborted (the loser of a serialization conflict charges full fare
+   * rather than failing trip creation).
    */
   async redeem(
     codeRaw: string,
@@ -85,24 +89,69 @@ export class PromoService {
       return 0;
     }
     const code = quote.code;
-    // Atomic guarded decrement of the remaining global slots.
-    const claimed = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-      UPDATE promo_codes
-         SET used_count = used_count + 1
-       WHERE code = ${code}
-         AND active = true
-         AND (usage_limit IS NULL OR used_count < usage_limit)
-       RETURNING id`);
-    if (claimed.length === 0) return 0;
-    await this.prisma.promoRedemption.create({
-      data: {
-        promoId: claimed[0].id,
-        userId,
-        tripId: tripId ?? null,
-        discount: quote.discount,
-      },
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const promo = await tx.promoCode.findUnique({ where: { code } });
+          if (!promo) return 0;
+          // Re-check the per-user limit inside the transaction: the quote()
+          // count above is only advisory.
+          const used = await tx.promoRedemption.count({
+            where: { promoId: promo.id, userId },
+          });
+          if (used >= promo.perUserLimit) return 0;
+          // Atomic guarded decrement of the remaining global slots.
+          const claimed = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+            UPDATE promo_codes
+               SET used_count = used_count + 1
+             WHERE code = ${code}
+               AND active = true
+               AND (usage_limit IS NULL OR used_count < usage_limit)
+             RETURNING id`);
+          if (claimed.length === 0) return 0;
+          await tx.promoRedemption.create({
+            data: {
+              promoId: claimed[0].id,
+              userId,
+              tripId: tripId ?? null,
+              discount: quote.discount,
+            },
+          });
+          return quote.discount;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2034'
+      ) {
+        return 0; // lost a serialization race — no discount, ride proceeds
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Releases the redemption tied to a trip that was cancelled before
+   * completion: deletes the redemption row (so the rider's per-user allowance
+   * is restored) and hands the global slot back. Idempotent — a trip with no
+   * redemption is a no-op. Never throws into the cancel path.
+   */
+  async release(tripId: string): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const redemption = await tx.promoRedemption.findFirst({
+        where: { tripId },
+      });
+      if (!redemption) return false;
+      await tx.promoRedemption.delete({ where: { id: redemption.id } });
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE promo_codes
+           SET used_count = used_count - 1
+         WHERE id = ${redemption.promoId}::uuid
+           AND used_count > 0`);
+      return true;
     });
-    return quote.discount;
   }
 
   private discountFor(
