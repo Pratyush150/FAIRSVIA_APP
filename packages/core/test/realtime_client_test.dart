@@ -264,6 +264,32 @@ void main() {
   // (used previously) does NOT bypass that cache in 3.1.6 — it just removes
   // the `multiplex` key — so sign-out → sign-in, or a reconnect with a rotated
   // access token, silently re-sent the FIRST token. Only `forceNew` does.
+  // Live repro (Android driver online > JWT_ACCESS_TTL): a socket drop after
+  // the token expired re-sent the stale token forever. With a provider the
+  // reconnect handshake carries whatever the provider returns *now*.
+  test('connectWith() asks the provider on every handshake, so a restart '
+      'reconnects with the rotated token', () async {
+    var calls = 0;
+    await client.connectWith(() async => 'tok-${++calls}');
+    expect(server.auths.last['token'], 'tok-1');
+    final port = server.port;
+
+    await server.stop();
+    await _waitFor(() => edges.contains(false));
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    await server.start(port: port);
+
+    await _waitFor(() => edges.last == true);
+    expect(calls, greaterThanOrEqualTo(2),
+        reason: 'the provider must run again for the reconnect handshake');
+    expect(server.auths.last['token'], 'tok-$calls',
+        reason: 'the freshest token must be what the server received');
+
+    server.emitAll('trip:offer', {'tripId': 't3'});
+    await _waitFor(() => offers.isNotEmpty);
+    expect(offers.single['tripId'], 't3');
+  });
+
   test('connect() after disconnect() authenticates with the new token, not a '
       'cached socket\'s old one', () async {
     await client.connect('tok-A');

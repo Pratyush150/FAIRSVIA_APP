@@ -32,6 +32,10 @@ class _FakeRealtime implements RealtimeClient {
   Future<void> connect(String token) async {}
 
   @override
+  Future<void> connectWith(AccessTokenProvider tokenProvider) async =>
+      connect((await tokenProvider()) ?? '');
+
+  @override
   void disconnect() {}
 
   @override

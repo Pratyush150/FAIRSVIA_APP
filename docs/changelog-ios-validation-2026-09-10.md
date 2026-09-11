@@ -25,7 +25,7 @@ Flutter tests 56 core / 21 design_system / 16 shared_models / 20 rider /
 | Subscribe to all events before the first `connect()` in both cubits | `apps/rider_app/lib/features/trip/trip_cubit.dart`, `apps/driver_app/lib/features/driver/driver_cubit.dart` |
 | Chat reloads history on reconnect (deduped) | `packages/core/lib/src/chat/chat_page.dart` |
 | Failed token refresh routes to sign-in instead of 401-looping on Home | `packages/core/lib/src/network/{auth_interceptor.dart,dio_client.dart}`, `packages/core/lib/src/auth/bloc/{auth_bloc.dart,auth_event.dart}`, `packages/core/lib/src/di/injector.dart` |
-| **Open:** access tokens expire after 15 min but the socket re-sends the token captured at connect; a socket drop after that is rejected until relaunch (seen on the Android driver). Fix = token provider on every reconnect. | `realtime_client.dart` + both cubits — pending |
+| Socket handshake fetches a fresh access token on every (re)connect (`connectWith` + `AuthInterceptor.freshAccessToken`, refreshes when the JWT is within 60 s of `exp`). Before: tokens expire after 15 min and the reconnect re-sent the stale one → rejected until relaunch (seen live on the Android driver). | `packages/core/lib/src/realtime/realtime_client.dart`, `packages/core/lib/src/network/{auth_interceptor.dart,dio_client.dart}`, both cubits + home pages; tests `packages/core/test/{realtime_client_test.dart,auth_interceptor_test.dart}` |
 
 ## 3. Rider app
 | What | Where |
@@ -83,7 +83,6 @@ Flutter tests 56 core / 21 design_system / 16 shared_models / 20 rider /
 | Push: allSettled delivery, prune dead tokens, no token hijack; `ParseUUIDPipe` on inbox ids | `backend/src/notifications/**` |
 
 ## 7. Still required before a field test
-- Google Maps API key (iOS + Android) — map tiles are blank without it.
+- Google Maps key is in place locally (gitignored files) — every new machine needs it added again.
 - Backend service keys (Google/OSRM routing, SMS, Stripe) and a phone-reachable backend URL.
 - Signed device builds (Apple Team on the Runner targets); real GPS / background location only exercised with `MOCK_LOCATION`.
-- Realtime token refresh on reconnect (section 2, open item).

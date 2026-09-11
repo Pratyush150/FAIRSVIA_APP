@@ -17,6 +17,10 @@ class MockRatings extends Mock implements RatingsRemoteDataSource {}
 class FakeRealtimeClient implements RealtimeClient {
   @override
   Future<void> connect(String token) async {}
+
+  @override
+  Future<void> connectWith(AccessTokenProvider tokenProvider) async =>
+      connect((await tokenProvider()) ?? '');
   @override
   void disconnect() {}
   @override
@@ -46,6 +50,10 @@ class ScriptedRealtimeClient implements RealtimeClient {
     connectCalls++;
     if (failConnect) throw TimeoutException('socket connect timeout');
   }
+
+  @override
+  Future<void> connectWith(AccessTokenProvider tokenProvider) async =>
+      connect((await tokenProvider()) ?? '');
 
   @override
   void disconnect() {}

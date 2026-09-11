@@ -21,7 +21,19 @@ class TripCubit extends Cubit<TripState> {
   final List<StreamSubscription<dynamic>> _subs = [];
 
   /// Subscribe to trip lifecycle events, then connect the socket.
-  Future<void> init(String token) async {
+  AccessTokenProvider? _tokenProvider;
+
+  Future<void> _connectRealtime(String token) {
+    final provider = _tokenProvider;
+    return provider != null
+        ? _realtime.connectWith(provider)
+        : _realtime.connect(token);
+  }
+
+  /// Connects the socket. With [tokenProvider] the handshake fetches a fresh
+  /// access token on every (re)connect; without it the given [token] is used.
+  Future<void> init(String token, {AccessTokenProvider? tokenProvider}) async {
+    _tokenProvider = tokenProvider;
     // Subscribe BEFORE connecting. The realtime streams are broadcast
     // controllers that outlive any one socket and are re-bound to each new
     // one, so registering first means a failed/slow first connect (connect
@@ -30,7 +42,7 @@ class TripCubit extends Cubit<TripState> {
     // resumeFromBackground() therefore only needs to reconnect.
     _subscribe();
     try {
-      await _realtime.connect(token);
+      await _connectRealtime(token);
     } catch (_) {
       // Show the banner; socket.io keeps retrying with backoff and the
       // `connection` stream flips us back to true when it lands.
@@ -87,7 +99,7 @@ class TripCubit extends Cubit<TripState> {
       return;
     }
     try {
-      await _realtime.connect(token);
+      await _connectRealtime(token);
       emit(state.copyWith(connected: true));
       await _restoreActiveTrip();
       _resync();

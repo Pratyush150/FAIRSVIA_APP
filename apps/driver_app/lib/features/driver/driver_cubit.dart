@@ -36,7 +36,19 @@ class DriverCubit extends Cubit<DriverState> {
   final Duration _acceptGrace;
   Timer? _acceptTimer;
 
-  Future<void> init(String token) async {
+  AccessTokenProvider? _tokenProvider;
+
+  Future<void> _connectRealtime(String token) {
+    final provider = _tokenProvider;
+    return provider != null
+        ? _realtime.connectWith(provider)
+        : _realtime.connect(token);
+  }
+
+  /// Connects the socket. With [tokenProvider] the handshake fetches a fresh
+  /// access token on every (re)connect; without it the given [token] is used.
+  Future<void> init(String token, {AccessTokenProvider? tokenProvider}) async {
+    _tokenProvider = tokenProvider;
     // Register every listener BEFORE connecting: a slow/failed first connect
     // used to throw out of here with nothing subscribed, leaving a session that
     // later reconnected fine at the socket level but never heard an offer,
@@ -60,7 +72,7 @@ class DriverCubit extends Cubit<DriverState> {
       ..add(_realtime.connection.listen((up) {
         if (up != state.connected) emit(state.copyWith(connected: up));
       }));
-    await _realtime.connect(token);
+    await _connectRealtime(token);
     // If this app was killed and reopened mid-trip, restore the live trip
     // screen instead of showing the idle "go online" home.
     await _restoreActiveTrip();
@@ -108,7 +120,7 @@ class DriverCubit extends Cubit<DriverState> {
       return;
     }
     try {
-      await _realtime.connect(token);
+      await _connectRealtime(token);
       emit(state.copyWith(connected: true));
       await _restoreActiveTrip();
       await _onReconnect();

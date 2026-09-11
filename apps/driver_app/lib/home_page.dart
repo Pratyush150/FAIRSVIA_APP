@@ -93,7 +93,10 @@ class _DriverHomeViewState extends State<_DriverHomeView>
     try {
       final token = await sl<TokenStorage>().readAccessToken();
       if (token != null && mounted) {
-        await context.read<DriverCubit>().init(token);
+        await context.read<DriverCubit>().init(
+          token,
+          tokenProvider: sl<DioClient>().freshAccessToken,
+        );
       }
     } catch (_) {
       // Connect can time out; the realtime client retries with backoff and the

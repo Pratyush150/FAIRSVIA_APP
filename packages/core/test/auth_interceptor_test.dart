@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:core/core.dart';
 import 'package:core/src/network/auth_interceptor.dart';
@@ -40,6 +41,15 @@ class _StatusAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+
+/// Unsigned JWT with the given `exp` (seconds since epoch) — the interceptor
+/// only reads the payload, it never verifies signatures.
+String _jwt(int exp) {
+  String enc(Map<String, Object> m) =>
+      base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
+  return '${enc({'alg': 'HS256'})}.${enc({'sub': 'u1', 'exp': exp})}.sig';
 }
 
 void main() {
@@ -88,5 +98,36 @@ void main() {
     expect(fired, 0);
     // No refresh token, so no refresh call was even attempted.
     expect(adapter.paths, ['/me']);
+  });
+
+  test('freshAccessToken returns a token that is not near expiry as-is',
+      () async {
+    final far = DateTime.now().add(const Duration(minutes: 10));
+    final token = _jwt(far.millisecondsSinceEpoch ~/ 1000);
+    await storage.save(AuthTokens(accessToken: token, refreshToken: 'r1'));
+    expect(await interceptor.freshAccessToken(), token);
+    expect(adapter.paths, isEmpty, reason: 'no refresh call needed');
+  });
+
+  test('freshAccessToken refreshes an expired token and returns null when '
+      'the refresh is rejected', () async {
+    final past = DateTime.now().subtract(const Duration(minutes: 1));
+    await storage.save(
+      AuthTokens(
+        accessToken: _jwt(past.millisecondsSinceEpoch ~/ 1000),
+        refreshToken: 'r1',
+      ),
+    );
+    expect(await interceptor.freshAccessToken(), isNull);
+    expect(adapter.paths, ['/auth/refresh']);
+  });
+
+  test('jwtExpiry reads exp and tolerates garbage', () {
+    final exp = DateTime.now().add(const Duration(hours: 1));
+    final secs = exp.millisecondsSinceEpoch ~/ 1000;
+    expect(AuthInterceptor.jwtExpiry(_jwt(secs))?.millisecondsSinceEpoch,
+        secs * 1000);
+    expect(AuthInterceptor.jwtExpiry('not-a-jwt'), isNull);
+    expect(AuthInterceptor.jwtExpiry('a.b.c'), isNull);
   });
 }

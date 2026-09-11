@@ -5,8 +5,16 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 
 /// Abstraction over the realtime transport so features depend on an interface
 /// (and tests can inject a fake). Payloads are plain JSON maps.
+/// Supplies the access token for a socket handshake. Called on EVERY
+/// CONNECT (first connect and each reconnect), so a token that expired while
+/// the socket was down is refreshed instead of being re-sent and rejected.
+typedef AccessTokenProvider = Future<String?> Function();
+
 abstract class RealtimeClient {
   Future<void> connect(String token);
+
+  /// Like [connect], but asks [tokenProvider] for the token at each handshake.
+  Future<void> connectWith(AccessTokenProvider tokenProvider);
   void disconnect();
   bool get isConnected;
 
@@ -79,13 +87,26 @@ class SocketIoRealtimeClient implements RealtimeClient {
   }
 
   @override
-  Future<void> connect(String token) async {
+  Future<void> connect(String token) => connectWith(() async => token);
+
+  @override
+  Future<void> connectWith(AccessTokenProvider tokenProvider) async {
     disconnect();
     final socket = io.io(
       _wsUrl,
       io.OptionBuilder()
           .setTransports(['websocket'])
-          .setAuth({'token': token})
+          // Auth as a function: socket.io calls it before every CONNECT
+          // packet (initial + each reconnect), so the handshake always carries
+          // a current token. With a static map, a driver online for longer
+          // than the access-token TTL was rejected forever after the first
+          // drop (seen live on Android: stuck "Reconnecting…", no offers).
+          .setAuthFn((callback) {
+            tokenProvider().then(
+              (token) => callback({'token': token ?? ''}),
+              onError: (Object _) => callback({'token': ''}),
+            );
+          })
           .disableAutoConnect()
           // socket.io caches Manager+Socket per URL (multiplexing); a cached
           // socket keeps the auth it was created with, so a sign-out → sign-in

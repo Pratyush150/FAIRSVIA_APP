@@ -142,7 +142,10 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     try {
       final token = await sl<TokenStorage>().readAccessToken();
       if (token != null && mounted) {
-        await context.read<TripCubit>().init(token);
+        await context.read<TripCubit>().init(
+          token,
+          tokenProvider: sl<DioClient>().freshAccessToken,
+        );
       }
     } catch (_) {
       // Connect can time out; the realtime client retries with backoff and the

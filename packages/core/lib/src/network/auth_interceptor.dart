@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:shared_models/shared_models.dart';
@@ -72,6 +73,41 @@ class AuthInterceptor extends Interceptor {
       return handler.resolve(response);
     } catch (_) {
       return handler.next(err);
+    }
+  }
+
+  /// A currently valid access token for out-of-band callers (the realtime
+  /// socket handshake): refreshes first when the stored token is missing,
+  /// unparseable, expired, or within [_expirySlack] of expiring. Returns null
+  /// when no session can be established (refresh failed / signed out).
+  Future<String?> freshAccessToken() async {
+    final current = await _storage.readAccessToken();
+    if (current != null && current.isNotEmpty) {
+      final exp = jwtExpiry(current);
+      if (exp != null && exp.isAfter(DateTime.now().add(_expirySlack))) {
+        return current;
+      }
+    }
+    final refreshed = await _refreshTokens();
+    if (!refreshed) return null;
+    return _storage.readAccessToken();
+  }
+
+  static const _expirySlack = Duration(seconds: 60);
+
+  /// `exp` claim of a JWT as a DateTime, or null if it can't be read.
+  static DateTime? jwtExpiry(String jwt) {
+    final parts = jwt.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(parts[1])),
+      );
+      final exp = (jsonDecode(payload) as Map<String, dynamic>)['exp'];
+      if (exp is! num) return null;
+      return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000);
+    } catch (_) {
+      return null;
     }
   }
 

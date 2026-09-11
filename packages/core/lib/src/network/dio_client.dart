@@ -29,4 +29,7 @@ class DioClient {
 
   /// See [AuthInterceptor.sessionExpired].
   Stream<void> get sessionExpired => _auth.sessionExpired;
+
+  /// See [AuthInterceptor.freshAccessToken] — token provider for the socket.
+  Future<String?> freshAccessToken() => _auth.freshAccessToken();
 }
