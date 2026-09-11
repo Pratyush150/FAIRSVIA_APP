@@ -1322,35 +1322,7 @@ Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) as
   final cubit = context.read<TripCubit>();
   final confirmed = await showDialog<bool>(
     context: context,
-    // If the trip ends underneath the dialog (driver cancelled, no-drivers
-    // timeout, trip completed) close it instead of leaving a stale prompt
-    // whose "Cancel ride" would reset a flow that already moved on.
-    builder: (dialogCtx) => BlocListener<TripCubit, TripState>(
-      bloc: cubit,
-      listenWhen: (prev, curr) =>
-          TripCubit.isCancellable(prev.phase) &&
-          !TripCubit.isCancellable(curr.phase),
-      listener: (_, _) => Navigator.of(dialogCtx).pop(false),
-      child: AlertDialog(
-      title: const Text('Cancel this ride?'),
-      content: Text(
-        feeWarning
-            ? 'Your driver is already on the way. Cancelling now may charge a '
-                'cancellation fee.'
-            : 'Are you sure you want to cancel this ride?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogCtx).pop(false),
-          child: const Text('Keep ride'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(dialogCtx).pop(true),
-          child: const Text('Cancel ride'),
-        ),
-      ],
-      ),
-    ),
+    builder: (_) => CancelRideDialog(cubit: cubit, feeWarning: feeWarning),
   );
   if (confirmed != true) return;
   final fee = await cubit.cancelTrip();
@@ -1360,6 +1332,59 @@ Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) as
         content: Text(
           'Ride cancelled. A \$${fee.toStringAsFixed(2)} cancellation fee was charged.',
         ),
+      ),
+    );
+  }
+}
+
+/// "Cancel this ride?" prompt. If the trip ends underneath it (driver
+/// cancelled, no-drivers timeout, trip completed) it closes itself instead
+/// of leaving a stale prompt whose "Cancel ride" would reset a flow that
+/// already moved on. The self-close is guarded so it never pops a dialog
+/// the user already dismissed (that raced the navigator and crashed the
+/// page with `!_debugLocked` when confirming a cancel).
+class CancelRideDialog extends StatelessWidget {
+  const CancelRideDialog({
+    super.key,
+    required this.cubit,
+    required this.feeWarning,
+  });
+
+  final TripCubit cubit;
+  final bool feeWarning;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<TripCubit, TripState>(
+      bloc: cubit,
+      listenWhen: (prev, curr) =>
+          TripCubit.isCancellable(prev.phase) &&
+          !TripCubit.isCancellable(curr.phase),
+      listener: (ctx, _) {
+        if (!ctx.mounted) return;
+        final route = ModalRoute.of(ctx);
+        // Already popped (or mid-pop) by a button: nothing to close.
+        if (route == null || !route.isCurrent || !route.isActive) return;
+        Navigator.of(ctx).pop(false);
+      },
+      child: AlertDialog(
+        title: const Text('Cancel this ride?'),
+        content: Text(
+          feeWarning
+              ? 'Your driver is already on the way. Cancelling now may charge a '
+                  'cancellation fee.'
+              : 'Are you sure you want to cancel this ride?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep ride'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Cancel ride'),
+          ),
+        ],
       ),
     );
   }
