@@ -174,7 +174,12 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   Future<void> _moveTo(LatLng center) async {
     final c = await _controller.future;
     if (!mounted) return;
-    await c.animateCamera(gmaps.CameraUpdate.newLatLng(_g(center)));
+    // Recenter also restores a street-level zoom: after a route fit the camera
+    // is zoomed out over the whole trip, and "recenter" without a zoom left
+    // the rider looking at the entire city.
+    await c.animateCamera(
+      gmaps.CameraUpdate.newLatLngZoom(_g(center), widget.initialZoom),
+    );
   }
 
   bool _sameBounds(List<LatLng>? a, List<LatLng>? b) {

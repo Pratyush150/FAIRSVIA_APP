@@ -13,6 +13,10 @@ import 'features/trip/trip_cubit.dart';
 
 /// Rider home: full-screen map with a bottom sheet that changes with the
 /// request phase (where-to → choose ride → finding driver).
+/// Share of the screen the ride-options sheet may take, so the route stays
+/// visible above it (also drives the map's bottom fit padding).
+const double kRideOptionsSheetFraction = 0.58;
+
 class RiderHomePage extends StatelessWidget {
   const RiderHomePage({super.key});
 
@@ -235,6 +239,10 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     return BlocConsumer<TripCubit, TripState>(
         listenWhen: (prev, curr) => prev.phase != curr.phase,
         listener: (context, state) {
+          // Back to idle (change destination / cancel / done): the camera was
+          // fitted to the route bounds — bring it back to the rider instead of
+          // leaving it zoomed out over the whole route.
+          if (state.phase == TripPhase.idle) _recenterToMe();
           // Tactile punctuation on the moments that matter in the ride flow.
           switch (state.phase) {
             case TripPhase.driverEnRoute:
@@ -264,7 +272,18 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                   recenterSeq: _recenterSeq,
                   // Keep pickup/dropoff/driver markers framed above the bottom
                   // sheet (which covers ~40% of the screen) rather than behind it.
-                  boundsPadding: const EdgeInsets.fromLTRB(40, 96, 40, 300),
+                  boundsPadding: EdgeInsets.fromLTRB(
+                    40,
+                    96,
+                    40,
+                    // Match the sheet actually on screen in this phase so the
+                    // fitted route lands in the visible strip of map.
+                    state.phase == TripPhase.choosingRide
+                        ? MediaQuery.sizeOf(context).height *
+                                kRideOptionsSheetFraction +
+                            24
+                        : 300,
+                  ),
                 ),
                 // Banner and top controls share one column so the
                 // "Reconnecting…" bar pushes the buttons down instead of being
@@ -375,6 +394,10 @@ class _BottomSheetForPhase extends StatelessWidget {
     // phase's content changes height — so the flow feels like one continuous
     // surface rather than a stack of hard-swapped cards.
     return AppSheet(
+      // Keep the routed map visible while choosing a ride: the options sheet
+      // is otherwise tall enough to hide the route and both markers.
+      maxHeightFraction:
+          state.phase == TripPhase.choosingRide ? kRideOptionsSheetFraction : null,
       footer: state.phase == TripPhase.choosingRide && state.estimate != null
           ? _RideConfirmFooter(state: state)
           : null,

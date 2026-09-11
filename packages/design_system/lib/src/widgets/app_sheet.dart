@@ -19,9 +19,16 @@ class AppSheet extends StatelessWidget {
       AppSpacing.x20,
     ),
     this.handle = true,
+    this.maxHeightFraction,
   });
 
   final Widget child;
+
+  /// Optional cap on the sheet height as a fraction of the screen height
+  /// (e.g. 0.6). Use it for phases where the map behind the sheet matters —
+  /// the ride-options sheet otherwise grows to ~95% of the screen and hides
+  /// the routed polyline and markers. Content scrolls inside the sheet.
+  final double? maxHeightFraction;
 
   /// Optional pinned footer (e.g. the primary call-to-action). Rendered below
   /// the scrollable [child] and never scrolled out of view, so a tall sheet
@@ -39,7 +46,12 @@ class AppSheet extends StatelessWidget {
     // sheet with tip picker) scrolls inside the sheet instead of pushing the
     // header off the top of the screen. Seen on iPhone 17 (iOS 26.5).
     final media = MediaQuery.of(context);
-    final maxHeight = media.size.height - media.padding.top - AppSpacing.md;
+    var maxHeight = media.size.height - media.padding.top - AppSpacing.md;
+    final fraction = maxHeightFraction;
+    if (fraction != null) {
+      final capped = media.size.height * fraction;
+      if (capped < maxHeight) maxHeight = capped;
+    }
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight > 0 ? maxHeight : 0),
       child: _SheetBody(
