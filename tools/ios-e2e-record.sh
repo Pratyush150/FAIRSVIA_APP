@@ -15,8 +15,8 @@ sleep 2; T0=$(date +%s)
 
 log "driver: go online";            tap $D 201 792; sleep 3
 log "rider: open search";           tap $R 201 791; sleep 2
-log "rider: type destination";      typ $R "airport"; sleep 3
-log "rider: pick 'airport Park'";   tap $R 200 520; sleep 6
+log "rider: type destination";      typ $R "Miami International Airport"; sleep 4
+log "rider: pick first result";      tap $R 200 325; sleep 7
 log "rider: scroll sheet";          idb ui swipe --udid $R 201 650 201 250 --duration 0.4 >/dev/null 2>&1; sleep 1.5
 log "rider: choose Cash";           tap $R 306 576; sleep 1
 log "rider: confirm ride";          tap $R 201 744; sleep 6
