@@ -111,17 +111,22 @@ double _simHeading = 90;
 
 List<({double lat, double lng})> _simPath = const [];
 int _simIdx = 0;
-double _simSpeedMps = 14; // ~50 km/h — brisk city driving
+/// Dev/demo override for the simulated car's speed in m/s (mock mode only):
+/// `--dart-define=SIM_SPEED_MPS=20`. Defaults to ~50 km/h city driving.
+const String _simSpeedEnv = String.fromEnvironment('SIM_SPEED_MPS');
+final double _defaultSimSpeedMps = double.tryParse(_simSpeedEnv) ?? 14;
+double _simSpeedMps = _defaultSimSpeedMps;
 
-/// Drive along [path] (road geometry) at [speedMps]. Replaces any current path.
+/// Drive along [path] (road geometry) at [speedMps] (default: SIM_SPEED_MPS or
+/// ~50 km/h). Replaces any current path.
 void driveSimulatedPath(
   List<({double lat, double lng})> path, {
-  double speedMps = 14,
+  double? speedMps,
 }) {
   if (_mockPoint == null || path.length < 2) return;
   _simPath = path;
   _simIdx = 0;
-  _simSpeedMps = speedMps;
+  _simSpeedMps = speedMps ?? _defaultSimSpeedMps;
   _simCurrent = path.first;
 }
 
