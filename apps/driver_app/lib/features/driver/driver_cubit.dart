@@ -144,11 +144,18 @@ class DriverCubit extends Cubit<DriverState> {
   /// Feed a GPS fix in; forwarded to the backend when online/on a trip.
   void sendLocation(double lat, double lng, {double heading = 0, double speed = 0}) {
     if (state.phase == DriverPhase.offline) return;
+    // Geolocator reports heading/speed as -1 (or NaN) when unavailable — which
+    // is the NORMAL case for a stationary driver (no bearing/speed). The server
+    // validates heading 0..360 and speed 0..400, so an out-of-range value gets
+    // the WHOLE ping rejected and the driver silently drops out of the dispatch
+    // pool (never receives offers). Clamp to valid ranges before sending.
+    final h = (heading.isFinite && heading >= 0 && heading <= 360) ? heading : 0.0;
+    final s = (speed.isFinite && speed >= 0 && speed <= 400) ? speed : 0.0;
     _realtime.emit('driver:location', {
       'lat': lat,
       'lng': lng,
-      'heading': heading,
-      'speed': speed,
+      'heading': h,
+      'speed': s,
     });
   }
 

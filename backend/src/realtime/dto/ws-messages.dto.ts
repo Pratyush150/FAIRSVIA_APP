@@ -16,10 +16,14 @@ export class LocationPingDto {
   @IsNumber() @Min(-180) @Max(180)
   lng!: number;
 
-  @IsOptional() @IsNumber() @Min(0) @Max(360)
+  // No Min/Max here: geolocator reports -1 (or NaN) for heading/speed when
+  // unavailable (a stationary driver), and rejecting the whole ping over that
+  // would silently drop the driver from the dispatch pool. Accept any number and
+  // clamp to valid ranges in LocationService.ingest instead.
+  @IsOptional() @IsNumber()
   heading?: number;
 
-  @IsOptional() @IsNumber() @Min(0) @Max(400)
+  @IsOptional() @IsNumber()
   speed?: number;
 }
 

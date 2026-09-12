@@ -57,7 +57,19 @@ export class LocationService {
   ) {}
 
   async ingest(driverId: string, ping: LocationPing): Promise<void> {
-    const { lat, lng, heading = 0, speed = 0 } = ping;
+    const { lat, lng } = ping;
+    // Clamp heading/speed: clients report -1 (or NaN) when unavailable (a
+    // stationary driver), which we accept at the DTO but normalize here.
+    const rawHeading = ping.heading ?? 0;
+    const rawSpeed = ping.speed ?? 0;
+    const heading =
+      Number.isFinite(rawHeading) && rawHeading >= 0 && rawHeading <= 360
+        ? rawHeading
+        : 0;
+    const speed =
+      Number.isFinite(rawSpeed) && rawSpeed >= 0 && rawSpeed <= 400
+        ? rawSpeed
+        : 0;
 
     await this.redis.client.hset(RedisKeys.driverLoc(driverId), {
       lat,
