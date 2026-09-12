@@ -97,6 +97,14 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
     // skip GPS streaming there so going online still works for UI testing.
     if (kIsWeb) return;
     if (!await ensureLocationPermission()) return;
+
+    // Push ONE fix immediately so a stationary driver (parked, waiting for
+    // rides — the normal case) enters the dispatch pool right away. The position
+    // stream below uses a distanceFilter, so it only emits AFTER the driver
+    // moves — without this initial fix a still driver is never indexed and never
+    // receives offers. (Skipped in mock mode: that stream emits immediately.)
+    if (!_isMockLocation) await _sendCurrentFix();
+
     _posSub = driverPositionStream().listen((pos) {
       if (!mounted) return;
       setState(() => _myLocation = LatLng(pos.latitude, pos.longitude));
@@ -112,10 +120,52 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
     // Keep presence fresh while parked — well under the backend's stale window.
     _heartbeat?.cancel();
     _heartbeat = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
       final loc = _myLocation;
-      if (loc == null || !mounted) return;
-      context.read<DriverCubit>().sendLocation(loc.latitude, loc.longitude);
+      if (loc != null) {
+        context.read<DriverCubit>().sendLocation(loc.latitude, loc.longitude);
+      } else if (!_isMockLocation) {
+        // Still no stream fix (stationary) — actively fetch one so presence
+        // never lapses and the driver stays in the pool.
+        unawaited(_sendCurrentFix());
+      }
     });
+  }
+
+  static const bool _isMockLocation =
+      String.fromEnvironment('MOCK_LOCATION') != '';
+
+  /// Fetch the current position once and push it — so presence exists even
+  /// before the movement-triggered stream emits (the parked-driver case).
+  Future<void> _sendCurrentFix() async {
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _myLocation = LatLng(pos.latitude, pos.longitude));
+      context.read<DriverCubit>().sendLocation(
+            pos.latitude,
+            pos.longitude,
+            heading: pos.heading,
+            speed: pos.speed,
+          );
+    } catch (_) {
+      // A fresh fix can time out indoors — fall back to the last known one so
+      // the driver still enters the pool rather than staying invisible.
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null && mounted) {
+          setState(() => _myLocation = LatLng(last.latitude, last.longitude));
+          context
+              .read<DriverCubit>()
+              .sendLocation(last.latitude, last.longitude);
+        }
+      } catch (_) {}
+    }
   }
 
   void _stopStreamingLocation() {
