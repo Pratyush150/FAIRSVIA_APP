@@ -27,11 +27,43 @@ class LocationService {
 
   static GeoPoint? get _mockPoint => _parsePoint(_mockLocation);
 
+  /// True when the app currently holds foreground (or always) location access.
+  Future<bool> hasPermission() async {
+    if (_mockPoint != null) return true;
+    final p = await Geolocator.checkPermission();
+    return p == LocationPermission.whileInUse || p == LocationPermission.always;
+  }
+
+  /// Ask for location access. Location is **required** to book a ride, so this
+  /// prompts, and if the user has permanently denied it, opens the app's system
+  /// settings so they can enable it. Returns whether access is granted after.
+  Future<bool> requestPermission() async {
+    if (_mockPoint != null) return true;
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      await Geolocator.openLocationSettings();
+    }
+    var p = await Geolocator.checkPermission();
+    if (p == LocationPermission.denied) {
+      p = await Geolocator.requestPermission();
+    }
+    if (p == LocationPermission.deniedForever) {
+      await Geolocator.openAppSettings();
+      p = await Geolocator.checkPermission();
+    }
+    return p == LocationPermission.whileInUse || p == LocationPermission.always;
+  }
+
+  /// Resolve the rider's location. Prefers a fresh fix, but uses the phone's
+  /// **last known fix immediately** if a fresh one can't be had quickly (e.g.
+  /// indoors) — so the map shows where the rider actually is, not the Miami
+  /// fallback. Only drops to [fallback] when there is genuinely no location.
   Future<GeoPoint> currentOrFallback() async {
     final mock = _mockPoint;
     if (mock != null) return mock;
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) return fallback;
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        return await _lastKnownOr(fallback);
+      }
 
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -39,13 +71,36 @@ class LocationService {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        return fallback;
+        return await _lastKnownOr(fallback);
       }
 
-      final pos = await Geolocator.getCurrentPosition();
-      return GeoPoint(pos.latitude, pos.longitude);
+      // Instant cached fix (works indoors); refine with a fresh one but never
+      // hang or fall back to Miami while a real position exists.
+      final cached = await _lastKnown();
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 8),
+          ),
+        );
+        return GeoPoint(pos.latitude, pos.longitude);
+      } catch (_) {
+        return cached ?? fallback;
+      }
     } catch (_) {
-      return fallback;
+      return await _lastKnownOr(fallback);
     }
   }
+
+  Future<GeoPoint?> _lastKnown() async {
+    try {
+      final p = await Geolocator.getLastKnownPosition();
+      return p == null ? null : GeoPoint(p.latitude, p.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<GeoPoint> _lastKnownOr(GeoPoint fb) async => (await _lastKnown()) ?? fb;
 }

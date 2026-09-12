@@ -48,6 +48,10 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   // rider's live position after they've panned the map away.
   LatLng? _recenter;
 
+  // True when location permission is missing — shows a blocking gate, because
+  // the rider's real position is required to book (no silent Miami fallback).
+  bool _locationRequired = false;
+
   // --- Live re-routing ---
   // When the driver's live position leaves the drawn route, we re-fetch the
   // optimal road route from where the car actually is, so the line follows the
@@ -67,10 +71,20 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   }
 
   Future<void> _loadLocation() async {
+    // Location is mandatory to book — request it up front. If the rider hasn't
+    // granted it, show the gate instead of dropping to the Miami fallback.
+    if (!await _location.hasPermission()) {
+      final ok = await _location.requestPermission();
+      if (mounted) setState(() => _locationRequired = !ok);
+      if (!ok) return;
+    } else if (mounted) {
+      setState(() => _locationRequired = false);
+    }
     final loc = await _location.currentOrFallback();
     if (mounted) {
       setState(() {
         _myLocation = loc;
+        _locationRequired = false;
         // Move the camera to the resolved location. GoogleMap's initialCenter is
         // one-shot, so without this the map stays on the fallback until the rider
         // taps recenter (seen when GPS/permission resolves after the first frame).
@@ -91,12 +105,30 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
 
   /// Recenter the map on the rider's current location (refreshes GPS first).
   Future<void> _recenterToMe() async {
+    // Tapping recenter with no permission should prompt for it, not jump to Miami.
+    if (!await _location.hasPermission()) {
+      await _enableLocation();
+      return;
+    }
     final loc = await _location.currentOrFallback();
     if (!mounted) return;
     setState(() {
       _myLocation = loc;
       _recenter = MapUtils.toLatLng(loc);
     });
+  }
+
+  /// From the location gate: request access (opening system settings if it was
+  /// permanently denied), then load the real position and dismiss the gate.
+  Future<void> _enableLocation() async {
+    final ok = await _location.requestPermission();
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _locationRequired = false);
+      await _loadLocation();
+    } else {
+      setState(() => _locationRequired = true);
+    }
   }
 
   Future<void> _loadSavedPlaces() async {
@@ -357,6 +389,13 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
                     onPickSaved: _pickSaved,
                   ),
                 ),
+                // Location is required to book a ride — block the UI with a
+                // gate until the rider grants it, instead of silently using the
+                // Miami fallback.
+                if (_locationRequired)
+                  Positioned.fill(
+                    child: _LocationGate(onEnable: _enableLocation),
+                  ),
               ],
             ),
           );
@@ -1974,3 +2013,59 @@ class _ErrorCard extends StatelessWidget {
   }
 }
 
+
+/// Full-screen gate shown when location permission is missing. Booking needs the
+/// rider's real position, so we block here (and offer to enable it) rather than
+/// silently centre on the Miami fallback.
+class _LocationGate extends StatelessWidget {
+  const _LocationGate({required this.onEnable});
+
+  final Future<void> Function() onEnable;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      color: Colors.black.withValues(alpha: 0.55),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 380),
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.location_on_rounded,
+                size: 48, color: theme.colorScheme.primary),
+            const SizedBox(height: AppSpacing.md),
+            Text('Location access required',
+                style: theme.textTheme.titleLarge,
+                textAlign: TextAlign.center),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Ride App needs your location to set your pickup and find nearby '
+              'drivers. Please enable location access to continue.',
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: PrimaryButton(
+                label: 'Enable location',
+                icon: Icons.my_location_rounded,
+                onPressed: () {
+                  onEnable();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
