@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:latlong2/latlong.dart';
 
 import '../theme/app_colors.dart';
+import 'route_progress.dart';
 
 /// What a marker represents — drives its icon + colour.
 enum MapMarkerKind { pickup, dropoff, driver, plain }
@@ -241,59 +242,101 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     }
   }
 
+  /// Muted colour for the portion of the route the car has already driven.
+  static const gmaps.Cap _roundCap = gmaps.Cap.roundCap;
+  static final Color _routeDone = const Color(0xFF9AA0A6); // faded grey
+
+  /// The route line. When a live driver marker is present we **split the route
+  /// at the car** and draw only the part *ahead* of it in bold — so the active
+  /// line shrinks behind the car as it drives and vanishes on arrival (Uber
+  /// style). The already-driven part is drawn faintly. Without a driver we draw
+  /// the whole route as one bold line.
   Set<gmaps.Polyline> _buildPolylines() {
-    if (widget.route.length < 2) return const {};
-    return {
-      gmaps.Polyline(
-        polylineId: const gmaps.PolylineId('route'),
-        points: [for (final p in widget.route) _g(p)],
-        color: AppColors.accent,
+    final route = widget.route;
+    if (route.length < 2) return const {};
+
+    final driver = _currentDriverPoint();
+    if (driver == null) {
+      return {
+        gmaps.Polyline(
+          polylineId: const gmaps.PolylineId('route'),
+          points: [for (final p in route) _g(p)],
+          color: AppColors.accent,
+          width: 6,
+          startCap: _roundCap,
+          endCap: _roundCap,
+          jointType: gmaps.JointType.round,
+        ),
+      };
+    }
+
+    final split = splitRouteAtPoint(route, driver);
+    final out = <gmaps.Polyline>{};
+    if (split.traveled.length >= 2) {
+      out.add(gmaps.Polyline(
+        polylineId: const gmaps.PolylineId('route_done'),
+        points: [for (final p in split.traveled) _g(p)],
+        color: _routeDone.withValues(alpha: 0.5),
         width: 5,
-      ),
-    };
+        startCap: _roundCap,
+        endCap: _roundCap,
+        jointType: gmaps.JointType.round,
+      ));
+    }
+    if (split.remaining.length >= 2) {
+      out.add(gmaps.Polyline(
+        polylineId: const gmaps.PolylineId('route'),
+        points: [for (final p in split.remaining) _g(p)],
+        color: AppColors.accent,
+        width: 6,
+        startCap: _roundCap,
+        endCap: _roundCap,
+        jointType: gmaps.JointType.round,
+      ));
+    }
+    return out;
   }
 
-  /// Render a white circular "puck" with a dark navigation arrow to a bitmap,
-  /// once — the Uber-style vehicle marker that rotates to the travel bearing.
-  /// Falls back to the default marker if rendering fails.
+  /// Render a **top-down car** to a bitmap, once — the Uber-style vehicle marker
+  /// that points "up" (the marker's 0°/north) so [AppMap]'s marker rotation aims
+  /// it along the travel bearing. A white halo + soft shadow keep it legible on
+  /// any map colour. Falls back to the default marker if rendering fails.
   Future<void> _makeDriverIcon() async {
     try {
-      const dim = 108.0;
+      const dim = 96.0;
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       final center = const Offset(dim / 2, dim / 2);
-      // soft shadow
-      canvas.drawCircle(
-        center,
-        36,
+      const bodyW = 30.0, bodyH = 50.0;
+      const dark = Color(0xFF10121A);
+
+      RRect body(double w, double h, double r, [Offset d = Offset.zero]) =>
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: center + d, width: w, height: h),
+            Radius.circular(r),
+          );
+
+      // soft drop shadow
+      canvas.drawRRect(
+        body(bodyW + 4, bodyH + 4, 12, const Offset(0, 2)),
         Paint()
-          ..color = Colors.black.withValues(alpha: 0.28)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+          ..color = Colors.black.withValues(alpha: 0.30)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
       );
-      // white disc + dark ring
-      canvas.drawCircle(center, 32, Paint()..color = Colors.white);
-      canvas.drawCircle(
-        center,
-        32,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = const Color(0xFF10121A),
+      // white halo (outline for contrast on dark roads/water)
+      canvas.drawRRect(body(bodyW + 6, bodyH + 6, 12), Paint()..color = Colors.white);
+      // dark car body
+      canvas.drawRRect(body(bodyW, bodyH, 9), Paint()..color = dark);
+      // front windshield (near the top = direction of travel) — light glass
+      canvas.drawRRect(
+        body(bodyW - 10, 11, 3, const Offset(0, -bodyH / 2 + 12)),
+        Paint()..color = const Color(0xFF9FC0FF),
       );
-      // navigation arrow glyph (points "up" = the marker's 0°/north, then the
-      // marker rotation aims it along the bearing)
-      final tp = TextPainter(textDirection: TextDirection.ltr)
-        ..text = TextSpan(
-          text: String.fromCharCode(Icons.navigation_rounded.codePoint),
-          style: TextStyle(
-            fontSize: 38,
-            fontFamily: Icons.navigation_rounded.fontFamily,
-            package: Icons.navigation_rounded.fontPackage,
-            color: const Color(0xFF10121A),
-          ),
-        )
-        ..layout();
-      tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+      // rear window (near the bottom) — dimmer glass
+      canvas.drawRRect(
+        body(bodyW - 12, 9, 3, const Offset(0, bodyH / 2 - 11)),
+        Paint()..color = const Color(0xFF6C7A99),
+      );
 
       final img =
           await recorder.endRecording().toImage(dim.toInt(), dim.toInt());

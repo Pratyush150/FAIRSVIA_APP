@@ -64,6 +64,14 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   // themselves relative to the pickup (Uber-style).
   LatLng? _myLocation;
 
+  // --- Live re-routing ---
+  // When the driver leaves the drawn route (takes a different/shorter road), we
+  // re-fetch the optimal road route from where they actually are, so the line
+  // relocates onto the road taken. [_rerouteGate] rate-limits it.
+  final RerouteGate _rerouteGate = RerouteGate();
+  String? _liveRoutePolyline;
+  String? _liveRouteLeg;
+
   @override
   void initState() {
     super.initState();
@@ -98,6 +106,8 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
             heading: pos.heading,
             speed: pos.speed,
           );
+      // Keep the drawn line on the road actually being driven.
+      unawaited(_maybeReroute(context.read<DriverCubit>().state));
     });
     // Keep presence fresh while parked — well under the backend's stale window.
     _heartbeat?.cancel();
@@ -154,19 +164,80 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   /// When the car is being simulated we draw only the *remaining* path from its
   /// current position, so the line shrinks behind it as it drives (and vanishes
   /// on arrival) — matching how Uber/Ola render an active route.
+  /// The active leg for re-routing: 'approach' (→pickup) while heading to the
+  /// rider, 'trip' (→dropoff) once on the trip, else null.
+  String? _legKey(DriverState state) {
+    if (state.trip == null) return null;
+    if (state.phase == DriverPhase.enRoute ||
+        state.phase == DriverPhase.arrived) {
+      return 'approach';
+    }
+    if (state.phase == DriverPhase.onTrip) return 'trip';
+    return null;
+  }
+
   List<LatLng> _route(DriverState state) {
+    // Simulated driving already yields the shrinking remaining path.
     final remaining = simulatedRemainingPath();
     if (remaining.length >= 2) {
       return [for (final p in remaining) LatLng(p.lat, p.lng)];
     }
     if (simulatedArrived) return const []; // reached it — no line left
-    final approaching = state.phase == DriverPhase.enRoute ||
-        state.phase == DriverPhase.arrived;
+
+    final leg = _legKey(state);
+    // Prefer a freshly re-routed line for the current leg — the road actually
+    // driven — over the route planned at accept (real-GPS re-routing).
+    if (leg != null && _liveRoutePolyline != null && _liveRouteLeg == leg) {
+      final live = decodePolyline(_liveRoutePolyline!);
+      if (live.length >= 2) return live;
+    }
+    final approaching = leg == 'approach';
     final encoded = approaching
         ? (state.approachPolyline ?? state.trip?.routePolyline)
         : state.trip?.routePolyline;
     if (encoded == null || encoded.isEmpty) return const [];
     return decodePolyline(encoded);
+  }
+
+  /// If the driver has left the drawn route, re-fetch the optimal road route
+  /// from their live position to the current target (pickup, then dropoff).
+  /// Throttled by [_rerouteGate]; best-effort (a failure keeps the current line).
+  Future<void> _maybeReroute(DriverState state) async {
+    final me = _myLocation;
+    final leg = _legKey(state);
+    final trip = state.trip;
+    if (me == null || leg == null || trip == null) return;
+    final target = leg == 'approach'
+        ? LatLng(trip.pickup.point.lat, trip.pickup.point.lng)
+        : LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng);
+
+    final route = _route(state);
+    if (route.length < 2) return;
+    final split = splitRouteAtPoint(route, me);
+    if (!_rerouteGate.shouldReroute(
+      from: me,
+      offRouteMeters: split.offRouteMeters,
+      leg: leg,
+    )) {
+      return;
+    }
+    _rerouteGate.begin();
+    String? poly;
+    try {
+      poly = await sl<TripRepository>().route(
+        fromLat: me.latitude,
+        fromLng: me.longitude,
+        toLat: target.latitude,
+        toLng: target.longitude,
+      );
+    } finally {
+      _rerouteGate.end(me);
+    }
+    if (!mounted || poly == null) return;
+    setState(() {
+      _liveRoutePolyline = poly;
+      _liveRouteLeg = leg;
+    });
   }
 
   /// Decode a road polyline and pin its tail to the exact destination, so the
@@ -211,6 +282,11 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
           p.error != c.error ||
           p.needsOnboarding != c.needsOnboarding,
       listener: (context, state) {
+        // Drop a stale re-routed line when the leg changes (approach → trip).
+        final leg = _legKey(state);
+        if (leg != _liveRouteLeg && _liveRoutePolyline != null) {
+          _liveRoutePolyline = null;
+        }
         if (state.isOnline) {
           _startStreamingLocation();
         } else {

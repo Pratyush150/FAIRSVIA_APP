@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -45,6 +47,16 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   // Set when the rider taps "recenter": AppMap follows this to snap back to the
   // rider's live position after they've panned the map away.
   LatLng? _recenter;
+
+  // --- Live re-routing ---
+  // When the driver's live position leaves the drawn route, we re-fetch the
+  // optimal road route from where the car actually is, so the line follows the
+  // road the driver took. [_rerouteGate] rate-limits it; [_liveRoutePolyline]
+  // holds the freshest line for [_liveRouteLeg] ('approach' or 'trip').
+  final RerouteGate _rerouteGate = RerouteGate();
+  String? _liveRoutePolyline;
+  String? _liveRouteLeg;
+  TripPhase? _lastPhase; // so haptics fire once per phase, not per GPS tick
 
   @override
   void initState() {
@@ -164,12 +176,29 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
     return markers;
   }
 
+  /// The active leg for re-routing: 'approach' (driver→pickup) while the driver
+  /// is on the way, 'trip' (→destination) once moving, else null (no live line).
+  String? _legKey(TripState state) {
+    if (state.phase == TripPhase.driverEnRoute ||
+        state.phase == TripPhase.driverArrived) {
+      return 'approach';
+    }
+    if (state.phase == TripPhase.onTrip) return 'trip';
+    return null;
+  }
+
   List<LatLng> _route(TripState state) {
+    final leg = _legKey(state);
+    // Prefer a freshly re-routed line for the current leg — the road the driver
+    // actually took — over the route planned at booking/accept.
+    if (leg != null && _liveRoutePolyline != null && _liveRouteLeg == leg) {
+      final live = MapUtils.decodePolyline(_liveRoutePolyline!);
+      if (live.length >= 2) return live;
+    }
     // While the driver is on the way, draw THEIR route to the pickup (the
     // approach leg) so the line matches where the car is actually going; once
     // the trip starts, fall back to the pickup→destination trip route.
-    final approaching = state.phase == TripPhase.driverEnRoute ||
-        state.phase == TripPhase.driverArrived;
+    final approaching = leg == 'approach';
     final approachRoute = state.driverRoutePolyline;
     final encoded = (approaching &&
             approachRoute != null &&
@@ -178,6 +207,46 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
         : state.estimate?.polyline;
     if (encoded == null || encoded.isEmpty) return const [];
     return MapUtils.decodePolyline(encoded);
+  }
+
+  /// If the driver has left the drawn route, re-fetch the optimal road route
+  /// from the car's live position to its current target (pickup, then dropoff).
+  /// Throttled by [_rerouteGate]; best-effort (a failure keeps the current line).
+  Future<void> _maybeReroute(TripState state) async {
+    final driver = state.driverLocation;
+    final leg = _legKey(state);
+    if (driver == null || leg == null) return;
+    final target = leg == 'approach' ? state.pickup : state.dropoff;
+    if (target == null) return;
+
+    final route = _route(state);
+    if (route.length < 2) return;
+    final from = MapUtils.toLatLng(driver);
+    final split = splitRouteAtPoint(route, from);
+    if (!_rerouteGate.shouldReroute(
+      from: from,
+      offRouteMeters: split.offRouteMeters,
+      leg: leg,
+    )) {
+      return;
+    }
+    _rerouteGate.begin();
+    String? poly;
+    try {
+      poly = await sl<TripRepository>().route(
+        fromLat: driver.lat,
+        fromLng: driver.lng,
+        toLat: target.lat,
+        toLng: target.lng,
+      );
+    } finally {
+      _rerouteGate.end(from);
+    }
+    if (!mounted || poly == null) return;
+    setState(() {
+      _liveRoutePolyline = poly;
+      _liveRouteLeg = leg;
+    });
   }
 
   /// What the camera frames. During the approach we fit the driver→pickup leg
@@ -200,21 +269,34 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<TripCubit, TripState>(
-        listenWhen: (prev, curr) => prev.phase != curr.phase,
+        listenWhen: (prev, curr) =>
+            prev.phase != curr.phase ||
+            prev.driverLocation != curr.driverLocation,
         listener: (context, state) {
-          // Tactile punctuation on the moments that matter in the ride flow.
-          switch (state.phase) {
-            case TripPhase.driverEnRoute:
-              AppHaptics.success(); // a driver accepted — you're matched
-            case TripPhase.driverArrived:
-              AppHaptics.medium(); // your driver is here
-            case TripPhase.completed:
-              AppHaptics.success(); // trip done
-            case TripPhase.error:
-              AppHaptics.heavy();
-            case _:
-              break;
+          // Drop a stale re-routed line when the leg changes (approach → trip).
+          final leg = _legKey(state);
+          if (leg != _liveRouteLeg && _liveRoutePolyline != null) {
+            _liveRoutePolyline = null;
           }
+          // Tactile punctuation on the moments that matter — once per phase, not
+          // on every driver-location tick (this listener now also fires on those).
+          if (state.phase != _lastPhase) {
+            _lastPhase = state.phase;
+            switch (state.phase) {
+              case TripPhase.driverEnRoute:
+                AppHaptics.success(); // a driver accepted — you're matched
+              case TripPhase.driverArrived:
+                AppHaptics.medium(); // your driver is here
+              case TripPhase.completed:
+                AppHaptics.success(); // trip done
+              case TripPhase.error:
+                AppHaptics.heavy();
+              case _:
+                break;
+            }
+          }
+          // Keep the drawn line on the road the driver actually takes.
+          unawaited(_maybeReroute(state));
         },
         builder: (context, state) {
           return Scaffold(
