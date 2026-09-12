@@ -448,8 +448,26 @@ export class DispatchService {
     // Take the driver out of the pool and mark them on-trip.
     await this.redis.client.zrem(RedisKeys.driversGeo(trip.tier), driverId);
     await this.redis.client.set(RedisKeys.driverStatus(driverId), 'on_trip');
-    await this.redis.client.set(RedisKeys.driverActiveTrip(driverId), trip.id);
-    await this.redis.client.set(RedisKeys.driverActiveRider(driverId), trip.riderId);
+    // Link the driver to this trip. completeTrip / cancel clear these keys
+    // explicitly; the TTL is a safety net so a trip abandoned mid-ride (app
+    // crash, socket gone, never completed) can't bench the driver forever —
+    // `location.ingest` skips re-adding an on-trip driver to the pool, so a
+    // stale linkage would otherwise keep them un-dispatchable indefinitely.
+    // After the TTL the driver rejoins the pool on their next location ping.
+    // Far longer than any real ride, so a legitimate trip is never evicted.
+    const activeLinkTtlSeconds = 6 * 60 * 60; // 6 hours
+    await this.redis.client.set(
+      RedisKeys.driverActiveTrip(driverId),
+      trip.id,
+      'EX',
+      activeLinkTtlSeconds,
+    );
+    await this.redis.client.set(
+      RedisKeys.driverActiveRider(driverId),
+      trip.riderId,
+      'EX',
+      activeLinkTtlSeconds,
+    );
 
     const driver = await this.prisma.user.findUnique({
       where: { id: driverId },
