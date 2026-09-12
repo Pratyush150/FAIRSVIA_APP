@@ -295,6 +295,32 @@ the component/files listed. "R" = happens in the rider app, "S" = server, "D" = 
 - **Location** comes from the device GPS via `geolocator`. If permission is denied it falls back to a
   configurable city center (`--dart-define=FALLBACK_LOCATION`, default Miami).
 
+### 6.1 Live tracking rendering — car icon, shrinking line, re-routing (Uber-style)
+
+All three behaviours live in the **shared** map (`packages/design_system/`), so the rider and driver
+apps get them from one place:
+
+- **Vehicle icon** — the driver marker is a **top-down car** drawn to a bitmap once in
+  `app_map.dart` (`_makeDriverIcon`): a dark car body with a white halo + shadow and a lighter
+  windshield marking the front. It **rotates to the travel bearing** and **glides** between GPS
+  fixes (interpolated over ~900 ms) so it never jumps.
+- **Shrinking route line** — as the car advances, the bold line **consumes behind it** and vanishes
+  on arrival. The pure helper `packages/design_system/lib/src/widgets/route_progress.dart`
+  (`splitRouteAtPoint`) projects the car onto the route and returns the *remaining* part (drawn bold
+  in the brand green) and the *travelled* part (drawn faint grey). `app_map.dart` splits at the
+  gliding car's live position every frame. Unit-tested in `route_progress_test.dart`.
+- **Live re-routing** — if the driver leaves the drawn route (takes a different/shorter road), the
+  apps re-fetch the optimal road route from the car's **live position** to its current target
+  (pickup, then dropoff). Backend endpoint: `GET /places/route` (`backend/src/geo/places.controller.ts`,
+  a thin read-only proxy over `GeoProvider.route`). Client trigger + throttle: `RerouteGate`
+  (in `route_progress.dart`) — fires only when off-route beyond ~55 m, and not more than once per
+  ~6 s / 25 m of movement / while a fetch is in flight, so it never hammers the directions API.
+  Wired in `apps/rider_app/lib/home_page.dart` and `apps/driver_app/lib/home_page.dart`
+  (`_maybeReroute`). The freshly re-routed line is preferred over the route planned at booking.
+
+> ⚠️ **Turn-by-turn navigation is NOT built** — the app draws and re-fetches a route *line*, but
+> there is no voice/lane guidance (no navigation SDK). Drivers follow the line or their own maps.
+
 > ⚠️ **iOS cannot be built on this Linux machine** (it needs a Mac + Xcode). The iOS map config is
 > written and committed ("code-ready") but has **not** been compiled/verified here.
 
@@ -439,5 +465,211 @@ adb -s <serial> logcat | grep -i flutter             # app-side crashes/logs
 
 ---
 
-*See also: `docs/codebase-audit.md` (known bugs + improvements), `docs/map-and-eta-implementation-plan.md`,
-and `marketing/` (the Florida go-to-market strategy).*
+## 12. Every backend service in detail (the 26 modules)
+
+The server is a **NestJS modular monolith**: one folder per domain under `backend/src/`, each with a
+thin **controller** (HTTP/WS front desk) and a **service** (the real logic). Here is what each does
+and *how* it's built. Files are under `backend/src/<module>/`.
+
+| Module | What it does | How it's built (the mechanism) |
+|---|---|---|
+| **auth** | Phone-OTP login + JWT sessions | 6-digit OTP is **hashed** and stored in Redis with a short TTL + attempt cap (brute-force safe). On verify, issues a short **access token** (15 min) + a **refresh token** (30 d) whose hash is stored in Postgres and **rotated** on each use (reuse of an old one is rejected). SMS via a provider interface: `mock` (dev, code echoed) / `twilio` / `sns` (Amazon). |
+| **trips** | Ride lifecycle + state machine | `trips.service.ts` creates the trip (Postgres), drives the `trip-state-machine.ts` (requested→matching→accepted→arrived→in_progress→completed), verifies the **start OTP**, and computes the **final fare from the metered odometer** at completion. Handles multi-stop (summed legs) and hands scheduled rides to the `scheduled` module. |
+| **dispatch** | Match a rider to a driver | The heart. Reads **Redis GEO** sets of online drivers per tier, searches an **expanding ring (3→9 km)**, offers to one driver at a time under a **per-driver lock** (`SET NX PX`) with a **10 s offer TTL**, re-sweeps within a 45 s window, **evicts ghosts** (stale GPS), and gives **favourite drivers** priority. Runs as a **BullMQ** job so a crash resumes the hunt. |
+| **pricing** | Fares per tier | Per-tier base/per-km/per-min config in Postgres (admin-tunable); computes each tier's fare from the route distance/time. |
+| **surge** | Demand-based multiplier | A demand/supply grid over cells; multiplier capped (≤2.0) with an admin override floor. |
+| **payments** | Money — Stripe | Manual **auth-hold → capture**, splits **platform fee % / driver payout**, **tips** (100% to driver), **refunds** (with proportional driver clawback, serializable), **Stripe Connect Express** driver payouts, **idempotency keys**, and **signature-verified, idempotent webhooks**. Cash mode supported. **Real when `STRIPE_SECRET_KEY` is set, mock otherwise.** |
+| **geo** | Routes / places / geocoding | A `GeoProvider` interface with **provider precedence** chosen in `geo.module.ts`: **Google** (when `GOOGLE_MAPS_API_KEY` set) → self-hosted **OSM** (OSRM + Nominatim) fallback → deterministic **stub**. Endpoints: autocomplete, details, reverse, and `route` (used by live re-routing). |
+| **location** | Driver GPS → Redis + odometer | Ingests the driver's GPS stream into Redis (never Postgres — GPS is hot/throwaway). A **Redis Lua script** accumulates on-trip distance atomically (the "odometer") that `trips` bills from. |
+| **realtime** | The live socket | A **Socket.IO gateway** with the **Redis adapter** (so it scales across processes). Rooms: `user:<id>` and `trip:<id>`. Emits `trip:offer/accepted/driver_location/arrived/started/completed/message`; answers `trip:sync` to rehydrate after a dropped socket. |
+| **ledger** | Driver earnings | Serializable balance per driver; every fare/tip/payout is a ledger entry. |
+| **ratings** | Two-way ratings | Rider↔driver, one per trip; recomputes the average under a serializable transaction. |
+| **favorites** | Favourite drivers | A rider's favourites **jump the dispatch queue** next time. |
+| **promo** | Promo codes | Atomic, guarded redemption with per-user + global limits; admin CRUD. |
+| **scheduled** | Book for later | A **BullMQ delayed job** promotes a `scheduled` trip to `requested` at its time, then normal dispatch runs. |
+| **background** | Driver background checks | **Checkr** integration behind an interface; **real when keyed**, else a mock that auto-clears. |
+| **notifications** | Push (FCM) + inbox | FCM HTTP-v1 provider (**real when a service-account JSON is set**, else mock/logs). A notification inbox + device-token registration endpoint. Uses a **BullMQ** queue. *(Client-side push is not wired yet — see honesty notes.)* |
+| **email** | Transactional email | Amazon **SES** provider (real when AWS creds + `SES_FROM` set, else mock). Sends trip **receipts** best-effort. `@Global`. |
+| **chat** | In-trip messages | REST for history + **Socket.IO broadcast** (`trip:message`), de-duplicated by id. Backed by Redis. |
+| **support** | Support tickets | Tickets with threaded messages. |
+| **comparison** | Price comparison card | **Modelled** Uber/Lyft/Empower estimates (NOT live quotes — self-disclaimed). |
+| **safety** | SOS | **Audit-log only today**: writes a `trip_event`, logs a warning, returns a shareable trip summary. **No 911/contact dispatch.** |
+| **drivers** | Driver profile/state | Onboarding, online/offline, presence, vehicle, `docs_verified` (a manual admin toggle / Checkr "clear"). |
+| **users** | Rider profile | Profile edit + **saved places** CRUD. |
+| **admin** | Ops endpoints | Dashboard stats, ops metrics, live map, list trips/users/drivers, **verify drivers**, plus **diagnostics**: a config snapshot + a **live read-only probe** (pings Google/Stripe/AWS) at `GET /admin/diagnostics` and `/admin/diagnostics/probe`. |
+| **health** | Liveness | `GET /health` (checks DB + Redis) and Prometheus `/metrics`. |
+| **common** | Shared plumbing | Config loader, guards/interceptors, and a **hand-rolled AWS SigV4 signer** (`common/aws/aws-sigv4.ts`) used by SNS (SMS) + SES (email) — no AWS SDK. |
+
+**Provider modes are decided at boot** from `backend/.env`. Check the live state any time with the
+diagnostics endpoint, or in the logs: `docker logs ubernav_backend | grep -Ei "provider|geo"`.
+
+---
+
+## 13. Docker, in depth (how the "kitchen" runs)
+
+Everything server-side runs in **Docker containers** described by `infra/docker-compose.yml`. A
+container is an isolated mini-computer with exactly the software it needs; `docker compose` starts
+several at once and wires them together on a private network where they reach each other **by name**
+(the backend talks to `postgres:5432` and `redis:6379`, not `localhost`).
+
+**The containers (all prefixed `ubernav_`):**
+
+| Container | Image | Port (host) | Purpose | Persistent volume |
+|---|---|---|---|---|
+| `ubernav_backend` | built from `backend/Dockerfile` (Node 22) | **3000** | The NestJS server | source bind-mount (hot reload) + `backend_node_modules` |
+| `ubernav_postgres` | `postgis/postgis:16-3.4` | 5432 | Durable database | `pgdata` |
+| `ubernav_redis` | `redis:7-alpine` | 6379 | Live/hot data + queues (append-only persistence on) | `redisdata` |
+| `ubernav_adminer` | `adminer:4` | **8080** | Web UI to browse Postgres (open `http://localhost:8080`) | — |
+| `ubernav_osrm` | `project-osrm/osrm-backend` | 5000 | Self-hosted routing (OSM) fallback | `./osm-data` |
+| `ubernav_nominatim` | `mediagis/nominatim:4.4` | 8081 | Self-hosted geocoding (OSM) fallback | `nominatimdata` |
+
+**The backend image** (`backend/Dockerfile`): starts from `node:22-bookworm-slim`, installs OpenSSL
+(Prisma needs it), runs `npm install`, then `npx prisma generate` (builds the typed DB client), and
+launches `npm run start:dev`. `docker-entrypoint.sh` runs DB migrations before the server starts. In
+**dev** the container **bind-mounts your `backend/` folder**, so editing a `.ts` file hot-reloads the
+running server — but `node_modules` stays a named volume so the container keeps its own installed deps.
+
+**Volumes = the pantry that survives restarts.** `pgdata`, `redisdata`, `nominatimdata` keep their
+data across `up`/`down`. `docker compose down` stops containers but **keeps** volumes; `docker
+compose down -v` **wipes them** (fresh DB) — use with care.
+
+**Everyday commands:**
+```bash
+cd infra
+docker compose up -d                         # start everything (detached)
+docker compose ps                            # what's running + health
+docker logs -f ubernav_backend               # follow server logs
+docker compose up -d --no-deps --force-recreate backend   # reload after editing backend/.env
+docker compose restart backend               # bounce just the server
+docker compose down                          # stop all (data kept)
+```
+
+**Resource requirements (measured on this box, idle):** the whole stack idles at **~1 GB RAM total**
+(backend ~650 MB, the rest tiny) and near-zero CPU. Postgres + Redis + backend alone are featherweight
+(a **2 GB** VM runs them). The heavy part is **Nominatim's one-time import** of the OSM extract (wants
+~1 GB shared memory + a few GB of disk while importing) — after that it idles at ~200 MB. If you don't
+need self-hosted maps (i.e. you use Google), you can skip `osrm` + `nominatim` entirely.
+
+---
+
+## 14. Deploying to the cloud (so it's up 24/7, not on the office PC)
+
+Today the backend runs on this **office PC**, reached from the phones through a **Cloudflare tunnel**
+(a public doorway to the PC). That works only while the PC is on, and a reboot changes the tunnel URL.
+For a real "always-on, test anytime" setup, move it to a rented **cloud server**. Because everything is
+already in Docker, the move is essentially *copy the compose file and run it*.
+
+**Recommended: Oracle Cloud "Always-Free" (Ampere A1, ARM).**
+
+| Spec | Free-tier allowance | What the app needs |
+|---|---|---|
+| CPU | up to **4 Ampere ARM vCPUs** | 1–2 is plenty for a pilot |
+| RAM | up to **24 GB** | stack idles ~1 GB; 24 GB is huge headroom (covers Nominatim import) |
+| Disk | up to **200 GB** block storage | ~20–40 GB is comfortable |
+| Cost | **free forever** | — |
+
+All our images (`postgis`, `redis`, `node`, `adminer`, `osrm`, `nominatim`) have **arm64** builds, so
+the ARM VM is fine.
+
+**Deploy checklist:**
+1. Provision an **Ubuntu 22.04 ARM (Ampere A1)** VM on Oracle Cloud (or any always-on Linux VM).
+2. `sudo apt install docker.io docker-compose-plugin` (install Docker + Compose).
+3. `git clone` the repo onto the VM.
+4. Create `backend/.env` with **real** keys (Google Maps, Stripe live/test, a real SMS provider, etc.).
+   Set `NODE_ENV=production` — the config guard then **refuses to boot** with dev secrets or `SMS_PROVIDER=mock`, which is what you want.
+5. `cd infra && docker compose up -d` — the whole stack comes up identically.
+6. **Front it with TLS + a permanent hostname.** Either a **Cloudflare named tunnel** bound to a
+   subdomain (survives reboots, fixed URL, no open ports) or **nginx + a real cert** on the VM. Point
+   the apps at that fixed `https://…/api/v1`, build the APKs **once**, and they never go stale.
+7. **Firewall:** expose **only** the HTTPS front door. **Never** expose Postgres (5432) or Redis
+   (6379) to the public internet — keep them on Docker's internal network.
+
+**What changes vs. the office setup:** nothing in the code. Only *where* it runs and the *URL* the
+apps point at. That's the whole benefit of Docker here.
+
+---
+
+## 15. Debugging by layer (what each layer does + how to look inside it)
+
+When something's wrong, work **top-down** through the layers and inspect each one directly.
+
+| Layer | What it does | How to inspect it | Common failure |
+|---|---|---|---|
+| **Phone app (Flutter)** | Screens + cubits; draws the map | `adb -s <serial> logcat \| grep -iE "flutter\|ride"`; screenshot with `adb exec-out screencap -p > s.png` | Blank map (bad/no Maps key), stuck on default city (no GPS fix) |
+| **Network** | App ↔ backend over HTTP + socket | On the app's backend URL: `curl <BASE>/health`. Real phone on mobile data uses the **public tunnel URL** (carrier DNS resolves it) | Wrong `API_BASE_URL` baked into the APK; tunnel down |
+| **Backend (NestJS)** | All business logic | `docker logs -f ubernav_backend` — every request, dispatch decision, payment, and error prints here | 500s, provider errors, boot refusal (bad prod config) |
+| **Redis (live)** | Online drivers, GPS, locks, queues | `docker exec ubernav_redis redis-cli` → `ZRANGE drivers:geo:economy 0 -1` (who's online), `KEYS trip:*`, `LLEN bull:dispatch:wait` | "No drivers" = the geo set is empty (driver not online/near) |
+| **Postgres (durable)** | Trips, users, payments | `docker exec ubernav_postgres psql -U ubernav -d ubernav` then SQL; or the **Adminer** web UI at `http://localhost:8080` | Wrong fare/status = inspect the `trips` row |
+| **Dispatch** | The match loop | Watch the backend log during a booking; check the offer key + lock in Redis | Offer never reaches a driver = no eligible driver, or a stuck lock |
+| **Payments** | Stripe hold/capture/split | Backend log + the **Stripe dashboard** (test mode) → Payments/Connect | Tip/card fails "no payment method" = rider has no card attached (expected for cash/sim riders) |
+| **Geo** | Routes/places | `curl "<BASE>/places/autocomplete?q=Miami"` (needs a token); `docker logs ubernav_backend \| grep -i geo` shows which provider is active | No suggestions/route = Google API not enabled on the key, or OSM extract doesn't cover the coords |
+| **Realtime (socket)** | Live push | `curl "<BASE>/socket.io/?EIO=4&transport=polling"` returns a session id if the socket layer is healthy | Car doesn't move = socket not connected / driver not streaming GPS |
+
+**The fastest triage tool** is the ride-flow table in **§4**: identify *which step* the symptom
+belongs to, then open the file(s) that step names.
+
+---
+
+## 16. Test it yourself (a runbook for when no Claude session is running)
+
+This is how to bring the whole thing up and run a ride on your own. It assumes the office PC is on.
+
+**A. Is the backend up?**
+```bash
+curl http://localhost:3000/api/v1/health        # {"status":"ok",...} means the server + DBs are fine
+cd /home/nova-robotics/ubernav/infra && docker compose ps   # all ubernav_* "Up"?
+# if not: docker compose up -d
+```
+
+**B. Make it reachable from the phones (public URL).** Phones on mobile data need a *public* address,
+not the LAN IP. The setup we use:
+```bash
+# 1) a small server that serves the APK downloads AND proxies /api to the backend:
+node /path/to/proxy.js /path/to/apk-folder        # listens on :8090  (see the scratchpad proxy.js)
+# 2) a Cloudflare quick-tunnel to it → prints a public https URL:
+cloudflared tunnel --url http://localhost:8090
+```
+> ⚠️ A **quick-tunnel URL changes every time it restarts.** If it changes you must **rebuild the APKs**
+> with the new `--dart-define=API_BASE_URL=<newurl>/api/v1` and reinstall. This is exactly why the
+> **cloud deploy in §14 (with a permanent URL) is the real fix** — do that and this step disappears.
+
+**C. Put the apps on two phones (wireless):** on each phone enable **Developer options → Wireless
+debugging**, then:
+```bash
+adb pair <ip>:<pairPort> <6-digit-code>          # from the "Pair with code" dialog
+# device auto-connects via mDNS; confirm:
+adb devices -l
+adb -t <transport_id> install -r <the .apk>
+```
+Rider APK → one phone, Driver APK → the other. Build the APKs with:
+```bash
+export PATH="/home/nova-robotics/flutter/bin:$PATH"
+(cd apps/rider_app  && flutter build apk --debug --dart-define=API_BASE_URL=<publicURL>/api/v1)
+(cd apps/driver_app && flutter build apk --debug --dart-define=API_BASE_URL=<publicURL>/api/v1)
+```
+
+**D. Log in (no real SMS in dev):** open the app, type **any** phone number, and the 6-digit code
+**appears on screen** ("Dev code: …"). If it doesn't appear, the app can't reach the backend (step B).
+Test accounts used so far: rider `305 555 0137`, driver `305 555 0142`.
+
+**E. Run a ride:** Driver taps **Go online** → Rider **Where to?** → pick a destination → Confirm →
+Driver **Accept** → watch the car move (icon + shrinking line) → Driver Arrived → Rider reads the
+**OTP** → Driver enters it → **Complete**. Do this **outdoors** (GPS) with the **driver phone unlocked
+and the app open** (Android throttles GPS when it's backgrounded).
+
+**F. Or verify the whole loop with no phones at all** (proves the crux end-to-end against the live
+backend):
+```bash
+cd tools/fake-driver-simulator && PAYMENT_MODE=cash node full-ride.mjs
+# prints each stage: matching → offer → accept → location → arrived → OTP start → completed → fare split
+```
+
+**Honest caveat:** this office-PC + quick-tunnel setup needs a human to **restart the proxy + tunnel
+after any reboot** (and rebuild APKs if the URL changed). It is *not* self-healing. The **cloud deploy
+(§14)** is what makes it genuinely always-on and testable anytime without babysitting.
+
+---
+
+*See also: `docs/architecture-explained.md` (companion plain-language guide), `docs/codebase-audit.md`
+(known bugs + improvements), `docs/map-and-eta-implementation-plan.md`, and `marketing/` (the Florida
+go-to-market strategy).*
