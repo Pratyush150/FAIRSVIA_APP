@@ -14,6 +14,7 @@ class RouteSplit {
     required this.traveled,
     required this.remaining,
     required this.offRouteMeters,
+    required this.remainingMeters,
   });
 
   /// Route points from the start up to the car's projected position.
@@ -26,6 +27,20 @@ class RouteSplit {
   /// in metres. A large value means the car has **left** the route (a signal to
   /// re-route from its real position).
   final double offRouteMeters;
+
+  /// Length of [remaining] in metres — how much road is still ahead of the car.
+  /// Falls to ~0 as the car reaches the destination, so the caller can drop the
+  /// line entirely on arrival (the "finish line finishing" at the destination).
+  final double remainingMeters;
+}
+
+/// Total length of a polyline in metres.
+double pathLengthMeters(List<LatLng> pts) {
+  var total = 0.0;
+  for (var i = 0; i < pts.length - 1; i++) {
+    total += distanceMeters(pts[i], pts[i + 1]);
+  }
+  return total;
 }
 
 /// Great-circle distance in metres (haversine).
@@ -70,6 +85,7 @@ RouteSplit splitRouteAtPoint(List<LatLng> route, LatLng car) {
       traveled: const [],
       remaining: List<LatLng>.of(route),
       offRouteMeters: 0,
+      remainingMeters: pathLengthMeters(route),
     );
   }
 
@@ -100,6 +116,7 @@ RouteSplit splitRouteAtPoint(List<LatLng> route, LatLng car) {
     traveled: traveled,
     remaining: remaining,
     offRouteMeters: bestDist,
+    remainingMeters: pathLengthMeters(remaining),
   );
 }
 

@@ -245,6 +245,9 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   /// Muted colour for the portion of the route the car has already driven.
   static const gmaps.Cap _roundCap = gmaps.Cap.roundCap;
   static final Color _routeDone = const Color(0xFF9AA0A6); // faded grey
+  // Within this distance of the leg's end the line is treated as finished and
+  // cleared entirely, so it vanishes exactly on arrival rather than leaving a stub.
+  static const double _arrivedMeters = 12;
 
   /// The route line. When a live driver marker is present we **split the route
   /// at the car** and draw only the part *ahead* of it in bold — so the active
@@ -271,6 +274,10 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     }
 
     final split = splitRouteAtPoint(route, driver);
+    // The car has effectively reached the end of this leg — the line "finishes":
+    // drop both the remaining line AND the faint travelled trail so nothing
+    // lingers at the destination (matches Uber, where the route clears on arrival).
+    if (split.remainingMeters < _arrivedMeters) return const {};
     final out = <gmaps.Polyline>{};
     if (split.traveled.length >= 2) {
       out.add(gmaps.Polyline(

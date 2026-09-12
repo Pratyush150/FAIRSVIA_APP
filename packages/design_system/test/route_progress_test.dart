@@ -59,6 +59,35 @@ void main() {
     });
   });
 
+  group('remainingMeters — the finish line', () {
+    // Each 0.001° of longitude at the equator ≈ 111 m; the 4-hop route ≈ 445 m.
+    test('full at the start (~445 m)', () {
+      final s = splitRouteAtPoint(route, const LatLng(0, 0.0));
+      expect(s.remainingMeters, closeTo(445, 15));
+    });
+
+    test('~half remaining at the midpoint', () {
+      final s = splitRouteAtPoint(route, const LatLng(0, 0.002));
+      expect(s.remainingMeters, closeTo(222, 15));
+    });
+
+    test('drops to ~0 as the car reaches the destination', () {
+      final s = splitRouteAtPoint(route, route.last);
+      expect(s.remainingMeters, lessThan(1));
+    });
+
+    test('within a few metres of the end → below the 12 m finish threshold', () {
+      // ~5 m short of the final point.
+      final s = splitRouteAtPoint(route, const LatLng(0, 0.003955));
+      expect(s.remainingMeters, lessThan(12));
+    });
+
+    test('pathLengthMeters sums a polyline', () {
+      expect(pathLengthMeters(route), closeTo(445, 15));
+      expect(pathLengthMeters(const [LatLng(0, 0)]), 0);
+    });
+  });
+
   group('RerouteGate', () {
     final t0 = DateTime(2026, 1, 1, 12, 0, 0);
     const onRoute = LatLng(0, 0);
