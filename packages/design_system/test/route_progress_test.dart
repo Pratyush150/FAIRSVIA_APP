@@ -1,6 +1,5 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:latlong2/latlong.dart';
 
 void main() {
   // A simple straight west→east route along the equator-ish latitude 0, from
