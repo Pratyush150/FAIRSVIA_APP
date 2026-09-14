@@ -40,7 +40,7 @@
 			<string>in.novarobotics.ubernav.rider</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>ubernav</string>
+				<string>fairsvia-rider</string>
 			</array>
 		</dict>
 	</array>
@@ -57,7 +57,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>rider_app</string>
+	<string>FairsVia Rider</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -98,8 +98,6 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
