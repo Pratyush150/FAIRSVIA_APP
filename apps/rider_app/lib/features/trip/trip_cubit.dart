@@ -52,6 +52,7 @@ class TripCubit extends Cubit<TripState> {
   /// access token on every (re)connect; without it the given [token] is used.
   Future<void> init(String token, {AccessTokenProvider? tokenProvider}) async {
     _tokenProvider = tokenProvider;
+    _myId = AuthInterceptor.jwtSubject(token);
     // Subscribe BEFORE connecting. The realtime streams are broadcast
     // controllers that outlive any one socket and are re-bound to each new
     // one, so registering first means a failed/slow first connect (connect
@@ -79,6 +80,7 @@ class TripCubit extends Cubit<TripState> {
       ..add(_realtime.on('trip:matching').listen((_) => _onMatching()))
       ..add(_realtime.on('trip:accepted').listen(_onAccepted))
       ..add(_realtime.on('trip:driver_location').listen(_onDriverLocation))
+      ..add(_realtime.on('trip:message').listen(_onMessage))
       ..add(_realtime.on('trip:arrived').listen((_) => _setPhase(TripPhase.driverArrived)))
       ..add(_realtime.on('trip:started').listen((_) => emit(state.copyWith(
             phase: TripPhase.onTrip,
@@ -280,6 +282,27 @@ class TripCubit extends Cubit<TripState> {
       // Route the driver takes to reach the pickup — drawn during the approach.
       driverRoutePolyline: data['driverPolyline'] as String?,
     ));
+  }
+
+  String? _myId;
+  bool _chatOpen = false;
+
+  /// Count driver messages that arrive while the chat page is closed, for the
+  /// badge on the Message button; our own echoes are ignored.
+  void _onMessage(Map<String, dynamic> data) {
+    if (_chatOpen) return;
+    final from = data['from'] as String?;
+    if (from == null || from == _myId) return;
+    if (data['tripId'] != null && data['tripId'] != state.trip?.id) return;
+    emit(state.copyWith(unreadMessages: state.unreadMessages + 1));
+  }
+
+  /// The chat page is open (or just closed): clear the badge / stop counting.
+  void setChatOpen(bool open) {
+    _chatOpen = open;
+    if (open && state.unreadMessages != 0) {
+      emit(state.copyWith(unreadMessages: 0));
+    }
   }
 
   void _onDriverLocation(Map<String, dynamic> data) {

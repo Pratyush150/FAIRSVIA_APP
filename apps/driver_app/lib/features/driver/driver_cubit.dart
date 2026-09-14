@@ -49,6 +49,7 @@ class DriverCubit extends Cubit<DriverState> {
   /// access token on every (re)connect; without it the given [token] is used.
   Future<void> init(String token, {AccessTokenProvider? tokenProvider}) async {
     _tokenProvider = tokenProvider;
+    _myId = AuthInterceptor.jwtSubject(token);
     // Register every listener BEFORE connecting: a slow/failed first connect
     // used to throw out of here with nothing subscribed, leaving a session that
     // later reconnected fine at the socket level but never heard an offer,
@@ -65,6 +66,7 @@ class DriverCubit extends Cubit<DriverState> {
             approachPolyline: d['driverPolyline'] as String?,
           )))
       ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
+      ..add(_realtime.on('trip:message').listen(_onMessage))
       // Reconnection resilience: re-announce presence and re-fetch the active
       // trip after a dropped socket so the driver's screen stays truthful.
       ..add(_realtime.reconnects.listen((_) => _onReconnect()))
@@ -266,6 +268,26 @@ class DriverCubit extends Cubit<DriverState> {
     );
   }
 
+  String? _myId;
+  bool _chatOpen = false;
+
+  /// Rider messages while the chat page is closed feed the badge on the map
+  /// sheet's chat button; our own echoes are ignored.
+  void _onMessage(Map<String, dynamic> data) {
+    if (_chatOpen) return;
+    final from = data['from'] as String?;
+    if (from == null || from == _myId) return;
+    if (data['tripId'] != null && data['tripId'] != state.trip?.id) return;
+    emit(state.copyWith(unreadMessages: state.unreadMessages + 1));
+  }
+
+  void setChatOpen(bool open) {
+    _chatOpen = open;
+    if (open && state.unreadMessages != 0) {
+      emit(state.copyWith(unreadMessages: 0));
+    }
+  }
+
   void _cancelAcceptTimer() {
     _acceptTimer?.cancel();
     _acceptTimer = null;
@@ -330,6 +352,7 @@ class DriverCubit extends Cubit<DriverState> {
       phase: DriverPhase.completed,
       trip: null,
       riderName: null,
+      unreadMessages: 0,
       busy: false,
       lastTripId: trip.id,
       riderRating: null,
@@ -417,6 +440,7 @@ class DriverCubit extends Cubit<DriverState> {
       phase: DriverPhase.online,
       trip: null,
       riderName: null,
+      unreadMessages: 0,
       offer: null,
       busy: false,
       error: 'The rider cancelled the trip',

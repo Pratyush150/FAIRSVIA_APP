@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:core/core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -258,16 +259,25 @@ class _RiderHomeViewState extends State<_RiderHomeView>
 
   List<AppMapMarker> _markers(TripState state) {
     final markers = <AppMapMarker>[];
+    // Pins sit on the routed road ends (not the raw geocode, which can land
+    // in water or inside a block) whenever a route is known.
+    final tripRoute = MapUtils.decodePolyline(
+      state.estimate?.polyline ?? state.trip?.routePolyline ?? '',
+    );
     if (state.pickup != null) {
       markers.add(AppMapMarker(
-        point: MapUtils.toLatLng(state.pickup!),
+        point: tripRoute.length >= 2
+            ? tripRoute.first
+            : MapUtils.toLatLng(state.pickup!),
         kind: MapMarkerKind.pickup,
         label: 'Pickup',
       ));
     }
     if (state.dropoff != null) {
       markers.add(AppMapMarker(
-        point: MapUtils.toLatLng(state.dropoff!),
+        point: tripRoute.length >= 2
+            ? tripRoute.last
+            : MapUtils.toLatLng(state.dropoff!),
         kind: MapMarkerKind.dropoff,
         label: 'Destination',
       ));
@@ -311,7 +321,17 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         ? approachRoute
         : (state.estimate?.polyline ?? state.trip?.routePolyline);
     if (encoded == null || encoded.isEmpty) return const [];
-    return MapUtils.decodePolyline(encoded);
+    final route = MapUtils.decodePolyline(encoded);
+    // Trim the line behind the car so it "eats" the route as it drives; once
+    // the driver has arrived the approach line has nothing left to show.
+    if (state.phase == TripPhase.driverArrived && approaching) return const [];
+    final car = state.driverLocation;
+    if (car != null &&
+        (state.phase == TripPhase.driverEnRoute ||
+            state.phase == TripPhase.onTrip)) {
+      return routeRemainingPath(route, MapUtils.toLatLng(car));
+    }
+    return route;
   }
 
   /// Below this car↔pickup span the two points are effectively on top of
@@ -422,6 +442,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                 // on web) — the basemap is styled per theme inside AppMap.
                 AppMap(
                   initialCenter: MapUtils.toLatLng(_myLocation),
+                  initialZoom: 16, // street level on the rider, like Uber
                   markers: _markers(state),
                   route: _route(state),
                   fitBounds: _fitSuppressed ? null : _fitBounds(state),
@@ -794,10 +815,12 @@ class _RideOptions extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         _StopsSection(state: state),
         const SizedBox(height: AppSpacing.sm),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 264),
-          child: ListView(
+        // The sheet body is the only scroll view: an inner scrollable here
+        // swallowed swipes and hid the payment/schedule/promo rows behind a
+        // nested-scroll trap.
+        ListView(
             shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               for (final (i, tier) in estimate.tiers.indexed)
                 _RideTierTile(
@@ -819,7 +842,6 @@ class _RideOptions extends StatelessWidget {
                     ),
             ],
           ),
-        ),
         if (estimate.comparison != null) ...[
           const SizedBox(height: AppSpacing.sm),
           PriceComparisonCard(comparison: estimate.comparison!),
@@ -1562,8 +1584,8 @@ class CancelRideDialog extends StatelessWidget {
         title: const Text('Cancel this ride?'),
         content: Text(
           feeWarning
-              ? 'Your driver is already on the way. Cancelling now may charge a '
-                  'cancellation fee.'
+              ? 'Your driver is already on the way. Cancelling is free for 2 minutes '
+                  'after they accept; after that a cancellation fee applies.'
               : 'Are you sure you want to cancel this ride?',
         ),
         actions: [
@@ -1763,7 +1785,9 @@ class DriverInfoSheet extends StatelessWidget {
           children: [
             Expanded(
               child: SecondaryButton(
-                label: 'Message',
+                label: state.unreadMessages > 0
+                      ? 'Message (${state.unreadMessages})'
+                      : 'Message',
                 icon: Icons.chat_bubble_rounded,
                 onPressed: () => _openTripChat(context, state),
               ),
@@ -1817,7 +1841,7 @@ class _OnTripSheet extends StatelessWidget {
             _sosButton(context, state),
             IconButton(
               tooltip: 'Message driver',
-              icon: const Icon(Icons.chat_bubble_outline),
+              icon: _ChatIcon(unread: state.unreadMessages),
               onPressed: () => _openTripChat(context, state),
             ),
           ],
@@ -1894,10 +1918,12 @@ Widget _sosButton(BuildContext context, TripState state) {
 
 /// Opens the in-trip chat with the assigned driver.
 void _openTripChat(BuildContext context, TripState state) {
+  final cubit = context.read<TripCubit>();
+  cubit.setChatOpen(true);
   final tripId = state.trip?.id;
   final userId = context.read<AuthBloc>().state.user?.id;
   if (tripId == null || userId == null) return;
-  Navigator.of(context).push(
+  unawaited(Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => ChatPage(
         tripId: tripId,
@@ -1907,8 +1933,7 @@ void _openTripChat(BuildContext context, TripState state) {
         realtime: sl<RealtimeClient>(),
       ),
     ),
-  );
-}
+  ).then((_) => cubit.setChatOpen(false)));}
 
 /// A toggle to add/remove the just-completed trip's driver as a favourite.
 class _FavoriteDriverButton extends StatefulWidget {
@@ -2327,3 +2352,15 @@ class _ErrorCard extends StatelessWidget {
   }
 }
 
+/// Chat bubble with an unread-count badge (Uber-style) for the sheet buttons.
+class _ChatIcon extends StatelessWidget {
+  const _ChatIcon({required this.unread});
+  final int unread;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = const Icon(Icons.chat_bubble_outline);
+    if (unread <= 0) return icon;
+    return Badge.count(count: unread, child: icon);
+  }
+}

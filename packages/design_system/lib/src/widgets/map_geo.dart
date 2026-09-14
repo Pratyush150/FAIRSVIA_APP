@@ -75,3 +75,37 @@ double routeRemainingMeters(List<LatLng> route, LatLng at) {
   }
   return remaining;
 }
+
+/// The part of [route] still ahead of [at]: the projection of [at] onto its
+/// nearest segment followed by the remaining vertices. Drawing this instead
+/// of the full route makes the line "eat" behind the car the way Uber's does.
+List<LatLng> routeRemainingPath(List<LatLng> route, LatLng at) {
+  if (route.length < 2) return route;
+  var bestD = double.infinity;
+  var bestSeg = 0;
+  var bestT = 0.0;
+  for (var i = 0; i + 1 < route.length; i++) {
+    final a = route[i], b = route[i + 1];
+    final cosLat = math.cos(a.latitude * math.pi / 180);
+    final bx = (b.longitude - a.longitude) * cosLat;
+    final by = b.latitude - a.latitude;
+    final px = (at.longitude - a.longitude) * cosLat;
+    final py = at.latitude - a.latitude;
+    final len2 = bx * bx + by * by;
+    var t = len2 == 0 ? 0.0 : (px * bx + py * by) / len2;
+    t = t.clamp(0.0, 1.0);
+    final qx = t * bx, qy = t * by;
+    final d = math.sqrt((px - qx) * (px - qx) + (py - qy) * (py - qy));
+    if (d < bestD) {
+      bestD = d;
+      bestSeg = i;
+      bestT = t;
+    }
+  }
+  final a = route[bestSeg], b = route[bestSeg + 1];
+  final proj = LatLng(
+    a.latitude + bestT * (b.latitude - a.latitude),
+    a.longitude + bestT * (b.longitude - a.longitude),
+  );
+  return [proj, ...route.sublist(bestSeg + 1)];
+}

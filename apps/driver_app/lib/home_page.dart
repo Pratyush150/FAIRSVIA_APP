@@ -342,6 +342,9 @@ class _DriverHomeViewState extends State<_DriverHomeView>
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(
+              // Float above the bottom sheet instead of covering its CTA.
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 300),
               content: Text(state.error!),
               // Route the driver straight to the fix when we refused to go
               // online for lack of location access.
@@ -742,7 +745,8 @@ class _LifecycleSheet extends StatelessWidget {
               ),
               IconButton(
                 tooltip: 'Message rider',
-                icon: const Icon(Icons.chat_bubble_rounded),
+                icon: _ChatBadgeIcon(
+                    unread: context.watch<DriverCubit>().state.unreadMessages),
                 onPressed: () => openDriverChat(context, tripId!),
               ),
             ],
@@ -835,8 +839,10 @@ Future<void> openDriverSafety(BuildContext context, String tripId) async {
 void openDriverChat(BuildContext context, String tripId) {
   final userId = context.read<AuthBloc>().state.user?.id;
   if (userId == null) return;
-  final riderName = context.read<DriverCubit>().state.riderName;
-  Navigator.of(context).push(
+  final cubit = context.read<DriverCubit>();
+  final riderName = cubit.state.riderName;
+  cubit.setChatOpen(true);
+  unawaited(Navigator.of(context).push(
     MaterialPageRoute(
       builder: (_) => ChatPage(
         tripId: tripId,
@@ -846,7 +852,7 @@ void openDriverChat(BuildContext context, String tripId) {
         realtime: sl<RealtimeClient>(),
       ),
     ),
-  );
+  ).then((_) => cubit.setChatOpen(false)));
 }
 
 class _StartTripSheet extends StatefulWidget {
@@ -865,6 +871,30 @@ class _StartTripSheetState extends State<_StartTripSheet> {
   // never start a ride.
   static const int _startCodeLength = 4;
   String _otp = '';
+  // Bumped to rebuild OtpInput (clearing the boxes) after a wrong code.
+  int _resetSeq = 0;
+  String? _inlineError;
+  StreamSubscription<DriverState>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = widget.cubit.stream.listen((s) {
+      if (s.phase != DriverPhase.arrived || s.error == null) return;
+      if (!mounted) return;
+      setState(() {
+        _inlineError = s.error;
+        _otp = '';
+        _resetSeq++;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -886,7 +916,8 @@ class _StartTripSheetState extends State<_StartTripSheet> {
               ),
               IconButton(
                 tooltip: 'Message rider',
-                icon: const Icon(Icons.chat_bubble_rounded),
+                icon: _ChatBadgeIcon(
+                    unread: context.watch<DriverCubit>().state.unreadMessages),
                 onPressed: () => openDriverChat(context, widget.tripId!),
               ),
             ],
@@ -897,8 +928,27 @@ class _StartTripSheetState extends State<_StartTripSheet> {
             style: theme.textTheme.bodyMedium),
         const SizedBox(height: AppSpacing.lg),
         OtpInput(
+            key: ValueKey('start-code-$_resetSeq'),
             length: _startCodeLength,
-            onChanged: (v) => setState(() => _otp = v)),
+            onChanged: (v) => setState(() {
+                  _otp = v;
+                  if (v.isNotEmpty) _inlineError = null;
+                })),
+        if (_inlineError != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              const Icon(Icons.error_outline_rounded,
+                  size: 16, color: AppColors.error),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(_inlineError!,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AppColors.error)),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         PrimaryButton(
           label: 'Start trip',
@@ -1236,5 +1286,18 @@ class _StatusPill extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Chat bubble with an unread-count badge for the sheet buttons.
+class _ChatBadgeIcon extends StatelessWidget {
+  const _ChatBadgeIcon({required this.unread});
+  final int unread;
+
+  @override
+  Widget build(BuildContext context) {
+    const icon = Icon(Icons.chat_bubble_rounded);
+    if (unread <= 0) return icon;
+    return Badge.count(count: unread, child: icon);
   }
 }

@@ -36,4 +36,12 @@ void main() {
     expect(routeRemainingMeters(const [], const LatLng(0, 0)), 0);
     expect(routeRemainingMeters([route.first], route.first), 0);
   });
+
+  test('routeRemainingPath starts at the projected car and keeps the tail', () {
+    final rest = routeRemainingPath(route, const LatLng(25.7745, -80.1878));
+    expect(rest.first.latitude, closeTo(25.7745, 0.0001));
+    expect(rest.first.longitude, closeTo(-80.1880, 0.0001));
+    expect(rest.last, route.last);
+    expect(rest.length, 4); // projection + 3 remaining vertices
+  });
 }

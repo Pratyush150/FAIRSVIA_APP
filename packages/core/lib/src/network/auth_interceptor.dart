@@ -95,6 +95,21 @@ class AuthInterceptor extends Interceptor {
 
   static const _expirySlack = Duration(seconds: 60);
 
+  /// `sub` claim (user id) of a JWT, or null if it can't be read.
+  static String? jwtSubject(String jwt) {
+    final parts = jwt.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(parts[1])),
+      );
+      final sub = (jsonDecode(payload) as Map<String, dynamic>)['sub'];
+      return sub is String ? sub : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// `exp` claim of a JWT as a DateTime, or null if it can't be read.
   static DateTime? jwtExpiry(String jwt) {
     final parts = jwt.split('.');

@@ -32,6 +32,7 @@ class TripState extends Equatable {
     this.driverStale = false,
     this.liveEtaSec,
     this.liveRemainingM,
+    this.unreadMessages = 0,
     this.driverRoutePolyline,
     this.fareFinal,
     this.receipt,
@@ -77,6 +78,9 @@ class TripState extends Equatable {
   /// every driver ping — approach leg while matched, trip leg once started.
   final int? liveEtaSec;
   final int? liveRemainingM;
+
+  /// Driver messages received while the chat page was not open.
+  final int unreadMessages;
 
   /// Encoded polyline of the driver's route TO the pickup, shown on the map
   /// while the driver is en route/arriving (the "approach" leg). Null falls back
@@ -158,6 +162,7 @@ class TripState extends Equatable {
     bool? driverStale,
     Object? liveEtaSec = _s,
     Object? liveRemainingM = _s,
+    int? unreadMessages,
     Object? driverRoutePolyline = _s,
     Object? fareFinal = _s,
     Object? receipt = _s,
@@ -199,6 +204,7 @@ class TripState extends Equatable {
       liveEtaSec: liveEtaSec == _s ? this.liveEtaSec : liveEtaSec as int?,
       liveRemainingM:
           liveRemainingM == _s ? this.liveRemainingM : liveRemainingM as int?,
+      unreadMessages: unreadMessages ?? this.unreadMessages,
       driverRoutePolyline: driverRoutePolyline == _s
           ? this.driverRoutePolyline
           : driverRoutePolyline as String?,
@@ -243,6 +249,7 @@ class TripState extends Equatable {
         driverStale,
         liveEtaSec,
         liveRemainingM,
+        unreadMessages,
         driverRoutePolyline,
         fareFinal,
         receipt,
