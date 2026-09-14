@@ -82,7 +82,29 @@ Flutter tests 56 core / 21 design_system / 16 shared_models / 20 rider /
 | Chat gated to live trips, TTL set once, per-user token bucket | `backend/src/chat/chat.service.ts` |
 | Push: allSettled delivery, prune dead tokens, no token hijack; `ParseUUIDPipe` on inbox ids | `backend/src/notifications/**` |
 
-## 7. Still required before a field test
+## 7. 2026-09-14 audit round (API + UI + Uber/Android gap analysis)
+Full findings and status: `docs/ios-audit-report-2026-09-14.md`.
+
+| What | Where |
+|---|---|
+| Live ETA/distance on every driver ping (`trip:driver_location` carries `etaSec/remainingM/phase/accuracy/ts`); rider "Arriving 12:47 PM · 1 min · 164 ft to go"; stale-ping watchdog | `backend/src/location/location.service.ts`, `apps/rider_app/lib/features/trip/trip_cubit.dart`, `apps/rider_app/lib/home_page.dart` |
+| Price lock: `POST /trips` takes `quotedFare/quotedSurge`, 409 `PRICE_CHANGED` → rider re-confirms with the new price | `backend/src/trips/trips.service.ts`, `apps/rider_app/lib/features/trip/trip_cubit.dart`, `packages/shared_models/lib/src/trip_estimate.dart` |
+| Arrival geofence 150 m; fare `breakdown` on completion + receipt; `GET /trips/active` restores driver/vehicle/ETA | `backend/src/trips/trips.service.ts`, `packages/shared_models/lib/src/fare_breakdown.dart`, `packages/core/lib/src/account/receipt_page.dart` |
+| Presence sync: `driver:status_changed`, `forceOffline` syncs DB + Redis; WS exception filter with real messages | `backend/src/realtime/{realtime.gateway.ts,ws-exceptions.filter.ts}`, `backend/src/drivers/drivers.service.ts`, `apps/driver_app/lib/features/driver/driver_cubit.dart` |
+| Offer carries road `approachEtaS/approachDistanceM`, `surge`, `dropoff`, `durationS`; declined set stops re-offers; `offer_expired` only on failed assign | `backend/src/dispatch/dispatch.service.ts`, `packages/shared_models/lib/src/ride_offer.dart`, `apps/driver_app/lib/home_page.dart` (`OfferOverlay`) |
+| Surge demand counted once per rider (SET) | `backend/src/surge/surge.service.ts` |
+| Places autocomplete biased to the rider, `distanceM` per result, sorted by distance | `backend/src/places/**`, `backend/src/geo/google-geo.provider.ts`, `packages/shared_models` places |
+| `ParseUUIDPipe` on trips/receipt/support/favorites ids; favorites existence check; saved-place label required; driver-facing notification copy | `backend/src/{trips,payments,support,favorites}/*.controller.ts`, `favorites.service.ts`, `users/dto/create-place.dto.ts`, `notifications/notifications.service.ts` |
+| Precise-location handling (temporary full accuracy, `PreciseRide` purpose key), location banner, driver online gate; ping `accuracy`/`ts`; `bestForNavigation`; mock location ignored in release | `apps/rider_app/lib/features/trip/{location_service.dart,location_banner.dart}`, `apps/driver_app/lib/features/driver/location_stream.dart`, `apps/*/ios/Runner/Info.plist` |
+| Map: `MapCameraMode.followDriver` (heading-up, zoom 17, tilt 30, pan suspends, north-up street zoom restored on exit), `MapMarkerKind` (blue "me" dot, z-order), route trimming helpers | `packages/design_system/lib/src/widgets/{app_map.dart,map_geo.dart}` |
+| Driver Navigate hand-off (Google Maps → Waze → Apple Maps → web), live "N m to pickup/dropoff" | `packages/core/lib/src/util/navigation_launcher.dart`, `apps/driver_app/lib/home_page.dart`, driver `Info.plist` (`LSApplicationQueriesSchemes`) |
+| Ride-options sheet at 58 % with pinned confirm footer; promo error visible; cancel is server-confirmed; recenter re-fits the phase; chat unread badges; start-code inline error + reset; floating snackbars above sheets | `packages/design_system/lib/src/widgets/app_sheet.dart`, `apps/rider_app/lib/home_page.dart`, `apps/driver_app/lib/home_page.dart` |
+| Rider handles `trip:cancelled`, `trip:otp_locked`, `trip:payment_warning`; driver earnings loaded at startup | `apps/rider_app/lib/features/trip/trip_cubit.dart`, `apps/driver_app/lib/features/driver/driver_cubit.dart` |
+| Branding: FairsVia icons + launch images (iOS + Android), `CFBundleName`, portrait-only, unique URL schemes `fairsvia-rider` / `fairsvia-driver` | `apps/*/ios/Runner/{Info.plist,Assets.xcassets}`, `apps/*/android/app/src/main/res/mipmap-*` |
+| Short realistic ride recorder (~106 m trip, 55 m approach, steps fire on real server state) | `tools/ios-e2e-record-short.sh` |
+| Debug error banner no longer masks real errors (plain text + copy) | `packages/core/lib/src/debug/error_overlay.dart` |
+
+## 8. Still required before a field test
 - Google Maps key is in place locally (gitignored files) — every new machine needs it added again.
 - Backend service keys (Google/OSRM routing, SMS, Stripe) and a phone-reachable backend URL.
 - Signed device builds (Apple Team on the Runner targets); real GPS / background location only exercised with `MOCK_LOCATION`.
