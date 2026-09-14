@@ -429,7 +429,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                                   MaterialPageRoute(
                                     builder: (menuCtx) => AccountMenuPage(
                                       isDriver: true,
-                                      onVehicle: () => _editVehicle(menuCtx),
+                                      onVehicle: () => _editVehicle(menuCtx, cubit),
                                       // A live trip must be finished first;
                                       // the backend refuses offline mid-trip.
                                       signOutBlocker: () =>
@@ -505,8 +505,10 @@ class _DriverHomeViewState extends State<_DriverHomeView>
 
   /// "Vehicle" from the account menu: the same dialog, prefilled from the
   /// server, saving without touching presence.
-  Future<void> _editVehicle(BuildContext context) async {
-    final cubit = context.read<DriverCubit>();
+  ///
+  /// [cubit] is passed in explicitly: the menu is a pushed route, so its
+  /// context sits outside this page's BlocProvider.
+  Future<void> _editVehicle(BuildContext context, DriverCubit cubit) async {
     final messenger = ScaffoldMessenger.of(context);
     DriverProfile profile;
     try {
