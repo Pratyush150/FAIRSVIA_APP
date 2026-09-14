@@ -706,6 +706,33 @@ void main() {
   );
 
   blocTest<TripCubit, TripState>(
+    'loadPaymentMethods falls back to cash when there is no card on file',
+    setUp: () =>
+        when(() => payments.methods()).thenAnswer((_) async => const []),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(paymentMode: 'card'),
+    act: (c) => c.loadPaymentMethods(),
+    expect: () => [
+      isA<TripState>().having((s) => s.paymentMode, 'paymentMode', 'cash'),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'loadPaymentMethods keeps a chosen mode when cards exist',
+    setUp: () => when(() => payments.methods()).thenAnswer(
+      (_) async => [
+        {'id': 'pm_1', 'brand': 'Visa', 'last4': '4242', 'isDefault': true},
+      ],
+    ),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(paymentMode: 'cash'),
+    act: (c) => c.loadPaymentMethods(),
+    expect: () => [
+      isA<TripState>().having((s) => s.paymentMode, 'paymentMode', 'cash'),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
     'cancelTrip cancels on the backend and resets to idle',
     setUp: () =>
         when(() => repo.cancelTrip(any(), reason: any(named: 'reason')))
