@@ -82,6 +82,23 @@ export class DriversService {
     return profile;
   }
 
+  /**
+   * The profile as the app should see it: `status` is the LIVE presence
+   * (Redis, what dispatch actually consults), falling back to the stored row
+   * when Redis has no entry. The stored column can lag behind a forced
+   * offline, and a driver polling this must learn the truth.
+   */
+  async getProfileWithPresence(userId: string) {
+    const profile = await this.getProfile(userId);
+    let live: string | null = null;
+    try {
+      live = await this.redis.client.get(RedisKeys.driverStatus(userId));
+    } catch {
+      live = null;
+    }
+    return { ...profile, status: live ?? profile.status };
+  }
+
   async setStatus(userId: string, status: 'online' | 'offline') {
     const profile = await this.getProfile(userId);
 

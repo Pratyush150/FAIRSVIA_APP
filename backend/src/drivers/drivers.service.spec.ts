@@ -157,3 +157,33 @@ describe('DriversService.forceOffline', () => {
     expect(realtime.emitToUser).toHaveBeenCalled();
   });
 });
+
+describe('DriversService.getProfileWithPresence', () => {
+  function make(dbStatus: string, liveStatus: string | null) {
+    const prisma = {
+      driverProfile: {
+        findUnique: jest.fn().mockResolvedValue({ userId: 'd1', status: dbStatus, docsVerified: true }),
+      },
+    };
+    const redis = { client: { get: jest.fn().mockResolvedValue(liveStatus) } };
+    const svc = new DriversService(
+      prisma as never,
+      redis as never,
+      { get: jest.fn() } as never,
+      { emitToUser: jest.fn() } as never,
+    );
+    return { svc, redis };
+  }
+
+  it('reports the live (Redis) presence over the stored column', async () => {
+    const { svc, redis } = make('online', 'offline');
+    const me = await svc.getProfileWithPresence('d1');
+    expect(me.status).toBe('offline');
+    expect(redis.client.get).toHaveBeenCalledWith('driver:d1:status');
+  });
+
+  it('falls back to the stored status when Redis has no entry', async () => {
+    const { svc } = make('online', null);
+    expect((await svc.getProfileWithPresence('d1')).status).toBe('online');
+  });
+});
