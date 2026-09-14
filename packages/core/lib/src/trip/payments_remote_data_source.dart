@@ -153,6 +153,25 @@ class PaymentsRemoteDataSource {
   /// Begin saving a real card: returns the PaymentSheet secrets + publishable
   /// key. When the backend runs the mock gateway the publishable key is empty
   /// (`isConfigured` false) and the caller uses the mock add-card flow instead.
+  /// Delete a saved card. The backend promotes another card to default when
+  /// the removed one was the default.
+  Future<void> removeMethod(String id) async {
+    try {
+      await _dio.delete<void>('/payments/methods/$id');
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Make [id] the default card for future rides.
+  Future<void> setDefaultMethod(String id) async {
+    try {
+      await _dio.patch<void>('/payments/methods/$id/default');
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   Future<StripeSetupIntent> createSetupIntent() async {
     try {
       final res =

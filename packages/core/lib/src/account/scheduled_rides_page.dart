@@ -93,9 +93,16 @@ class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                trip.scheduledAt != null
-                    ? Fmt.dateTime(trip.scheduledAt!)
-                    : 'Scheduled',
+                [
+                  if (trip.scheduledAt != null)
+                    Fmt.dateTime(trip.scheduledAt!)
+                  else
+                    'Scheduled',
+                  Fmt.status(trip.tier),
+                  if (trip.fareEstimate != null)
+                    '${Fmt.money(trip.fareEstimate!, trip.currency)} est.',
+                ].join(' · '),
+                maxLines: 2,
               ),
               trailing: TextButton(
                 onPressed: _cancelling ? null : () => _cancel(trip),

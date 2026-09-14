@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:core/core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -244,6 +245,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
           // an explicit pickup instead of quietly using the city centre.
           initialPickup: _hasRealLocation ? _myLocation : null,
           initialPickupLabel: _myLocationAddr,
+          savedPlaces: _savedPlaces,
         ),
       ),
     );
@@ -975,6 +977,66 @@ String _formatSchedule(DateTime when) {
   return '${months[local.month - 1]} ${local.day}, $h:$min $ampm';
 }
 
+/// The native wheel picker on Apple platforms (the Material calendar + clock
+/// dial looked out of place on iOS). Returns null when dismissed.
+Future<DateTime?> _pickCupertino(BuildContext context) async {
+  final now = DateTime.now();
+  // Backend rule: at least 5 min ahead; keep a minute of slack (see the
+  // Material path). Start on the next 5-minute mark an hour from now.
+  final floor = now.add(const Duration(minutes: 6));
+  var initial = now.add(const Duration(hours: 1));
+  initial = initial.subtract(Duration(
+    minutes: initial.minute % 5,
+    seconds: initial.second,
+    milliseconds: initial.millisecond,
+    microseconds: initial.microsecond,
+  ));
+  var picked = initial;
+  final theme = Theme.of(context);
+  final ok = await showCupertinoModalPopup<bool>(
+    context: context,
+    builder: (ctx) => Container(
+      height: 340,
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      color: theme.colorScheme.surface,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                CupertinoButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                const Spacer(),
+                Text('Schedule for', style: theme.textTheme.titleMedium),
+                const Spacer(),
+                CupertinoButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Done'),
+                ),
+              ],
+            ),
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.dateAndTime,
+                initialDateTime: initial,
+                minimumDate: floor,
+                maximumDate: now.add(const Duration(days: 30)),
+                minuteInterval: 5,
+                onDateTimeChanged: (d) => picked = d,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  if (ok != true) return null;
+  return picked.isBefore(floor) ? floor : picked;
+}
+
 /// "Ride now" vs "Schedule for …" row with a date/time picker.
 class _ScheduleRow extends StatelessWidget {
   const _ScheduleRow({required this.state});
@@ -982,6 +1044,12 @@ class _ScheduleRow extends StatelessWidget {
 
   Future<void> _pick(BuildContext context) async {
     final cubit = context.read<TripCubit>();
+    final platform = Theme.of(context).platform;
+    if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
+      final when = await _pickCupertino(context);
+      if (when != null) cubit.setScheduledAt(when);
+      return;
+    }
     final now = DateTime.now();
     final date = await showDatePicker(
       context: context,
@@ -1125,7 +1193,7 @@ class _PaymentModeToggle extends StatelessWidget {
     final cubit = context.read<TripCubit>();
     final card = _activeCard;
     final cardSelected = state.paymentMode == 'card';
-    final cardLabel = card == null ? 'Card' : _cardLabel(card);
+    final cardLabel = card == null ? 'Add card' : _cardLabel(card);
     // With >1 saved card, tapping Card opens a picker; otherwise it just
     // selects card mode (backend uses the default / mock method).
     final hasChoice = state.paymentMethods.length > 1;
@@ -1138,7 +1206,9 @@ class _PaymentModeToggle extends StatelessWidget {
             selected: cardSelected,
             trailing: hasChoice ? Icons.expand_more : null,
             onTap: () {
-              if (hasChoice) {
+              if (card == null) {
+                _addCard(context, cubit);
+              } else if (hasChoice) {
                 _showCardPicker(context, cubit);
               } else {
                 cubit.setPaymentMode('card');
@@ -1157,6 +1227,23 @@ class _PaymentModeToggle extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  /// No card on file: take the rider to Payment methods, then select the
+  /// card they added (if any) for this ride.
+  Future<void> _addCard(BuildContext context, TripCubit cubit) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PaymentMethodsPage(
+          payments: sl<PaymentsRemoteDataSource>(),
+          stripeCardAdder: sl.isRegistered<StripeCardAdder>()
+              ? sl<StripeCardAdder>()
+              : null,
+        ),
+      ),
+    );
+    await cubit.loadPaymentMethods();
+    if (cubit.state.paymentMethods.isNotEmpty) cubit.setPaymentMode('card');
   }
 
   Future<void> _showCardPicker(BuildContext context, TripCubit cubit) async {
@@ -1277,6 +1364,27 @@ class _PromoField extends StatefulWidget {
 
 class _PromoFieldState extends State<_PromoField> {
   final _controller = TextEditingController();
+
+  @override
+  void didUpdateWidget(covariant _PromoField old) {
+    super.didUpdateWidget(old);
+    // The field sits low in the scrolling sheet; an error or the "applied"
+    // chip appearing below the fold went unseen. Bring it into view.
+    final changed = old.state.promoError != widget.state.promoError ||
+        old.state.appliedPromo != widget.state.appliedPromo;
+    if (changed &&
+        (widget.state.promoError != null ||
+            widget.state.appliedPromo != null)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Scrollable.ensureVisible(
+          context,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 250),
+        );
+      });
+    }
+  }
 
   @override
   void dispose() {

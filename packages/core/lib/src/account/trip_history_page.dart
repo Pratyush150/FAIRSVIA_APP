@@ -89,7 +89,9 @@ class _TripTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        '${Fmt.dateTime(trip.completedAt ?? trip.requestedAt)} · '
+        // A scheduled ride is remembered by when it was booked for, not by
+        // the moment the rider tapped Schedule.
+        '${Fmt.dateTime(trip.completedAt ?? trip.scheduledAt ?? trip.requestedAt)} · '
         '${Fmt.status(_snake(trip.status))}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,

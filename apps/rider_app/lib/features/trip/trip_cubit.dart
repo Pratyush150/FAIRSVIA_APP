@@ -476,7 +476,11 @@ class TripCubit extends Cubit<TripState> {
   Future<void> loadPaymentMethods() async {
     try {
       final methods = await _payments.methods();
-      emit(state.copyWith(paymentMethods: methods));
+      // "Card" can't be the selection when there is no card on file.
+      final mode = methods.isEmpty && state.paymentMode == 'card'
+          ? 'cash'
+          : state.paymentMode;
+      emit(state.copyWith(paymentMethods: methods, paymentMode: mode));
     } catch (_) {
       // non-fatal — the picker just falls back to Card/Cash.
     }

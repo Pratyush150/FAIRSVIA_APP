@@ -37,7 +37,12 @@ class DestinationSearchPage extends StatefulWidget {
     this.initialPickup,
     this.initialPickupLabel = 'Current location',
     this.singleDestination = false,
+    this.savedPlaces = const [],
   });
+
+  /// Home / Work / other saved places, offered as one-tap destinations while
+  /// the destination field is empty (Uber-style shortcuts).
+  final List<SavedPlace> savedPlaces;
 
   /// Pickup field placeholder when no real position is known.
   static const String unsetPickupLabel = 'Set pickup location';
@@ -68,6 +73,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
   List<PlacePrediction> _predictions = [];
   bool _loading = false;
   bool _resolving = false;
+  bool _closing = false;
   String? _error;
 
   // Chosen ends. Pickup starts at the rider's current location (null when
@@ -116,6 +122,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
 
   void _onChanged(String value) {
     _debounce?.cancel();
+    // Losing focus while the page pops used to fire one last autocomplete
+    // for the address that was just chosen.
+    if (_closing) return;
     final q = value.trim();
     if (q.length < 2) {
       setState(() {
@@ -189,6 +198,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
     final pickup = _pickup;
     final dropoff = _dropoff;
     if (pickup != null && dropoff != null) {
+      _closing = true;
       Navigator.of(context).pop(RouteChoice(
         pickup: pickup,
         pickupAddr: _pickupLabel,
@@ -201,6 +211,32 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
       _pickupFocus.requestFocus();
     }
   }
+
+  /// Use a saved place for the active field, exactly like a picked prediction.
+  void _useSaved(SavedPlace place) {
+    final field = _active;
+    final address = place.address ?? place.label;
+    setState(() {
+      _predictions = [];
+      _error = null;
+      if (field == _Field.pickup) {
+        _pickup = place.point;
+        _pickupLabel = address;
+        _pickupCtrl.text = address;
+      } else {
+        _dropoff = place.point;
+        _dropoffLabel = address;
+        _dropoffCtrl.text = address;
+      }
+    });
+    _finishOrFocusMissing();
+  }
+
+  IconData _savedIcon(String label) => switch (label.toLowerCase()) {
+        'home' => Icons.home_rounded,
+        'work' => Icons.work_rounded,
+        _ => Icons.star_rounded,
+      };
 
   /// Where the map picker should open for the field being edited. Prefer that
   /// field's current point, then the pickup, then the configured city fallback
@@ -316,6 +352,28 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
             ),
           ),
           Divider(height: 1, color: theme.dividerColor),
+          if (widget.savedPlaces.isNotEmpty &&
+              _predictions.isEmpty &&
+              !_loading)
+            SizedBox(
+              height: 44,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+                children: [
+                  for (final p in widget.savedPlaces)
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: ActionChip(
+                        avatar: Icon(_savedIcon(p.label), size: 18),
+                        label: Text(p.label),
+                        onPressed: _resolving ? null : () => _useSaved(p),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           Expanded(
             child: Stack(
               children: [

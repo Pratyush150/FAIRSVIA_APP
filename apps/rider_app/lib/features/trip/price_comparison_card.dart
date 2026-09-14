@@ -156,7 +156,9 @@ class _QuoteRow extends StatelessWidget {
           Text(
             // Competitor estimates show a range (they're modeled, not exact);
             // our own fare shows a single precise number.
-            quote.isOurs || !quote.hasRange
+            quote.isOurs ||
+                    !quote.hasRange ||
+                    quote.priceLow.round() == quote.priceHigh.round()
                 ? money(quote.price)
                 : '\$${quote.priceLow.round()}–\$${quote.priceHigh.round()}',
             style: theme.textTheme.bodyMedium?.copyWith(

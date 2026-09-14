@@ -92,10 +92,13 @@ class _NameSetupPageState extends State<NameSetupPage> {
                 autofocus: true,
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
+                // Backend limit; capping here avoids the raw validator text.
+                maxLength: 120,
                 style: theme.textTheme.titleMedium,
                 decoration: const InputDecoration(
                   labelText: 'Full name',
                   hintText: 'Alex Rivera',
+                  counterText: '',
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),

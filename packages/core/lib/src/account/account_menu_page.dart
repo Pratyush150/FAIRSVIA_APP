@@ -78,6 +78,9 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
     // `state.user` (home drawer, name gate, next visit here) sees the edit.
     context.read<AuthBloc>().add(AuthProfileCompleted(updated));
     setState(() => _user = updated);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Profile updated.')));
   }
 
   Future<void> _confirmSignOut() async {

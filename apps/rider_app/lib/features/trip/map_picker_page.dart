@@ -54,6 +54,12 @@ class _MapPickerPageState extends State<MapPickerPage> {
   }
 
   void _onCenterChanged(LatLng c) {
+    // The map reports its opening centre once on first idle; that point was
+    // already resolved in initState — don't geocode it twice.
+    if ((c.latitude - _center.latitude).abs() < 1e-7 &&
+        (c.longitude - _center.longitude).abs() < 1e-7) {
+      return;
+    }
     _center = c;
     setState(() => _address = null); // "Locating…" until the debounce resolves
     _debounce?.cancel();

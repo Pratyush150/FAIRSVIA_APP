@@ -131,7 +131,7 @@ const _categories = <String, String>{
   'lost_item': 'Lost item',
   'driver': 'Driver',
   'app': 'App problem',
-  'other': 'Something else',
+  'other': 'Other',
 };
 
 class _NewTicketSheet extends StatefulWidget {

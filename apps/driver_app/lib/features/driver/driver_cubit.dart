@@ -22,7 +22,7 @@ class DriverCubit extends Cubit<DriverState> {
     Duration presenceInterval = const Duration(seconds: 30),
   })  : _checkLocation = checkLocation ?? checkLocationAccess,
         _acceptGrace = acceptGrace, // ignore: prefer_initializing_formals
-        _presenceInterval = presenceInterval,
+        _presenceInterval = presenceInterval, // ignore: prefer_initializing_formals
         super(const DriverState());
 
   final RealtimeClient _realtime;

@@ -81,6 +81,49 @@ class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
     if (added == true) _reload();
   }
 
+  Future<void> _setDefault(Map<String, dynamic> m) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.payments.setDefaultMethod(m['id'] as String);
+      _reload();
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  Future<void> _remove(Map<String, dynamic> m) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove this card?'),
+        content: Text(_label(m)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.payments.removeMethod(m['id'] as String);
+      _reload();
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  static String _label(Map<String, dynamic> m) =>
+      '${(m['brand'] as String? ?? 'Card').toUpperCase()} '
+      '•••• ${m['last4'] ?? '____'}';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -109,13 +152,26 @@ class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
             for (final m in list)
               ListTile(
                 leading: const Icon(Icons.credit_card),
-                title: Text(
-                  '${(m['brand'] as String? ?? 'Card').toUpperCase()} '
-                  '•••• ${m['last4'] ?? '____'}',
-                ),
+                title: Text(_label(m)),
                 subtitle: (m['isDefault'] == true)
                     ? const Text('Default')
                     : null,
+                trailing: PopupMenuButton<String>(
+                  tooltip: 'Card options',
+                  onSelected: (v) =>
+                      v == 'default' ? _setDefault(m) : _remove(m),
+                  itemBuilder: (_) => [
+                    if (m['isDefault'] != true)
+                      const PopupMenuItem(
+                        value: 'default',
+                        child: Text('Set as default'),
+                      ),
+                    const PopupMenuItem(
+                      value: 'remove',
+                      child: Text('Remove card'),
+                    ),
+                  ],
+                ),
               ),
           ],
         ),
