@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:shared_models/shared_models.dart';
 
 import '../network/api_exception.dart';
 
@@ -15,6 +16,7 @@ class Receipt {
     this.method = 'card',
     this.refundedAmount = 0,
     this.chargedAmount,
+    this.breakdown,
   });
 
   final String tripId;
@@ -37,6 +39,10 @@ class Receipt {
   /// (`payment.amount`; tips are charged separately and live in [tip]).
   /// Null when no payment record exists yet.
   final double? chargedAmount;
+
+  /// Itemised fare (base / distance / time / booking fee / surge / promo /
+  /// tip). Null for trips settled before the backend recorded one.
+  final FareBreakdown? breakdown;
 
   bool get isCash => method == 'cash';
   bool get isRefunded => refundedAmount > 0;
@@ -61,6 +67,7 @@ class Receipt {
       method: p?['method'] as String? ?? 'card',
       refundedAmount: (p?['refundedAmount'] as num?)?.toDouble() ?? 0,
       chargedAmount: (p?['amount'] as num?)?.toDouble(),
+      breakdown: FareBreakdown.fromJsonOrNull(j['breakdown']),
     );
   }
 }

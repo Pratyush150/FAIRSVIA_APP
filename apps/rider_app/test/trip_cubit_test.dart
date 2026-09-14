@@ -196,6 +196,130 @@ void main() {
   );
 
   blocTest<TripCubit, TripState>(
+    'driver pings prefer the server-routed etaSec/remainingM when present',
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.driverEnRoute,
+      driver: AssignedDriver(
+        name: 'Ava',
+        rating: 4.9,
+        etaSec: 55,
+        etaDistanceM: 111,
+      ),
+      driverRoutePolyline: '_ki|C~ulhNbB?bB?',
+    ),
+    act: (c) {
+      // Server numbers win over the along-the-polyline estimate (~111 m).
+      c.debugDriverLocation({
+        'lat': 25.7760,
+        'lng': -80.1880,
+        'heading': 90,
+        'speed': 8.2,
+        'accuracy': 5,
+        'ts': 1700000000000,
+        'phase': 'approach',
+        'etaSec': 240,
+        'remainingM': 1850.4,
+        'etaSource': 'route',
+      });
+      // A ping without them (older backend / no nav leg) falls back.
+      c.debugDriverLocation({'lat': 25.7752, 'lng': -80.1880, 'etaSec': null});
+    },
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.liveEtaSec, 'server eta', 240)
+          .having((s) => s.liveRemainingM, 'server remaining (rounded)', 1850)
+          .having((s) => s.driverHeading, 'heading', 90)
+          .having((s) => s.driverStale, 'stale', isFalse),
+      isA<TripState>()
+          .having((s) => s.liveRemainingM, 'client fallback', lessThan(40))
+          .having((s) => s.liveEtaSec, 'client fallback eta', lessThan(20))
+          .having((s) => s.driverHeading, 'heading kept', 90),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'trip:completed carries the itemised breakdown; the receipt copy wins',
+    setUp: () {
+      scripted = ScriptedRealtimeClient();
+      when(() => repo.activeTripDetails()).thenAnswer((_) async => null);
+      when(() => payments.receipt('t1')).thenAnswer((_) async => const Receipt(
+            tripId: 't1',
+            fare: 7.57,
+            currency: 'USD',
+            tip: 2,
+            breakdown: FareBreakdown(
+              baseFare: 2.5,
+              distanceFare: 3.12,
+              timeFare: 1.2,
+              bookingFee: 1.75,
+              surgeMultiplier: 1.2,
+              promoDiscount: 1,
+              tip: 2,
+            ),
+          ));
+    },
+    build: () => TripCubit(repo, scripted, payments, ratings),
+    seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+    act: (c) async {
+      await c.init('token');
+      scripted.push('trip:completed', {
+        'tripId': 't1',
+        'fareFinal': 7.57,
+        'currency': 'USD',
+        'breakdown': {
+          'baseFare': 2.5,
+          'distanceFare': 3.12,
+          'timeFare': 1.2,
+          'bookingFee': 1.75,
+          'surgeMultiplier': 1.2,
+          'promoDiscount': 1,
+          'tip': 0,
+        },
+      });
+      await Future<void>.delayed(Duration.zero);
+    },
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.completed)
+          .having((s) => s.fareFinal, 'fareFinal', 7.57)
+          .having((s) => s.breakdown?.baseFare, 'base', 2.5)
+          .having((s) => s.breakdown?.surgeMultiplier, 'surge', 1.2)
+          .having((s) => s.breakdown?.promoDiscount, 'promo', 1)
+          .having((s) => s.fareBreakdown?.tip, 'event tip', 0),
+      isA<TripState>()
+          .having((s) => s.receipt?.breakdown?.tip, 'receipt tip', 2)
+          .having((s) => s.fareBreakdown?.tip, 'receipt copy wins', 2),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'trip:completed with a null breakdown keeps the two-line total',
+    setUp: () {
+      scripted = ScriptedRealtimeClient();
+      when(() => repo.activeTripDetails()).thenAnswer((_) async => null);
+      when(() => payments.receipt('t1')).thenAnswer((_) async =>
+          const Receipt(tripId: 't1', fare: 7.57, currency: 'USD'));
+    },
+    build: () => TripCubit(repo, scripted, payments, ratings),
+    seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+    act: (c) async {
+      await c.init('token');
+      scripted.push('trip:completed',
+          {'tripId': 't1', 'fareFinal': 7.57, 'breakdown': null});
+      await Future<void>.delayed(Duration.zero);
+    },
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.completed)
+          .having((s) => s.fareBreakdown, 'no breakdown', isNull),
+      isA<TripState>()
+          .having((s) => s.receipt?.fare, 'receipt', 7.57)
+          .having((s) => s.fareBreakdown, 'still none', isNull),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
     'selectTier updates the selected tier',
     build: () => TripCubit(repo, realtime, payments, ratings),
     seed: () => const TripState(
@@ -221,6 +345,8 @@ void main() {
         promoCode: any(named: 'promoCode'),
         paymentMode: any(named: 'paymentMode'),
         scheduledAt: any(named: 'scheduledAt'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
       ),
     ).thenAnswer((_) async => trip),
     build: () => TripCubit(repo, realtime, payments, ratings),
@@ -241,6 +367,233 @@ void main() {
   );
 
   blocTest<TripCubit, TripState>(
+    'confirmRide sends the quoted fare + surge the rider saw (price lock)',
+    setUp: () => when(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: any(named: 'tier'),
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: any(named: 'paymentMode'),
+        paymentMethodId: any(named: 'paymentMethodId'),
+        scheduledAt: any(named: 'scheduledAt'),
+        stops: any(named: 'stops'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
+      ),
+    ).thenAnswer((_) async => trip),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.choosingRide,
+      pickup: pickup,
+      dropoff: dropoff,
+      estimate: estimate,
+      selectedTier: 'xl',
+    ),
+    act: (c) => c.confirmRide(),
+    verify: (_) => verify(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: 'xl',
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: any(named: 'paymentMode'),
+        paymentMethodId: any(named: 'paymentMethodId'),
+        scheduledAt: any(named: 'scheduledAt'),
+        stops: any(named: 'stops'),
+        quotedFare: 246.63,
+        quotedSurge: 1.0,
+      ),
+    ).called(1),
+  );
+
+  blocTest<TripCubit, TripState>(
+    '409 PRICE_CHANGED re-prices the selected tier + surge and asks to '
+    're-confirm instead of resetting',
+    setUp: () => when(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: any(named: 'tier'),
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: any(named: 'paymentMode'),
+        paymentMethodId: any(named: 'paymentMethodId'),
+        scheduledAt: any(named: 'scheduledAt'),
+        stops: any(named: 'stops'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
+      ),
+    ).thenThrow(const ApiException(
+      'The price has changed (now 1.2x). Please confirm the new fare.',
+      statusCode: 409,
+      code: 'PRICE_CHANGED',
+      body: {
+        'statusCode': 409,
+        'code': 'PRICE_CHANGED',
+        'fare': 171.58,
+        'surge': 1.2,
+        'estimate': {
+          'tier': 'economy',
+          'fare': 171.58,
+          'surge': 1.2,
+          'currency': 'USD',
+        },
+      },
+    )),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.choosingRide,
+      pickup: pickup,
+      pickupAddr: 'A',
+      dropoff: dropoff,
+      dropoffAddr: 'B',
+      estimate: estimate,
+      selectedTier: 'economy',
+      paymentMode: 'cash',
+    ),
+    act: (c) => c.confirmRide(),
+    expect: () => [
+      isA<TripState>().having((s) => s.phase, 'phase', TripPhase.requesting),
+      isA<TripState>()
+          .having((s) => s.phase, 'stays on ride options',
+              TripPhase.choosingRide)
+          .having((s) => s.estimate?.surge, 'surge updated', 1.2)
+          .having((s) => s.selectedFare?.fare, 'selected fare updated', 171.58)
+          .having((s) => s.selectedTier, 'tier kept', 'economy')
+          // The other tier keeps its quote; route/addresses/payment survive.
+          .having((s) => s.estimate?.tiers[1].fare, 'xl untouched', 246.63)
+          .having((s) => s.estimate?.polyline, 'route kept', 'abcd')
+          .having((s) => s.pickupAddr, 'pickup kept', 'A')
+          .having((s) => s.paymentMode, 'payment kept', 'cash')
+          .having((s) => s.trip, 'no trip', isNull)
+          .having((s) => s.error, 'error',
+              'Price updated to \$171.58 — tap Confirm to accept'),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'a 409 PRICE_CHANGED without a fare falls back to the server message',
+    setUp: () => when(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: any(named: 'tier'),
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: any(named: 'paymentMode'),
+        paymentMethodId: any(named: 'paymentMethodId'),
+        scheduledAt: any(named: 'scheduledAt'),
+        stops: any(named: 'stops'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
+      ),
+    ).thenThrow(const ApiException(
+      'The price has changed.',
+      statusCode: 409,
+      code: 'PRICE_CHANGED',
+      body: {'code': 'PRICE_CHANGED'},
+    )),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.choosingRide,
+      pickup: pickup,
+      dropoff: dropoff,
+      estimate: estimate,
+      selectedTier: 'economy',
+    ),
+    act: (c) => c.confirmRide(),
+    expect: () => [
+      isA<TripState>().having((s) => s.phase, 'phase', TripPhase.requesting),
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.choosingRide)
+          .having((s) => s.estimate, 'estimate unchanged', estimate)
+          .having((s) => s.error, 'error', 'The price has changed.'),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'a re-confirm after PRICE_CHANGED sends the new quote and succeeds',
+    setUp: () {
+      var calls = 0;
+      when(
+        () => repo.createTrip(
+          pickup: any(named: 'pickup'),
+          dropoff: any(named: 'dropoff'),
+          tier: any(named: 'tier'),
+          pickupAddr: any(named: 'pickupAddr'),
+          dropoffAddr: any(named: 'dropoffAddr'),
+          promoCode: any(named: 'promoCode'),
+          paymentMode: any(named: 'paymentMode'),
+          paymentMethodId: any(named: 'paymentMethodId'),
+          scheduledAt: any(named: 'scheduledAt'),
+          stops: any(named: 'stops'),
+          quotedFare: any(named: 'quotedFare'),
+          quotedSurge: any(named: 'quotedSurge'),
+        ),
+      ).thenAnswer((_) async {
+        if (calls++ == 0) {
+          throw const ApiException(
+            'The price has changed.',
+            statusCode: 409,
+            code: 'PRICE_CHANGED',
+            body: {'code': 'PRICE_CHANGED', 'fare': 150.5, 'surge': 1.1},
+          );
+        }
+        return trip;
+      });
+    },
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.choosingRide,
+      pickup: pickup,
+      dropoff: dropoff,
+      estimate: estimate,
+      selectedTier: 'economy',
+    ),
+    act: (c) async {
+      await c.confirmRide();
+      await c.confirmRide();
+    },
+    expect: () => [
+      isA<TripState>().having((s) => s.phase, 'phase', TripPhase.requesting),
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.choosingRide)
+          .having((s) => s.selectedFare?.fare, 'fare', 150.5),
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.requesting)
+          .having((s) => s.error, 'prompt cleared', isNull),
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.searching)
+          .having((s) => s.trip?.id, 'trip', 't1'),
+    ],
+    verify: (_) {
+      verify(
+        () => repo.createTrip(
+          pickup: any(named: 'pickup'),
+          dropoff: any(named: 'dropoff'),
+          tier: any(named: 'tier'),
+          pickupAddr: any(named: 'pickupAddr'),
+          dropoffAddr: any(named: 'dropoffAddr'),
+          promoCode: any(named: 'promoCode'),
+          paymentMode: any(named: 'paymentMode'),
+          paymentMethodId: any(named: 'paymentMethodId'),
+          scheduledAt: any(named: 'scheduledAt'),
+          stops: any(named: 'stops'),
+          quotedFare: 150.5,
+          quotedSurge: 1.1,
+        ),
+      ).called(1);
+    },
+  );
+
+  blocTest<TripCubit, TripState>(
     'selectPaymentCard sets card mode + id; confirmRide passes paymentMethodId',
     setUp: () => when(
       () => repo.createTrip(
@@ -253,6 +606,8 @@ void main() {
         paymentMode: any(named: 'paymentMode'),
         paymentMethodId: any(named: 'paymentMethodId'),
         scheduledAt: any(named: 'scheduledAt'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
       ),
     ).thenAnswer((_) async => trip),
     build: () => TripCubit(repo, realtime, payments, ratings),
@@ -278,6 +633,8 @@ void main() {
         paymentMode: 'card',
         paymentMethodId: 'pm_1',
         scheduledAt: any(named: 'scheduledAt'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
       ),
     ).called(1),
   );
@@ -295,6 +652,8 @@ void main() {
         paymentMode: any(named: 'paymentMode'),
         paymentMethodId: any(named: 'paymentMethodId'),
         scheduledAt: any(named: 'scheduledAt'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
       ),
     ).thenAnswer((_) async => trip),
     build: () => TripCubit(repo, realtime, payments, ratings),
@@ -322,6 +681,8 @@ void main() {
         paymentMode: 'cash',
         paymentMethodId: null,
         scheduledAt: any(named: 'scheduledAt'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
       ),
     ).called(1),
   );

@@ -130,7 +130,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
 
   Future<void> _search(String q) async {
     try {
-      final results = await _repo.autocomplete(q);
+      // The rider's real position (never the city fallback) biases results
+      // and gives each row its distance; nearest-first when all are known.
+      final results = await _repo.autocomplete(q, near: widget.initialPickup);
       if (!mounted) return;
       setState(() {
         _predictions = results;
@@ -380,9 +382,20 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                                   ],
                                 ),
                               ),
-                              Icon(Icons.north_east_rounded,
-                                  size: 18,
-                                  color: theme.colorScheme.outline),
+                              if (p.distanceM != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      left: AppSpacing.sm),
+                                  child: Text(
+                                    Fmt.distance(p.distanceM!),
+                                    style: theme.textTheme.bodySmall
+                                        ?.tabular(),
+                                  ),
+                                )
+                              else
+                                Icon(Icons.north_east_rounded,
+                                    size: 18,
+                                    color: theme.colorScheme.outline),
                             ],
                           ),
                         ),

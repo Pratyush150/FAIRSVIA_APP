@@ -11,8 +11,14 @@ class TripRepository {
   final PlacesRemoteDataSource _places;
   final TripRemoteDataSource _trips;
 
-  Future<List<PlacePrediction>> autocomplete(String query, {String? sessionToken}) =>
-      _places.autocomplete(query, sessionToken: sessionToken);
+  /// Place search; [near] (the rider's position) biases results and lets the
+  /// backend attach `distanceM` per prediction.
+  Future<List<PlacePrediction>> autocomplete(
+    String query, {
+    String? sessionToken,
+    GeoPoint? near,
+  }) =>
+      _places.autocomplete(query, sessionToken: sessionToken, near: near);
 
   Future<PlaceDetails> placeDetails(String placeId) =>
       _places.details(placeId);
@@ -39,6 +45,8 @@ class TripRepository {
     String? paymentMethodId,
     DateTime? scheduledAt,
     List<TripStop> stops = const [],
+    double? quotedFare,
+    double? quotedSurge,
   }) =>
       _trips.create(
         pickup: pickup,
@@ -51,6 +59,8 @@ class TripRepository {
         paymentMethodId: paymentMethodId,
         scheduledAt: scheduledAt,
         stops: stops,
+        quotedFare: quotedFare,
+        quotedSurge: quotedSurge,
       );
 
   /// The rider's upcoming scheduled rides.

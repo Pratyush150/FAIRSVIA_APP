@@ -23,6 +23,31 @@ void main() {
     });
   });
 
+  group('Fmt.distance', () {
+    test('short hops read in feet, rounded to 10 ft', () {
+      expect(Fmt.distance(0), '0 ft');
+      expect(Fmt.distance(107), '350 ft');
+      expect(Fmt.distance(160), '520 ft');
+    });
+
+    test('a tenth of a mile and up reads in miles with one decimal', () {
+      expect(Fmt.distance(161), '0.1 mi');
+      expect(Fmt.distance(644), '0.4 mi');
+      expect(Fmt.distance(19792), '12.3 mi');
+    });
+
+    test('never goes negative', () {
+      expect(Fmt.distance(-5), '0 ft');
+    });
+  });
+
+  group('Fmt.surge', () {
+    test('one decimal with a multiplication sign', () {
+      expect(Fmt.surge(1.2), '1.2×');
+      expect(Fmt.surge(2), '2.0×');
+    });
+  });
+
   group('Fmt.status', () {
     test('humanizes snake_case backend statuses', () {
       expect(Fmt.status('in_progress'), 'In progress');

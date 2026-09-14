@@ -37,6 +37,41 @@ class TripEstimate extends Equatable {
   /// Distance in statute miles (US market). The backend reports meters.
   double get distanceMi => distanceM / 1609.34;
 
+  /// The estimate with [tier]'s fare replaced by the server's fresh number
+  /// (a `409 PRICE_CHANGED` reply to POST /trips) and the surge updated. Other
+  /// tiers keep their quoted fares: the rider is re-confirming the tier they
+  /// picked, and the server only re-priced that one. Unknown [tier] → the
+  /// surge still updates, no fare changes.
+  TripEstimate repriced({
+    required String tier,
+    required double fare,
+    double? surge,
+  }) =>
+      TripEstimate(
+        distanceM: distanceM,
+        durationS: durationS,
+        polyline: polyline,
+        surge: surge ?? this.surge,
+        currency: currency,
+        pickup: pickup,
+        dropoff: dropoff,
+        tiers: [
+          for (final t in tiers)
+            t.tier == tier
+                ? FareTier(
+                    tier: t.tier,
+                    label: t.label,
+                    capacity: t.capacity,
+                    fare: fare,
+                    currency: t.currency,
+                    etaSeconds: t.etaSeconds,
+                  )
+                : t,
+        ],
+        stops: stops,
+        comparison: comparison,
+      );
+
   factory TripEstimate.fromJson(Map<String, dynamic> json) => TripEstimate(
         distanceM: (json['distanceM'] as num).toInt(),
         durationS: (json['durationS'] as num).toInt(),

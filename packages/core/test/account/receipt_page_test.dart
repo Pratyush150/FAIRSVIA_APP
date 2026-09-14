@@ -94,6 +94,106 @@ void main() {
     expect(find.text('Paid in cash'), findsNothing);
   });
 
+  group('breakdown', () {
+    const breakdown = FareBreakdown(
+      baseFare: 2.5,
+      distanceFare: 3.12,
+      timeFare: 1.2,
+      bookingFee: 1.75,
+      surgeMultiplier: 1.2,
+      promoDiscount: 1,
+      tip: 2,
+    );
+
+    test('Receipt.fromJson parses breakdown and tolerates null', () {
+      final r = Receipt.fromJson({
+        'tripId': 't1',
+        'fare': 7.57,
+        'currency': 'USD',
+        'breakdown': {
+          'baseFare': 2.5,
+          'distanceFare': 3.12,
+          'timeFare': 1.2,
+          'bookingFee': 1.75,
+          'surgeMultiplier': 1.2,
+          'promoDiscount': 1,
+          'tip': 2,
+        },
+      });
+      expect(r.breakdown, breakdown);
+      final legacy = Receipt.fromJson(
+          {'tripId': 't1', 'fare': 7.57, 'currency': 'USD', 'breakdown': null});
+      expect(legacy.breakdown, isNull);
+    });
+
+    testWidgets('itemised lines show above the fare when present',
+        (tester) async {
+      await show(
+        tester,
+        const Receipt(
+          tripId: 't1',
+          fare: 7.57,
+          currency: 'USD',
+          tip: 2,
+          breakdown: breakdown,
+        ),
+      );
+
+      expect(find.text('Base fare'), findsOneWidget);
+      expect(find.text('\$2.50'), findsOneWidget);
+      expect(find.text('Distance'), findsOneWidget);
+      expect(find.text('\$3.12'), findsOneWidget);
+      expect(find.text('Time'), findsOneWidget);
+      expect(find.text('\$1.20'), findsOneWidget);
+      expect(find.text('Booking fee'), findsOneWidget);
+      expect(find.text('\$1.75'), findsOneWidget);
+      expect(find.text('Surge'), findsOneWidget);
+      expect(find.text('1.2×'), findsOneWidget);
+      expect(find.text('Promo'), findsOneWidget);
+      expect(find.text('−\$1'), findsOneWidget);
+      // The receipt's own Tip line renders once (showTip: false on the rows).
+      expect(find.text('Tip'), findsOneWidget);
+      expect(find.text('\$2'), findsOneWidget);
+      // Headline fare and total are still the authoritative numbers.
+      expect(find.text('Fare'), findsOneWidget);
+      expect(find.text('\$7.57'), findsOneWidget);
+      expect(find.text('\$9.57'), findsOneWidget);
+    });
+
+    testWidgets('surge and promo lines are hidden at 1x / no discount',
+        (tester) async {
+      await show(
+        tester,
+        const Receipt(
+          tripId: 't1',
+          fare: 8.57,
+          currency: 'USD',
+          breakdown: FareBreakdown(
+            baseFare: 2.5,
+            distanceFare: 3.12,
+            timeFare: 1.2,
+            bookingFee: 1.75,
+          ),
+        ),
+      );
+      expect(find.text('Base fare'), findsOneWidget);
+      expect(find.text('Surge'), findsNothing);
+      expect(find.text('Promo'), findsNothing);
+      expect(find.text('Tip'), findsNothing);
+    });
+
+    testWidgets('a null breakdown keeps the plain fare/total receipt',
+        (tester) async {
+      await show(
+        tester,
+        const Receipt(tripId: 't1', fare: 10, currency: 'USD'),
+      );
+      expect(find.text('Base fare'), findsNothing);
+      expect(find.text('Booking fee'), findsNothing);
+      expect(find.text('\$10'), findsNWidgets(2)); // Fare + Total
+    });
+  });
+
   testWidgets('a cash trip says so', (tester) async {
     await show(
       tester,

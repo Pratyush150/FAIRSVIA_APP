@@ -9,9 +9,14 @@ class PlacesRemoteDataSource {
 
   final Dio _dio;
 
+  /// Autocomplete [query]. With [near] (the rider's current position) the
+  /// backend biases results around it and reports `distanceM` per prediction;
+  /// when every prediction carries one the list is returned nearest-first
+  /// (the provider's bias alone is soft).
   Future<List<PlacePrediction>> autocomplete(
     String query, {
     String? sessionToken,
+    GeoPoint? near,
   }) async {
     try {
       final res = await _dio.get<Map<String, dynamic>>(
@@ -19,12 +24,14 @@ class PlacesRemoteDataSource {
         queryParameters: {
           'q': query,
           'sessionToken': ?sessionToken,
+          'lat': ?near?.lat,
+          'lng': ?near?.lng,
         },
       );
       final predictions = (res.data?['predictions'] as List<dynamic>? ?? [])
           .map((e) => PlacePrediction.fromJson(e as Map<String, dynamic>))
           .toList();
-      return predictions;
+      return PlacePrediction.sortedByDistance(predictions);
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }

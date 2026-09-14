@@ -67,6 +67,8 @@ class TripRemoteDataSource {
     String? paymentMethodId,
     DateTime? scheduledAt,
     List<TripStop> stops = const [],
+    double? quotedFare,
+    double? quotedSurge,
   }) async {
     try {
       final res = await _dio.post<Map<String, dynamic>>(
@@ -84,6 +86,11 @@ class TripRemoteDataSource {
           'paymentMethodId': ?paymentMethodId,
           'scheduledAt': ?scheduledAt?.toUtc().toIso8601String(),
           if (stops.isNotEmpty) 'stops': stops.map((s) => s.toJson()).toList(),
+          // Price lock: the fare/surge the rider saw on the sheet. A move
+          // beyond the server's tolerance is refused with 409 PRICE_CHANGED
+          // (see ApiException.code/body) so the rider re-confirms.
+          'quotedFare': ?quotedFare,
+          'quotedSurge': ?quotedSurge,
         },
       );
       return Trip.fromJson(res.data!);

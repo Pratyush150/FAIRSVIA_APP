@@ -895,7 +895,11 @@ class _StopsSection extends StatelessWidget {
     final cubit = context.read<TripCubit>();
     final details = await Navigator.of(context).push<PlaceDetails>(
       MaterialPageRoute(
-        builder: (_) => const DestinationSearchPage(singleDestination: true),
+        builder: (_) => DestinationSearchPage(
+          singleDestination: true,
+          // Only used to bias/sort the suggestions in this mode.
+          initialPickup: state.pickup,
+        ),
       ),
     );
     if (details != null) {
@@ -1438,7 +1442,9 @@ class _RideTierTile extends StatelessWidget {
               ),
             ),
             Text(
-              '\$${tier.fare.toStringAsFixed(0)}',
+              // Same rule as the confirm footer (Fmt.money): whole dollars
+              // stay whole, otherwise cents — so the list and the CTA agree.
+              '\$${_money(tier.fare)}',
               style: theme.textTheme.titleLarge?.tabular(),
             ),
           ],
@@ -1962,13 +1968,11 @@ class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
         await _favorites.remove(widget.driverId);
       }
       if (mounted) setState(() => _favorited = next);
-      messenger.showSnackBar(SnackBar(
-        content: Text(next
-            ? 'Added ${widget.driverName ?? 'driver'} to favourites'
-            : 'Removed from favourites'),
-      ));
+      messenger.showSnackBar(_completionSnackBar(next
+          ? 'Added ${widget.driverName ?? 'driver'} to favourites'
+          : 'Removed from favourites'));
     } on ApiException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      messenger.showSnackBar(_completionSnackBar(e.message));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1987,6 +1991,23 @@ class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
     );
   }
 }
+
+/// Snackbar for the trip-complete sheet: floats above the pinned Done button
+/// instead of sliding up over it (a fixed snackbar sits flush with the
+/// bottom edge, exactly where the CTA is).
+SnackBar _completionSnackBar(String text) => SnackBar(
+      content: Text(text),
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        _kCompletionSnackBarLift,
+      ),
+    );
+
+/// Bottom margin that clears the Done button (button + sheet padding).
+const double _kCompletionSnackBarLift = 96;
 
 class _CompletedSheet extends StatelessWidget {
   const _CompletedSheet({required this.state});
@@ -2031,6 +2052,14 @@ class _CompletedSheet extends StatelessWidget {
                 if (tip > 0) _ReceiptRow(label: 'Tip', value: tip),
                 Divider(height: AppSpacing.lg, color: theme.dividerColor),
                 _ReceiptRow(label: 'Total', value: fare + tip, bold: true),
+                // Itemised lines (base / distance / time / booking fee /
+                // surge / promo) when the backend recorded them; older
+                // trips keep the two-line total above.
+                if (state.fareBreakdown != null)
+                  _FareDetails(
+                    breakdown: state.fareBreakdown!,
+                    currency: state.receipt?.currency ?? 'USD',
+                  ),
               ],
             ),
           ),
@@ -2120,6 +2149,64 @@ class _CompletedSheet extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Collapsible "Fare details" disclosure under the receipt total. The tip
+/// line is the sheet's own (it tracks the just-added tip live), so the
+/// breakdown's tip is not repeated here.
+class _FareDetails extends StatefulWidget {
+  const _FareDetails({required this.breakdown, required this.currency});
+  final FareBreakdown breakdown;
+  final String currency;
+
+  @override
+  State<_FareDetails> createState() => _FareDetailsState();
+}
+
+class _FareDetailsState extends State<_FareDetails> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            child: Row(
+              children: [
+                Text('Fare details',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: AppColors.accent)),
+                const Spacer(),
+                Icon(
+                  _open
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 20,
+                  color: AppColors.accent,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_open)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+            child: FareBreakdownRows(
+              breakdown: widget.breakdown,
+              currency: widget.currency,
+              showTip: false,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+      ],
     );
   }
 }

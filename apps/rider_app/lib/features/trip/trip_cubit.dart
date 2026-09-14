@@ -38,6 +38,14 @@ class TripCubit extends Cubit<TripState> {
   static const String otpLockedMessage =
       'Too many wrong start codes — ask your driver to retry in 15 min';
 
+  /// Backend error code on POST /trips when the fare/surge moved past the
+  /// quote the rider confirmed (409).
+  static const String priceChangedCode = 'PRICE_CHANGED';
+
+  /// The re-confirm prompt after a price change; [amount] is the new fare.
+  static String priceChangedMessage(double amount) =>
+      'Price updated to \$${amount.toStringAsFixed(2)} — tap Confirm to accept';
+
   /// Subscribe to trip lifecycle events, then connect the socket.
   AccessTokenProvider? _tokenProvider;
 
@@ -310,7 +318,15 @@ class TripCubit extends Cubit<TripState> {
     final lng = (data['lng'] as num?)?.toDouble();
     if (lat == null || lng == null) return;
     final here = GeoPoint(lat, lng);
-    final live = _liveProgress(here);
+    // The server now routes the ETA itself (`etaSec`/`remainingM`, with
+    // `etaSource` route|straight); prefer it and fall back to our own
+    // along-the-polyline estimate when a ping (older backend, no nav leg)
+    // omits either number.
+    final serverEta = (data['etaSec'] as num?)?.round();
+    final serverRemaining = (data['remainingM'] as num?)?.round();
+    final live = (serverEta != null && serverRemaining != null)
+        ? (etaSec: serverEta, remainingM: serverRemaining)
+        : _liveProgress(here);
     final heading = (data['heading'] as num?)?.toDouble();
     _restartStaleWatchdog();
     emit(state.copyWith(
@@ -366,6 +382,7 @@ class TripCubit extends Cubit<TripState> {
     emit(state.copyWith(
       phase: TripPhase.completed,
       fareFinal: (data['fareFinal'] as num?)?.toDouble(),
+      breakdown: FareBreakdown.fromJsonOrNull(data['breakdown']),
     ));
     // Pull the full receipt (fare + fee + payout + tip) for the summary sheet.
     final tripId = state.trip?.id;
@@ -568,6 +585,10 @@ class TripCubit extends Cubit<TripState> {
         // lead rule can't reject a ride the UI already accepted.
         scheduledAt: _sendableSchedule(s.scheduledAt),
         stops: s.stops,
+        // Price lock: the (gross, pre-promo) fare and surge the rider saw on
+        // the sheet. The server refuses with 409 PRICE_CHANGED if they moved.
+        quotedFare: s.selectedFare?.fare,
+        quotedSurge: s.estimate?.surge,
       );
       // A scheduled ride isn't dispatched now — confirm it and return to idle
       // (it will surface again from the scheduled-rides list at its time).
@@ -577,8 +598,38 @@ class TripCubit extends Cubit<TripState> {
       }
       emit(state.copyWith(phase: TripPhase.searching, trip: trip));
     } on ApiException catch (e) {
+      if (e.code == priceChangedCode && _applyPriceChange(e, s.selectedTier!)) {
+        return;
+      }
       emit(state.copyWith(phase: TripPhase.choosingRide, error: e.message));
     }
+  }
+
+  /// The price moved between the sheet and Confirm: keep the rider on the
+  /// ride options with the selected tier re-priced to the server's numbers
+  /// and ask them to confirm again (Uber-style). Returns false when the 409
+  /// body carries no usable fare, so the caller shows the plain message.
+  bool _applyPriceChange(ApiException e, String tier) {
+    final body = e.body;
+    final estimate = state.estimate;
+    if (body == null || estimate == null) return false;
+    final est = body['estimate'];
+    final fare = ((est is Map ? est['fare'] : null) ?? body['fare']) as num?;
+    final surge = ((est is Map ? est['surge'] : null) ?? body['surge']) as num?;
+    if (fare == null) return false;
+    final repriced = estimate.repriced(
+      tier: tier,
+      fare: fare.toDouble(),
+      surge: surge?.toDouble(),
+    );
+    // An applied promo stays: its code is re-sent on the next Confirm and
+    // the server re-prices the discount against the new fare.
+    emit(state.copyWith(
+      phase: TripPhase.choosingRide,
+      estimate: repriced,
+      error: priceChangedMessage(fare.toDouble()),
+    ));
+    return true;
   }
 
   /// Cancels the active trip and returns the cancellation fee charged (0 when

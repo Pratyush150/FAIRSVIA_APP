@@ -35,6 +35,7 @@ class TripState extends Equatable {
     this.unreadMessages = 0,
     this.driverRoutePolyline,
     this.fareFinal,
+    this.breakdown,
     this.receipt,
     this.tipAmount,
     this.tipping = false,
@@ -87,6 +88,10 @@ class TripState extends Equatable {
   /// to the trip route.
   final String? driverRoutePolyline;
   final double? fareFinal;
+
+  /// Itemised fare from the `trip:completed` event (the receipt's copy wins
+  /// once it loads). Null for trips the backend settled without one.
+  final FareBreakdown? breakdown;
   final Receipt? receipt;
   final double? tipAmount;
   final bool tipping;
@@ -124,6 +129,10 @@ class TripState extends Equatable {
   /// One-shot informational message (e.g. a payment warning) for the UI to
   /// show as a snackbar; cleared with [TripCubit.clearNotice] once shown.
   final String? notice;
+
+  /// The breakdown to draw on the completion sheet: the receipt's (it also
+  /// carries the tip) over the socket event's.
+  FareBreakdown? get fareBreakdown => receipt?.breakdown ?? breakdown;
 
   FareTier? get selectedFare {
     final tiers = estimate?.tiers;
@@ -165,6 +174,7 @@ class TripState extends Equatable {
     int? unreadMessages,
     Object? driverRoutePolyline = _s,
     Object? fareFinal = _s,
+    Object? breakdown = _s,
     Object? receipt = _s,
     Object? tipAmount = _s,
     bool? tipping,
@@ -209,6 +219,8 @@ class TripState extends Equatable {
           ? this.driverRoutePolyline
           : driverRoutePolyline as String?,
       fareFinal: fareFinal == _s ? this.fareFinal : fareFinal as double?,
+      breakdown:
+          breakdown == _s ? this.breakdown : breakdown as FareBreakdown?,
       receipt: receipt == _s ? this.receipt : receipt as Receipt?,
       tipAmount: tipAmount == _s ? this.tipAmount : tipAmount as double?,
       tipping: tipping ?? this.tipping,
@@ -252,6 +264,7 @@ class TripState extends Equatable {
         unreadMessages,
         driverRoutePolyline,
         fareFinal,
+        breakdown,
         receipt,
         tipAmount,
         tipping,
