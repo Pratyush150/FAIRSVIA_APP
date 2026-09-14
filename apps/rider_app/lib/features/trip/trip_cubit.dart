@@ -13,14 +13,30 @@ part 'trip_state.dart';
 /// then live tracking (matched → en route → arrived → on trip → completed) via
 /// the socket. Cancelling resets to idle.
 class TripCubit extends Cubit<TripState> {
-  TripCubit(this._repository, this._realtime, this._payments, this._ratings)
-      : super(const TripState());
+  TripCubit(
+    this._repository,
+    this._realtime,
+    this._payments,
+    this._ratings, {
+    this.staleAfter = const Duration(seconds: 20),
+  }) : super(const TripState());
 
   final TripRepository _repository;
   final RealtimeClient _realtime;
   final PaymentsRemoteDataSource _payments;
   final RatingsRemoteDataSource _ratings;
   final List<StreamSubscription<dynamic>> _subs = [];
+
+  /// How long without a driver ping before the car on the map is flagged
+  /// stale ([TripState.driverStale]). Injectable so tests don't wait 20 s.
+  final Duration staleAfter;
+  Timer? _staleTimer;
+
+  static const String cancelFailedMessage =
+      "Couldn't cancel the ride — check your connection and try again";
+  static const String driverCancelledMessage = 'Your driver cancelled the trip';
+  static const String otpLockedMessage =
+      'Too many wrong start codes — ask your driver to retry in 15 min';
 
   /// Subscribe to trip lifecycle events, then connect the socket.
   AccessTokenProvider? _tokenProvider;
@@ -71,6 +87,12 @@ class TripCubit extends Cubit<TripState> {
           ))))
       ..add(_realtime.on('trip:completed').listen(_onCompleted))
       ..add(_realtime.on('trip:no_drivers').listen((_) => _onNoDrivers()))
+      // Server-side endings/warnings the rider must not be deaf to: the
+      // driver cancelling, the start code getting locked after too many
+      // wrong attempts, and payment holds/captures failing.
+      ..add(_realtime.on('trip:cancelled').listen(_onCancelled))
+      ..add(_realtime.on('trip:otp_locked').listen(_onOtpLocked))
+      ..add(_realtime.on('trip:payment_warning').listen(_onPaymentWarning))
       // Reconnection resilience: the server replies to `trip:sync` with the
       // authoritative trip so we can rehydrate after a dropped socket.
       ..add(_realtime.on('trip:sync').listen(_onSync))
@@ -84,9 +106,13 @@ class TripCubit extends Cubit<TripState> {
   /// Pull the server-authoritative in-flight trip (if any) on a cold start.
   Future<void> _restoreActiveTrip() async {
     try {
-      final trip = await _repository.activeTrip();
-      if (trip == null) return;
-      _applyTrip(trip);
+      final active = await _repository.activeTripDetails();
+      if (active == null) return;
+      _applyTrip(
+        active.trip,
+        driver: active.driver,
+        driverPolyline: active.driverPolyline,
+      );
     } catch (_) {
       // Best effort — socket events will correct the screen if this fails.
     }
@@ -130,11 +156,22 @@ class TripCubit extends Cubit<TripState> {
     } catch (_) {
       return;
     }
-    _applyTrip(trip);
+    // A sync reply may carry the driver keys too (same shape as the REST
+    // active-trip snapshot); use them when present.
+    final hasDriver = data['driver'] is Map;
+    _applyTrip(
+      trip,
+      driver: hasDriver ? AssignedDriver.fromAcceptedEvent(data) : null,
+      driverPolyline: data['driverPolyline'] as String?,
+    );
   }
 
-  /// Move the UI to the phase implied by [trip]'s server-side status.
-  void _applyTrip(Trip trip) {
+  /// Move the UI to the phase implied by [trip]'s server-side status. When
+  /// the snapshot includes the assigned [driver] / [driverPolyline] (mirroring
+  /// the `trip:accepted` payload) they are restored too, so the matched sheet
+  /// shows the real driver after a relaunch; otherwise whatever we already
+  /// hold is kept.
+  void _applyTrip(Trip trip, {AssignedDriver? driver, String? driverPolyline}) {
     final phase = switch (trip.status) {
       TripStatus.requested || TripStatus.matching => TripPhase.searching,
       TripStatus.accepted => TripPhase.driverEnRoute,
@@ -148,14 +185,19 @@ class TripCubit extends Cubit<TripState> {
       _ => state.phase,
     };
     if (phase == TripPhase.idle) {
+      _resetTracking();
       emit(const TripState());
     } else {
       // Rehydrate everything the map + sheets draw from the trip itself, not
       // just the phase: after a kill+reopen mid-ride there is no `estimate`,
       // so without these there were no pickup/dropoff markers, no route fit
       // and an empty address on the on-trip sheet. The assigned driver and
-      // approach polyline aren't part of the Trip model, so those stay as-is
+      // approach polyline aren't part of the Trip model; they come from the
+      // snapshot's extra keys when the server sends them, else stay as-is
       // (the UI shows "—"/no approach leg until the next socket event).
+      final polyline = (driverPolyline == null || driverPolyline.isEmpty)
+          ? state.driverRoutePolyline
+          : driverPolyline;
       emit(state.copyWith(
         phase: phase,
         trip: trip,
@@ -164,8 +206,64 @@ class TripCubit extends Cubit<TripState> {
         dropoff: trip.dropoff.point,
         dropoffAddr: trip.dropoff.address ?? state.dropoffAddr,
         stops: trip.stops,
+        driver: driver ?? state.driver,
+        driverRoutePolyline: polyline,
       ));
     }
+  }
+
+  /// The driver cancelled (or the trip was ended server-side): back to Home
+  /// with the reason surfaced, so the rider can request again rather than
+  /// staring at a driver who is never coming.
+  void _onCancelled(Map<String, dynamic> data) {
+    final tripId = data['tripId'] as String?;
+    final current = state.trip?.id;
+    // Late event for a trip we've already moved on from.
+    if (tripId != null && current != null && tripId != current) return;
+    if (state.phase == TripPhase.idle) return;
+    final by = data['by'] as String?;
+    final reason = (data['reason'] as String?)?.trim();
+    final headline =
+        by == 'rider' ? 'Your ride was cancelled' : driverCancelledMessage;
+    _resetTracking();
+    emit(TripState(
+      connected: state.connected,
+      error: (reason == null || reason.isEmpty) ? headline : '$headline — $reason',
+    ));
+  }
+
+  void _onOtpLocked(Map<String, dynamic> data) {
+    if (!isCancellable(state.phase)) return;
+    emit(state.copyWith(error: otpLockedMessage));
+  }
+
+  void _onPaymentWarning(Map<String, dynamic> data) {
+    final message = (data['message'] as String?)?.trim();
+    emit(state.copyWith(
+      notice: (message == null || message.isEmpty)
+          ? 'Payment could not be processed'
+          : message,
+    ));
+  }
+
+  /// The UI has shown [TripState.notice]; drop it so the same message can
+  /// fire again later.
+  void clearNotice() {
+    if (state.notice != null) emit(state.copyWith(notice: null));
+  }
+
+  /// Forget the live driver position + stale watchdog (trip over / reset).
+  void _resetTracking() {
+    _staleTimer?.cancel();
+    _staleTimer = null;
+  }
+
+  void _restartStaleWatchdog() {
+    _staleTimer?.cancel();
+    _staleTimer = Timer(staleAfter, () {
+      if (isClosed || state.driverStale) return;
+      emit(state.copyWith(driverStale: true));
+    });
   }
 
   void _onMatching() {
@@ -190,8 +288,14 @@ class TripCubit extends Cubit<TripState> {
     if (lat == null || lng == null) return;
     final here = GeoPoint(lat, lng);
     final live = _liveProgress(here);
+    final heading = (data['heading'] as num?)?.toDouble();
+    _restartStaleWatchdog();
     emit(state.copyWith(
       driverLocation: here,
+      // Keep the last known heading when a ping omits it (stationary fix).
+      driverHeading: heading ?? state.driverHeading,
+      driverSeenAt: DateTime.now(),
+      driverStale: false,
       liveEtaSec: live?.etaSec,
       liveRemainingM: live?.remainingM,
     ));
@@ -235,6 +339,7 @@ class TripCubit extends Cubit<TripState> {
   }
 
   void _onCompleted(Map<String, dynamic> data) {
+    _resetTracking();
     emit(state.copyWith(
       phase: TripPhase.completed,
       fareFinal: (data['fareFinal'] as num?)?.toDouble(),
@@ -480,20 +585,30 @@ class TripCubit extends Cubit<TripState> {
     final trip = state.trip;
     var fee = 0.0;
     if (trip != null) {
+      emit(state.copyWith(error: null));
       try {
         fee = await _repository.cancelTrip(trip.id, reason: 'Cancelled by rider');
       } catch (_) {
-        // Best-effort: reset the UI regardless.
+        // The server still has a live trip (and a driver on the way) — going
+        // idle here would hide a ride that is very much still happening. Keep
+        // the sheet, say why, and let the rider tap Cancel again.
+        emit(state.copyWith(error: cancelFailedMessage));
+        return 0;
       }
     }
+    _resetTracking();
     emit(const TripState());
     return fee;
   }
 
-  void reset() => emit(const TripState());
+  void reset() {
+    _resetTracking();
+    emit(const TripState());
+  }
 
   @override
   Future<void> close() {
+    _resetTracking();
     for (final s in _subs) {
       s.cancel();
     }

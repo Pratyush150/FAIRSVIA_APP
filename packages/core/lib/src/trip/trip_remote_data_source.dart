@@ -3,6 +3,32 @@ import 'package:shared_models/shared_models.dart';
 
 import '../network/api_exception.dart';
 
+/// The `/trips/active` snapshot: the trip plus, when the server includes
+/// them, the assigned driver and their approach route — the same shape as the
+/// `trip:accepted` socket payload (`driver`, `vehicle`, `etaSec`,
+/// `etaDistanceM`, `driverPolyline`). Lets the rider rebuild the driver card
+/// after a cold start instead of showing "—" until the next socket event.
+class ActiveTrip {
+  const ActiveTrip({required this.trip, this.driver, this.driverPolyline});
+
+  final Trip trip;
+
+  /// Null when the server didn't send a `driver` object (older backends, or
+  /// no driver assigned yet).
+  final AssignedDriver? driver;
+  final String? driverPolyline;
+
+  factory ActiveTrip.fromJson(Map<String, dynamic> json) {
+    final hasDriver = json['driver'] is Map;
+    final polyline = json['driverPolyline'] as String?;
+    return ActiveTrip(
+      trip: Trip.fromJson(json),
+      driver: hasDriver ? AssignedDriver.fromAcceptedEvent(json) : null,
+      driverPolyline: (polyline == null || polyline.isEmpty) ? null : polyline,
+    );
+  }
+}
+
 class TripRemoteDataSource {
   TripRemoteDataSource(this._dio);
 
@@ -95,12 +121,15 @@ class TripRemoteDataSource {
 
   /// The caller's in-flight trip, or null when there isn't one. Used to
   /// restore the live-tracking screen after the app is killed mid-ride.
-  Future<Trip?> active() async {
+  Future<Trip?> active() async => (await activeDetails())?.trip;
+
+  /// Like [active], but keeps the driver/approach-route keys when present.
+  Future<ActiveTrip?> activeDetails() async {
     try {
       final res = await _dio.get<Map<String, dynamic>>('/trips/active');
       final data = res.data;
       if (data == null || data.isEmpty) return null;
-      return Trip.fromJson(data);
+      return ActiveTrip.fromJson(data);
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }

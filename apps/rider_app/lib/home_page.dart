@@ -3,10 +3,13 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_models/shared_models.dart';
 
 import 'features/trip/destination_search_page.dart';
+import 'features/trip/location_banner.dart';
 import 'features/trip/location_service.dart';
+import 'features/trip/map_picker_page.dart';
 import 'features/trip/map_utils.dart';
 import 'features/trip/price_comparison_card.dart';
 import 'features/trip/trip_cubit.dart';
@@ -45,8 +48,19 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     with WidgetsBindingObserver {
   final _location = LocationService();
   GeoPoint _myLocation = LocationService.fallback;
-  String _myLocationAddr = 'Current location';
+  String _myLocationAddr = DestinationSearchPage.unsetPickupLabel;
+  // Until GPS (or the dev mock) produces a fix, `_myLocation` is only the
+  // city-centre fallback: fine to centre the map on, never a pickup.
+  bool _hasRealLocation = false;
+  LocationIssue? _locationIssue;
+  bool _reducedAccuracy = false;
   List<SavedPlace> _savedPlaces = const [];
+  // Set for one frame to hand AppMap a null `fitBounds` so that re-supplying
+  // the same bounds on the next frame counts as a change and re-fits the
+  // camera (AppMap keys fits on bounds *values*, and suppresses `recenter`
+  // while a ≥2-point fit is active) — see _refitCurrentBounds.
+  bool _fitSuppressed = false;
+  TripPhase _lastPhase = TripPhase.idle;
   // Set when the rider taps "recenter": AppMap follows this to snap back to the
   // rider's live position after they've panned the map away. `_recenterSeq` is
   // bumped with every request because LatLng has value equality — re-storing
@@ -74,7 +88,12 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // iOS kills the WebSocket while the app is suspended; re-establish it on
     // resume so live trip updates don't stay dead until a manual restart.
-    if (state == AppLifecycleState.resumed) _resumeSocket();
+    if (state == AppLifecycleState.resumed) {
+      _resumeSocket();
+      // Back from Settings (banner tap): re-read so the banner clears and
+      // the pickup fills in once the rider has enabled location.
+      if (_locationIssue != null || _reducedAccuracy) _loadLocation();
+    }
   }
 
   Future<void> _resumeSocket() async {
@@ -85,21 +104,32 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   }
 
   Future<void> _loadLocation() async {
-    final loc = await _location.currentOrFallback();
-    if (mounted) {
-      setState(() {
-        _myLocation = loc;
-        // Move the camera to the resolved location. GoogleMap's initialCenter is
-        // one-shot, so without this the map stays on the fallback until the rider
-        // taps recenter (seen when GPS/permission resolves after the first frame).
-        _recenter = MapUtils.toLatLng(loc);
-        _recenterSeq++;
-      });
-    }
+    final result = await _location.resolve();
+    if (!mounted) return;
+    setState(() {
+      _myLocation = result.point;
+      _hasRealLocation = result.isReal;
+      _locationIssue = result.issue;
+      _reducedAccuracy = result.reducedAccuracy;
+      if (!result.isReal) {
+        _myLocationAddr = DestinationSearchPage.unsetPickupLabel;
+      } else if (_myLocationAddr == DestinationSearchPage.unsetPickupLabel) {
+        _myLocationAddr = 'Current location';
+      }
+      // Move the camera to the resolved location. GoogleMap's initialCenter is
+      // one-shot, so without this the map stays on the fallback until the rider
+      // taps recenter (seen when GPS/permission resolves after the first frame).
+      _recenter = MapUtils.toLatLng(result.point);
+      _recenterSeq++;
+    });
+    // The fallback is a city centre, not the rider: no address for it — the
+    // pickup field keeps saying "Set pickup location" until they choose one.
+    if (!result.isReal) return;
     // Resolve the GPS to a real address so the pickup shows where the rider
     // actually is (e.g. "Bhukum, Pune") instead of a generic label.
     try {
-      final place = await sl<TripRepository>().reverseGeocode(loc.lat, loc.lng);
+      final place = await sl<TripRepository>()
+          .reverseGeocode(result.point.lat, result.point.lng);
       if (mounted && place.address.isNotEmpty) {
         setState(() => _myLocationAddr = place.address);
       }
@@ -108,14 +138,48 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     }
   }
 
-  /// Recenter the map on the rider's current location (refreshes GPS first).
+  /// Banner tap: open the relevant Settings page, or just try again.
+  Future<void> _onLocationBannerAction(LocationBannerAction action) async {
+    switch (action) {
+      case LocationBannerAction.retry:
+        await _loadLocation();
+      case LocationBannerAction.openAppSettings:
+        await Geolocator.openAppSettings();
+      case LocationBannerAction.openLocationSettings:
+        await Geolocator.openLocationSettings();
+    }
+  }
+
+  /// Recenter button. While the camera is framing a ride (route / approach
+  /// leg / arrival box) it re-fits those bounds — that is "where the ride
+  /// is" — otherwise it snaps back to the rider's live GPS position.
   Future<void> _recenterToMe() async {
-    final loc = await _location.currentOrFallback();
+    final bounds = _fitBounds(context.read<TripCubit>().state);
+    if (bounds != null && bounds.length >= 2) {
+      _refitCurrentBounds();
+      return;
+    }
+    final result = await _location.resolve();
     if (!mounted) return;
     setState(() {
-      _myLocation = loc;
-      _recenter = MapUtils.toLatLng(loc);
+      _myLocation = result.point;
+      _hasRealLocation = result.isReal;
+      _locationIssue = result.issue;
+      _reducedAccuracy = result.reducedAccuracy;
+      _recenter = MapUtils.toLatLng(result.point);
       _recenterSeq++;
+    });
+  }
+
+  /// AppMap only re-fits when the bounds *values* change and ignores a
+  /// recenter request while a fit is active, so a plain rebuild with the
+  /// same bounds is a no-op. Clear the bounds for one frame and restore them
+  /// on the next: AppMap sees null→bounds and animates the fit again.
+  void _refitCurrentBounds() {
+    if (_fitSuppressed) return;
+    setState(() => _fitSuppressed = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _fitSuppressed = false);
     });
   }
 
@@ -128,11 +192,28 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     }
   }
 
-  /// Start a ride to a saved place directly from the home sheet.
+  /// Start a ride to a saved place directly from the home sheet. Without a
+  /// real position the rider first drops a pickup pin on the map — the
+  /// city-centre fallback is never used as a pickup on their behalf.
   Future<void> _pickSaved(SavedPlace place) async {
+    var pickup = _myLocation;
+    var pickupAddr = _myLocationAddr;
+    if (!_hasRealLocation) {
+      final chosen = await Navigator.of(context).push<PlaceDetails>(
+        MaterialPageRoute(
+          builder: (_) => MapPickerPage(
+            initial: LocationService.fallback,
+            title: 'Set pickup on map',
+          ),
+        ),
+      );
+      if (chosen == null || !mounted) return;
+      pickup = chosen.location;
+      pickupAddr = chosen.address;
+    }
     await context.read<TripCubit>().chooseDestination(
-          pickup: _myLocation,
-          pickupAddr: _myLocationAddr,
+          pickup: pickup,
+          pickupAddr: pickupAddr,
           dropoff: place.point,
           dropoffAddr: place.address ?? place.label,
         );
@@ -158,7 +239,9 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     final choice = await Navigator.of(context).push<RouteChoice>(
       MaterialPageRoute(
         builder: (_) => DestinationSearchPage(
-          initialPickup: _myLocation,
+          // Null when only the fallback is known: the page then insists on
+          // an explicit pickup instead of quietly using the city centre.
+          initialPickup: _hasRealLocation ? _myLocation : null,
           initialPickupLabel: _myLocationAddr,
         ),
       ),
@@ -194,6 +277,10 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         point: MapUtils.toLatLng(state.driverLocation!),
         kind: MapMarkerKind.driver,
         label: 'Driver',
+        // Last reported compass heading, so the car keeps pointing the way
+        // it was going even while pings pause (AppMap otherwise derives it
+        // from movement and a stale/parked car would spin to 0°).
+        heading: state.driverHeading,
       ));
     }
     // "You are here": before a driver is assigned the rider's own position is
@@ -227,35 +314,92 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     return MapUtils.decodePolyline(encoded);
   }
 
+  /// Below this car↔pickup span the two points are effectively on top of
+  /// each other and a bounds fit would zoom the map to its maximum; frame a
+  /// fixed [kArrivalBoxHalfSpanM]-radius box around the pickup instead.
+  static const double kMinFitSpanM = 60;
+  static const double kArrivalBoxHalfSpanM = 125; // ~250 m box
+
   /// What the camera frames. During the approach we fit the driver→pickup leg
   /// (using the approach polyline's endpoints, which stay fixed for the whole
   /// approach — so the camera frames the leg once instead of chasing the car
-  /// on every GPS tick). Otherwise we fit pickup→dropoff.
+  /// on every GPS tick). Once the driver has arrived we frame the car and the
+  /// pickup, or a fixed ~250 m box around the pickup when they're (nearly) the
+  /// same point. Otherwise we fit pickup→dropoff.
   List<LatLng>? _fitBounds(TripState state) {
     // Prefer the estimate's endpoints; after a cold-start restore there is no
     // estimate, so frame the restored trip's pickup/dropoff instead.
     final pickup = state.estimate?.pickup ?? state.pickup;
     final dropoff = state.estimate?.dropoff ?? state.dropoff;
     if (pickup == null || dropoff == null) return null;
+    final pickupLL = MapUtils.toLatLng(pickup);
     final approaching = state.phase == TripPhase.driverEnRoute ||
         state.phase == TripPhase.driverArrived;
+    List<LatLng> bounds;
     final approachRoute = state.driverRoutePolyline;
-    if (approaching && approachRoute != null && approachRoute.isNotEmpty) {
-      final pts = MapUtils.decodePolyline(approachRoute);
-      if (pts.length >= 2) return [pts.first, pts.last];
+    final approachPts = (approaching && approachRoute != null)
+        ? MapUtils.decodePolyline(approachRoute)
+        : const <LatLng>[];
+    if (state.phase == TripPhase.driverArrived) {
+      final car = state.driverLocation != null
+          ? MapUtils.toLatLng(state.driverLocation!)
+          : (approachPts.isNotEmpty ? approachPts.first : pickupLL);
+      bounds = [car, pickupLL];
+    } else if (approaching && approachPts.length >= 2) {
+      bounds = [approachPts.first, approachPts.last];
+    } else {
+      bounds = [pickupLL, MapUtils.toLatLng(dropoff)];
     }
-    return [MapUtils.toLatLng(pickup), MapUtils.toLatLng(dropoff)];
+    if (MapUtils.spanMeters(bounds) < kMinFitSpanM) {
+      bounds = MapUtils.boxAround(pickupLL, kArrivalBoxHalfSpanM);
+    }
+    return bounds;
+  }
+
+  Future<void> _showTripEndedDialog(BuildContext context, String message) {
+    AppHaptics.heavy();
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ride cancelled'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<TripCubit, TripState>(
-        listenWhen: (prev, curr) => prev.phase != curr.phase,
+        listenWhen: (prev, curr) =>
+            prev.phase != curr.phase ||
+            prev.notice != curr.notice ||
+            (curr.phase == TripPhase.idle && prev.error != curr.error),
         listener: (context, state) {
+          final cubit = context.read<TripCubit>();
+          // One-shot server notices (payment warnings) as a snackbar.
+          final notice = state.notice;
+          if (notice != null) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(notice)));
+            cubit.clearNotice();
+          }
+          if (state.phase == _lastPhase) return;
+          _lastPhase = state.phase;
           // Back to idle (change destination / cancel / done): the camera was
           // fitted to the route bounds — bring it back to the rider instead of
           // leaving it zoomed out over the whole route.
-          if (state.phase == TripPhase.idle) _recenterToMe();
+          if (state.phase == TripPhase.idle) {
+            _recenterToMe();
+            // Ended from the server side (driver cancelled): the idle sheet
+            // has nowhere to show it, so tell the rider explicitly.
+            if (state.error != null) _showTripEndedDialog(context, state.error!);
+          }
           // Tactile punctuation on the moments that matter in the ride flow.
           switch (state.phase) {
             case TripPhase.driverEnRoute:
@@ -280,7 +424,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                   initialCenter: MapUtils.toLatLng(_myLocation),
                   markers: _markers(state),
                   route: _route(state),
-                  fitBounds: _fitBounds(state),
+                  fitBounds: _fitSuppressed ? null : _fitBounds(state),
                   recenter: _recenter,
                   recenterSeq: _recenterSeq,
                   // Keep pickup/dropoff/driver markers framed above the bottom
@@ -310,8 +454,15 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       ConnectionBanner(connected: state.connected),
+                      LocationBanner(
+                        issue: _locationIssue,
+                        reducedAccuracy: _reducedAccuracy,
+                        onAction: _onLocationBannerAction,
+                      ),
                       SafeArea(
-                        top: state.connected,
+                        top: state.connected &&
+                            _locationIssue == null &&
+                            !_reducedAccuracy,
                         bottom: false,
                         child: Padding(
                           padding: const EdgeInsets.all(AppSpacing.md),
@@ -394,8 +545,8 @@ class _BottomSheetForPhase extends StatelessWidget {
         const _InfoCard(child: _Busy(label: 'Requesting your ride…')),
       TripPhase.scheduled => _ScheduledConfirmation(state: state),
       TripPhase.searching => _FindingDriver(state: state),
-      TripPhase.driverEnRoute => _DriverInfoSheet(state: state, arrived: false),
-      TripPhase.driverArrived => _DriverInfoSheet(state: state, arrived: true),
+      TripPhase.driverEnRoute => DriverInfoSheet(state: state, arrived: false),
+      TripPhase.driverArrived => DriverInfoSheet(state: state, arrived: true),
       TripPhase.onTrip => _OnTripSheet(state: state),
       TripPhase.completed => _CompletedSheet(state: state),
       TripPhase.error => _ErrorCard(
@@ -1314,10 +1465,40 @@ class _FindingDriver extends StatelessWidget {
             ),
           ],
         ),
+        if (state.error != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _SheetWarning(message: state.error!),
+        ],
         const SizedBox(height: AppSpacing.lg),
         SecondaryButton(
           label: 'Cancel ride',
           onPressed: () => _confirmCancel(context, feeWarning: false),
+        ),
+      ],
+    );
+  }
+}
+
+/// Inline warning line for the live-trip sheets (failed cancel, locked start
+/// code) — the ride is still on, so it sits with the ride rather than
+/// replacing it.
+class _SheetWarning extends StatelessWidget {
+  const _SheetWarning({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.info_outline_rounded,
+            size: 16, color: AppColors.warning),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Text(message,
+              style:
+                  theme.textTheme.bodySmall?.copyWith(color: AppColors.warning)),
         ),
       ],
     );
@@ -1400,16 +1581,40 @@ class CancelRideDialog extends StatelessWidget {
   }
 }
 
-class _DriverInfoSheet extends StatelessWidget {
-  const _DriverInfoSheet({required this.state, required this.arrived});
+/// Matched / arrived sheet: status + live ETA, driver card, start code and
+/// the Message / Call / Cancel actions. Public so it can be widget-tested
+/// without the map. [dialer] launches the driver's number (`tel:`);
+/// injectable for tests.
+class DriverInfoSheet extends StatelessWidget {
+  const DriverInfoSheet({
+    super.key,
+    required this.state,
+    required this.arrived,
+    this.dialer = dialPhone,
+  });
   final TripState state;
   final bool arrived;
+  final Future<bool> Function(String phone) dialer;
+
+  static const String waitingForLocation =
+      "Waiting for your driver's location…";
+
+  Future<void> _call(BuildContext context, String phone) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await dialer(phone);
+    if (!ok) {
+      messenger.showSnackBar(
+        SnackBar(content: Text("Couldn't open the dialler for $phone")),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final driver = state.driver;
     final otp = state.trip?.startOtp;
+    final phone = driver?.phone;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1439,12 +1644,33 @@ class _DriverInfoSheet extends StatelessWidget {
                             'Your driver is on the way'),
                     style: theme.textTheme.headlineSmall,
                   ),
+                  // No ping for a while: the car on the map (and the ETA)
+                  // may be stale — say so instead of pretending it's live.
+                  if (state.driverStale) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 1.6),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(waitingForLocation,
+                            style: theme.textTheme.bodySmall),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
             _sosButton(context, state),
           ],
         ),
+        if (state.error != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _SheetWarning(message: state.error!),
+        ],
         const SizedBox(height: AppSpacing.lg),
         AppCard(
           child: Row(
@@ -1542,6 +1768,18 @@ class _DriverInfoSheet extends StatelessWidget {
                 onPressed: () => _openTripChat(context, state),
               ),
             ),
+            // Only when the payload carries a number — a dead Call button is
+            // worse than none.
+            if (phone != null) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: SecondaryButton(
+                  label: 'Call',
+                  icon: Icons.call_rounded,
+                  onPressed: () => _call(context, phone),
+                ),
+              ),
+            ],
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: SecondaryButton(

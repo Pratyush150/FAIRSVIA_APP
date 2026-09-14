@@ -60,6 +60,10 @@ class TripRepository {
   /// the app is killed and reopened mid-ride.
   Future<Trip?> activeTrip() => _trips.active();
 
+  /// [activeTrip] plus the assigned driver / approach route when the server
+  /// includes them, so the matched sheet can be rebuilt after a relaunch.
+  Future<ActiveTrip?> activeTripDetails() => _trips.activeDetails();
+
   /// Prices a promo code against a fare subtotal (rejection reason on failure).
   Future<PromoQuote> quotePromo(String code, num subtotal) =>
       _trips.quotePromo(code, subtotal);

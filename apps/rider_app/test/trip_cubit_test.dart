@@ -397,15 +397,17 @@ void main() {
   blocTest<TripCubit, TripState>(
     'init restores an in-flight trip after a cold start',
     setUp: () {
-      when(() => repo.activeTrip()).thenAnswer(
-        (_) async => Trip(
-          id: 't1',
-          status: TripStatus.arrived,
-          tier: 'economy',
-          pickup: const TripEndpoint(point: pickup, address: '12 Pickup St'),
-          dropoff: const TripEndpoint(point: dropoff, address: 'Dropoff Ave'),
-          routePolyline: 'abcd',
-          fareEstimate: 142.98,
+      when(() => repo.activeTripDetails()).thenAnswer(
+        (_) async => ActiveTrip(
+          trip: Trip(
+            id: 't1',
+            status: TripStatus.arrived,
+            tier: 'economy',
+            pickup: const TripEndpoint(point: pickup, address: '12 Pickup St'),
+            dropoff: const TripEndpoint(point: dropoff, address: 'Dropoff Ave'),
+            routePolyline: 'abcd',
+            fareEstimate: 142.98,
+          ),
         ),
       );
     },
@@ -426,7 +428,40 @@ void main() {
           // be fabricated.
           .having((s) => s.driver, 'driver', isNull),
     ],
-    verify: (_) => verify(() => repo.activeTrip()).called(1),
+    verify: (_) => verify(() => repo.activeTripDetails()).called(1),
+  );
+
+  // Cold-start restore with the server's driver keys (same shape as the
+  // trip:accepted payload): the matched sheet shows the real driver + approach
+  // leg after a relaunch instead of "—" until the next socket event.
+  blocTest<TripCubit, TripState>(
+    'init restores the assigned driver + approach route when the snapshot has them',
+    setUp: () => when(() => repo.activeTripDetails()).thenAnswer(
+      (_) async => ActiveTrip.fromJson(const {
+        'id': 't1',
+        'status': 'accepted',
+        'tier': 'economy',
+        'pickup': {'lat': 12.9611, 'lng': 77.6387},
+        'dropoff': {'lat': 12.9674, 'lng': 77.5904},
+        'driver': {'id': 'd1', 'name': 'Ava', 'rating': 4.9, 'phone': '+1305'},
+        'vehicle': {'make': 'Toyota', 'model': 'Prius', 'plate': 'ABC123'},
+        'etaSec': 240,
+        'etaDistanceM': 1800,
+        'driverPolyline': '_ki|C~ulhNbB?bB?',
+      }),
+    ),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    act: (c) => c.init('token'),
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.driverEnRoute)
+          .having((s) => s.driver?.name, 'driver.name', 'Ava')
+          .having((s) => s.driver?.plate, 'driver.plate', 'ABC123')
+          .having((s) => s.driver?.phone, 'driver.phone', '+1305')
+          .having((s) => s.driver?.etaSec, 'driver.etaSec', 240)
+          .having((s) => s.driverRoutePolyline, 'approach polyline',
+              '_ki|C~ulhNbB?bB?'),
+    ],
   );
 
   // Regression: init() awaited connect() BEFORE subscribing, so a first
@@ -434,13 +469,15 @@ void main() {
   // listeners at all — deaf for good, even once socket.io's own retry landed.
   blocTest<TripCubit, TripState>(
     'init subscribes before connecting: a failed first connect is not deaf',
-    setUp: () => when(() => repo.activeTrip()).thenAnswer(
-      (_) async => Trip(
-        id: 't1',
-        status: TripStatus.accepted,
-        tier: 'economy',
-        pickup: const TripEndpoint(point: pickup),
-        dropoff: const TripEndpoint(point: dropoff),
+    setUp: () => when(() => repo.activeTripDetails()).thenAnswer(
+      (_) async => ActiveTrip(
+        trip: Trip(
+          id: 't1',
+          status: TripStatus.accepted,
+          tier: 'economy',
+          pickup: const TripEndpoint(point: pickup),
+          dropoff: const TripEndpoint(point: dropoff),
+        ),
       ),
     ),
     build: () => TripCubit(
@@ -468,7 +505,7 @@ void main() {
   blocTest<TripCubit, TripState>(
     'init stays idle when there is no active trip',
     setUp: () =>
-        when(() => repo.activeTrip()).thenAnswer((_) async => null),
+        when(() => repo.activeTripDetails()).thenAnswer((_) async => null),
     build: () => TripCubit(repo, realtime, payments, ratings),
     act: (c) => c.init('token'),
     expect: () => const <TripState>[],
@@ -478,14 +515,16 @@ void main() {
   // socket.io's retry could stay wedged, leaving "Reconnecting…" up forever.
   blocTest<TripCubit, TripState>(
     'resumeFromBackground reconnects a dropped socket and re-syncs',
-    setUp: () => when(() => repo.activeTrip()).thenAnswer(
-      (_) async => Trip(
-        id: 't1',
-        status: TripStatus.inProgress,
-        tier: 'economy',
-        pickup: const TripEndpoint(point: pickup),
-        dropoff: const TripEndpoint(point: dropoff),
-        fareEstimate: 142.98,
+    setUp: () => when(() => repo.activeTripDetails()).thenAnswer(
+      (_) async => ActiveTrip(
+        trip: Trip(
+          id: 't1',
+          status: TripStatus.inProgress,
+          tier: 'economy',
+          pickup: const TripEndpoint(point: pickup),
+          dropoff: const TripEndpoint(point: dropoff),
+          fareEstimate: 142.98,
+        ),
       ),
     ),
     build: () => TripCubit(repo, realtime, payments, ratings),
@@ -496,6 +535,167 @@ void main() {
       isA<TripState>()
           .having((s) => s.phase, 'phase', TripPhase.onTrip)
           .having((s) => s.trip?.id, 'trip.id', 't1'),
+    ],
+  );
+
+  // Regression: a cancel that failed on the wire (offline) used to reset the
+  // UI to Home anyway, hiding a ride the server still had live.
+  blocTest<TripCubit, TripState>(
+    'cancelTrip keeps the ride + surfaces an error when the REST cancel fails',
+    setUp: () =>
+        when(() => repo.cancelTrip(any(), reason: any(named: 'reason')))
+            .thenThrow(const ApiException('offline', statusCode: 0)),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => TripState(
+      phase: TripPhase.driverEnRoute,
+      trip: trip,
+      driver: const AssignedDriver(name: 'Ava', rating: 4.9),
+    ),
+    act: (c) async {
+      expect(await c.cancelTrip(), 0);
+      // Still cancellable: a second tap reaches the backend again.
+      await c.cancelTrip();
+    },
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.driverEnRoute)
+          .having((s) => s.trip?.id, 'trip kept', 't1')
+          .having((s) => s.error, 'error', TripCubit.cancelFailedMessage),
+      // Second attempt clears the message, then fails again.
+      isA<TripState>().having((s) => s.error, 'error cleared', isNull),
+      isA<TripState>()
+          .having((s) => s.error, 'error', TripCubit.cancelFailedMessage),
+    ],
+    verify: (_) =>
+        verify(() => repo.cancelTrip('t1', reason: any(named: 'reason')))
+            .called(2),
+  );
+
+  blocTest<TripCubit, TripState>(
+    'trip:cancelled from the driver goes idle with the reason surfaced',
+    setUp: () =>
+        when(() => repo.activeTripDetails()).thenAnswer((_) async => null),
+    build: () => TripCubit(
+        repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+    seed: () => TripState(
+      phase: TripPhase.driverEnRoute,
+      trip: trip,
+      driver: const AssignedDriver(name: 'Ava', rating: 4.9),
+    ),
+    act: (c) async {
+      await c.init('token');
+      scripted.push('trip:cancelled',
+          {'tripId': 't1', 'by': 'driver', 'reason': 'Rider no-show'});
+    },
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.idle)
+          .having((s) => s.trip, 'trip', isNull)
+          .having((s) => s.driver, 'driver', isNull)
+          .having((s) => s.error, 'error',
+              '${TripCubit.driverCancelledMessage} — Rider no-show'),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'trip:cancelled for another trip id is ignored',
+    setUp: () =>
+        when(() => repo.activeTripDetails()).thenAnswer((_) async => null),
+    build: () => TripCubit(
+        repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+    seed: () => TripState(phase: TripPhase.driverEnRoute, trip: trip),
+    act: (c) async {
+      await c.init('token');
+      scripted.push('trip:cancelled', {'tripId': 'other', 'by': 'driver'});
+    },
+    expect: () => const <TripState>[],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'trip:otp_locked surfaces the lock on the matched sheet',
+    setUp: () =>
+        when(() => repo.activeTripDetails()).thenAnswer((_) async => null),
+    build: () => TripCubit(
+        repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+    seed: () => TripState(phase: TripPhase.driverArrived, trip: trip),
+    act: (c) async {
+      await c.init('token');
+      scripted.push('trip:otp_locked', {'tripId': 't1', 'lockSeconds': 900});
+    },
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.driverArrived)
+          .having((s) => s.error, 'error', TripCubit.otpLockedMessage),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'trip:payment_warning becomes a one-shot notice, cleared once shown',
+    setUp: () =>
+        when(() => repo.activeTripDetails()).thenAnswer((_) async => null),
+    build: () => TripCubit(
+        repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+    seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+    act: (c) async {
+      await c.init('token');
+      scripted.push('trip:payment_warning',
+          {'tripId': 't1', 'message': 'Payment could not be processed'});
+      c.clearNotice();
+    },
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.notice, 'notice', 'Payment could not be processed')
+          .having((s) => s.phase, 'phase unchanged', TripPhase.onTrip),
+      isA<TripState>().having((s) => s.notice, 'notice cleared', isNull),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'driver pings store heading + seen-at; silence flags the driver stale',
+    build: () => TripCubit(repo, realtime, payments, ratings,
+        staleAfter: const Duration(milliseconds: 40)),
+    seed: () => const TripState(phase: TripPhase.driverEnRoute),
+    act: (c) => c.debugDriverLocation(
+        {'lat': 25.7760, 'lng': -80.1880, 'heading': 182.5}),
+    wait: const Duration(milliseconds: 120),
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.driverHeading, 'heading', 182.5)
+          .having((s) => s.driverSeenAt, 'seenAt', isNotNull)
+          .having((s) => s.driverStale, 'stale', isFalse),
+      isA<TripState>().having((s) => s.driverStale, 'stale', isTrue),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'the next ping clears the stale flag and keeps the last heading',
+    build: () => TripCubit(repo, realtime, payments, ratings,
+        staleAfter: const Duration(seconds: 30)),
+    seed: () => const TripState(
+      phase: TripPhase.driverEnRoute,
+      driverHeading: 90,
+      driverStale: true,
+    ),
+    act: (c) => c.debugDriverLocation({'lat': 25.7760, 'lng': -80.1880}),
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.driverStale, 'stale', isFalse)
+          .having((s) => s.driverHeading, 'heading kept', 90),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
+    'closing the cubit cancels the stale watchdog',
+    build: () => TripCubit(repo, realtime, payments, ratings,
+        staleAfter: const Duration(milliseconds: 20)),
+    seed: () => const TripState(phase: TripPhase.driverEnRoute),
+    act: (c) async {
+      c.debugDriverLocation({'lat': 25.7760, 'lng': -80.1880});
+      await c.close();
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+    },
+    expect: () => [
+      isA<TripState>().having((s) => s.driverStale, 'stale', isFalse),
     ],
   );
 }

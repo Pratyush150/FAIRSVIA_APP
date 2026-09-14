@@ -1,9 +1,36 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../network/api_exception.dart';
 import 'safety_remote_data_source.dart';
+
+/// `tel:` URI for [phone], keeping only digits and a leading `+` so a number
+/// formatted for display ("+1 (305) 555-0123") still dials.
+Uri phoneCallUri(String phone) {
+  final trimmed = phone.trim();
+  final digits = trimmed.replaceAll(RegExp(r'[^0-9]'), '');
+  final plus = trimmed.startsWith('+') ? '+' : '';
+  return Uri(scheme: 'tel', path: '$plus$digits');
+}
+
+/// Opens the phone dialler for [phone] (the rider's "Call driver" / the
+/// driver's "Call rider"). Returns false when the number is unusable or the
+/// device has no dialler (tablets, simulators); the caller can then fall back
+/// to a message. [launch] is injectable for tests.
+Future<bool> dialPhone(
+  String phone, {
+  Future<bool> Function(Uri uri)? launch,
+}) async {
+  final uri = phoneCallUri(phone);
+  if (uri.path.replaceAll('+', '').isEmpty) return false;
+  try {
+    return await (launch ?? launchUrl)(uri);
+  } catch (_) {
+    return false;
+  }
+}
 
 /// Opens the safety bottom sheet for an active trip.
 Future<void> showSafetySheet(

@@ -6,6 +6,14 @@
 	<string>$(MAPS_API_KEY)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>FairsVia uses your location to set your pickup point and show your ride on the map.</string>
+	<!-- iOS 14+ "Precise Location": when the rider granted only approximate
+	     location, the app asks once for temporary full accuracy under this
+	     purpose key (LocationService.preciseRidePurposeKey). -->
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>PreciseRide</key>
+		<string>Your precise location sets the exact pickup point so your driver finds you.</string>
+	</dict>
 	<!-- Android sets usesCleartextTraffic=true; ATS is the iOS equivalent. Allows
 	     the HTTP dev/LAN backend (http://192.168.x). Cloudflare builds use HTTPS
 	     and don't need this; tighten to HTTPS-only for App Store release. -->

@@ -27,6 +27,9 @@ class TripState extends Equatable {
     this.trip,
     this.driver,
     this.driverLocation,
+    this.driverHeading,
+    this.driverSeenAt,
+    this.driverStale = false,
     this.liveEtaSec,
     this.liveRemainingM,
     this.driverRoutePolyline,
@@ -45,6 +48,7 @@ class TripState extends Equatable {
     this.stops = const [],
     this.connected = true,
     this.error,
+    this.notice,
   });
 
   final TripPhase phase;
@@ -57,6 +61,17 @@ class TripState extends Equatable {
   final Trip? trip;
   final AssignedDriver? driver;
   final GeoPoint? driverLocation;
+
+  /// Compass heading (degrees) from the driver's last ping, so the car marker
+  /// keeps pointing the right way even while no new fix arrives.
+  final double? driverHeading;
+
+  /// When the last driver ping arrived. Null until the first one.
+  final DateTime? driverSeenAt;
+
+  /// No driver ping for [TripCubit.staleAfter]: the car on the map may be
+  /// stale, so the matched sheet says "Waiting for your driver's location…".
+  final bool driverStale;
 
   /// Live ETA (s) / distance left (m) along the current leg, recomputed from
   /// every driver ping — approach leg while matched, trip leg once started.
@@ -102,6 +117,10 @@ class TripState extends Equatable {
   final bool connected;
   final String? error;
 
+  /// One-shot informational message (e.g. a payment warning) for the UI to
+  /// show as a snackbar; cleared with [TripCubit.clearNotice] once shown.
+  final String? notice;
+
   FareTier? get selectedFare {
     final tiers = estimate?.tiers;
     if (tiers == null || selectedTier == null) return null;
@@ -134,6 +153,9 @@ class TripState extends Equatable {
     Object? trip = _s,
     Object? driver = _s,
     Object? driverLocation = _s,
+    Object? driverHeading = _s,
+    Object? driverSeenAt = _s,
+    bool? driverStale,
     Object? liveEtaSec = _s,
     Object? liveRemainingM = _s,
     Object? driverRoutePolyline = _s,
@@ -152,6 +174,7 @@ class TripState extends Equatable {
     List<TripStop>? stops,
     bool? connected,
     Object? error = _s,
+    Object? notice = _s,
   }) {
     return TripState(
       phase: phase ?? this.phase,
@@ -168,6 +191,11 @@ class TripState extends Equatable {
       driverLocation: driverLocation == _s
           ? this.driverLocation
           : driverLocation as GeoPoint?,
+      driverHeading:
+          driverHeading == _s ? this.driverHeading : driverHeading as double?,
+      driverSeenAt:
+          driverSeenAt == _s ? this.driverSeenAt : driverSeenAt as DateTime?,
+      driverStale: driverStale ?? this.driverStale,
       liveEtaSec: liveEtaSec == _s ? this.liveEtaSec : liveEtaSec as int?,
       liveRemainingM:
           liveRemainingM == _s ? this.liveRemainingM : liveRemainingM as int?,
@@ -194,6 +222,7 @@ class TripState extends Equatable {
       stops: stops ?? this.stops,
       connected: connected ?? this.connected,
       error: error == _s ? this.error : error as String?,
+      notice: notice == _s ? this.notice : notice as String?,
     );
   }
 
@@ -209,6 +238,9 @@ class TripState extends Equatable {
         trip,
         driver,
         driverLocation,
+        driverHeading,
+        driverSeenAt,
+        driverStale,
         liveEtaSec,
         liveRemainingM,
         driverRoutePolyline,
@@ -227,5 +259,6 @@ class TripState extends Equatable {
         stops,
         connected,
         error,
+        notice,
       ];
 }

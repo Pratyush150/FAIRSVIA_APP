@@ -10,6 +10,7 @@ class AssignedDriver extends Equatable {
     this.vehicleModel,
     this.vehicleColor,
     this.plate,
+    this.phone,
     this.etaSec,
     this.etaDistanceM,
   });
@@ -22,6 +23,11 @@ class AssignedDriver extends Equatable {
   final String? vehicleModel;
   final String? vehicleColor;
   final String? plate;
+
+  /// The driver's phone number for the rider's "Call" action. Null when the
+  /// backend doesn't include it (older payloads / privacy-masked builds), in
+  /// which case the UI hides the button rather than dialling nothing.
+  final String? phone;
 
   /// Live driver→pickup ETA (seconds) and distance (metres) from the backend's
   /// approach route at match time. Null when the driver's position was unknown
@@ -55,9 +61,15 @@ class AssignedDriver extends Equatable {
       vehicleModel: vehicle['model'] as String?,
       vehicleColor: vehicle['color'] as String?,
       plate: vehicle['plate'] as String?,
+      phone: _nonEmpty(driver['phone'] as String?),
       etaSec: (json['etaSec'] as num?)?.toInt(),
       etaDistanceM: (json['etaDistanceM'] as num?)?.toInt(),
     );
+  }
+
+  static String? _nonEmpty(String? s) {
+    final t = s?.trim();
+    return (t == null || t.isEmpty) ? null : t;
   }
 
   @override
@@ -69,6 +81,7 @@ class AssignedDriver extends Equatable {
         vehicleModel,
         vehicleColor,
         plate,
+        phone,
         etaSec,
         etaDistanceM,
       ];
