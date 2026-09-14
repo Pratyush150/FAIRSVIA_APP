@@ -231,12 +231,17 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         widget.initialCenter;
     final c = await _controller.future;
     if (!mounted) return;
+    // Keep the street-level zoom the driver was already at; never fall back
+    // to the wide initial zoom (that snapped the map out to a city view).
+    final current = await c.getZoomLevel();
+    final zoom = current < 15 ? 16.0 : current;
+    if (!mounted) return;
     _programmaticMove = true;
     await c.animateCamera(
       gmaps.CameraUpdate.newCameraPosition(
         gmaps.CameraPosition(
           target: _g(target),
-          zoom: widget.initialZoom,
+          zoom: zoom,
           bearing: 0,
           tilt: 0,
         ),
