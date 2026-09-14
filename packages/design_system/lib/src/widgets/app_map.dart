@@ -13,6 +13,12 @@ import 'map_styles.dart';
 /// [me] is the rider's own position (blue dot), [driver] the gliding car.
 enum MapMarkerKind { pickup, dropoff, driver, me, plain }
 
+/// How the camera behaves. [fit] frames [AppMap.fitBounds] / recenters on
+/// demand; [followDriver] keeps the driver marker centred, heading-up, at
+/// street zoom (Uber Driver's navigation view) until the user pans — a
+/// recenter request resumes following.
+enum MapCameraMode { fit, followDriver }
+
 /// A point to draw on [AppMap].
 class AppMapMarker {
   const AppMapMarker({
@@ -49,6 +55,7 @@ class AppMap extends StatefulWidget {
     this.recenterSeq = 0,
     this.tileProvider,
     this.boundsPadding = const EdgeInsets.all(64),
+    this.cameraMode = MapCameraMode.fit,
   });
 
   final LatLng initialCenter;
@@ -73,6 +80,9 @@ class AppMap extends StatefulWidget {
   final Object? tileProvider;
 
   final EdgeInsets boundsPadding;
+
+  /// See [MapCameraMode].
+  final MapCameraMode cameraMode;
 
   /// Whether a rebuild from [old] to [next] carries a recenter request the
   /// camera should honour. A request is suppressed while [fitBounds] frames
@@ -100,6 +110,9 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   double _driverBearing = 0;
   gmaps.BitmapDescriptor? _driverIcon; // custom car puck, generated once
   gmaps.BitmapDescriptor? _meIcon; // rider's blue "you are here" dot
+  // Follow mode: suspended once the user pans until the next recenter.
+  bool _userPanned = false;
+  bool _programmaticMove = false;
 
   @override
   void initState() {
@@ -137,7 +150,17 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       _fit();
     }
     if (AppMap.recenterChanged(old, widget)) {
-      _moveTo(widget.recenter!);
+      _userPanned = false;
+      if (widget.cameraMode == MapCameraMode.followDriver &&
+          _driverMarker(widget.markers) != null) {
+        _followDriver();
+      } else {
+        _moveTo(widget.recenter!);
+      }
+    }
+    if (old.cameraMode != widget.cameraMode) {
+      _userPanned = false;
+      if (widget.cameraMode == MapCameraMode.followDriver) _followDriver();
     }
     // Animate the driver from its current (possibly mid-glide) position to the
     // new GPS fix, and rotate toward the direction of travel.
@@ -157,6 +180,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       _driverAnim
         ..reset()
         ..forward();
+      if (widget.cameraMode == MapCameraMode.followDriver) _followDriver();
     } else if (next == null) {
       _driverFrom = null;
       _driverTo = null;
@@ -174,12 +198,33 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     );
   }
 
+  /// Heading-up street view centred on the car (zoom 17, slight tilt).
+  Future<void> _followDriver() async {
+    if (_userPanned) return;
+    final target = _driverTo ?? _driverMarker(widget.markers)?.point;
+    if (target == null) return;
+    final c = await _controller.future;
+    if (!mounted || _userPanned) return;
+    _programmaticMove = true;
+    await c.animateCamera(
+      gmaps.CameraUpdate.newCameraPosition(
+        gmaps.CameraPosition(
+          target: _g(target),
+          zoom: 17,
+          bearing: _driverBearing,
+          tilt: 30,
+        ),
+      ),
+    );
+  }
+
   Future<void> _moveTo(LatLng center) async {
     final c = await _controller.future;
     if (!mounted) return;
     // Recenter also restores a street-level zoom: after a route fit the camera
     // is zoomed out over the whole trip, and "recenter" without a zoom left
     // the rider looking at the entire city.
+    _programmaticMove = true;
     await c.animateCamera(
       gmaps.CameraUpdate.newLatLngZoom(_g(center), widget.initialZoom),
     );
@@ -410,17 +455,22 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         _fit();
         widget.onMapReady?.call();
       },
-      onCameraMove: widget.onCenterChanged == null
-          ? null
-          : (pos) => _lastCameraTarget = pos.target,
-      onCameraIdle: widget.onCenterChanged == null
-          ? null
-          : () {
-              final t = _lastCameraTarget;
-              if (t != null) {
-                widget.onCenterChanged!(LatLng(t.latitude, t.longitude));
-              }
-            },
+      onCameraMoveStarted: () {
+        // A move we did not start is the user panning: stop following until
+        // they tap recenter.
+        if (!_programmaticMove &&
+            widget.cameraMode == MapCameraMode.followDriver) {
+          _userPanned = true;
+        }
+      },
+      onCameraMove: (pos) => _lastCameraTarget = pos.target,
+      onCameraIdle: () {
+        _programmaticMove = false;
+        final t = _lastCameraTarget;
+        if (t != null && widget.onCenterChanged != null) {
+          widget.onCenterChanged!(LatLng(t.latitude, t.longitude));
+        }
+      },
     );
   }
 }

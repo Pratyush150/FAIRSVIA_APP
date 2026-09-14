@@ -370,6 +370,12 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                 markers: _markers(state),
                 route: _route(state),
                 fitBounds: _fitBounds(state),
+                // Navigation view while driving: heading-up, centred on the
+                // car, until the driver pans (recenter resumes it).
+                cameraMode: state.phase == DriverPhase.enRoute ||
+                        state.phase == DriverPhase.onTrip
+                    ? MapCameraMode.followDriver
+                    : MapCameraMode.fit,
               ),
               // Banner and the top controls share one column so the
               // "Reconnecting…" bar pushes the status pill / menu button down
