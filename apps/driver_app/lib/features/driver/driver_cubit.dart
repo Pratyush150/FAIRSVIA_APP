@@ -19,8 +19,10 @@ class DriverCubit extends Cubit<DriverState> {
     this._ratings, {
     LocationAccessCheck? checkLocation,
     Duration acceptGrace = const Duration(seconds: 5),
+    Duration presenceInterval = const Duration(seconds: 30),
   })  : _checkLocation = checkLocation ?? checkLocationAccess,
         _acceptGrace = acceptGrace, // ignore: prefer_initializing_formals
+        _presenceInterval = presenceInterval,
         super(const DriverState());
 
   final RealtimeClient _realtime;
@@ -35,6 +37,12 @@ class DriverCubit extends Cubit<DriverState> {
   /// driver tapped Accept before giving up on that offer (see [acceptOffer]).
   final Duration _acceptGrace;
   Timer? _acceptTimer;
+
+  /// Presence re-sync (see [_pollPresence]); the interval is injectable for
+  /// tests.
+  final Duration _presenceInterval;
+  Timer? _presenceTimer;
+  int _offlineStrikes = 0;
 
   AccessTokenProvider? _tokenProvider;
 
@@ -197,6 +205,7 @@ class DriverCubit extends Cubit<DriverState> {
       await _remote.setStatus('online');
       _realtime.emit('driver:status', {'status': 'online'});
       emit(state.copyWith(phase: DriverPhase.online, busy: false));
+      _startPresenceSync();
     } on ApiException catch (e) {
       final needsOnboarding = e.message.toLowerCase().contains('onboarding');
       emit(state.copyWith(
@@ -209,6 +218,7 @@ class DriverCubit extends Cubit<DriverState> {
 
   Future<void> goOffline() async {
     _cancelAcceptTimer();
+    _stopPresenceSync();
     try {
       await _remote.setStatus('offline');
     } catch (_) {/* best effort */}
@@ -216,12 +226,17 @@ class DriverCubit extends Cubit<DriverState> {
     emit(state.copyWith(phase: DriverPhase.offline, offer: null));
   }
 
-  Future<void> onboard({
+  /// Saves the vehicle (`POST /drivers/onboarding`, also used to edit it
+  /// later). Returns true when the server accepted it; the dialog stays open
+  /// on failure so the driver sees why. With [goOnlineAfter] the driver is
+  /// put online straight after a successful first-time setup.
+  Future<bool> onboard({
     required String make,
     required String model,
     required String plate,
     required String tier,
     String? color,
+    bool goOnlineAfter = true,
   }) async {
     // Clear needsOnboarding immediately: the dialog is already up, and any
     // interim emission that still carries needsOnboarding=true would make the
@@ -236,9 +251,52 @@ class DriverCubit extends Cubit<DriverState> {
         vehicleColor: color,
       );
       emit(state.copyWith(busy: false, needsOnboarding: false));
-      await goOnline();
+      if (goOnlineAfter) await goOnline();
+      return true;
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));
+      return false;
+    }
+  }
+
+  /// Every 30 s while online and idle, ask the server what it thinks our
+  /// presence is. The socket tells us when the server drops us — except in
+  /// the one case where our connection looks healthy but the server-side
+  /// status was lost (evicted for stale GPS, Redis wiped, ops action). Two
+  /// consecutive 'offline' answers flip the UI, so a single poll racing our
+  /// own go-online can't kick us off.
+  void _startPresenceSync() {
+    _presenceTimer?.cancel();
+    _offlineStrikes = 0;
+    _presenceTimer = Timer.periodic(_presenceInterval, (_) => _pollPresence());
+  }
+
+  void _stopPresenceSync() {
+    _presenceTimer?.cancel();
+    _presenceTimer = null;
+    _offlineStrikes = 0;
+  }
+
+  Future<void> _pollPresence() async {
+    if (!state.isOnline || state.trip != null || state.offer != null) return;
+    try {
+      final me = await _remote.me();
+      if (me.status != 'offline') {
+        _offlineStrikes = 0;
+        return;
+      }
+      if (++_offlineStrikes < 2) return;
+      _stopPresenceSync();
+      _cancelAcceptTimer();
+      emit(state.copyWith(
+        phase: DriverPhase.offline,
+        offer: null,
+        busy: false,
+        error: 'The server no longer has you online. Go online again to '
+            'keep receiving requests.',
+      ));
+    } catch (_) {
+      // Transient network error: try again on the next tick.
     }
   }
 
@@ -480,6 +538,7 @@ class DriverCubit extends Cubit<DriverState> {
         // that re-announce is refused, the `exception` frame flips us below.
         if (reason == 'sync') return;
         _cancelAcceptTimer();
+        _stopPresenceSync();
         // Make the server match the screen even if a reconnect re-announce
         // raced this event and put us back online without our knowledge.
         _realtime.emit('driver:status', {'status': 'offline'});
@@ -552,6 +611,7 @@ class DriverCubit extends Cubit<DriverState> {
   @override
   Future<void> close() {
     _cancelAcceptTimer();
+    _stopPresenceSync();
     for (final s in _subs) {
       s.cancel();
     }

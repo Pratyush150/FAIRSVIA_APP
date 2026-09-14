@@ -45,6 +45,19 @@ class AuthRemoteDataSource {
     }
   }
 
+  /// Revoke the refresh token server-side (`POST /auth/logout`). Callers
+  /// wipe local tokens regardless of the outcome.
+  Future<void> logout(String? refreshToken) async {
+    try {
+      await _dio.post<Map<String, dynamic>>(
+        '/auth/logout',
+        data: {'refreshToken': ?refreshToken},
+      );
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+  }
+
   Future<AppUser> getMe() async {
     try {
       final res = await _dio.get<Map<String, dynamic>>('/users/me');

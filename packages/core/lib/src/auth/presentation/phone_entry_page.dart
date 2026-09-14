@@ -98,6 +98,15 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                     ),
                     onSubmitted: _valid ? (_) => _submit(context) : null,
                   ),
+                  if (_controller.text.trim().isNotEmpty && !_valid) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Enter the full number with country code, '
+                      'e.g. +1 305 555 0137.',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: AppColors.error),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.huge),
                   Text(
                     'By continuing you agree to our Terms and Privacy Policy.',

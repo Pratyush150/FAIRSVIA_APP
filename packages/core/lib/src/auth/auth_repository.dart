@@ -35,5 +35,17 @@ class AuthRepository {
     }
   }
 
-  Future<void> signOut() => _storage.clear();
+  /// Revoke the session on the server (best effort — the device may be
+  /// offline, and a local sign-out must never hang on the network), then
+  /// always wipe the local tokens.
+  Future<void> signOut() async {
+    try {
+      final refresh = await _storage.readRefreshToken();
+      await _remote.logout(refresh).timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Tokens are cleared below either way; the server's refresh token
+      // simply expires on its own.
+    }
+    await _storage.clear();
+  }
 }

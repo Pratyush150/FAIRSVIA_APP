@@ -28,9 +28,26 @@ import 'users_remote_data_source.dart';
 /// and navigates to history, places, payments, earnings, and profile editing.
 /// Role-aware: drivers see Earnings; riders see Saved places + Payment methods.
 class AccountMenuPage extends StatefulWidget {
-  const AccountMenuPage({super.key, this.isDriver = false});
+  const AccountMenuPage({
+    super.key,
+    this.isDriver = false,
+    this.onVehicle,
+    this.onBeforeSignOut,
+    this.signOutBlocker,
+  });
 
   final bool isDriver;
+
+  /// Drivers: opens the vehicle editor (shown as a "Vehicle" row).
+  final VoidCallback? onVehicle;
+
+  /// Runs after the user confirms sign-out and before the session is dropped
+  /// (the driver app uses it to go offline first).
+  final Future<void> Function()? onBeforeSignOut;
+
+  /// Returns a message when signing out must be refused right now (e.g. a
+  /// driver with a live trip), or null to allow it.
+  final String? Function()? signOutBlocker;
 
   @override
   State<AccountMenuPage> createState() => _AccountMenuPageState();
@@ -61,6 +78,43 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
     // `state.user` (home drawer, name gate, next visit here) sees the edit.
     context.read<AuthBloc>().add(AuthProfileCompleted(updated));
     setState(() => _user = updated);
+  }
+
+  Future<void> _confirmSignOut() async {
+    final blocked = widget.signOutBlocker?.call();
+    if (blocked != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(blocked)));
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: Text(widget.isDriver
+            ? "You'll go offline and stop receiving trip requests."
+            : "You'll need a new code to sign back in."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final bloc = context.read<AuthBloc>();
+    try {
+      await widget.onBeforeSignOut?.call();
+    } catch (_) {
+      // Going offline is best effort; the sign-out itself must not be stuck.
+    }
+    bloc.add(const AuthSignedOut());
   }
 
   void _open(Widget page) {
@@ -111,6 +165,12 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 onTap: () => _open(
                     DriverPayoutsPage(driver: sl<DriverRemoteDataSource>())),
               ),
+              if (widget.onVehicle != null)
+                _Item(
+                  icon: Icons.directions_car_rounded,
+                  title: 'Vehicle',
+                  onTap: widget.onVehicle!,
+                ),
             ]),
           if (!widget.isDriver)
             _group([
@@ -156,6 +216,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               title: 'Help & support',
               onTap: () => _open(SupportPage(
                 support: sl<SupportRemoteDataSource>(),
+                isDriver: widget.isDriver,
               )),
             ),
           ]),
@@ -165,8 +226,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               icon: Icons.logout_rounded,
               title: 'Sign out',
               danger: true,
-              onTap: () =>
-                  context.read<AuthBloc>().add(const AuthSignedOut()),
+              onTap: _confirmSignOut,
             ),
           ]),
         ],
