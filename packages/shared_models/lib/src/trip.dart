@@ -95,6 +95,7 @@ class Trip extends Equatable {
     this.scheduledAt,
     this.requestedAt,
     this.completedAt,
+    this.cancellationFee,
   });
 
   final String id;
@@ -131,6 +132,10 @@ class Trip extends Equatable {
   /// When the trip reached a terminal completed state, if it did.
   final DateTime? completedAt;
 
+  /// What a late cancel (after the free window) costs. Null on older
+  /// backends, in which case the UI keeps its generic wording.
+  final double? cancellationFee;
+
   /// The fare to display: final if settled, else the estimate.
   double? get fareDisplay => fareFinal ?? fareEstimate;
 
@@ -156,6 +161,7 @@ class Trip extends Equatable {
         scheduledAt: _parseDate(json['scheduledAt']),
         requestedAt: _parseDate(json['requestedAt']),
         completedAt: _parseDate(json['completedAt']),
+        cancellationFee: (json['cancellationFee'] as num?)?.toDouble(),
       );
 
   static DateTime? _parseDate(dynamic v) =>
@@ -182,5 +188,6 @@ class Trip extends Equatable {
         scheduledAt,
         requestedAt,
         completedAt,
+        cancellationFee,
       ];
 }

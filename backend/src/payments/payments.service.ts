@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
@@ -19,6 +20,7 @@ import {
 } from './payment-provider.interface';
 import { AddMethodDto } from './dto/add-method.dto';
 import { LedgerService } from '../ledger/ledger.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import {
   StripeEvent,
   verifyStripeSignature,
@@ -45,6 +47,9 @@ export class PaymentsService {
     private readonly ledger: LedgerService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     @InjectQueue(QUEUE_PAYMENTS) private readonly queue: Queue<CaptureJobData>,
+    // Optional so the pure-logic unit tests can build the service without a
+    // socket layer; production always has the (global) RealtimeService.
+    @Optional() private readonly realtime?: RealtimeService,
   ) {}
 
   /**
@@ -126,6 +131,20 @@ export class PaymentsService {
     });
   }
 
+  /**
+   * Platform-fee / driver-payout split. The driver is paid on the GROSS fare
+   * (before any promo): a discount the platform offered the rider must not
+   * come out of the driver's pocket, so the platform's cut absorbs it (and
+   * can go negative on a heavily discounted ride).
+   */
+  private splitFor(trip: { promoDiscount?: unknown }, final: number) {
+    const discount = Number(trip.promoDiscount ?? 0);
+    const gross = final + (Number.isFinite(discount) ? discount : 0);
+    const driverPayout = round2(gross * (1 - this.feePercent));
+    const platformFee = round2(final - driverPayout);
+    return { platformFee, driverPayout };
+  }
+
   /** Capture the final fare on completion and compute the payout split. */
   async captureForTrip(tripId: string): Promise<{
     fareFinal: number;
@@ -154,8 +173,7 @@ export class PaymentsService {
     // charge. We still record the split — the platform fee is what the driver
     // owes on this ride (reconciled against their payout ledger).
     if (trip.paymentMode === 'cash') {
-      const platformFee = round2(final * this.feePercent);
-      const driverPayout = round2(final - platformFee);
+      const { platformFee, driverPayout } = this.splitFor(trip, final);
       await this.prisma.payment.upsert({
         where: { tripId },
         create: {
@@ -231,8 +249,7 @@ export class PaymentsService {
 
     // Split on what we actually collected, so the driver is never credited more
     // than was captured.
-    const platformFee = round2(collected * this.feePercent);
-    const driverPayout = round2(collected - platformFee);
+    const { platformFee, driverPayout } = this.splitFor(trip, collected);
     await this.prisma.payment.update({
       where: { tripId },
       data: { status: 'captured', amount: collected, platformFee, driverPayout },
@@ -573,11 +590,21 @@ export class PaymentsService {
         note: 'Tip',
       });
     }
-    return {
+    const result = {
       tip: round2(Number(payment.tip) + tip),
       driverPayout: round2(Number(payment.driverPayout ?? 0) + tip),
       paymentMode: trip.paymentMode,
     };
+    // The driver's completion sheet is still up: let it show the tip (cash:
+    // more to collect; card: more earned) instead of the pre-tip numbers.
+    if (trip.driverId) {
+      this.realtime?.emitToUser(trip.driverId, 'trip:tip_added', {
+        tripId,
+        added: tip,
+        ...result,
+      });
+    }
+    return result;
   }
 
   async listMethods(userId: string) {
@@ -585,6 +612,48 @@ export class PaymentsService {
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /** Ownership-checked lookup shared by the mutating method routes. */
+  private async ownedMethod(userId: string, id: string) {
+    const method = await this.prisma.paymentMethod.findFirst({
+      where: { id, userId },
+    });
+    if (!method) throw new NotFoundException('Payment method not found');
+    return method;
+  }
+
+  async setDefaultMethod(userId: string, id: string) {
+    await this.ownedMethod(userId, id);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.paymentMethod.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
+      await tx.paymentMethod.update({ where: { id }, data: { isDefault: true } });
+    });
+    return this.listMethods(userId);
+  }
+
+  async removeMethod(userId: string, id: string) {
+    const method = await this.ownedMethod(userId, id);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.paymentMethod.delete({ where: { id } });
+      if (method.isDefault) {
+        // Promote the newest remaining card so "pay by card" keeps working.
+        const next = await tx.paymentMethod.findFirst({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (next) {
+          await tx.paymentMethod.update({
+            where: { id: next.id },
+            data: { isDefault: true },
+          });
+        }
+      }
+    });
+    return { deleted: true };
   }
 
   async addMethod(userId: string, dto: AddMethodDto) {
@@ -631,8 +700,16 @@ export class PaymentsService {
           surgeMultiplier: Number(stored.surgeMultiplier ?? trip.surgeMultiplier ?? 1),
           promoDiscount: Number(stored.promoDiscount ?? trip.promoDiscount ?? 0),
           tip: Number(p?.tip ?? 0),
+          minimumFareAdjustment: Number(stored.minimumFareAdjustment ?? 0),
         }
       : null;
+    const card =
+      trip.paymentMode !== 'cash' && trip.paymentMethodId
+        ? await this.prisma.paymentMethod
+            .findUnique({ where: { id: trip.paymentMethodId } })
+            .then((m) => (m ? { brand: m.brand, last4: m.last4 } : null))
+            .catch(() => null)
+        : null;
     return {
       tripId,
       status: trip.status,
@@ -641,6 +718,8 @@ export class PaymentsService {
       currency: trip.currency,
       fare: Number(trip.fareFinal ?? trip.fareEstimate ?? 0),
       paymentMode: trip.paymentMode,
+      // Which saved card paid (null for cash / no card on the trip).
+      card,
       breakdown,
       payment: p
         ? {

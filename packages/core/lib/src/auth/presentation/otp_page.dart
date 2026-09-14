@@ -40,6 +40,12 @@ class _OtpPageState extends State<OtpPage> {
     super.dispose();
   }
 
+  void _useDevCode(BuildContext context, String code) {
+    _ctrl.text = code;
+    setState(() => _code = code);
+    _submit(context);
+  }
+
   void _clearCode() {
     _ctrl.clear();
     setState(() => _code = '');
@@ -150,7 +156,12 @@ class _OtpPageState extends State<OtpPage> {
                   if (state.devCode != null) ...[
                     const SizedBox(height: AppSpacing.lg),
                     Center(
-                      child: Container(
+                      child: GestureDetector(
+                        // Dev convenience: tap the chip to use the code.
+                        onTap: state.busy
+                            ? null
+                            : () => _useDevCode(context, state.devCode!),
+                        child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.md,
                           vertical: AppSpacing.sm + 2,
@@ -175,6 +186,7 @@ class _OtpPageState extends State<OtpPage> {
                             ),
                           ],
                         ),
+                      ),
                       ),
                     ),
                   ],

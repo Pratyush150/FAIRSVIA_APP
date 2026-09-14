@@ -94,6 +94,9 @@ export const ARRIVAL_FIX_MAX_AGE_MS = 60_000;
 export interface ReceiptBreakdown extends FareBreakdown {
   promoDiscount: number;
   tip: number;
+  /** Top-up applied when the metered components fell below the tier's
+   *  minimum fare, so the itemised lines always add up to the headline. */
+  minimumFareAdjustment: number;
 }
 
 @Injectable()
@@ -133,7 +136,18 @@ export class TripsService {
       pickup,
       dropoff,
       stops: dto.stops ?? [],
-      tiers: this.pricing.estimateAllTiers(route.distanceM, route.durationS, surge),
+      // `etaSeconds` is how soon a car could be at the pickup (nearest online
+      // driver of that tier), null when none is around; the trip's own
+      // duration is a separate number.
+      tiers: await Promise.all(
+        this.pricing
+          .estimateAllTiers(route.distanceM, route.durationS, surge)
+          .map(async (t) => ({
+            ...t,
+            etaSeconds: await this.dispatch.nearestDriverEtaS(pickup, t.tier),
+            tripDurationS: route.durationS,
+          })),
+      ),
       // How our economy fare stacks up against modeled Uber/Lyft/Empower prices
       // for this exact trip, with the cheapest provider flagged. Reuses the
       // already-routed distance/time — no extra routing call.
@@ -340,7 +354,9 @@ export class TripsService {
       const base = Math.max(dto.quotedFare, 0.01);
       fareChanged = Math.abs(fare - dto.quotedFare) / base > PRICE_LOCK_TOLERANCE;
     }
-    if (!surgeChanged && !fareChanged) return;
+    // A surge tick that leaves the fare where it was is not a price change;
+    // bouncing the rider for it read as "Price updated to $6.50" (unchanged).
+    if (!fareChanged) return;
     throw new ConflictException({
       statusCode: 409,
       code: 'PRICE_CHANGED',
@@ -654,6 +670,7 @@ export class TripsService {
           trip.durationS ?? 0,
           surge,
           discount,
+          estimate,
         ),
       };
     }
@@ -677,7 +694,14 @@ export class TripsService {
       fareFinal,
       distanceM,
       durationS,
-      breakdown: this.breakdownFor(trip.tier, distanceM, durationS ?? 0, surge, discount),
+      breakdown: this.breakdownFor(
+        trip.tier,
+        distanceM,
+        durationS ?? 0,
+        surge,
+        discount,
+        fareFinal,
+      ),
     };
   }
 
@@ -689,9 +713,18 @@ export class TripsService {
     durationS: number,
     surge: number,
     promoDiscount: number,
+    fareFinal: number,
   ): ReceiptBreakdown {
     const b = this.pricing.estimateForTier(tier, distanceM, durationS, surge).breakdown;
-    return { ...b, promoDiscount: Math.round(promoDiscount * 100) / 100, tip: 0 };
+    const itemised = b.baseFare + b.distanceFare + b.timeFare + b.bookingFee;
+    const gross = fareFinal + promoDiscount;
+    const gap = Math.round((gross - itemised) * 100) / 100;
+    return {
+      ...b,
+      promoDiscount: Math.round(promoDiscount * 100) / 100,
+      tip: 0,
+      minimumFareAdjustment: gap > 0 ? gap : 0,
+    };
   }
 
   /**
@@ -736,7 +769,37 @@ export class TripsService {
     if (trip.riderId !== userId && trip.driverId !== userId) {
       throw new ForbiddenException('Not your trip');
     }
-    return this.serialize(trip, userId);
+    return { ...this.serialize(trip, userId), ...(await this.driverSnapshot(trip)) };
+  }
+
+  /**
+   * `driver` + `vehicle` as the rider's card shows them (same shape as
+   * `trip:accepted`), so a rider who relaunches mid-ride gets the name,
+   * rating and plate back instead of "Your driver ★ —". Empty when no driver
+   * is assigned yet.
+   */
+  private async driverSnapshot(trip: Trip) {
+    if (!trip.driverId) return {};
+    const driver = await this.prisma.user
+      .findUnique({
+        where: { id: trip.driverId },
+        include: { driverProfile: true },
+      })
+      .catch(() => null);
+    if (!driver) return {};
+    return {
+      driver: {
+        id: driver.id,
+        name: driver.fullName ?? 'Your driver',
+        rating: Number(driver.ratingAvg ?? 5),
+      },
+      vehicle: {
+        make: driver.driverProfile?.vehicleMake,
+        model: driver.driverProfile?.vehicleModel,
+        color: driver.driverProfile?.vehicleColor,
+        plate: driver.driverProfile?.plateNumber,
+      },
+    };
   }
 
   /** The caller's current non-terminal trip (as rider or driver), or null.
@@ -758,7 +821,8 @@ export class TripsService {
       },
       orderBy: { requestedAt: 'desc' },
     });
-    return trip ? this.serialize(trip, userId) : null;
+    if (!trip) return null;
+    return { ...this.serialize(trip, userId), ...(await this.driverSnapshot(trip)) };
   }
 
   async cancelTrip(userId: string, tripId: string, reason?: string) {
@@ -806,8 +870,14 @@ export class TripsService {
     await this.releaseDemand(trip);
 
     let fee = 0;
-    if (feeApplies) {
-      const amount = this.config.get<number>('cancellationFee') ?? 5;
+    // No fee when the ride was blocked on the driver's side (start code
+    // locked after repeated wrong entries): the rider isn't walking away
+    // from a ride they could have taken.
+    if (feeApplies && !(await this.otpLocked(tripId))) {
+      const configured = this.config.get<number>('cancellationFee') ?? 5;
+      const estimate = Number(trip.fareEstimate ?? 0);
+      // A cancellation must never cost more than the ride would have.
+      const amount = estimate > 0 ? Math.min(configured, estimate) : configured;
       try {
         fee = await this.payments.chargeCancellationFee(tripId, amount);
       } catch (e) {
@@ -873,6 +943,14 @@ export class TripsService {
   }
 
   /** Whether a rider cancel is charged: driver committed AND grace elapsed. */
+  private async otpLocked(tripId: string): Promise<boolean> {
+    try {
+      return (await this.redis.client.exists(otpLockKey(tripId))) > 0;
+    } catch {
+      return false;
+    }
+  }
+
   private cancellationFeeApplies(trip: Trip): boolean {
     const committed =
       trip.status === TripStatus.accepted || trip.status === TripStatus.arrived;
@@ -958,6 +1036,8 @@ export class TripsService {
       surgeMultiplier: Number(t.surgeMultiplier),
       currency: t.currency,
       startOtp: showOtp ? t.startOtp : null,
+      // What a late cancel costs, so the app can state the amount up front.
+      cancellationFee: this.config.get<number>('cancellationFee') ?? 5,
       requestedAt: t.requestedAt,
       acceptedAt: t.acceptedAt,
       arrivedAt: t.arrivedAt,

@@ -382,6 +382,10 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                 initialCenter: _markers(state).isNotEmpty
                     ? _markers(state).first.point
                     : (_myLocation ?? _fallback),
+                // Street level: recentring on the driver used to fall back
+                // to the widget's city-wide default and "zoom out" whenever
+                // presence changed.
+                initialZoom: 16,
                 // Follow the driver's own GPS while idle (online, no trip) so the
                 // map tracks them instead of freezing on the opening centre. On a
                 // trip, fitBounds frames pickup/route instead.
@@ -456,7 +460,11 @@ class _DriverHomeViewState extends State<_DriverHomeView>
               ),
               Align(
                 alignment: Alignment.bottomCenter,
-                child: _BottomSheet(state: state, myLocation: _myLocation),
+                child: _BottomSheet(
+                  state: state,
+                  myLocation: _myLocation,
+                  route: _route(state),
+                ),
               ),
               if (state.phase == DriverPhase.offered && state.offer != null)
                 OfferOverlay(offer: state.offer!),
@@ -535,7 +543,14 @@ class _DriverHomeViewState extends State<_DriverHomeView>
 }
 
 class _BottomSheet extends StatelessWidget {
-  const _BottomSheet({required this.state, this.myLocation});
+  const _BottomSheet({
+    required this.state,
+    this.myLocation,
+    this.route = const [],
+  });
+
+  /// The leg being driven (approach or trip), for a road distance readout.
+  final List<LatLng> route;
   final DriverState state;
 
   /// Driver's own last fix, for the live distance-to-pickup/dropoff line.
@@ -653,7 +668,7 @@ class _BottomSheet extends StatelessWidget {
           onAction: () => cubit.markArrived(),
           tripId: state.trip?.id,
           navigateTo: pickup,
-          distanceLabel: _distanceLabel(myLocation, pickup, 'pickup'),
+          distanceLabel: _distanceLabel(myLocation, pickup, 'pickup', route),
         );
       case DriverPhase.arrived:
         child = _StartTripSheet(
@@ -674,7 +689,7 @@ class _BottomSheet extends StatelessWidget {
           onAction: () => cubit.completeTrip(),
           tripId: state.trip?.id,
           navigateTo: dropoff,
-          distanceLabel: _distanceLabel(myLocation, dropoff, 'dropoff'),
+          distanceLabel: _distanceLabel(myLocation, dropoff, 'dropoff', route),
         );
       case DriverPhase.completed:
         child = _CompletedSheet(state: state, cubit: cubit);
@@ -867,10 +882,18 @@ class _LifecycleSheet extends StatelessWidget {
   }
 }
 
-/// "45 m to pickup" / "0.3 mi to dropoff" from the driver's own fix.
-String? _distanceLabel(LatLng? from, LatLng? to, String what) {
+/// "45 m to pickup" / "0.3 mi to dropoff" from the driver's own fix — along
+/// the road when the leg's polyline is known, straight-line otherwise.
+String? _distanceLabel(
+  LatLng? from,
+  LatLng? to,
+  String what, [
+  List<LatLng> route = const [],
+]) {
   if (from == null || to == null) return null;
-  final m = distanceMeters(from, to);
+  final m = route.length >= 2
+      ? routeRemainingMeters(route, from)
+      : distanceMeters(from, to);
   if (m < 200) return '${m.round()} m to $what';
   return '${(m / 1609.344).toStringAsFixed(1)} mi to $what';
 }

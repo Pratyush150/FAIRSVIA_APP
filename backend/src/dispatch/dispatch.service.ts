@@ -317,6 +317,41 @@ export class DispatchService {
     }
   }
 
+  /**
+   * Seconds until the closest online driver of [tier] could reach [pickup]
+   * (straight-line distance at a nominal urban pace, plus a minute of
+   * pickup slack), or null when nobody is within 15 km. Drives the "N min
+   * away" line on the rider's tier list; never throws.
+   */
+  async nearestDriverEtaS(
+    pickup: { lat: number; lng: number },
+    tier: string,
+  ): Promise<number | null> {
+    try {
+      const result = (await this.redis.client.geosearch(
+        RedisKeys.driversGeo(tier),
+        'FROMLONLAT',
+        pickup.lng,
+        pickup.lat,
+        'BYRADIUS',
+        15,
+        'km',
+        'ASC',
+        'COUNT',
+        1,
+        'WITHDIST',
+      )) as [string, string][];
+      if (result.length === 0) return null;
+      const [driverId, distKm] = result[0];
+      const alive = await this.evictStale(tier, [driverId]);
+      if (alive.length === 0) return null;
+      const metres = Number(distKm) * 1000;
+      return Math.round(metres / FALLBACK_APPROACH_MPS) + 60;
+    } catch {
+      return null;
+    }
+  }
+
   private async nearestDrivers(trip: Trip, radiusKm: number): Promise<string[]> {
     const result = (await this.redis.client.geosearch(
       RedisKeys.driversGeo(trip.tier),
@@ -588,6 +623,10 @@ export class DispatchService {
 
     this.realtime.emitToUser(trip.riderId, 'trip:accepted', {
       tripId: trip.id,
+      // Rider-only event: the start code is what they read to the driver. A
+      // scheduled ride fires while the rider's screen has no trip loaded, so
+      // it has to travel with the match.
+      startOtp: trip.startOtp,
       driver: {
         id: driverId,
         name: driver?.fullName ?? 'Your driver',

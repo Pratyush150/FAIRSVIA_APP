@@ -74,6 +74,7 @@ class DriverCubit extends Cubit<DriverState> {
             approachPolyline: d['driverPolyline'] as String?,
           )))
       ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
+      ..add(_realtime.on('trip:tip_added').listen(_onTipAdded))
       ..add(_realtime.on('trip:message').listen(_onMessage))
       // The server's view of our presence: sent on every connect and whenever
       // it takes us offline itself (socket drop, stale GPS, presence lost).
@@ -525,6 +526,25 @@ class DriverCubit extends Cubit<DriverState> {
   /// closes: a socket drop took the driver offline server-side, the app came
   /// back still showing "Online", and riders saw "no drivers" while the driver
   /// sat waiting for offers that could never come.
+  /// The rider tipped after completion: a cash tip is more to collect, a card
+  /// tip is more earned. Only the trip on the completion sheet counts.
+  void _onTipAdded(Map<String, dynamic> data) {
+    final tripId = data['tripId'] as String?;
+    final added = (data['added'] as num?)?.toDouble();
+    if (added == null || added <= 0) return;
+    if (tripId != null && state.lastTripId != null && tripId != state.lastTripId) {
+      return;
+    }
+    final cash = data['paymentMode'] == 'cash';
+    emit(state.copyWith(
+      cashToCollect: cash && state.cashToCollect != null
+          ? state.cashToCollect! + added
+          : state.cashToCollect,
+      lastEarned: state.lastEarned != null ? state.lastEarned! + added : null,
+      error: 'The rider added a ${Fmt.money(added)} tip',
+    ));
+  }
+
   void _onServerStatus(Map<String, dynamic> data) {
     final status = data['status'] as String?;
     final reason = data['reason'] as String?;

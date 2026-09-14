@@ -17,6 +17,7 @@ class Receipt {
     this.refundedAmount = 0,
     this.chargedAmount,
     this.breakdown,
+    this.cardLabel,
   });
 
   final String tripId;
@@ -44,6 +45,9 @@ class Receipt {
   /// tip). Null for trips settled before the backend recorded one.
   final FareBreakdown? breakdown;
 
+  /// "Visa ••4242" for card rides when the backend knows which card paid.
+  final String? cardLabel;
+
   bool get isCash => method == 'cash';
   bool get isRefunded => refundedAmount > 0;
 
@@ -56,7 +60,17 @@ class Receipt {
 
   factory Receipt.fromJson(Map<String, dynamic> j) {
     final p = j['payment'] as Map<String, dynamic>?;
+    final card = j['card'] as Map<String, dynamic>?;
+    final brand = (card?['brand'] as String?)?.trim();
+    final last4 = (card?['last4'] as String?)?.trim();
+    final cardLabel = card == null
+        ? null
+        : [
+            if (brand != null && brand.isNotEmpty) cardBrandName(brand),
+            if (last4 != null && last4.isNotEmpty) '••$last4',
+          ].join(' ');
     return Receipt(
+      cardLabel: (cardLabel == null || cardLabel.isEmpty) ? null : cardLabel,
       tripId: j['tripId'] as String,
       fare: (j['fare'] as num?)?.toDouble() ?? 0,
       currency: j['currency'] as String? ?? 'USD',
@@ -193,4 +207,18 @@ class PaymentsRemoteDataSource {
       throw ApiException.fromDio(e);
     }
   }
+}
+
+/// "visa" → "Visa", "mastercard" → "Mastercard", "amex" → "Amex".
+String cardBrandName(String brand) {
+  final b = brand.trim().toLowerCase();
+  const known = {
+    'visa': 'Visa',
+    'mastercard': 'Mastercard',
+    'amex': 'Amex',
+    'american_express': 'Amex',
+    'discover': 'Discover',
+  };
+  if (known.containsKey(b)) return known[b]!;
+  return b.isEmpty ? 'Card' : b[0].toUpperCase() + b.substring(1);
 }

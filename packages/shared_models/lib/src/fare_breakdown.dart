@@ -15,6 +15,7 @@ class FareBreakdown extends Equatable {
     this.surgeMultiplier = 1,
     this.promoDiscount = 0,
     this.tip = 0,
+    this.minimumFareAdjustment = 0,
   });
 
   final double baseFare;
@@ -26,6 +27,12 @@ class FareBreakdown extends Equatable {
   final double surgeMultiplier;
   final double promoDiscount;
   final double tip;
+
+  /// Top-up to the tier's minimum fare when the metered parts fell short, so
+  /// the lines add up to the headline (0 when the minimum didn't apply).
+  final double minimumFareAdjustment;
+
+  bool get hasMinimumFare => minimumFareAdjustment > 0;
 
   /// Surge worth calling out (a 1.0× line would only add noise).
   bool get hasSurge => surgeMultiplier > 1.0 + 1e-9;
@@ -44,6 +51,8 @@ class FareBreakdown extends Equatable {
     surgeMultiplier: (json['surgeMultiplier'] as num?)?.toDouble() ?? 1,
     promoDiscount: (json['promoDiscount'] as num?)?.toDouble() ?? 0,
     tip: (json['tip'] as num?)?.toDouble() ?? 0,
+    minimumFareAdjustment:
+        (json['minimumFareAdjustment'] as num?)?.toDouble() ?? 0,
   );
 
   FareBreakdown copyWith({double? tip}) => FareBreakdown(
@@ -54,6 +63,7 @@ class FareBreakdown extends Equatable {
     surgeMultiplier: surgeMultiplier,
     promoDiscount: promoDiscount,
     tip: tip ?? this.tip,
+    minimumFareAdjustment: minimumFareAdjustment,
   );
 
   @override
@@ -65,5 +75,6 @@ class FareBreakdown extends Equatable {
     surgeMultiplier,
     promoDiscount,
     tip,
+    minimumFareAdjustment,
   ];
 }

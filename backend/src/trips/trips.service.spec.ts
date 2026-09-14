@@ -40,6 +40,7 @@ describe('TripsService', () => {
         hgetall: jest.fn(async (k: string) => (store[k] as Record<string, string>) ?? {}),
         incr: jest.fn().mockResolvedValue(1),
         expire: jest.fn().mockResolvedValue(1),
+        exists: jest.fn(async (k: string) => (store[k] === undefined ? 0 : 1)),
       },
     };
     const created: Record<string, unknown>[] = [];
@@ -153,11 +154,12 @@ describe('TripsService', () => {
       expect(created[0].surgeMultiplier).toBe(1.5);
     });
 
-    it('surge-only quote is enough to lock the multiplier', async () => {
-      const { svc } = make({ surge: 1.3 });
-      await expect(svc.createTrip('rider-1', { ...baseDto, quotedSurge: 1 })).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+    it('a surge tick that leaves the fare unchanged does not bounce the rider', async () => {
+      // The rider cares about the price, not the multiplier: a quote with the
+      // same fare but a different surge (e.g. minimum fare in force) goes through.
+      const { svc, created } = make({ surge: 1.3, fare: 10 });
+      await svc.createTrip('rider-1', { ...baseDto, quotedSurge: 1, quotedFare: 13 });
+      expect(created).toHaveLength(1);
     });
   });
 
@@ -186,6 +188,60 @@ describe('TripsService', () => {
       });
       await svc.driverCancelTrip('driver-1', 'trip-1', 'no-show');
       expect(surge.releaseDemand).toHaveBeenCalledWith(pickup.lat, pickup.lng, 'rider-1');
+    });
+  });
+
+  describe('cancellation fee', () => {
+    const lateTrip = {
+      id: 'trip-1', riderId: 'rider-1', driverId: 'driver-1', status: TripStatus.accepted,
+      pickupLat: pickup.lat, pickupLng: pickup.lng, promoCode: null,
+      acceptedAt: new Date(Date.now() - 5 * 60 * 1000),
+    };
+
+    it('never charges more than the ride would have cost', async () => {
+      const { svc, prisma, payments } = make();
+      prisma.trip.findUnique.mockResolvedValue({ ...lateTrip, fareEstimate: 3.5 });
+      payments.chargeCancellationFee.mockResolvedValue(3.5);
+      const res = await svc.cancelTrip('rider-1', 'trip-1', 'late');
+      expect(payments.chargeCancellationFee).toHaveBeenCalledWith('trip-1', 3.5);
+      expect(res.fee).toBe(3.5);
+    });
+
+    it('charges the configured fee when the estimate is higher', async () => {
+      const { svc, prisma, payments } = make();
+      prisma.trip.findUnique.mockResolvedValue({ ...lateTrip, fareEstimate: 20 });
+      payments.chargeCancellationFee.mockResolvedValue(5);
+      await svc.cancelTrip('rider-1', 'trip-1', 'late');
+      expect(payments.chargeCancellationFee).toHaveBeenCalledWith('trip-1', 5);
+    });
+
+    it('waives the fee while the start code is locked (the driver could not start)', async () => {
+      const { svc, prisma, payments, store } = make();
+      prisma.trip.findUnique.mockResolvedValue({ ...lateTrip, fareEstimate: 20 });
+      store['trip:trip-1:otpLock'] = '1';
+      const res = await svc.cancelTrip('rider-1', 'trip-1', 'locked out');
+      expect(payments.chargeCancellationFee).not.toHaveBeenCalled();
+      expect(res.fee).toBe(0);
+    });
+  });
+
+  describe('minimum fare on the receipt', () => {
+    it('adds a "minimum fare" line so the itemised parts reach the headline', async () => {
+      // Itemised parts sum to 4.5 (breakdownFor(1)); the tier floor lifts the
+      // fare to 5, so the receipt must show a 0.5 top-up.
+      const { svc, prisma } = make({ fare: 4.5 });
+      prisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1', riderId: 'rider-1', driverId: 'driver-1', status: TripStatus.in_progress,
+        tier: 'economy', distanceM: 500, durationS: 60, fareEstimate: 5, surgeMultiplier: 1,
+        promoDiscount: 0, currency: 'USD', paymentMode: 'cash', startedAt: new Date(Date.now() - 60000),
+      });
+      const receipt = await svc.completeTrip('driver-1', 'trip-1');
+      const parts = breakdownFor(1);
+      const itemised = parts.baseFare + parts.distanceFare + parts.timeFare + parts.bookingFee;
+      expect(receipt.breakdown.minimumFareAdjustment).toBeCloseTo(
+        Math.max(receipt.fareFinal - itemised, 0),
+        2,
+      );
     });
   });
 
@@ -253,7 +309,7 @@ describe('TripsService', () => {
       const { svc, prisma, realtime, stateMachine, notifications, redis } = make();
       prisma.trip.findUnique.mockResolvedValue(trip);
       const receipt = await svc.completeTrip('driver-1', 'trip-1');
-      const breakdown = { ...breakdownFor(1), promoDiscount: 0, tip: 0 };
+      const breakdown = { ...breakdownFor(1), promoDiscount: 0, tip: 0, minimumFareAdjustment: 0 };
       expect(receipt.breakdown).toEqual(breakdown);
       expect(realtime.emitToUser).toHaveBeenCalledWith('rider-1', 'trip:completed', expect.objectContaining({ breakdown }));
       expect(realtime.emitToUser).toHaveBeenCalledWith('driver-1', 'trip:completed', expect.objectContaining({ breakdown }));

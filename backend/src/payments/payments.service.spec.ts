@@ -35,6 +35,8 @@ describe('PaymentsService', () => {
       },
       paymentMethod: {
         findFirst: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue(null),
+        update: jest.fn().mockResolvedValue({}),
       },
       paymentRefund: {
         create: jest.fn().mockResolvedValue({ id: 'ref_1' }),
@@ -1035,6 +1037,72 @@ describe('PaymentsService', () => {
 
   // GET /payments/:tripId/receipt replays the breakdown persisted on the
   // completion event (TripsService.settleFare) and folds in the tip.
+  describe('saved card management', () => {
+    it('setDefaultMethod refuses a card the user does not own', async () => {
+      const prisma = makePrisma();
+      (prisma as any).paymentMethod.findFirst.mockResolvedValue(null);
+      const service = makeService(prisma);
+      await expect(service.setDefaultMethod('r1', 'pm_x')).rejects.toThrow(
+        'Payment method not found',
+      );
+    });
+
+    it('setDefaultMethod clears the old default and sets the new one', async () => {
+      const prisma = makePrisma();
+      (prisma as any).paymentMethod.findFirst.mockResolvedValue({
+        id: 'pm_2',
+        userId: 'r1',
+        isDefault: false,
+      });
+      (prisma as any).paymentMethod.updateMany = jest
+        .fn()
+        .mockResolvedValue({ count: 1 });
+      (prisma as any).paymentMethod.findMany = jest.fn().mockResolvedValue([]);
+      const service = makeService(prisma);
+      await service.setDefaultMethod('r1', 'pm_2');
+      expect((prisma as any).paymentMethod.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'r1', isDefault: true },
+        data: { isDefault: false },
+      });
+      expect((prisma as any).paymentMethod.update).toHaveBeenCalledWith({
+        where: { id: 'pm_2' },
+        data: { isDefault: true },
+      });
+    });
+
+    it('removeMethod promotes the newest remaining card when the default goes', async () => {
+      const prisma = makePrisma();
+      (prisma as any).paymentMethod.findFirst
+        .mockResolvedValueOnce({ id: 'pm_1', userId: 'r1', isDefault: true })
+        .mockResolvedValueOnce({ id: 'pm_2', userId: 'r1', isDefault: false });
+      (prisma as any).paymentMethod.delete = jest.fn().mockResolvedValue({});
+      const service = makeService(prisma);
+      await expect(service.removeMethod('r1', 'pm_1')).resolves.toEqual({
+        deleted: true,
+      });
+      expect((prisma as any).paymentMethod.delete).toHaveBeenCalledWith({
+        where: { id: 'pm_1' },
+      });
+      expect((prisma as any).paymentMethod.update).toHaveBeenCalledWith({
+        where: { id: 'pm_2' },
+        data: { isDefault: true },
+      });
+    });
+
+    it('removeMethod leaves the default alone when a non-default card goes', async () => {
+      const prisma = makePrisma();
+      (prisma as any).paymentMethod.findFirst.mockResolvedValue({
+        id: 'pm_3',
+        userId: 'r1',
+        isDefault: false,
+      });
+      (prisma as any).paymentMethod.delete = jest.fn().mockResolvedValue({});
+      const service = makeService(prisma);
+      await service.removeMethod('r1', 'pm_3');
+      expect((prisma as any).paymentMethod.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getReceipt breakdown', () => {
     const trip = {
       id: 't1', riderId: 'r1', driverId: 'd1', status: TripStatus.completed,
@@ -1055,6 +1123,7 @@ describe('PaymentsService', () => {
       );
       expect(receipt.breakdown).toEqual({
         baseFare: 2.5, distanceFare: 6, timeFare: 2.4, bookingFee: 1.5, surgeMultiplier: 1.2, promoDiscount: 1, tip: 2,
+        minimumFareAdjustment: 0,
       });
       expect(receipt.fare).toBe(12);
     });

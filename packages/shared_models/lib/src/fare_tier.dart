@@ -16,7 +16,9 @@ class FareTier extends Equatable {
   final int capacity;
   final double fare;
   final String currency;
-  final int etaSeconds;
+  /// Seconds until the nearest car of this tier could be at the pickup;
+  /// null when no driver is nearby.
+  final int? etaSeconds;
 
   factory FareTier.fromJson(Map<String, dynamic> json) => FareTier(
         tier: json['tier'] as String,
@@ -24,7 +26,7 @@ class FareTier extends Equatable {
         capacity: (json['capacity'] as num).toInt(),
         fare: (json['fare'] as num).toDouble(),
         currency: json['currency'] as String? ?? 'USD',
-        etaSeconds: (json['etaSeconds'] as num).toInt(),
+        etaSeconds: (json['etaSeconds'] as num?)?.toInt(),
       );
 
   @override

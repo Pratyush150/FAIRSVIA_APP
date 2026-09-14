@@ -1189,8 +1189,9 @@ class _PaymentModeToggle extends StatelessWidget {
   static String _cardLabel(Map<String, dynamic> c) {
     final brand = (c['brand'] as String?)?.trim();
     final last4 = (c['last4'] as String?)?.trim();
-    final b = (brand == null || brand.isEmpty) ? 'Card' : brand;
-    return last4 == null || last4.isEmpty ? b : '$b •••• $last4';
+    final b = (brand == null || brand.isEmpty) ? 'Card' : cardBrandName(brand);
+    // Short form ("Mastercard ••5555") so long brands fit the half-width chip.
+    return last4 == null || last4.isEmpty ? b : '$b ••$last4';
   }
 
   @override
@@ -1548,7 +1549,10 @@ class _RideTierTile extends StatelessWidget {
                   Text(tier.label, style: theme.textTheme.titleMedium),
                   const SizedBox(height: 1),
                   Text(
-                    '${tier.capacity} seats · ${_minutes(tier.etaSeconds)} min away',
+                    tier.etaSeconds == null
+                        ? '${tier.capacity} seats · no cars nearby'
+                        : '${tier.capacity} seats · '
+                            '${_minutes(tier.etaSeconds!)} min away',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -1658,15 +1662,25 @@ Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) as
   );
   if (confirmed != true) return;
   final fee = await cubit.cancelTrip();
-  if (fee > 0) {
-    messenger.showSnackBar(
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
       SnackBar(
         content: Text(
-          'Ride cancelled. A \$${fee.toStringAsFixed(2)} cancellation fee was charged.',
+          fee > 0
+              ? 'Ride cancelled. A \$${fee.toStringAsFixed(2)} cancellation '
+                  'fee was charged.'
+              : 'Ride cancelled.',
         ),
       ),
     );
-  }
+}
+
+/// "$5.00" from the trip's configured cancellation fee, or a generic word
+/// when an older backend didn't send one.
+String _feeLabel(TripCubit cubit) {
+  final fee = cubit.state.trip?.cancellationFee;
+  return fee == null ? '' : '\$${fee.toStringAsFixed(2)}';
 }
 
 /// "Cancel this ride?" prompt. If the trip ends underneath it (driver
@@ -1704,7 +1718,8 @@ class CancelRideDialog extends StatelessWidget {
         content: Text(
           feeWarning
               ? 'Your driver is already on the way. Cancelling is free for 2 minutes '
-                  'after they accept; after that a cancellation fee applies.'
+                  'after they accept; after that a ${_feeLabel(cubit)} '
+                  'cancellation fee applies.'
               : 'Are you sure you want to cancel this ride?',
         ),
         actions: [

@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -29,6 +31,24 @@ export class PaymentsController {
   @Post('methods')
   addMethod(@CurrentUser() user: AuthUser, @Body() dto: AddMethodDto) {
     return this.payments.addMethod(user.userId, dto);
+  }
+
+  /** Make a saved card the default for future rides. */
+  @Patch('methods/:id/default')
+  setDefaultMethod(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.payments.setDefaultMethod(user.userId, id);
+  }
+
+  /** Delete a saved card (another card becomes default if this one was). */
+  @Delete('methods/:id')
+  removeMethod(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.payments.removeMethod(user.userId, id);
   }
 
   /** Start a card-save: returns the PaymentSheet secrets + publishable key. */

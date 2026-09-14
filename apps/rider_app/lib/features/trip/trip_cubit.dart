@@ -283,9 +283,28 @@ class TripCubit extends Cubit<TripState> {
     }
   }
 
-  void _onAccepted(Map<String, dynamic> data) {
+  Future<void> _onAccepted(Map<String, dynamic> data) async {
+    final tripId = data['tripId'] as String?;
+    final otp = data['startOtp'] as String?;
+    var trip = state.trip;
+    // A scheduled ride fires while this screen has no trip loaded (or a
+    // stale one), and a trip booked earlier may predate its start code:
+    // pull the server copy so the card shows pickup, dropoff and the code.
+    final needsTrip = tripId != null &&
+        (trip == null ||
+            trip.id != tripId ||
+            (otp != null && trip.startOtp == null));
+    if (needsTrip) {
+      try {
+        trip = await _repository.getTrip(tripId);
+      } catch (_) {
+        // Keep whatever we have; the socket events still drive the phases.
+      }
+    }
+    if (isClosed) return;
     emit(state.copyWith(
       phase: TripPhase.driverEnRoute,
+      trip: trip,
       driver: AssignedDriver.fromAcceptedEvent(data),
       // Route the driver takes to reach the pickup — drawn during the approach.
       driverRoutePolyline: data['driverPolyline'] as String?,

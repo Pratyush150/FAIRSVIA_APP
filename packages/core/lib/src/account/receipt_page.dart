@@ -66,15 +66,21 @@ class ReceiptPage extends StatelessWidget {
           ),
         const Divider(height: AppSpacing.xl),
         _row(context, 'Total', Fmt.money(r.total, r.currency), bold: true),
-        if (r.isCash)
+        if (r.isCash || r.cardLabel != null)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.xs),
             child: Row(
               children: [
-                const Icon(Icons.payments_outlined,
-                    size: 16, color: AppColors.textSecondaryLight),
+                Icon(
+                  r.isCash ? Icons.payments_outlined : Icons.credit_card,
+                  size: 16,
+                  color: AppColors.textSecondaryLight,
+                ),
                 const SizedBox(width: AppSpacing.xs),
-                Text('Paid in cash', style: theme.textTheme.bodyMedium),
+                Text(
+                  r.isCash ? 'Paid in cash' : 'Paid with ${r.cardLabel}',
+                  style: theme.textTheme.bodyMedium,
+                ),
               ],
             ),
           ),
@@ -144,6 +150,9 @@ class FareBreakdownRows extends StatelessWidget {
         _line('Distance', Fmt.money(b.distanceFare, currency), textStyle),
         _line('Time', Fmt.money(b.timeFare, currency), textStyle),
         _line('Booking fee', Fmt.money(b.bookingFee, currency), textStyle),
+        if (b.hasMinimumFare)
+          _line('Minimum fare', Fmt.money(b.minimumFareAdjustment, currency),
+              textStyle),
         if (b.hasSurge) _line('Surge', Fmt.surge(b.surgeMultiplier), textStyle),
         if (b.hasPromo)
           _line('Promo', '−${Fmt.money(b.promoDiscount, currency)}', textStyle),
