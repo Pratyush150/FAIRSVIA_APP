@@ -28,6 +28,10 @@ const String _mockLocation = String.fromEnvironment('MOCK_LOCATION');
 enum LocationAccess {
   granted,
 
+  /// Permission granted but iOS 14+/Android 12+ "Precise Location" is off:
+  /// fixes are ~1–5 km off, useless for dispatch, pickup and metering.
+  reduced,
+
   /// Permission denied this time; the OS may ask again on the next attempt.
   denied,
 
@@ -59,7 +63,7 @@ Future<LocationAccess> checkLocationAccess() async {
   switch (permission) {
     case LocationPermission.always:
     case LocationPermission.whileInUse:
-      return LocationAccess.granted;
+      return _preciseOrReduced();
     case LocationPermission.deniedForever:
       return LocationAccess.deniedForever;
     case LocationPermission.denied:
@@ -68,11 +72,33 @@ Future<LocationAccess> checkLocationAccess() async {
   }
 }
 
+/// iOS 14+ / Android 12+: the user may have granted only approximate
+/// location. Ask once for temporary full accuracy (needs the
+/// NSLocationTemporaryUsageDescriptionDictionary "PreciseRide" purpose key);
+/// if it is still reduced, going online must be refused.
+Future<LocationAccess> _preciseOrReduced() async {
+  try {
+    var acc = await Geolocator.getLocationAccuracy();
+    if (acc == LocationAccuracyStatus.reduced) {
+      acc = await Geolocator.requestTemporaryFullAccuracy(
+        purposeKey: 'PreciseRide',
+      );
+    }
+    if (acc == LocationAccuracyStatus.reduced) return LocationAccess.reduced;
+  } catch (_) {
+    // Platforms without the API (older OS, web) report full accuracy.
+  }
+  return LocationAccess.granted;
+}
+
 /// User-facing explanation for a failed [checkLocationAccess].
 String locationAccessMessage(LocationAccess access) {
   switch (access) {
     case LocationAccess.granted:
       return '';
+    case LocationAccess.reduced:
+      return 'Precise Location is off. Turn it on in Settings so riders can '
+          'find you and trips are metered correctly';
     case LocationAccess.servicesOff:
       return 'Turn on location services to go online';
     case LocationAccess.deniedForever:
@@ -217,8 +243,8 @@ Stream<Position> driverPositionStream() {
 LocationSettings _platformLocationSettings() {
   if (Platform.isAndroid) {
     return AndroidSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 5,
       forceLocationManager: false,
       foregroundNotificationConfig: const ForegroundNotificationConfig(
         notificationTitle: 'FairsVia Driver — online',
@@ -230,8 +256,8 @@ LocationSettings _platformLocationSettings() {
   }
   if (Platform.isIOS) {
     return AppleSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 5,
       // Keeps iOS delivering updates in the background (paired with the
       // UIBackgroundModes:location entitlement in Info.plist).
       allowBackgroundLocationUpdates: true,

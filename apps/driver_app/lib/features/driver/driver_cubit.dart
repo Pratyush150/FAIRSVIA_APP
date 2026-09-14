@@ -214,13 +214,24 @@ class DriverCubit extends Cubit<DriverState> {
   }
 
   /// Feed a GPS fix in; forwarded to the backend when online/on a trip.
-  void sendLocation(double lat, double lng, {double heading = 0, double speed = 0}) {
+  void sendLocation(
+    double lat,
+    double lng, {
+    double heading = 0,
+    double speed = 0,
+    double? accuracy,
+    DateTime? at,
+  }) {
     if (state.phase == DriverPhase.offline) return;
     _realtime.emit('driver:location', {
       'lat': lat,
       'lng': lng,
       'heading': heading,
       'speed': speed,
+      // Lets the backend gate noisy fixes out of fare metering and lets the
+      // rider detect stale positions.
+      'accuracy': ?accuracy,
+      'ts': (at ?? DateTime.now()).millisecondsSinceEpoch,
     });
   }
 

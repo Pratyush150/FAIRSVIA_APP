@@ -4,6 +4,19 @@
 <dict>
 	<key>GMSApiKey</key>
 	<string>$(MAPS_API_KEY)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+		<string>waze</string>
+		<string>maps</string>
+		<string>https</string>
+		<string>tel</string>
+	</array>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>PreciseRide</key>
+		<string>Your precise location lets riders find you at the pickup and meters trips correctly.</string>
+	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>FairsVia uses your location to share your position with riders and navigate to pickups and drop-offs.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

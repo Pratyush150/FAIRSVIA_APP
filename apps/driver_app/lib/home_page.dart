@@ -126,6 +126,8 @@ class _DriverHomeViewState extends State<_DriverHomeView>
             pos.longitude,
             heading: pos.heading,
             speed: pos.speed,
+            accuracy: pos.accuracy,
+            at: pos.timestamp,
           );
     });
     // Keep presence fresh while parked — well under the backend's stale window.
@@ -410,7 +412,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
               ),
               Align(
                 alignment: Alignment.bottomCenter,
-                child: _BottomSheet(state: state),
+                child: _BottomSheet(state: state, myLocation: _myLocation),
               ),
               if (state.phase == DriverPhase.offered && state.offer != null)
                 _OfferOverlay(offer: state.offer!),
@@ -426,6 +428,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   SnackBarAction? _locationFixAction(LocationAccess? issue) {
     switch (issue) {
       case LocationAccess.deniedForever:
+      case LocationAccess.reduced:
         return SnackBarAction(
           label: 'Settings',
           onPressed: () => unawaited(Geolocator.openAppSettings()),
@@ -458,8 +461,11 @@ class _DriverHomeViewState extends State<_DriverHomeView>
 }
 
 class _BottomSheet extends StatelessWidget {
-  const _BottomSheet({required this.state});
+  const _BottomSheet({required this.state, this.myLocation});
   final DriverState state;
+
+  /// Driver's own last fix, for the live distance-to-pickup/dropoff line.
+  final LatLng? myLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -562,6 +568,9 @@ class _BottomSheet extends StatelessWidget {
           ],
         );
       case DriverPhase.enRoute:
+        final pickup = state.trip == null
+            ? null
+            : LatLng(state.trip!.pickup.point.lat, state.trip!.pickup.point.lng);
         child = _LifecycleSheet(
           title: 'Head to pickup',
           subtitle: state.trip?.pickup.address ?? 'Pickup location',
@@ -569,6 +578,8 @@ class _BottomSheet extends StatelessWidget {
           busy: state.busy,
           onAction: () => cubit.markArrived(),
           tripId: state.trip?.id,
+          navigateTo: pickup,
+          distanceLabel: _distanceLabel(myLocation, pickup, 'pickup'),
         );
       case DriverPhase.arrived:
         child = _StartTripSheet(
@@ -577,6 +588,10 @@ class _BottomSheet extends StatelessWidget {
           tripId: state.trip?.id,
         );
       case DriverPhase.onTrip:
+        final dropoff = state.trip == null
+            ? null
+            : LatLng(
+                state.trip!.dropoff.point.lat, state.trip!.dropoff.point.lng);
         child = _LifecycleSheet(
           title: 'On trip',
           subtitle: state.trip?.dropoff.address ?? 'Dropoff location',
@@ -584,6 +599,8 @@ class _BottomSheet extends StatelessWidget {
           busy: state.busy,
           onAction: () => cubit.completeTrip(),
           tripId: state.trip?.id,
+          navigateTo: dropoff,
+          distanceLabel: _distanceLabel(myLocation, dropoff, 'dropoff'),
         );
       case DriverPhase.completed:
         child = _CompletedSheet(state: state, cubit: cubit);
@@ -682,6 +699,8 @@ class _LifecycleSheet extends StatelessWidget {
     required this.onAction,
     required this.busy,
     this.tripId,
+    this.navigateTo,
+    this.distanceLabel,
   });
 
   final String title;
@@ -690,6 +709,12 @@ class _LifecycleSheet extends StatelessWidget {
   final VoidCallback onAction;
   final bool busy;
   final String? tripId;
+
+  /// Destination for the "Navigate" hand-off (Google Maps / Waze / Apple Maps).
+  final LatLng? navigateTo;
+
+  /// Live "0.3 mi to pickup" style readout from the driver's own position.
+  final String? distanceLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -719,15 +744,60 @@ class _LifecycleSheet extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(subtitle, style: theme.textTheme.bodyMedium),
+        if (distanceLabel != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              const Icon(Icons.near_me_rounded,
+                  size: 16, color: AppColors.accent),
+              const SizedBox(width: AppSpacing.xs),
+              Text(distanceLabel!, style: theme.textTheme.titleSmall),
+            ],
+          ),
+        ],
         const SizedBox(height: AppSpacing.md),
-        PrimaryButton(
-          label: actionLabel,
-          loading: busy,
-          onPressed: busy ? null : onAction,
+        Row(
+          children: [
+            if (navigateTo != null) ...[
+              Expanded(
+                child: SecondaryButton(
+                  label: 'Navigate',
+                  icon: Icons.navigation_rounded,
+                  onPressed: () => _navigate(context, navigateTo!),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+            Expanded(
+              flex: navigateTo != null ? 2 : 1,
+              child: PrimaryButton(
+                label: actionLabel,
+                loading: busy,
+                onPressed: busy ? null : onAction,
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
+
+  Future<void> _navigate(BuildContext context, LatLng to) async {
+    final ok = await openTurnByTurn(lat: to.latitude, lng: to.longitude);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No navigation app could be opened')),
+      );
+    }
+  }
+}
+
+/// "45 m to pickup" / "0.3 mi to dropoff" from the driver's own fix.
+String? _distanceLabel(LatLng? from, LatLng? to, String what) {
+  if (from == null || to == null) return null;
+  final m = distanceMeters(from, to);
+  if (m < 200) return '${m.round()} m to $what';
+  return '${(m / 1609.344).toStringAsFixed(1)} mi to $what';
 }
 
 /// Opens the safety toolkit (SOS) for the driver's active trip. Drivers get the

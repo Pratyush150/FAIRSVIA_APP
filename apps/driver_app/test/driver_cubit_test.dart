@@ -470,6 +470,32 @@ void main() {
       },
     );
 
+    blocTest<DriverCubit, DriverState>(
+      'stays offline with a Settings error when Precise Location is off '
+      '(reduced accuracy) — never calls setStatus(online)',
+      build: () => make(),
+      setUp: () => access = LocationAccess.reduced,
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+      },
+      expect: () => [
+        isA<DriverState>()
+            .having((s) => s.busy, 'busy', isTrue)
+            .having((s) => s.locationIssue, 'locationIssue', isNull),
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.offline)
+            .having((s) => s.busy, 'busy', isFalse)
+            .having((s) => s.locationIssue, 'locationIssue',
+                LocationAccess.reduced)
+            .having((s) => s.error, 'error', contains('Settings')),
+      ],
+      verify: (_) {
+        verifyNever(() => remote.setStatus('online'));
+        expect(realtime.emitted.any((e) => e.$1 == 'driver:status'), isFalse);
+      },
+    );
+
     test('services off → servicesOff issue, still offline', () async {
       access = LocationAccess.servicesOff;
       final cubit = make();
