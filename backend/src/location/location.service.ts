@@ -2,6 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { RedisService } from '../common/redis/redis.service';
 import { RedisKeys } from '../common/redis/redis.keys';
 import { RealtimeService } from '../realtime/realtime.service';
+import { LatLng } from '../geo/geo-provider.interface';
+import {
+  decodePolyline,
+  haversineMeters,
+  remainingAlongPolyline,
+} from '../geo/geo.util';
 
 /** A single GPS segment longer than this (meters) is treated as a fix jump /
  *  reconnect gap and skipped, so the odometer isn't inflated by teleports. */
@@ -15,6 +21,11 @@ export const MAX_PLAUSIBLE_SPEED_MPS = 60;
  *  too noisy to meter — it can still update the driver's live position but
  *  contributes nothing to driven distance. */
 export const MAX_METER_ACCURACY_M = 100;
+/** A fix noisier than this is also withheld from the rider's live map — a
+ *  100 m+ blob jumping around is worse than a briefly-frozen marker. */
+export const MAX_BROADCAST_ACCURACY_M = 100;
+/** ETA fallback pace (m/s) when the leg has no routed average speed. */
+export const FALLBACK_ETA_MPS = 8;
 
 /**
  * Atomic trip odometer step, run inside Redis so read-add-write can't interleave
@@ -68,6 +79,26 @@ export interface LocationPing {
   speed?: number;
   /** Horizontal accuracy radius in meters, when the device reports it. */
   accuracy?: number;
+  /** Device time of the fix (epoch ms), when the client sends it. */
+  ts?: number;
+}
+
+/** Per-leg navigation context (Redis hash `trip:{id}:nav`). */
+export interface NavContext {
+  phase: 'approach' | 'trip';
+  target: LatLng;
+  /** Encoded route for the leg; empty when unknown. */
+  polyline: string;
+  /** Routed average pace for the leg (m/s); undefined when unknown. */
+  avgSpeedMps?: number;
+}
+
+/** Live progress estimate carried on every `trip:driver_location`. */
+export interface EtaEstimate {
+  remainingM: number;
+  etaSec: number;
+  /** 'route' = along the stored polyline; 'straight' = haversine fallback. */
+  etaSource: 'route' | 'straight';
 }
 
 /**
@@ -84,13 +115,17 @@ export class LocationService {
 
   async ingest(driverId: string, ping: LocationPing): Promise<void> {
     const { lat, lng, heading = 0, speed = 0, accuracy } = ping;
+    const now = Date.now();
 
     await this.redis.client.hset(RedisKeys.driverLoc(driverId), {
       lat,
       lng,
       heading,
       speed,
-      ts: Date.now(),
+      // Server clock: staleness checks (dispatch eviction, arrival geofence)
+      // must not trust a device clock.
+      ts: now,
+      ...(accuracy !== undefined ? { accuracy } : {}),
     });
 
     const [status, tripId] = await Promise.all([
@@ -111,24 +146,84 @@ export class LocationService {
       }
     }
 
-    // On a trip → stream the position to the rider watching the map.
+    // On a trip → stream the position to the rider watching the map, with a
+    // cheap live ETA for the current leg. A fix the device itself flags as
+    // noisy (accuracy radius > 100 m) is neither shown to the rider (a marker
+    // that jumps a block is worse than one that pauses) nor metered (it would
+    // add phantom distance to the fare); it still updates the driver's stored
+    // position so presence stays fresh.
     if (tripId) {
-      const riderId = await this.redis.client.get(RedisKeys.driverActiveRider(driverId));
-      if (riderId) {
-        this.realtime.emitToUser(riderId, 'trip:driver_location', {
-          tripId,
-          lat,
-          lng,
-          heading,
-        });
+      const usable = accuracy === undefined || accuracy <= MAX_BROADCAST_ACCURACY_M;
+      if (usable) {
+        const [riderId, nav] = await Promise.all([
+          this.redis.client.get(RedisKeys.driverActiveRider(driverId)),
+          this.readNav(tripId),
+        ]);
+        if (riderId) {
+          const eta = nav ? LocationService.estimate({ lat, lng }, nav) : undefined;
+          this.realtime.emitToUser(riderId, 'trip:driver_location', {
+            tripId,
+            lat,
+            lng,
+            heading,
+            speed,
+            accuracy: accuracy ?? null,
+            ts: ping.ts ?? now,
+            phase: nav?.phase ?? null,
+            etaSec: eta?.etaSec ?? null,
+            remainingM: eta?.remainingM ?? null,
+            etaSource: eta?.etaSource ?? null,
+          });
+        }
       }
-      // A fix the device itself flags as noisy (accuracy radius > 100 m) is
-      // still shown to the rider, but never metered — it would add phantom
-      // distance to the fare.
       if (accuracy === undefined || accuracy <= MAX_METER_ACCURACY_M) {
         await this.meterTrip(tripId, lat, lng);
       }
     }
+  }
+
+  /** Load the leg's navigation context; null when none is stored. */
+  private async readNav(tripId: string): Promise<NavContext | null> {
+    const h = await this.redis.client.hgetall(RedisKeys.tripNav(tripId));
+    if (!h || !h.targetLat || !h.targetLng) return null;
+    const lat = Number(h.targetLat);
+    const lng = Number(h.targetLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const speed = Number(h.avgSpeedMps);
+    return {
+      phase: h.phase === 'trip' ? 'trip' : 'approach',
+      target: { lat, lng },
+      polyline: h.polyline ?? '',
+      avgSpeedMps: Number.isFinite(speed) && speed > 0 ? speed : undefined,
+    };
+  }
+
+  /**
+   * Remaining distance + ETA for the leg from the driver's current point:
+   * along the stored polyline at the leg's routed average speed when a route
+   * is known, else straight-line to the target at FALLBACK_ETA_MPS. Pure and
+   * cheap (no I/O) — runs on every ping.
+   */
+  static estimate(pos: LatLng, nav: NavContext): EtaEstimate {
+    let remainingM: number | null = null;
+    let etaSource: EtaEstimate['etaSource'] = 'straight';
+    if (nav.polyline) {
+      try {
+        remainingM = remainingAlongPolyline(pos, decodePolyline(nav.polyline));
+        if (remainingM !== null) etaSource = 'route';
+      } catch {
+        remainingM = null;
+      }
+    }
+    if (remainingM === null) {
+      remainingM = Math.round(haversineMeters(pos, nav.target));
+    }
+    const pace = nav.avgSpeedMps ?? FALLBACK_ETA_MPS;
+    return {
+      remainingM,
+      etaSec: Math.max(0, Math.round(remainingM / pace)),
+      etaSource,
+    };
   }
 
   /**

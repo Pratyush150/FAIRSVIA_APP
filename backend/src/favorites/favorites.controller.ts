@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -26,13 +27,13 @@ export class FavoritesController {
 
   @Post('drivers/:driverId/favorite')
   @HttpCode(HttpStatus.OK)
-  add(@CurrentUser() user: AuthUser, @Param('driverId') driverId: string) {
+  add(@CurrentUser() user: AuthUser, @Param('driverId', ParseUUIDPipe) driverId: string) {
     return this.favorites.add(user.userId, driverId);
   }
 
   @Delete('drivers/:driverId/favorite')
   @HttpCode(HttpStatus.OK)
-  remove(@CurrentUser() user: AuthUser, @Param('driverId') driverId: string) {
+  remove(@CurrentUser() user: AuthUser, @Param('driverId', ParseUUIDPipe) driverId: string) {
     return this.favorites.remove(user.userId, driverId);
   }
 }

@@ -1,0 +1,298 @@
+import { BadRequestException, ConflictException } from '@nestjs/common';
+import { TripStatus } from '@prisma/client';
+import {
+  ARRIVAL_FIX_MAX_AGE_MS,
+  PRICE_LOCK_TOLERANCE,
+  TripsService,
+} from './trips.service';
+import { RedisKeys } from '../common/redis/redis.keys';
+
+/**
+ * Pure-logic coverage of the live-audit fixes: the price lock at request
+ * time, rider-keyed surge demand, the arrival geofence, and the itemised
+ * completion receipt. Every collaborator is a small hand-rolled mock.
+ */
+describe('TripsService', () => {
+  const pickup = { lat: 25.7743, lng: -80.1937 };
+  const dropoff = { lat: 25.79, lng: -80.2 };
+  const route = { distanceM: 5000, durationS: 600, polyline: 'poly' };
+
+  function breakdownFor(surge: number) {
+    return {
+      baseFare: 2.5,
+      distanceFare: 5 * surge,
+      timeFare: 2 * surge,
+      bookingFee: 1.5,
+      surgeMultiplier: surge,
+    };
+  }
+
+  function make(opts: { surge?: number; fare?: number } = {}) {
+    const surgeValue = opts.surge ?? 1;
+    const fare = opts.fare ?? 11;
+    const store: Record<string, unknown> = {};
+    const redis = {
+      client: {
+        get: jest.fn(async (k: string) => (store[k] as string) ?? null),
+        set: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn().mockResolvedValue(1),
+        hset: jest.fn().mockResolvedValue(1),
+        hgetall: jest.fn(async (k: string) => (store[k] as Record<string, string>) ?? {}),
+        incr: jest.fn().mockResolvedValue(1),
+        expire: jest.fn().mockResolvedValue(1),
+      },
+    };
+    const created: Record<string, unknown>[] = [];
+    const prisma = {
+      trip: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn(),
+        create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+          created.push(data);
+          return { id: 'trip-1', ...data, promoDiscount: 0, stops: null };
+        }),
+        update: jest.fn(),
+      },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      paymentMethod: { findFirst: jest.fn() },
+      driverProfile: { update: jest.fn().mockResolvedValue({}) },
+      user: { findUnique: jest.fn().mockResolvedValue({ email: null }) },
+    };
+    const pricing = {
+      estimateForTier: jest.fn((tier: string, d: number, t: number, s = 1) => ({
+        tier,
+        fare: Math.round(fare * s * 100) / 100,
+        breakdown: breakdownFor(s),
+      })),
+      minFareFor: jest.fn().mockReturnValue(5),
+    };
+    const surge = {
+      multiplierFor: jest.fn().mockResolvedValue(surgeValue),
+      recordDemand: jest.fn().mockResolvedValue(undefined),
+      releaseDemand: jest.fn().mockResolvedValue(undefined),
+    };
+    const stateMachine = { transition: jest.fn().mockResolvedValue(undefined) };
+    const realtime = { emitToUser: jest.fn() };
+    const dispatch = { dispatchTrip: jest.fn().mockResolvedValue(undefined) };
+    const payments = {
+      captureForTrip: jest.fn().mockResolvedValue({ fareFinal: 11, platformFee: 2.2, driverPayout: 8.8 }),
+      chargeCancellationFee: jest.fn().mockResolvedValue(0),
+    };
+    const notifications = { notifyTrip: jest.fn().mockResolvedValue(undefined), notify: jest.fn() };
+    const config = { get: jest.fn((k: string) => (k === 'arrivalRadiusM' ? 150 : k === 'cancellationFee' ? 5 : undefined)) };
+    const svc = new TripsService(
+      prisma as never,
+      pricing as never,
+      surge as never,
+      { redeem: jest.fn().mockResolvedValue(0), release: jest.fn() } as never,
+      { enqueue: jest.fn() } as never,
+      stateMachine as never,
+      redis as never,
+      realtime as never,
+      dispatch as never,
+      payments as never,
+      notifications as never,
+      { sendReceipt: jest.fn() } as never,
+      config as never,
+      { compare: jest.fn() } as never,
+      { route: jest.fn().mockResolvedValue(route) } as never,
+    );
+    return { svc, store, redis, prisma, created, surge, stateMachine, realtime, notifications, dispatch, payments };
+  }
+
+  const baseDto = {
+    pickupLat: pickup.lat,
+    pickupLng: pickup.lng,
+    dropoffLat: dropoff.lat,
+    dropoffLng: dropoff.lng,
+    tier: 'economy',
+  };
+
+  describe('price lock at POST /trips', () => {
+    it('honours a matching quote: the quoted fare + surge are what gets stored', async () => {
+      const { svc, created } = make({ surge: 1, fare: 11 });
+      await svc.createTrip('rider-1', { ...baseDto, quotedFare: 11, quotedSurge: 1 });
+      expect(created[0].fareEstimate).toBe(11);
+      expect(created[0].surgeMultiplier).toBe(1);
+    });
+
+    it('rejects 409 PRICE_CHANGED with the fresh numbers when surge moved since the quote', async () => {
+      // The audit case: rider quoted at 1.0x, server now says 2.0x.
+      const { svc, created } = make({ surge: 2, fare: 11 });
+      const err = await svc
+        .createTrip('rider-1', { ...baseDto, quotedFare: 11, quotedSurge: 1 })
+        .catch((e) => e);
+      expect(err).toBeInstanceOf(ConflictException);
+      expect(err.getResponse()).toMatchObject({
+        code: 'PRICE_CHANGED',
+        fare: 22,
+        surge: 2,
+        estimate: { tier: 'economy', fare: 22, surge: 2 },
+      });
+      expect(created).toHaveLength(0); // nothing persisted, no demand recorded
+    });
+
+    it('rejects when the fare drifted more than 5% even at the same surge', async () => {
+      const { svc } = make({ surge: 1, fare: 12 });
+      await expect(
+        svc.createTrip('rider-1', { ...baseDto, quotedFare: 11, quotedSurge: 1 }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(PRICE_LOCK_TOLERANCE).toBe(0.05);
+    });
+
+    it('tolerates a fare within 5% (route jitter) and stores the quote, not the recompute', async () => {
+      const { svc, created } = make({ surge: 1, fare: 11.4 });
+      await svc.createTrip('rider-1', { ...baseDto, quotedFare: 11, quotedSurge: 1 });
+      expect(created[0].fareEstimate).toBe(11);
+    });
+
+    it('applies the live price when no quote is supplied (older clients)', async () => {
+      const { svc, created } = make({ surge: 1.5, fare: 10 });
+      await svc.createTrip('rider-1', baseDto);
+      expect(created[0].fareEstimate).toBe(15);
+      expect(created[0].surgeMultiplier).toBe(1.5);
+    });
+
+    it('surge-only quote is enough to lock the multiplier', async () => {
+      const { svc } = make({ surge: 1.3 });
+      await expect(svc.createTrip('rider-1', { ...baseDto, quotedSurge: 1 })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+  });
+
+  describe('surge demand accounting', () => {
+    it('records demand keyed by the rider (so retries cannot stack)', async () => {
+      const { svc, surge } = make();
+      await svc.createTrip('rider-1', baseDto);
+      expect(surge.recordDemand).toHaveBeenCalledWith(pickup.lat, pickup.lng, 'rider-1');
+    });
+
+    it('a rider cancel withdraws the demand', async () => {
+      const { svc, surge, prisma } = make();
+      prisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1', riderId: 'rider-1', driverId: null, status: TripStatus.matching,
+        pickupLat: pickup.lat, pickupLng: pickup.lng, promoCode: null, acceptedAt: null,
+      });
+      await svc.cancelTrip('rider-1', 'trip-1', 'changed my mind');
+      expect(surge.releaseDemand).toHaveBeenCalledWith(pickup.lat, pickup.lng, 'rider-1');
+    });
+
+    it('a driver cancel withdraws the demand and uses the driver copy for nobody (rider told)', async () => {
+      const { svc, surge, prisma } = make();
+      prisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1', riderId: 'rider-1', driverId: 'driver-1', status: TripStatus.accepted,
+        pickupLat: pickup.lat, pickupLng: pickup.lng, promoCode: null,
+      });
+      await svc.driverCancelTrip('driver-1', 'trip-1', 'no-show');
+      expect(surge.releaseDemand).toHaveBeenCalledWith(pickup.lat, pickup.lng, 'rider-1');
+    });
+  });
+
+  describe('arrival geofence', () => {
+    const trip = {
+      id: 'trip-1', riderId: 'rider-1', driverId: 'driver-1', status: TripStatus.accepted,
+      pickupLat: pickup.lat, pickupLng: pickup.lng,
+    };
+
+    it('rejects "arrived" with the live distance when the fresh fix is outside 150 m', async () => {
+      const { svc, prisma, store, stateMachine } = make();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      // ~1 km north of the pickup, fix 5 s old.
+      store[RedisKeys.driverLoc('driver-1')] = {
+        lat: String(pickup.lat + 0.009), lng: String(pickup.lng), ts: String(Date.now() - 5000),
+      };
+      const err = await svc.driverArrived('driver-1', 'trip-1').catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(err.message).toMatch(/^You're still \d+ m from the pickup$/);
+      expect(Number(err.message.match(/(\d+) m/)![1])).toBeGreaterThan(900);
+      expect(stateMachine.transition).not.toHaveBeenCalled();
+    });
+
+    it('allows "arrived" inside the radius and records the distance on the event', async () => {
+      const { svc, prisma, store, stateMachine, realtime } = make();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      store[RedisKeys.driverLoc('driver-1')] = {
+        lat: String(pickup.lat + 0.0005), lng: String(pickup.lng), ts: String(Date.now() - 1000), // ~55 m
+      };
+      const res = await svc.driverArrived('driver-1', 'trip-1');
+      expect(res.status).toBe(TripStatus.arrived);
+      expect(res.arrivedDistanceM).toBeGreaterThan(40);
+      expect(res.arrivedDistanceM).toBeLessThan(70);
+      expect(stateMachine.transition).toHaveBeenCalledWith(
+        expect.objectContaining({ to: TripStatus.arrived, meta: { arrivedDistanceM: res.arrivedDistanceM } }),
+      );
+      expect(realtime.emitToUser).toHaveBeenCalledWith('rider-1', 'trip:arrived', { tripId: 'trip-1' });
+    });
+
+    it('allows "arrived" when the last fix is stale (>60 s) rather than blocking on old data', async () => {
+      const { svc, prisma, store } = make();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      store[RedisKeys.driverLoc('driver-1')] = {
+        lat: String(pickup.lat + 0.05), lng: String(pickup.lng), ts: String(Date.now() - ARRIVAL_FIX_MAX_AGE_MS - 1),
+      };
+      const res = await svc.driverArrived('driver-1', 'trip-1');
+      expect(res).toEqual({ status: TripStatus.arrived, arrivedDistanceM: null });
+    });
+
+    it('allows "arrived" when no fix is known at all', async () => {
+      const { svc, prisma } = make();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      await expect(svc.driverArrived('driver-1', 'trip-1')).resolves.toMatchObject({ status: TripStatus.arrived });
+    });
+  });
+
+  describe('completion receipt', () => {
+    const trip = {
+      id: 'trip-1', riderId: 'rider-1', driverId: 'driver-1', status: TripStatus.in_progress,
+      tier: 'economy', distanceM: 5000, durationS: 600, fareEstimate: 11, surgeMultiplier: 1,
+      promoDiscount: 0, currency: 'USD', paymentMode: 'card', startedAt: new Date(Date.now() - 600000),
+    };
+
+    it('trip:completed carries the fare breakdown, persists it on the completion event, and uses driver copy', async () => {
+      const { svc, prisma, realtime, stateMachine, notifications, redis } = make();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      const receipt = await svc.completeTrip('driver-1', 'trip-1');
+      const breakdown = { ...breakdownFor(1), promoDiscount: 0, tip: 0 };
+      expect(receipt.breakdown).toEqual(breakdown);
+      expect(realtime.emitToUser).toHaveBeenCalledWith('rider-1', 'trip:completed', expect.objectContaining({ breakdown }));
+      expect(realtime.emitToUser).toHaveBeenCalledWith('driver-1', 'trip:completed', expect.objectContaining({ breakdown }));
+      expect(stateMachine.transition).toHaveBeenCalledWith(
+        expect.objectContaining({ to: TripStatus.completed, meta: { breakdown } }),
+      );
+      // Driver gets the driver wording with what they earned; rider the rider's.
+      expect(notifications.notifyTrip).toHaveBeenCalledWith('rider-1', 'completed', { tripId: 'trip-1' });
+      expect(notifications.notifyTrip).toHaveBeenCalledWith(
+        'driver-1', 'completed', { tripId: 'trip-1', earned: '8.80' }, 'driver',
+      );
+      // Leg navigation context is cleared with the active-trip keys.
+      expect(redis.client.del).toHaveBeenCalledWith(
+        RedisKeys.driverActiveTrip('driver-1'),
+        RedisKeys.driverActiveRider('driver-1'),
+        RedisKeys.tripNav('trip-1'),
+      );
+    });
+  });
+
+  describe('startTrip navigation context', () => {
+    it('writes the trip-leg nav hash (target = dropoff, routed pace) for per-ping ETAs', async () => {
+      const { svc, prisma, redis, store } = make();
+      prisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1', riderId: 'rider-1', driverId: 'driver-1', status: TripStatus.arrived,
+        startOtp: '1234', dropoffLat: dropoff.lat, dropoffLng: dropoff.lng,
+        routePolyline: 'poly', distanceM: 5000, durationS: 500,
+      });
+      store[RedisKeys.driverLoc('driver-1')] = { lat: '25.77', lng: '-80.19' };
+      const payments = { authorizeForTrip: jest.fn().mockResolvedValue(undefined) };
+      (svc as unknown as { payments: unknown }).payments = payments;
+      await svc.startTrip('driver-1', 'trip-1', '1234');
+      expect(redis.client.hset).toHaveBeenCalledWith(RedisKeys.tripNav('trip-1'), {
+        phase: 'trip',
+        targetLat: dropoff.lat,
+        targetLng: dropoff.lng,
+        polyline: 'poly',
+        avgSpeedMps: 10,
+      });
+    });
+  });
+});

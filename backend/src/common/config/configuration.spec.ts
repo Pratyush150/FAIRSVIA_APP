@@ -135,3 +135,25 @@ describe('configuration production guard', () => {
     );
   });
 });
+
+describe('configuration defaults', () => {
+  it('Stripe Connect deep links default to the driver app URL scheme', () => {
+    withEnv(
+      { NODE_ENV: 'development', STRIPE_CONNECT_RETURN_URL: undefined, STRIPE_CONNECT_REFRESH_URL: undefined },
+      () => {
+        const cfg = loadConfig();
+        expect(cfg.stripeConnectReturnUrl).toBe('fairsvia-driver://connect/return');
+        expect(cfg.stripeConnectRefreshUrl).toBe('fairsvia-driver://connect/refresh');
+      },
+    );
+  });
+
+  it('arrival geofence radius defaults to 150 m and honours ARRIVAL_RADIUS_M', () => {
+    withEnv({ NODE_ENV: 'development', ARRIVAL_RADIUS_M: undefined }, () =>
+      expect(loadConfig().arrivalRadiusM).toBe(150),
+    );
+    withEnv({ NODE_ENV: 'development', ARRIVAL_RADIUS_M: '80' }, () =>
+      expect(loadConfig().arrivalRadiusM).toBe(80),
+    );
+  });
+});

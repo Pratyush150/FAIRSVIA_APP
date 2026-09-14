@@ -1,7 +1,16 @@
-import { IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreatePlaceDto {
   @IsString()
+  @IsNotEmpty()
   @MaxLength(40)
   label!: string; // e.g. 'home', 'work', or a custom name
 

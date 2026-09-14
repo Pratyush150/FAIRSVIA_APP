@@ -21,6 +21,16 @@ export class LocationPingDto {
 
   @IsOptional() @IsNumber() @Min(0) @Max(400)
   speed?: number;
+
+  /** Horizontal accuracy radius (m) as reported by the device. Fixes worse
+   *  than 100 m are stored but neither metered nor shown to the rider. */
+  @IsOptional() @IsNumber() @Min(0) @Max(500)
+  accuracy?: number;
+
+  /** Device timestamp of the fix (epoch ms). Echoed to the rider so the map
+   *  can age the marker; the server keeps its own clock for staleness. */
+  @IsOptional() @IsNumber() @Min(0) @Max(4102444800000)
+  ts?: number;
 }
 
 /** `driver:status` payload. */

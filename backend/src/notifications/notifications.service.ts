@@ -24,6 +24,7 @@ export type TripNotificationKind =
   | 'no_drivers'
   | 'scheduled_started';
 
+/** Rider-facing copy per milestone. */
 const TRIP_COPY: Record<TripNotificationKind, PushMessage> = {
   accepted: { title: 'Driver on the way', body: 'Your driver is heading to the pickup.' },
   arrived: { title: 'Your driver has arrived', body: 'Head to the pickup point.' },
@@ -35,6 +36,26 @@ const TRIP_COPY: Record<TripNotificationKind, PushMessage> = {
     title: 'Finding your driver',
     body: 'Your scheduled ride is now being matched.',
   },
+};
+
+/**
+ * Driver-facing copy where it differs from the rider's. The driver used to
+ * get the rider's line on completion ("Thanks for riding. Rate your driver.").
+ * `earned` (formatted amount, e.g. "12.50") comes from the trip data.
+ */
+const DRIVER_TRIP_COPY: Partial<
+  Record<TripNotificationKind, (data: Record<string, string>) => PushMessage>
+> = {
+  completed: (d) => ({
+    title: 'Trip complete',
+    body: d.earned
+      ? `Trip complete — you earned $${d.earned}. Rate your rider.`
+      : 'Trip complete. Rate your rider.',
+  }),
+  cancelled: () => ({
+    title: 'Trip cancelled',
+    body: 'The rider cancelled this trip. You’re back in the queue.',
+  }),
 };
 
 @Injectable()
@@ -198,13 +219,20 @@ export class NotificationsService {
     }
   }
 
-  /** Convenience: push the canonical copy for a trip milestone. */
+  /**
+   * Convenience: push the canonical copy for a trip milestone. `audience`
+   * selects the driver's wording where it differs (completion / cancel).
+   */
   async notifyTrip(
     userId: string,
     kind: TripNotificationKind,
     data: Record<string, string> = {},
+    audience: 'rider' | 'driver' = 'rider',
   ): Promise<void> {
-    const base = TRIP_COPY[kind];
+    const base =
+      audience === 'driver' && DRIVER_TRIP_COPY[kind]
+        ? DRIVER_TRIP_COPY[kind]!(data)
+        : TRIP_COPY[kind];
     await this.notify(userId, { ...base, data: { kind, ...data } });
   }
 }

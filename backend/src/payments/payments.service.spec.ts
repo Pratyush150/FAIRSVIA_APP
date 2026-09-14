@@ -56,6 +56,9 @@ describe('PaymentsService', () => {
       webhookEvent: {
         create: jest.fn().mockResolvedValue({}),
       },
+      tripEvent: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
       ledgerEntry: {
         create: jest.fn().mockResolvedValue({}),
       },
@@ -1028,6 +1031,40 @@ describe('PaymentsService', () => {
     await expect(
       svc.handleWebhook(Buffer.from(body), 'sig'),
     ).rejects.toThrow(/not configured/i);
+  });
+
+  // GET /payments/:tripId/receipt replays the breakdown persisted on the
+  // completion event (TripsService.settleFare) and folds in the tip.
+  describe('getReceipt breakdown', () => {
+    const trip = {
+      id: 't1', riderId: 'r1', driverId: 'd1', status: TripStatus.completed,
+      distanceM: 5000, durationS: 600, currency: 'USD', fareFinal: 12, fareEstimate: 11,
+      surgeMultiplier: 1.2, promoDiscount: 1, paymentMode: 'card',
+      payment: { status: 'captured', kind: 'ride', method: 'card', amount: 12, tip: 2, platformFee: 2.4, driverPayout: 11.6, refundedAmount: 0, refundReason: null },
+    };
+
+    it('returns the stored breakdown with the tip merged in', async () => {
+      const prisma: any = makePrisma();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      prisma.tripEvent.findFirst.mockResolvedValue({
+        meta: { breakdown: { baseFare: 2.5, distanceFare: 6, timeFare: 2.4, bookingFee: 1.5, surgeMultiplier: 1.2, promoDiscount: 1, tip: 0 } },
+      });
+      const receipt = await makeService(prisma as never).getReceipt('r1', 't1');
+      expect(prisma.tripEvent.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tripId: 't1', toStatus: TripStatus.completed } }),
+      );
+      expect(receipt.breakdown).toEqual({
+        baseFare: 2.5, distanceFare: 6, timeFare: 2.4, bookingFee: 1.5, surgeMultiplier: 1.2, promoDiscount: 1, tip: 2,
+      });
+      expect(receipt.fare).toBe(12);
+    });
+
+    it('is null for trips completed before breakdowns were persisted', async () => {
+      const prisma: any = makePrisma();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      const receipt = await makeService(prisma as never).getReceipt('d1', 't1');
+      expect(receipt.breakdown).toBeNull();
+    });
   });
 });
 

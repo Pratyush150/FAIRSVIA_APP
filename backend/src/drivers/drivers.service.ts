@@ -8,7 +8,16 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { RedisKeys } from '../common/redis/redis.keys';
+import { RealtimeService } from '../realtime/realtime.service';
 import { OnboardingDto } from './dto/onboarding.dto';
+import { TIER_KEYS } from '../pricing/fare-config';
+
+/** Why the server (not the driver) took a driver offline. */
+export type ForcedOfflineReason =
+  | 'disconnect' // socket dropped / closed without an explicit offline
+  | 'stale_location' // no GPS ping for PRESENCE_STALE_MS while "online"
+  | 'presence_lost' // reconnect found no live presence for a DB-online driver
+  | 'deactivated'; // admin deactivated the account
 
 @Injectable()
 export class DriversService {
@@ -16,6 +25,7 @@ export class DriversService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly config: ConfigService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Create/refresh the driver profile and mark the user as a driver. Documents
@@ -104,6 +114,41 @@ export class DriversService {
       data: { status },
     });
     return { status };
+  }
+
+  /**
+   * Server-initiated offline (socket drop, stale GPS, ...). Unlike the
+   * driver's own request this (a) never fires mid-trip — a brief drop must
+   * let the driver reconnect and resume, (b) keeps the durable profile status
+   * in step with Redis (the API audit found `driver_profiles.status` stuck at
+   * 'online' after a disconnect), and (c) tells the driver app why, via
+   * `driver:status_changed`, so its UI can't keep showing "Online" while the
+   * server has stopped offering it trips. Returns whether it flipped.
+   */
+  async forceOffline(
+    userId: string,
+    tier: string | null,
+    reason: ForcedOfflineReason,
+  ): Promise<boolean> {
+    const onTrip = await this.redis.client.get(RedisKeys.driverActiveTrip(userId));
+    if (onTrip) return false;
+    const resolvedTier =
+      tier ?? (await this.redis.client.get(RedisKeys.driverTier(userId)));
+    await this.goOffline(userId, resolvedTier ?? 'economy');
+    if (!tier && !resolvedTier) {
+      // Unknown tier: sweep every pool so no GEO entry can linger.
+      for (const t of TIER_KEYS) {
+        await this.redis.client.zrem(RedisKeys.driversGeo(t), userId);
+      }
+    }
+    await this.prisma.driverProfile
+      .updateMany({ where: { userId, status: 'online' }, data: { status: 'offline' } })
+      .catch(() => undefined);
+    this.realtime.emitToUser(userId, 'driver:status_changed', {
+      status: 'offline',
+      reason,
+    });
+    return true;
   }
 
   /** Remove the driver from the live pool and clear ephemeral state. */

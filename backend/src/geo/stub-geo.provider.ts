@@ -27,16 +27,23 @@ export class StubGeoProvider implements GeoProvider {
     );
   }
 
-  async autocomplete(query: string): Promise<PlacePrediction[]> {
+  async autocomplete(
+    query: string,
+    _sessionToken?: string,
+    bias?: LatLng,
+  ): Promise<PlacePrediction[]> {
     const suffixes = ['Street', 'Station', 'Mall', 'Park'];
+    // Generated places cluster around the bias point (the rider) when given.
+    const origin = bias ?? StubGeoProvider.base;
     return suffixes.map((suffix, i) => {
-      const loc = this.offset(StubGeoProvider.base, query, i);
+      const loc = this.offset(origin, query, i);
       const primary = `${query} ${suffix}`.trim();
       return {
         placeId: this.encodePlaceId(loc),
         primaryText: primary,
         secondaryText: 'Miami, FL',
         description: `${primary}, Miami, FL`,
+        ...(bias ? { distanceM: Math.round(haversineMeters(bias, loc)) } : {}),
       };
     });
   }

@@ -53,6 +53,9 @@ export interface AppConfig {
   stripeApiBaseUrl: string;
   platformFeePercent: number;
   cancellationFee: number;
+  /** A driver may mark "arrived" only within this many metres of the pickup
+   *  (checked against their last fresh GPS fix). */
+  arrivalRadiusM: number;
   fcmServerKey: string;
   /** Google service-account JSON for FCM HTTP v1 push (real provider when set). */
   fcmServiceAccountJson: string;
@@ -184,12 +187,13 @@ export default (): AppConfig => {
   stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? '',
   stripeWebhookSecret,
   stripeConnectReturnUrl:
-    process.env.STRIPE_CONNECT_RETURN_URL ?? 'ubernav://connect/return',
+    process.env.STRIPE_CONNECT_RETURN_URL ?? 'fairsvia-driver://connect/return',
   stripeConnectRefreshUrl:
-    process.env.STRIPE_CONNECT_REFRESH_URL ?? 'ubernav://connect/refresh',
+    process.env.STRIPE_CONNECT_REFRESH_URL ?? 'fairsvia-driver://connect/refresh',
   stripeApiBaseUrl: process.env.STRIPE_API_BASE_URL ?? 'https://api.stripe.com/v1',
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '0.20'),
   cancellationFee: parseFloat(process.env.CANCELLATION_FEE ?? '5'),
+  arrivalRadiusM: parseFloat(process.env.ARRIVAL_RADIUS_M ?? '150'),
   fcmServerKey: process.env.FCM_SERVER_KEY ?? '',
   fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON ?? '',
   // Comma-separated phone numbers that are promoted to the admin role on login,

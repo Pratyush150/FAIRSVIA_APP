@@ -86,6 +86,35 @@ describe('NotificationsService', () => {
     expect(data.message.data).toEqual({ kind: 'arrived', tripId: 't1' });
   });
 
+  it('notifyTrip uses the driver wording (with earnings) for the driver audience on completion', async () => {
+    const queue = makeQueue();
+    const svc = new NotificationsService(inboxPrisma, makeProvider(), queue);
+
+    await svc.notifyTrip('d1', 'completed', { tripId: 't1', earned: '12.50' }, 'driver');
+    await svc.notifyTrip('r1', 'completed', { tripId: 't1' });
+
+    const [driverCall, riderCall] = (queue as any).add.mock.calls.map((c: any[]) => c[1]);
+    expect(driverCall.message.title).toBe('Trip complete');
+    expect(driverCall.message.body).toBe('Trip complete — you earned $12.50. Rate your rider.');
+    expect(driverCall.message.data).toEqual({ kind: 'completed', tripId: 't1', earned: '12.50' });
+    // The rider still gets the rider line — and never the driver's.
+    expect(riderCall.message.body).toBe('Thanks for riding. Rate your driver.');
+  });
+
+  it('notifyTrip driver copy without an amount still never says "Rate your driver"', async () => {
+    const queue = makeQueue();
+    const svc = new NotificationsService(inboxPrisma, makeProvider(), queue);
+    await svc.notifyTrip('d1', 'completed', { tripId: 't1' }, 'driver');
+    expect((queue as any).add.mock.calls[0][1].message.body).toBe('Trip complete. Rate your rider.');
+  });
+
+  it('notifyTrip falls back to the shared copy for kinds with no driver variant', async () => {
+    const queue = makeQueue();
+    const svc = new NotificationsService(inboxPrisma, makeProvider(), queue);
+    await svc.notifyTrip('d1', 'arrived', { tripId: 't1' }, 'driver');
+    expect((queue as any).add.mock.calls[0][1].message.title).toBe('Your driver has arrived');
+  });
+
   it('deliver pushes to every registered device of a user', async () => {
     const prisma = {
       deviceToken: {

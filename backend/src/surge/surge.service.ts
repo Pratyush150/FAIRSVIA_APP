@@ -5,8 +5,8 @@ import { TIER_KEYS } from '../pricing/fare-config';
 
 /** ~2.2 km grid cell for demand aggregation. */
 const CELL_DEG = 0.02;
-/** Demand counter lifetime (a request "counts" toward surge for this long). */
-const DEMAND_TTL = 300;
+/** Demand window: a rider's live request "counts" toward surge for this long. */
+export const DEMAND_TTL = 300;
 /** Supply search radius around the pickup. */
 const SUPPLY_RADIUS_KM = 3;
 /** Hard ceiling on the surge multiplier. */
@@ -25,11 +25,28 @@ export class SurgeService {
     return `${Math.round(lat / CELL_DEG)}:${Math.round(lng / CELL_DEG)}`;
   }
 
-  /** Record a ride request's contribution to local demand. */
-  async recordDemand(lat: number, lng: number): Promise<void> {
+  /**
+   * Record a rider's live request as local demand. The cell holds a SET of
+   * rider ids, so one rider re-requesting (retries, cancel-and-rebook, a
+   * PRICE_CHANGED re-confirm) never counts more than once per window — a
+   * counter here let a single rider surge their own cell to 2.0x.
+   */
+  async recordDemand(lat: number, lng: number, riderId: string): Promise<void> {
     const key = RedisKeys.surgeDemand(this.cell(lat, lng));
-    await this.redis.client.incr(key);
+    await this.redis.client.sadd(key, riderId);
     await this.redis.client.expire(key, DEMAND_TTL);
+  }
+
+  /**
+   * Withdraw a rider's demand when their request ends without a ride
+   * (cancelled / no_drivers): unmet demand must not keep pricing the next
+   * rider up. No-op if the window already expired.
+   */
+  async releaseDemand(lat: number, lng: number, riderId: string): Promise<void> {
+    await this.redis.client.srem(
+      RedisKeys.surgeDemand(this.cell(lat, lng)),
+      riderId,
+    );
   }
 
   /** Current surge multiplier for a pickup (>= admin override). */
@@ -43,10 +60,7 @@ export class SurgeService {
   }
 
   private async demandAt(lat: number, lng: number): Promise<number> {
-    const v = await this.redis.client.get(
-      RedisKeys.surgeDemand(this.cell(lat, lng)),
-    );
-    return v ? Number(v) : 0;
+    return this.redis.client.scard(RedisKeys.surgeDemand(this.cell(lat, lng)));
   }
 
   private async supplyAt(lat: number, lng: number): Promise<number> {
@@ -105,7 +119,7 @@ export class SurgeService {
     const cells = await Promise.all(
       keys.map(async (k) => {
         const cell = k.replace('surge:demand:', '');
-        const demand = Number((await this.redis.client.get(k)) ?? 0);
+        const demand = await this.redis.client.scard(k);
         return { cell, demand };
       }),
     );

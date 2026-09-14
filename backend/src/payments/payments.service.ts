@@ -611,6 +611,28 @@ export class PaymentsService {
       throw new ForbiddenException('Not your trip');
     }
     const p = trip.payment;
+    // The itemised fare is persisted on the completion event by
+    // TripsService.settleFare (no trip column). Older trips have none → null.
+    const completion = await this.prisma.tripEvent
+      .findFirst({
+        where: { tripId, toStatus: TripStatus.completed },
+        orderBy: { createdAt: 'desc' },
+        select: { meta: true },
+      })
+      .catch(() => null);
+    const stored = (completion?.meta as { breakdown?: Record<string, number> } | null)
+      ?.breakdown;
+    const breakdown = stored
+      ? {
+          baseFare: Number(stored.baseFare ?? 0),
+          distanceFare: Number(stored.distanceFare ?? 0),
+          timeFare: Number(stored.timeFare ?? 0),
+          bookingFee: Number(stored.bookingFee ?? 0),
+          surgeMultiplier: Number(stored.surgeMultiplier ?? trip.surgeMultiplier ?? 1),
+          promoDiscount: Number(stored.promoDiscount ?? trip.promoDiscount ?? 0),
+          tip: Number(p?.tip ?? 0),
+        }
+      : null;
     return {
       tripId,
       status: trip.status,
@@ -619,6 +641,7 @@ export class PaymentsService {
       currency: trip.currency,
       fare: Number(trip.fareFinal ?? trip.fareEstimate ?? 0),
       paymentMode: trip.paymentMode,
+      breakdown,
       payment: p
         ? {
             status: p.status,

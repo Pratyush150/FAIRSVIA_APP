@@ -19,10 +19,10 @@ import {
   LatLng,
   RouteResult,
 } from '../geo/geo-provider.interface';
-import { encodePolyline } from '../geo/geo.util';
+import { encodePolyline, haversineMeters } from '../geo/geo.util';
 import { StopDto } from './dto/stop.dto';
 import { CURRENCY } from '../pricing/fare-config';
-import { PricingService } from '../pricing/pricing.service';
+import { FareBreakdown, PricingService } from '../pricing/pricing.service';
 import { SurgeService } from '../surge/surge.service';
 import { ComparisonService } from '../comparison/comparison.service';
 import { PromoService } from '../promo/promo.service';
@@ -81,6 +81,20 @@ export const CANCEL_GRACE_MS = 2 * 60 * 1000;
  *  the fare arbitrarily above what the rider agreed to — or collapse it. */
 export const FARE_CLAMP_MIN = 0.8;
 export const FARE_CLAMP_MAX = 1.5;
+
+/** Price lock: a quoted fare is honoured if the server's recomputed fare is
+ *  within this fraction of it (and the surge multiplier is unchanged). */
+export const PRICE_LOCK_TOLERANCE = 0.05;
+
+/** A driver's last GPS fix older than this is not trusted for the arrival
+ *  geofence (the check is skipped rather than blocking on stale data). */
+export const ARRIVAL_FIX_MAX_AGE_MS = 60_000;
+
+/** Itemised fare shown on the receipt (`trip:completed` + GET receipt). */
+export interface ReceiptBreakdown extends FareBreakdown {
+  promoDiscount: number;
+  tip: number;
+}
 
 @Injectable()
 export class TripsService {
@@ -198,6 +212,14 @@ export class TripsService {
       route.durationS,
       surge,
     );
+    // Price lock: the rider agreed to a specific number on the estimate
+    // screen. If the live price has moved past tolerance (or surge changed at
+    // all), refuse with the fresh numbers so the app re-confirms — the audit
+    // caught a rider quoted 1.0x and charged 2.0x because the fare was simply
+    // recomputed here. Within tolerance, the quote itself is what we store.
+    this.assertPriceLock(dto, est.fare, surge);
+    const grossFare = dto.quotedFare ?? est.fare;
+    const lockedSurge = dto.quotedSurge ?? surge;
 
     const initialStatus = scheduledAt
       ? TripStatus.scheduled
@@ -218,8 +240,8 @@ export class TripsService {
         stops: dto.stops && dto.stops.length > 0 ? (dto.stops as object[]) : undefined,
         distanceM: route.distanceM,
         durationS: route.durationS,
-        fareEstimate: est.fare,
-        surgeMultiplier: surge,
+        fareEstimate: grossFare,
+        surgeMultiplier: lockedSurge,
         currency: CURRENCY,
         startOtp: this.generateOtp(),
         paymentMode: dto.paymentMode ?? 'card',
@@ -235,7 +257,7 @@ export class TripsService {
     if (dto.promoCode) {
       const discount = await this.promo.redeem(
         dto.promoCode,
-        est.fare,
+        grossFare,
         riderId,
         trip.id,
       );
@@ -245,7 +267,7 @@ export class TripsService {
           data: {
             promoCode: dto.promoCode.trim().toUpperCase(),
             promoDiscount: discount,
-            fareEstimate: Math.max(est.fare - discount, 0),
+            fareEstimate: Math.max(grossFare - discount, 0),
           },
         });
       }
@@ -269,8 +291,9 @@ export class TripsService {
     }
 
     // This request now contributes to local demand (raising surge for the next
-    // riders in the same area until it decays).
-    await this.surge.recordDemand(dto.pickupLat, dto.pickupLng);
+    // riders in the same area until it decays). Keyed by rider so retries
+    // can't stack.
+    await this.surge.recordDemand(dto.pickupLat, dto.pickupLng, riderId);
 
     // Kick off matching without blocking the response (rider sees REQUESTED,
     // then MATCHING/ACCEPTED arrive over the socket).
@@ -303,6 +326,34 @@ export class TripsService {
   }
 
   /**
+   * Compares the rider's quoted fare/surge with the live recomputation. A
+   * mismatch is a 409 whose body carries the fresh numbers:
+   *   { code: 'PRICE_CHANGED', fare, surge, estimate: { fare, surge, tier } }
+   * No quote supplied (older clients) → nothing to compare, live price applies.
+   */
+  private assertPriceLock(dto: CreateTripDto, fare: number, surge: number): void {
+    if (dto.quotedFare === undefined && dto.quotedSurge === undefined) return;
+    const surgeChanged =
+      dto.quotedSurge !== undefined && Math.abs(dto.quotedSurge - surge) > 1e-9;
+    let fareChanged = false;
+    if (dto.quotedFare !== undefined) {
+      const base = Math.max(dto.quotedFare, 0.01);
+      fareChanged = Math.abs(fare - dto.quotedFare) / base > PRICE_LOCK_TOLERANCE;
+    }
+    if (!surgeChanged && !fareChanged) return;
+    throw new ConflictException({
+      statusCode: 409,
+      code: 'PRICE_CHANGED',
+      message: surgeChanged
+        ? `The price has changed (now ${surge}x). Please confirm the new fare.`
+        : 'The price has changed. Please confirm the new fare.',
+      fare,
+      surge,
+      estimate: { tier: dto.tier, fare, surge, currency: CURRENCY },
+    });
+  }
+
+  /**
    * Validates and parses a requested schedule time. Returns null for an
    * on-demand ride, or throws if the time is too soon or too far ahead.
    */
@@ -327,16 +378,49 @@ export class TripsService {
 
   async driverArrived(driverId: string, tripId: string) {
     const trip = await this.assertDriverTrip(driverId, tripId, TripStatus.accepted);
+    // Arrival geofence: "arrived" starts the rider's no-show clock and the
+    // cancellation-fee window, so a driver must actually be at the pickup.
+    // Checked against their last *fresh* GPS fix; with no fix (or a stale
+    // one) the tap is allowed — we never block on data we don't have.
+    const arrivedDistanceM = await this.assertNearPickup(driverId, trip);
     await this.stateMachine.transition({
       tripId,
       from: TripStatus.accepted,
       to: TripStatus.arrived,
       actor: 'driver',
       data: { arrivedAt: new Date() },
+      meta: { arrivedDistanceM: arrivedDistanceM ?? null },
     });
     this.realtime.emitToUser(trip.riderId, 'trip:arrived', { tripId });
     void this.notifications.notifyTrip(trip.riderId, 'arrived', { tripId });
-    return { status: TripStatus.arrived };
+    return { status: TripStatus.arrived, arrivedDistanceM: arrivedDistanceM ?? null };
+  }
+
+  /**
+   * Distance (m) from the driver's last fresh fix to the pickup, or null if
+   * unknown/stale. Throws 400 when the fix is fresh and outside
+   * ARRIVAL_RADIUS_M.
+   */
+  private async assertNearPickup(
+    driverId: string,
+    trip: Trip,
+  ): Promise<number | null> {
+    const loc = await this.redis.client.hgetall(RedisKeys.driverLoc(driverId));
+    const lat = Number(loc?.lat);
+    const lng = Number(loc?.lng);
+    const ts = Number(loc?.ts);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (!Number.isFinite(ts) || Date.now() - ts > ARRIVAL_FIX_MAX_AGE_MS) return null;
+    const distanceM = Math.round(
+      haversineMeters({ lat, lng }, { lat: trip.pickupLat, lng: trip.pickupLng }),
+    );
+    const radius = this.config.get<number>('arrivalRadiusM') ?? 150;
+    if (distanceM > radius) {
+      throw new BadRequestException(
+        `You're still ${distanceM} m from the pickup`,
+      );
+    }
+    return distanceM;
   }
 
   async startTrip(driverId: string, tripId: string, otp: string) {
@@ -360,6 +444,18 @@ export class TripsService {
         ts: Date.now(),
       });
     }
+    // Navigation context for the on-trip leg so every GPS ping can carry a
+    // cheap ETA/remaining-distance to the rider (LocationService reads this).
+    await this.redis.client.hset(RedisKeys.tripNav(tripId), {
+      phase: 'trip',
+      targetLat: trip.dropoffLat,
+      targetLng: trip.dropoffLng,
+      polyline: trip.routePolyline ?? '',
+      avgSpeedMps:
+        trip.distanceM && trip.durationS && trip.durationS > 0
+          ? trip.distanceM / trip.durationS
+          : '',
+    });
     // Auth-hold the estimated fare when the ride starts (manual capture).
     await this.payments.authorizeForTrip(tripId).catch((e) =>
       // Don't block the ride on a payment hiccup; capture will retry on complete.
@@ -429,13 +525,17 @@ export class TripsService {
     // Recompute the final fare from the actually-driven distance (the trip
     // odometer accumulated by LocationService), falling back to the estimate
     // when there's no usable GPS trail (e.g. simulator with sparse pings).
-    const { fareFinal, distanceM, durationS } = await this.settleFare(trip);
+    const { fareFinal, distanceM, durationS, breakdown } =
+      await this.settleFare(trip);
     await this.stateMachine.transition({
       tripId,
       from: TripStatus.in_progress,
       to: TripStatus.completed,
       actor: 'driver',
       data: { completedAt: new Date(), fareFinal, distanceM, durationS },
+      // The itemised fare is persisted on the completion event (no trip
+      // column for it) so GET /payments/:tripId/receipt can replay it.
+      meta: { breakdown: { ...breakdown } },
     });
 
     // Release the driver back to the available pool.
@@ -443,6 +543,7 @@ export class TripsService {
     await this.redis.client.del(
       RedisKeys.driverActiveTrip(driverId),
       RedisKeys.driverActiveRider(driverId),
+      RedisKeys.tripNav(tripId),
     );
     await this.prisma.driverProfile.update({
       where: { userId: driverId },
@@ -489,11 +590,20 @@ export class TripsService {
       durationS,
       paymentMode: trip.paymentMode,
       paymentStatus,
+      breakdown,
     };
     this.realtime.emitToUser(trip.riderId, 'trip:completed', receipt);
     this.realtime.emitToUser(driverId, 'trip:completed', receipt);
     void this.notifications.notifyTrip(trip.riderId, 'completed', { tripId });
-    void this.notifications.notifyTrip(driverId, 'completed', { tripId });
+    void this.notifications.notifyTrip(
+      driverId,
+      'completed',
+      {
+        tripId,
+        earned: (split.driverPayout ?? split.fareFinal).toFixed(2),
+      },
+      'driver',
+    );
     // Best-effort emailed receipt (SES when keyed, mock otherwise). Never blocks
     // or fails the completion — EmailService swallows its own errors. When the
     // capture is still pending the processor sends it once the fare lands.
@@ -520,6 +630,7 @@ export class TripsService {
     fareFinal: number;
     distanceM: number | null;
     durationS: number | null;
+    breakdown: ReceiptBreakdown;
   }> {
     const drivenRaw = await this.redis.client.get(RedisKeys.tripDriven(trip.id));
     await this.redis.client.del(
@@ -528,6 +639,8 @@ export class TripsService {
     );
     const estimate = trip.fareEstimate ? Number(trip.fareEstimate) : 0;
     const driven = drivenRaw ? Number(drivenRaw) : 0;
+    const surge = trip.surgeMultiplier ? Number(trip.surgeMultiplier) : 1;
+    const discount = trip.promoDiscount ? Number(trip.promoDiscount) : 0;
 
     // Need a meaningful trail (>= 50 m) to trust the odometer over the estimate.
     if (!Number.isFinite(driven) || driven < 50) {
@@ -535,6 +648,13 @@ export class TripsService {
         fareFinal: estimate,
         distanceM: trip.distanceM,
         durationS: trip.durationS,
+        breakdown: this.breakdownFor(
+          trip.tier,
+          trip.distanceM ?? 0,
+          trip.durationS ?? 0,
+          surge,
+          discount,
+        ),
       };
     }
 
@@ -542,7 +662,6 @@ export class TripsService {
     const durationS = trip.startedAt
       ? Math.max(1, Math.round((Date.now() - trip.startedAt.getTime()) / 1000))
       : trip.durationS;
-    const surge = trip.surgeMultiplier ? Number(trip.surgeMultiplier) : 1;
     const metered = this.pricing.estimateForTier(
       trip.tier,
       distanceM,
@@ -550,12 +669,29 @@ export class TripsService {
       surge,
     ).fare;
     // Carry the up-front promo discount onto the final (odometer-based) fare.
-    const discount = trip.promoDiscount ? Number(trip.promoDiscount) : 0;
     // `fareEstimate` is stored net of the promo; the clamp is on gross fares.
     const grossEstimate = estimate + discount;
     const gross = this.clampFare(metered, grossEstimate, trip.tier);
     const fareFinal = Math.max(gross - discount, 0);
-    return { fareFinal, distanceM, durationS };
+    return {
+      fareFinal,
+      distanceM,
+      durationS,
+      breakdown: this.breakdownFor(trip.tier, distanceM, durationS ?? 0, surge, discount),
+    };
+  }
+
+  /** Itemised components as pricing computes them, plus promo/tip slots. The
+   *  headline fare stays authoritative (a clamp can move it off the sum). */
+  private breakdownFor(
+    tier: string,
+    distanceM: number,
+    durationS: number,
+    surge: number,
+    promoDiscount: number,
+  ): ReceiptBreakdown {
+    const b = this.pricing.estimateForTier(tier, distanceM, durationS, surge).breakdown;
+    return { ...b, promoDiscount: Math.round(promoDiscount * 100) / 100, tip: 0 };
   }
 
   /**
@@ -658,10 +794,16 @@ export class TripsService {
         by: 'rider',
         reason: reason ?? null,
       });
-      void this.notifications.notifyTrip(trip.driverId, 'cancelled', { tripId });
+      void this.notifications.notifyTrip(
+        trip.driverId,
+        'cancelled',
+        { tripId },
+        'driver',
+      );
       await this.releaseDriver(trip.driverId);
     }
     await this.releasePromo(trip);
+    await this.releaseDemand(trip);
 
     let fee = 0;
     if (feeApplies) {
@@ -713,6 +855,7 @@ export class TripsService {
 
     await this.releaseDriver(driverId);
     await this.releasePromo(trip);
+    await this.releaseDemand(trip);
 
     this.realtime.emitToUser(trip.riderId, 'trip:cancelled', {
       tripId,
@@ -740,11 +883,22 @@ export class TripsService {
 
   /** Return a driver to the available pool (clears their active-trip keys). */
   private async releaseDriver(driverId: string): Promise<void> {
+    const tripId = await this.redis.client.get(RedisKeys.driverActiveTrip(driverId));
     await this.redis.client.set(RedisKeys.driverStatus(driverId), 'online');
     await this.redis.client.del(
       RedisKeys.driverActiveTrip(driverId),
       RedisKeys.driverActiveRider(driverId),
+      ...(tripId ? [RedisKeys.tripNav(tripId)] : []),
     );
+  }
+
+  /** A request that ended without a ride no longer counts as local demand. */
+  private async releaseDemand(trip: Trip): Promise<void> {
+    try {
+      await this.surge.releaseDemand(trip.pickupLat, trip.pickupLng, trip.riderId);
+    } catch (e) {
+      this.logger.warn(`demand release failed for trip ${trip.id}: ${String(e)}`);
+    }
   }
 
   /** Hand back a promo redemption on a trip that never completed. */

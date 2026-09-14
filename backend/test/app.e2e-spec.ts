@@ -294,7 +294,40 @@ describe('FairsVia API (e2e)', () => {
   });
 
   it('favorite drivers: add, list, remove', async () => {
-    const driverId = '11111111-1111-1111-1111-111111111111';
+    // The target must be a real driver: an unknown id is a 404 (API audit),
+    // never a dangling favourite row.
+    await request(server)
+      .post('/api/v1/drivers/11111111-1111-1111-1111-111111111111/favorite')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404);
+    await request(server)
+      .post('/api/v1/drivers/not-a-uuid/favorite')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(400);
+
+    const dPhone = `+196${Date.now() % 100000000}`;
+    await resetOtpLimits(dPhone);
+    const d1 = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone: dPhone });
+    const d2 = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone: dPhone, code: d1.body.devCode });
+    const dToken = d2.body.accessToken as string;
+    await request(server)
+      .post('/api/v1/drivers/onboarding')
+      .set('Authorization', `Bearer ${dToken}`)
+      .send({
+        vehicleMake: 'Toyota',
+        vehicleModel: 'Prius',
+        vehicleColor: 'white',
+        plateNumber: `FAV${Date.now() % 100000}`,
+        vehicleTier: 'economy',
+        licenseNo: 'LIC-FAV',
+      })
+      .expect(201);
+    const driverId = d2.body.user.id as string;
+
     const add = await request(server)
       .post(`/api/v1/drivers/${driverId}/favorite`)
       .set('Authorization', `Bearer ${token}`);

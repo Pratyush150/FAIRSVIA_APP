@@ -45,11 +45,12 @@ export class FallbackGeoProvider implements GeoProvider {
   autocomplete(
     query: string,
     sessionToken?: string,
+    bias?: LatLng,
   ): Promise<PlacePrediction[]> {
     return this.withFallback(
       'autocomplete',
-      () => this.primary.autocomplete(query, sessionToken),
-      () => this.secondary.autocomplete(query, sessionToken),
+      () => this.primary.autocomplete(query, sessionToken, bias),
+      () => this.secondary.autocomplete(query, sessionToken, bias),
     );
   }
 

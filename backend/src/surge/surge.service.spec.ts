@@ -1,7 +1,7 @@
-import { SurgeService, SURGE_CAP } from './surge.service';
+import { DEMAND_TTL, SurgeService, SURGE_CAP } from './surge.service';
 import { RedisService } from '../common/redis/redis.service';
 
-/** Minimal fake Redis: `get` keyed by substring, `geosearch` by tier. */
+/** Minimal fake Redis: demand is a SET per cell (scard), `geosearch` by tier. */
 function makeRedis(opts: {
   demand?: number;
   override?: number;
@@ -14,14 +14,36 @@ function makeRedis(opts: {
     client: {
       get: async (k: string) => {
         if (k.includes('override')) return override > 1 ? String(override) : null;
-        if (k.includes('demand')) return demand ? String(demand) : null;
         return null;
       },
+      scard: async (k: string) => (k.includes('demand') ? demand : 0),
       // All supply attributed to the first tier pool; others empty.
       geosearch: async (key: string) =>
         key.endsWith('economy') ? new Array(supply).fill('d') : [],
     },
   } as unknown as RedisService;
+}
+
+/** Real set semantics so rider de-duplication is exercised, not mocked. */
+function makeSetRedis() {
+  const sets = new Map<string, Set<string>>();
+  const expire = jest.fn().mockResolvedValue(1);
+  const client = {
+    sadd: jest.fn(async (k: string, m: string) => {
+      const s = sets.get(k) ?? new Set<string>();
+      const added = s.has(m) ? 0 : 1;
+      s.add(m);
+      sets.set(k, s);
+      return added;
+    }),
+    srem: jest.fn(async (k: string, m: string) => (sets.get(k)?.delete(m) ? 1 : 0)),
+    scard: jest.fn(async (k: string) => sets.get(k)?.size ?? 0),
+    expire,
+    get: jest.fn().mockResolvedValue(null),
+    // One online driver, in the economy pool only.
+    geosearch: jest.fn(async (key: string) => (key.endsWith('economy') ? ['d1'] : [])),
+  };
+  return { redis: { client } as unknown as RedisService, client, sets };
 }
 
 describe('SurgeService', () => {
@@ -51,5 +73,41 @@ describe('SurgeService', () => {
 
   it('lets organic surge exceed a lower override', async () => {
     expect(await mult({ demand: 3, supply: 0, override: 1.2 })).toBe(SURGE_CAP);
+  });
+
+  // Demand is a per-cell set of riders: a single rider hammering "request"
+  // must not be able to surge their own pickup.
+  describe('demand accounting', () => {
+    it('counts a rider once per cell however many times they retry', async () => {
+      const { redis, client } = makeSetRedis();
+      const svc = new SurgeService(redis);
+      await svc.recordDemand(12.9, 77.6, 'rider-A');
+      await svc.recordDemand(12.9, 77.6, 'rider-A');
+      await svc.recordDemand(12.9, 77.6, 'rider-A');
+      // demand 1 vs supply 1 → ratio 1 → 1.2x, NOT 2.0x (which demand 3 would give).
+      expect(await svc.multiplierFor(12.9, 77.6)).toBe(1.2);
+      expect(client.expire).toHaveBeenCalledWith(expect.stringContaining('surge:demand:'), DEMAND_TTL);
+    });
+
+    it('two distinct riders in the same cell both count', async () => {
+      const { redis } = makeSetRedis();
+      const svc = new SurgeService(redis);
+      await svc.recordDemand(12.9, 77.6, 'rider-A');
+      await svc.recordDemand(12.9, 77.6, 'rider-B');
+      // demand 2 vs supply 1 → ratio 2 → 1.5x
+      expect(await svc.multiplierFor(12.9, 77.6)).toBe(1.5);
+    });
+
+    it('releaseDemand withdraws a rider whose request ended without a ride', async () => {
+      const { redis } = makeSetRedis();
+      const svc = new SurgeService(redis);
+      await svc.recordDemand(12.9, 77.6, 'rider-A');
+      await svc.recordDemand(12.9, 77.6, 'rider-B');
+      await svc.releaseDemand(12.9, 77.6, 'rider-A');
+      expect(await svc.multiplierFor(12.9, 77.6)).toBe(1.2); // back to demand 1
+      // Releasing again (or a rider never recorded) is a harmless no-op.
+      await expect(svc.releaseDemand(12.9, 77.6, 'rider-A')).resolves.toBeUndefined();
+      await expect(svc.releaseDemand(12.9, 77.6, 'rider-Z')).resolves.toBeUndefined();
+    });
   });
 });

@@ -15,8 +15,15 @@ export const RedisKeys = {
   tripChat: (id: string) => `trip:${id}:chat`,
   // Per-user chat send-rate window counter.
   chatRate: (userId: string) => `chat:rate:${userId}`,
-  // Surge: per-cell recent demand counter + an admin global override.
+  // Surge: per-cell SET of riders with a recent live request (each rider
+  // counts once per cell window, however many times they retry) + an admin
+  // global override.
   surgeDemand: (cell: string) => `surge:demand:${cell}`,
+  // Navigation context for the driver's current leg (target + polyline +
+  // routed average speed) so each GPS ping can derive a cheap ETA without a
+  // DB read or a routing call. Written at assignment (approach leg) and at
+  // trip start (trip leg); removed when the trip ends.
+  tripNav: (id: string) => `trip:${id}:nav`,
   surgeOverride: () => 'surge:override',
   driverOfferLock: (id: string) => `driver:${id}:offerlock`,
   // Cross-process offer signalling: the dispatch worker records who a trip is
@@ -24,4 +31,7 @@ export const RedisKeys = {
   // worker (on any node) picks it up.
   dispatchOffer: (tripId: string) => `dispatch:offer:${tripId}`,
   dispatchResponse: (tripId: string) => `dispatch:resp:${tripId}`,
+  // Drivers who explicitly declined this trip: never re-offered on a later
+  // sweep of the same dispatch run.
+  dispatchDeclined: (tripId: string) => `dispatch:declined:${tripId}`,
 } as const;

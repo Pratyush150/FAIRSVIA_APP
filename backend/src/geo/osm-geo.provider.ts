@@ -6,6 +6,7 @@ import {
   PlacePrediction,
   RouteResult,
 } from './geo-provider.interface';
+import { haversineMeters } from './geo.util';
 
 /**
  * Self-hostable OpenStreetMap provider: OSRM for road-following routes and
@@ -38,7 +39,11 @@ export class OsmGeoProvider implements GeoProvider {
     this.nominatimBaseUrl = nominatimBaseUrl.replace(/\/+$/, '');
   }
 
-  async autocomplete(query: string): Promise<PlacePrediction[]> {
+  async autocomplete(
+    query: string,
+    _sessionToken?: string,
+    bias?: LatLng,
+  ): Promise<PlacePrediction[]> {
     const url = new URL(`${this.nominatimBaseUrl}/search`);
     url.searchParams.set('q', query);
     url.searchParams.set('format', 'jsonv2');
@@ -62,6 +67,7 @@ export class OsmGeoProvider implements GeoProvider {
         primaryText: primary,
         secondaryText: secondary,
         description: display,
+        ...(bias ? { distanceM: Math.round(haversineMeters(bias, location)) } : {}),
       };
     });
   }

@@ -1,12 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
 export class FavoritesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Add a driver to the rider's favourites (idempotent). */
+  /** Add a driver to the rider's favourites (idempotent). The target must be
+   *  an existing driver — a random/unknown id is a 404, not a dangling row. */
   async add(riderId: string, driverId: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: driverId },
+      select: { id: true, driverProfile: { select: { userId: true } } },
+    });
+    if (!target || !target.driverProfile) {
+      throw new NotFoundException('Driver not found');
+    }
     await this.prisma.favoriteDriver.upsert({
       where: { riderId_driverId: { riderId, driverId } },
       create: { riderId, driverId },

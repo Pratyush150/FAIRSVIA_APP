@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -48,14 +49,14 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   tip(
     @CurrentUser() user: AuthUser,
-    @Param('tripId') tripId: string,
+    @Param('tripId', ParseUUIDPipe) tripId: string,
     @Body() dto: TipDto,
   ) {
     return this.payments.addTip(user.userId, tripId, dto.amount);
   }
 
   @Get(':tripId/receipt')
-  receipt(@CurrentUser() user: AuthUser, @Param('tripId') tripId: string) {
+  receipt(@CurrentUser() user: AuthUser, @Param('tripId', ParseUUIDPipe) tripId: string) {
     return this.payments.getReceipt(user.userId, tripId);
   }
 }

@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -57,7 +58,7 @@ export class TripsController {
   }
 
   @Get(':id')
-  get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  get(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.trips.getTrip(user.userId, id);
   }
 
@@ -65,7 +66,7 @@ export class TripsController {
   @HttpCode(HttpStatus.OK)
   cancel(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CancelTripDto,
   ) {
     return this.trips.cancelTrip(user.userId, id, dto.reason);
@@ -75,7 +76,7 @@ export class TripsController {
 
   @Post(':id/accept')
   @HttpCode(HttpStatus.OK)
-  async accept(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async accept(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     if (!(await this.dispatch.respondToOffer(user.userId, id, true))) {
       throw new BadRequestException('Offer expired or not found');
     }
@@ -84,14 +85,14 @@ export class TripsController {
 
   @Post(':id/decline')
   @HttpCode(HttpStatus.OK)
-  async decline(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async decline(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     await this.dispatch.respondToOffer(user.userId, id, false);
     return { ok: true };
   }
 
   @Post(':id/arrived')
   @HttpCode(HttpStatus.OK)
-  arrived(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  arrived(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.trips.driverArrived(user.userId, id);
   }
 
@@ -99,7 +100,7 @@ export class TripsController {
   @HttpCode(HttpStatus.OK)
   start(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: StartTripDto,
   ) {
     return this.trips.startTrip(user.userId, id, dto.otp);
@@ -107,7 +108,7 @@ export class TripsController {
 
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
-  complete(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  complete(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.trips.completeTrip(user.userId, id);
   }
 
@@ -116,7 +117,7 @@ export class TripsController {
   @HttpCode(HttpStatus.OK)
   driverCancel(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: DriverCancelTripDto,
   ) {
     return this.trips.driverCancelTrip(user.userId, id, dto.reason);

@@ -37,6 +37,16 @@ export class CreateTripDto {
   @IsOptional() @IsString() @MaxLength(200)
   dropoffAddr?: string;
 
+  // Price lock: the fare + surge the rider saw on the estimate screen. The
+  // server recomputes both at request time; if they moved (surge kicked in,
+  // route changed) the request is refused with 409 PRICE_CHANGED carrying the
+  // fresh numbers so the rider re-confirms — never silently charged more.
+  @IsOptional() @IsNumber() @Min(0) @Max(100000)
+  quotedFare?: number;
+
+  @IsOptional() @IsNumber() @Min(1) @Max(10)
+  quotedSurge?: number;
+
   // Accepted now but unused until Phase 3 (payments).
   @IsOptional() @IsString() @MaxLength(128)
   paymentMethodId?: string;
