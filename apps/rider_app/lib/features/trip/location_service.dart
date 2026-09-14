@@ -93,6 +93,20 @@ class LocationService {
     }
   }
 
+  /// A live stream of the rider's position (real GPS), for keeping the map on
+  /// the phone's actual location and snapping to the first real fix once GPS
+  /// resolves — so the map doesn't sit on the fallback until a manual recenter.
+  /// Emits nothing when mocked/denied (the caller keeps its resolved position).
+  Stream<GeoPoint> positionStream() {
+    if (_mockPoint != null) return const Stream.empty();
+    return Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 8,
+      ),
+    ).map((p) => GeoPoint(p.latitude, p.longitude));
+  }
+
   Future<GeoPoint?> _lastKnown() async {
     try {
       final p = await Geolocator.getLastKnownPosition();

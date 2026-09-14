@@ -858,17 +858,25 @@ class _OfferOverlayState extends State<_OfferOverlay> {
     super.initState();
     _total = widget.offer.expiresInSec;
     _remaining = _total;
-    // An incoming offer is urgent and interrupting — announce it firmly.
+    // An incoming offer is urgent and interrupting — announce it firmly, then
+    // keep a repeating buzz going for the whole window so it's hard to miss when
+    // the phone is in a mount/pocket (a persistent alert, like Uber's ping).
     AppHaptics.heavy();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
       setState(() => _remaining -= 1);
-      // A tick of warning as the window closes.
-      if (_remaining > 0 && _remaining <= 3) AppHaptics.light();
       if (_remaining <= 0) {
         t.cancel();
         // Never auto-decline a ride the driver has already accepted.
         if (!_accepted) context.read<DriverCubit>().declineOffer();
+        return;
+      }
+      // Escalating alert: a strong pulse every 2s, then every second in the
+      // final 3s as the window closes.
+      if (_remaining <= 3) {
+        AppHaptics.heavy();
+      } else if (_remaining.isEven) {
+        AppHaptics.medium();
       }
     });
   }

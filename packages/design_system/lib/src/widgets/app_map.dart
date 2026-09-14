@@ -188,14 +188,52 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     return true;
   }
 
+  // Pixels of breathing room left around a fitted bounds.
+  static const double _boundsPixelPadding = 56;
+  // Below this diagonal span the two framed points are effectively on top of
+  // each other (the car has nearly reached its target); a bounds-fit would
+  // over-zoom or throw, so we centre + hold a street-level zoom instead.
+  static const double _minFitSpanMeters = 180;
+  static const double _closeZoom = 16.8;
+
   Future<void> _fit() async {
     final pts = widget.fitBounds;
     if (pts == null || pts.length < 2) return;
     final c = await _controller.future;
     if (!mounted) return;
+    // Car almost at its target: settle on the point at street zoom rather than
+    // snapping to an over-tight bounds (keeps the "zoom in on arrival" smooth).
+    if (_spanMeters(pts) < _minFitSpanMeters) {
+      await c.animateCamera(
+        gmaps.CameraUpdate.newLatLngZoom(_g(_centroid(pts)), _closeZoom),
+      );
+      return;
+    }
     await c.animateCamera(
-      gmaps.CameraUpdate.newLatLngBounds(_boundsOf(pts), 56),
+      gmaps.CameraUpdate.newLatLngBounds(_boundsOf(pts), _boundsPixelPadding),
     );
+  }
+
+  /// Diagonal span of the points' bounding box, in metres.
+  double _spanMeters(List<LatLng> pts) {
+    var minLat = pts.first.latitude, maxLat = pts.first.latitude;
+    var minLng = pts.first.longitude, maxLng = pts.first.longitude;
+    for (final p in pts) {
+      minLat = math.min(minLat, p.latitude);
+      maxLat = math.max(maxLat, p.latitude);
+      minLng = math.min(minLng, p.longitude);
+      maxLng = math.max(maxLng, p.longitude);
+    }
+    return _distanceMeters(LatLng(minLat, minLng), LatLng(maxLat, maxLng));
+  }
+
+  LatLng _centroid(List<LatLng> pts) {
+    var lat = 0.0, lng = 0.0;
+    for (final p in pts) {
+      lat += p.latitude;
+      lng += p.longitude;
+    }
+    return LatLng(lat / pts.length, lng / pts.length);
   }
 
   gmaps.LatLngBounds _boundsOf(List<LatLng> pts) {

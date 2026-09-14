@@ -55,6 +55,12 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   // the rider's real position is required to book (no silent Miami fallback).
   bool _locationRequired = false;
 
+  // Live position watch: keeps the pickup on the phone's real location and, on
+  // the FIRST real GPS fix, snaps the camera to it — so the map self-corrects
+  // off the fallback without the rider having to tap recenter.
+  StreamSubscription<GeoPoint>? _posSub;
+  bool _snappedToMe = false;
+
   // --- Live re-routing ---
   // When the driver's live position leaves the drawn route, we re-fetch the
   // optimal road route from where the car actually is, so the line follows the
@@ -73,6 +79,30 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
     _connectSocket();
   }
 
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    super.dispose();
+  }
+
+  /// Watch live GPS so the map lands on the phone's real location on its own.
+  /// The first real fix snaps the camera (replacing the fallback); after that we
+  /// keep [_myLocation] fresh for the pickup but leave the camera to the rider.
+  void _startLocationWatch() {
+    _posSub?.cancel();
+    _posSub = _location.positionStream().listen((loc) {
+      if (!mounted) return;
+      setState(() {
+        _myLocation = loc;
+        if (!_snappedToMe) {
+          _snappedToMe = true;
+          _recenter = MapUtils.toLatLng(loc);
+          _recenterTick++;
+        }
+      });
+    }, onError: (_) {});
+  }
+
   Future<void> _loadLocation() async {
     // Location is mandatory to book — request it up front. If the rider hasn't
     // granted it, show the gate instead of dropping to the Miami fallback.
@@ -85,15 +115,22 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
     }
     final loc = await _location.currentOrFallback();
     if (mounted) {
+      // Whether we already have the rider's *real* position (not the fallback):
+      // if so the live watch shouldn't re-snap the camera later.
+      final isReal = loc != LocationService.fallback;
       setState(() {
         _myLocation = loc;
         _locationRequired = false;
+        if (isReal) _snappedToMe = true;
         // Move the camera to the resolved location. GoogleMap's initialCenter is
         // one-shot, so without this the map stays on the fallback until the rider
         // taps recenter (seen when GPS/permission resolves after the first frame).
         _recenter = MapUtils.toLatLng(loc);
       });
     }
+    // Keep watching GPS so the map self-corrects off the fallback the moment a
+    // real fix arrives (indoors/cold start), without a manual recenter.
+    _startLocationWatch();
     // Resolve the GPS to a real address so the pickup shows where the rider
     // actually is (e.g. "Bhukum, Pune") instead of a generic label.
     try {
@@ -285,15 +322,35 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
     });
   }
 
-  /// What the camera frames. During the approach we fit the driver→pickup leg
-  /// (using the approach polyline's endpoints, which stay fixed for the whole
-  /// approach — so the camera frames the leg once instead of chasing the car
-  /// on every GPS tick). Otherwise we fit pickup→dropoff.
+  /// What the camera frames — Uber-style choreography that follows the live car:
+  ///
+  ///  * **Approaching** (driver → pickup): frame the live car and the pickup, so
+  ///    the view tightens (zooms in) as the driver closes in on you.
+  ///  * **On trip** (car → destination): frame the live car and the drop-off, so
+  ///    the view zooms in as you near your destination.
+  ///  * **Otherwise**: an overview of pickup → drop-off.
+  ///
+  /// AppMap re-fits whenever these points change, and centres + holds a street
+  /// zoom once the two points are nearly coincident (arrival), so the follow is
+  /// smooth instead of snapping.
   List<LatLng>? _fitBounds(TripState state) {
     final e = state.estimate;
     if (e == null) return null;
+    final driver = state.driverLocation;
     final approaching = state.phase == TripPhase.driverEnRoute ||
         state.phase == TripPhase.driverArrived;
+    if (driver != null) {
+      if (approaching) {
+        final pickup = state.pickup ?? e.pickup;
+        return [MapUtils.toLatLng(driver), MapUtils.toLatLng(pickup)];
+      }
+      if (state.phase == TripPhase.onTrip) {
+        final dropoff = state.dropoff ?? e.dropoff;
+        return [MapUtils.toLatLng(driver), MapUtils.toLatLng(dropoff)];
+      }
+    }
+    // Before the first live driver fix during the approach, frame the planned
+    // approach leg's endpoints so the map is already sensibly zoomed.
     final approachRoute = state.driverRoutePolyline;
     if (approaching && approachRoute != null && approachRoute.isNotEmpty) {
       final pts = MapUtils.decodePolyline(approachRoute);
@@ -1341,36 +1398,78 @@ class _FindingDriver extends StatelessWidget {
   }
 }
 
-/// Confirms a ride cancellation before calling through. When a driver is already
-/// on the way ([feeWarning]), warns that a cancellation fee may apply, then — if
-/// one was charged — tells the rider the exact amount. Prevents a silent charge.
+/// The cancellation reasons a rider can pick from (Uber-style), captured for
+/// ops/analytics instead of a hardcoded label.
+const List<String> _cancelReasons = [
+  'Driver is taking too long',
+  'Wrong pickup location',
+  'Booked by mistake',
+  'Changed my plans',
+  'Other',
+];
+
+/// Confirms a ride cancellation before calling through, capturing a reason. When
+/// a driver is already on the way ([feeWarning]), warns that a cancellation fee
+/// may apply, then — if one was charged — tells the rider the exact amount.
 Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) async {
   final messenger = ScaffoldMessenger.of(context);
   final cubit = context.read<TripCubit>();
-  final confirmed = await showDialog<bool>(
+  // Returns the chosen reason (cancels), or null (keeps the ride).
+  final reason = await showModalBottomSheet<String>(
     context: context,
-    builder: (dialogCtx) => AlertDialog(
-      title: const Text('Cancel this ride?'),
-      content: Text(
-        feeWarning
-            ? 'Your driver is already on the way. Cancelling now may charge a '
-                'cancellation fee.'
-            : 'Are you sure you want to cancel this ride?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogCtx).pop(false),
-          child: const Text('Keep ride'),
+    showDragHandle: true,
+    builder: (sheetCtx) {
+      final theme = Theme.of(sheetCtx);
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xs),
+              child: Text('Cancel this ride?',
+                  style: theme.textTheme.titleLarge),
+            ),
+            if (feeWarning)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+                child: Text(
+                  'Your driver is already on the way — cancelling now may charge '
+                  'a cancellation fee. Let us know why:',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: AppColors.warning),
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+                child: Text('Let us know why (optional):',
+                    style: theme.textTheme.bodyMedium),
+              ),
+            for (final r in _cancelReasons)
+              ListTile(
+                title: Text(r),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(sheetCtx).pop(r),
+              ),
+            const SizedBox(height: AppSpacing.xs),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: SecondaryButton(
+                label: 'Keep ride',
+                onPressed: () => Navigator.of(sheetCtx).pop(),
+              ),
+            ),
+          ],
         ),
-        TextButton(
-          onPressed: () => Navigator.of(dialogCtx).pop(true),
-          child: const Text('Cancel ride'),
-        ),
-      ],
-    ),
+      );
+    },
   );
-  if (confirmed != true) return;
-  final fee = await cubit.cancelTrip();
+  if (reason == null) return;
+  final fee = await cubit.cancelTrip(reason: reason);
   if (fee > 0) {
     messenger.showSnackBar(
       SnackBar(
@@ -1380,6 +1479,59 @@ Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) as
       ),
     );
   }
+}
+
+/// ~30 km/h urban fallback speed (m/s) when a leg's own speed is unknown.
+const double _fallbackMps = 8.3;
+
+/// A **live** ETA to the current target, recomputed from the drawn route and the
+/// driver's live position, so it ticks down as the car moves (like Uber) rather
+/// than showing the single value fixed at match time. Returns null when it can't
+/// be computed (no live fix / no route yet).
+({int minutes, DateTime arrival})? _liveEta(TripState state) {
+  final driver = state.driverLocation;
+  if (driver == null) return null;
+  final onTrip = state.phase == TripPhase.onTrip;
+  final approaching = state.phase == TripPhase.driverEnRoute ||
+      state.phase == TripPhase.driverArrived;
+  if (!onTrip && !approaching) return null;
+
+  final List<LatLng> route;
+  final double mps;
+  if (onTrip) {
+    final poly = state.estimate?.polyline;
+    if (poly == null || poly.isEmpty) return null;
+    route = MapUtils.decodePolyline(poly);
+    final e = state.estimate!;
+    mps = e.durationS > 0 ? e.distanceM / e.durationS : _fallbackMps;
+  } else {
+    // Approach leg: prefer the driver→pickup route; derive the approach speed
+    // from the backend's match-time ETA (distance/time) when available.
+    final poly = state.driverRoutePolyline ?? state.estimate?.polyline;
+    if (poly == null || poly.isEmpty) return null;
+    route = MapUtils.decodePolyline(poly);
+    final d = state.driver;
+    mps = (d?.etaSec != null && d!.etaSec! > 0 && d.etaDistanceM != null)
+        ? d.etaDistanceM! / d.etaSec!
+        : _fallbackMps;
+  }
+  if (route.length < 2) return null;
+  final split = splitRouteAtPoint(route, MapUtils.toLatLng(driver));
+  final speed = mps <= 0 ? _fallbackMps : mps;
+  final secs = split.remainingMeters / speed;
+  final minutes = (secs / 60).ceil().clamp(1, 999);
+  return (
+    minutes: minutes,
+    arrival: DateTime.now().add(Duration(seconds: secs.round())),
+  );
+}
+
+/// A short wall-clock time like "3:42 PM".
+String _clock(DateTime when) {
+  final local = when.toLocal();
+  final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final ampm = local.hour < 12 ? 'AM' : 'PM';
+  return '$h:${local.minute.toString().padLeft(2, '0')} $ampm';
 }
 
 class _DriverInfoSheet extends StatelessWidget {
@@ -1392,6 +1544,9 @@ class _DriverInfoSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final driver = state.driver;
     final otp = state.trip?.startOtp;
+    // Live, ticking "Arriving in N min" recomputed from the car's position;
+    // falls back to the backend match-time ETA, then a generic status.
+    final eta = arrived ? null : _liveEta(state);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1414,9 +1569,10 @@ class _DriverInfoSheet extends StatelessWidget {
                   Text(
                     arrived
                         ? 'Your driver is here'
-                        // Live "Arriving in N min" from the backend approach ETA
-                        // when known, else a generic status.
-                        : (driver?.etaLabel ?? 'Your driver is on the way'),
+                        : (eta != null
+                            ? 'Arriving in ${eta.minutes} min'
+                            : (driver?.etaLabel ??
+                                'Your driver is on the way')),
                     style: theme.textTheme.headlineSmall,
                   ),
                 ],
@@ -1534,6 +1690,8 @@ class _OnTripSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Live destination ETA that ticks down as the car progresses.
+    final eta = _liveEta(state);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1543,8 +1701,10 @@ class _OnTripSheet extends StatelessWidget {
             const Icon(Icons.navigation, color: AppColors.accent),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
-              child: Text('On the way to your destination',
-                  style: theme.textTheme.titleMedium),
+              child: Text(
+                eta != null ? '${eta.minutes} min to destination' : 'On the way',
+                style: theme.textTheme.titleLarge,
+              ),
             ),
             _sosButton(context, state),
             IconButton(
@@ -1555,7 +1715,12 @@ class _OnTripSheet extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(state.dropoffAddr ?? '', style: theme.textTheme.bodyMedium),
+        Text(
+          eta != null
+              ? 'Arrive around ${_clock(eta.arrival)} · ${state.dropoffAddr ?? ''}'
+              : (state.dropoffAddr ?? ''),
+          style: theme.textTheme.bodyMedium,
+        ),
       ],
     );
   }
@@ -1735,6 +1900,15 @@ class _CompletedSheet extends StatelessWidget {
                     style: theme.textTheme.bodySmall),
               ),
             ),
+          // Compliment tags — shown once a (positive) rating is given, so the
+          // rider can say what went well (Uber-style). Persisted with the rating.
+          if (state.rating != null && state.rating! >= 4) ...[
+            const SizedBox(height: AppSpacing.md),
+            _ComplimentTags(
+              selected: state.ratingTags,
+              onChanged: (tags) => cubit.updateRatingTags(tags),
+            ),
+          ],
           if (state.driver?.id != null) ...[
             const SizedBox(height: AppSpacing.md),
             _FavoriteDriverButton(
@@ -1787,6 +1961,72 @@ class _CompletedSheet extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Compliment chips shown after a positive rating (Uber-style). Multi-select;
+/// every change re-submits the tag set with the existing star rating.
+class _ComplimentTags extends StatefulWidget {
+  const _ComplimentTags({required this.selected, required this.onChanged});
+  final List<String> selected;
+  final ValueChanged<List<String>> onChanged;
+
+  static const List<String> options = [
+    'Great conversation',
+    'Clean car',
+    'Safe driving',
+    'Great navigation',
+    'On time',
+    'Cool music',
+  ];
+
+  @override
+  State<_ComplimentTags> createState() => _ComplimentTagsState();
+}
+
+class _ComplimentTagsState extends State<_ComplimentTags> {
+  late final Set<String> _selected = {...widget.selected};
+
+  void _toggle(String tag) {
+    setState(() {
+      if (!_selected.add(tag)) _selected.remove(tag);
+    });
+    AppHaptics.selection();
+    widget.onChanged(_selected.toList());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Text('What went well?', style: theme.textTheme.titleSmall),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          alignment: WrapAlignment.center,
+          children: [
+            for (final tag in _ComplimentTags.options)
+              FilterChip(
+                label: Text(tag),
+                selected: _selected.contains(tag),
+                onSelected: (_) => _toggle(tag),
+                showCheckmark: false,
+                selectedColor: AppColors.accentSoft,
+                side: BorderSide(
+                  color: _selected.contains(tag)
+                      ? AppColors.accent
+                      : theme.dividerColor,
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -143,6 +143,20 @@ class TripCubit extends Cubit<TripState> {
     }
   }
 
+  /// Attach/replace compliment tags on the rating already given for this trip
+  /// (the backend updates the existing rating). No-op until a star rating exists.
+  Future<void> updateRatingTags(List<String> tags) async {
+    final tripId = state.trip?.id;
+    final stars = state.rating;
+    if (tripId == null || stars == null) return;
+    try {
+      await _ratings.rate(tripId, stars: stars, tags: tags);
+      emit(state.copyWith(ratingTags: tags));
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+    }
+  }
+
   void _onNoDrivers() {
     // Drop back to the ride options (destination + tier retained) with a clear
     // message, so the rider can just re-tap Confirm instead of being stuck on
@@ -316,13 +330,20 @@ class TripCubit extends Cubit<TripState> {
   }
 
   /// Cancels the active trip and returns the cancellation fee charged (0 when
-  /// none), so the UI can tell the rider they were charged.
-  Future<double> cancelTrip() async {
+  /// none), so the UI can tell the rider they were charged. [reason] is the
+  /// rider's chosen cancellation reason (for ops/analytics); defaults to a
+  /// generic label when none was given.
+  Future<double> cancelTrip({String? reason}) async {
     final trip = state.trip;
     var fee = 0.0;
     if (trip != null) {
       try {
-        fee = await _repository.cancelTrip(trip.id, reason: 'Cancelled by rider');
+        fee = await _repository.cancelTrip(
+          trip.id,
+          reason: (reason == null || reason.isEmpty)
+              ? 'Cancelled by rider'
+              : reason,
+        );
       } catch (_) {
         // Best-effort: reset the UI regardless.
       }

@@ -33,6 +33,7 @@ class TripState extends Equatable {
     this.tipAmount,
     this.tipping = false,
     this.rating,
+    this.ratingTags = const [],
     this.appliedPromo,
     this.applyingPromo = false,
     this.promoError,
@@ -65,6 +66,9 @@ class TripState extends Equatable {
   final double? tipAmount;
   final bool tipping;
   final int? rating;
+
+  /// Compliment tags the rider attached to their driver rating (Uber-style).
+  final List<String> ratingTags;
 
   /// A promo code the rider has applied (server-priced); null when none.
   final PromoQuote? appliedPromo;
@@ -133,6 +137,7 @@ class TripState extends Equatable {
     Object? tipAmount = _s,
     bool? tipping,
     Object? rating = _s,
+    List<String>? ratingTags,
     Object? appliedPromo = _s,
     bool? applyingPromo,
     Object? promoError = _s,
@@ -167,6 +172,7 @@ class TripState extends Equatable {
       tipAmount: tipAmount == _s ? this.tipAmount : tipAmount as double?,
       tipping: tipping ?? this.tipping,
       rating: rating == _s ? this.rating : rating as int?,
+      ratingTags: ratingTags ?? this.ratingTags,
       appliedPromo: appliedPromo == _s
           ? this.appliedPromo
           : appliedPromo as PromoQuote?,
@@ -203,6 +209,7 @@ class TripState extends Equatable {
         tipAmount,
         tipping,
         rating,
+        ratingTags,
         appliedPromo,
         applyingPromo,
         promoError,
