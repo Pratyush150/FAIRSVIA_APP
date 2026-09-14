@@ -552,6 +552,7 @@ class _BottomSheet extends StatelessWidget {
           tripId: state.trip?.id,
           navLat: state.trip?.pickup.point.lat,
           navLng: state.trip?.pickup.point.lng,
+          note: state.trip?.pickupNote,
         );
       case DriverPhase.arrived:
         child = _StartTripSheet(
@@ -669,6 +670,7 @@ class _LifecycleSheet extends StatelessWidget {
     this.tripId,
     this.navLat,
     this.navLng,
+    this.note,
   });
 
   final String title;
@@ -677,6 +679,9 @@ class _LifecycleSheet extends StatelessWidget {
   final VoidCallback onAction;
   final bool busy;
   final String? tripId;
+
+  /// A pickup note from the rider, shown while heading to the pickup.
+  final String? note;
 
   /// When set, shows a "Navigate in Google Maps" button that hands off
   /// turn-by-turn to the device's maps app (Uber-style), since there's no
@@ -712,6 +717,10 @@ class _LifecycleSheet extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(subtitle, style: theme.textTheme.bodyMedium),
+        if (note != null && note!.trim().isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _PickupNoteBanner(note: note!),
+        ],
         if (navLat != null && navLng != null) ...[
           const SizedBox(height: AppSpacing.md),
           SecondaryButton(
@@ -727,6 +736,44 @@ class _LifecycleSheet extends StatelessWidget {
           onPressed: busy ? null : onAction,
         ),
       ],
+    );
+  }
+}
+
+/// A highlighted banner showing the rider's pickup note to the driver.
+class _PickupNoteBanner extends StatelessWidget {
+  const _PickupNoteBanner({required this.note});
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.accentSoft,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.sticky_note_2_outlined,
+              size: 18, color: AppColors.accent),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Note from rider',
+                    style: theme.textTheme.labelMedium
+                        ?.copyWith(color: AppColors.accentPressed)),
+                const SizedBox(height: 2),
+                Text(note, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1020,6 +1067,11 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                     ],
                   ),
                 ),
+                if (offer.pickupNote != null &&
+                    offer.pickupNote!.trim().isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  _PickupNoteBanner(note: offer.pickupNote!),
+                ],
                 const SizedBox(height: AppSpacing.xl),
                 Row(
                   children: [

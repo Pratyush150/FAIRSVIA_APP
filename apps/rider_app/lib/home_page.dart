@@ -773,6 +773,8 @@ class _RideOptions extends StatelessWidget {
         _ScheduleRow(state: state),
         const SizedBox(height: AppSpacing.sm),
         _PromoField(state: state),
+        const SizedBox(height: AppSpacing.sm),
+        _PickupNoteField(state: state),
         const SizedBox(height: AppSpacing.md),
         PrimaryButton(
           label: _confirmLabel(state),
@@ -1260,6 +1262,46 @@ class _PromoFieldState extends State<_PromoField> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// An optional "note for the driver" field (Uber-style pickup note), delivered
+/// to the driver on the offer + en-route screens. Committed to the cubit on
+/// change so it's included when the ride is confirmed.
+class _PickupNoteField extends StatefulWidget {
+  const _PickupNoteField({required this.state});
+  final TripState state;
+
+  @override
+  State<_PickupNoteField> createState() => _PickupNoteFieldState();
+}
+
+class _PickupNoteFieldState extends State<_PickupNoteField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.state.pickupNote ?? '');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      textCapitalization: TextCapitalization.sentences,
+      maxLength: 200,
+      minLines: 1,
+      maxLines: 2,
+      decoration: const InputDecoration(
+        hintText: 'Note for driver (e.g. "meet at the lobby")',
+        prefixIcon: Icon(Icons.sticky_note_2_outlined),
+        isDense: true,
+        counterText: '',
+      ),
+      onChanged: (v) => context.read<TripCubit>().setPickupNote(v),
     );
   }
 }

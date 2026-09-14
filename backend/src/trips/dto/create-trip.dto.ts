@@ -37,6 +37,10 @@ export class CreateTripDto {
   @IsOptional() @IsString() @MaxLength(200)
   dropoffAddr?: string;
 
+  // A short note for the driver about the pickup (e.g. "meet at the lobby").
+  @IsOptional() @IsString() @MaxLength(200)
+  pickupNote?: string;
+
   // Accepted now but unused until Phase 3 (payments).
   @IsOptional() @IsString() @MaxLength(128)
   paymentMethodId?: string;

@@ -81,6 +81,7 @@ class Trip extends Equatable {
     required this.tier,
     required this.pickup,
     required this.dropoff,
+    this.pickupNote,
     this.routePolyline,
     this.stops = const [],
     this.distanceM,
@@ -102,6 +103,9 @@ class Trip extends Equatable {
   final String tier;
   final TripEndpoint pickup;
   final TripEndpoint dropoff;
+
+  /// A short pickup note from the rider to the driver, if any.
+  final String? pickupNote;
 
   /// Ordered intermediate stops (empty for a direct trip).
   final List<TripStop> stops;
@@ -140,6 +144,7 @@ class Trip extends Equatable {
         tier: json['tier'] as String? ?? 'economy',
         pickup: TripEndpoint.fromJson(json['pickup'] as Map<String, dynamic>),
         dropoff: TripEndpoint.fromJson(json['dropoff'] as Map<String, dynamic>),
+        pickupNote: json['pickupNote'] as String?,
         stops: (json['stops'] as List<dynamic>? ?? const [])
             .map((s) => TripStop.fromJson(s as Map<String, dynamic>))
             .toList(),
@@ -168,6 +173,7 @@ class Trip extends Equatable {
         tier,
         pickup,
         dropoff,
+        pickupNote,
         stops,
         routePolyline,
         distanceM,

@@ -364,6 +364,7 @@ export class DispatchService {
         durationS: trip.durationS,
         expiresInSec: OFFER_TTL_MS / 1000,
         rider: { name: riderInfo.name, rating: riderInfo.rating },
+        pickupNote: trip.pickupNote ?? undefined,
         approachDistanceM,
       });
 

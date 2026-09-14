@@ -300,6 +300,13 @@ class TripCubit extends Cubit<TripState> {
   void setScheduledAt(DateTime? when) =>
       emit(state.copyWith(scheduledAt: when));
 
+  /// Set (or clear) the rider's pickup note for the driver.
+  void setPickupNote(String? note) {
+    final trimmed = note?.trim();
+    emit(state.copyWith(
+        pickupNote: (trimmed == null || trimmed.isEmpty) ? null : trimmed));
+  }
+
   Future<void> confirmRide() async {
     final s = state;
     if (s.pickup == null || s.dropoff == null || s.selectedTier == null) return;
@@ -311,6 +318,7 @@ class TripCubit extends Cubit<TripState> {
         tier: s.selectedTier!,
         pickupAddr: s.pickupAddr,
         dropoffAddr: s.dropoffAddr,
+        pickupNote: s.pickupNote,
         promoCode: s.appliedPromo?.code,
         paymentMode: s.paymentMode,
         paymentMethodId: s.paymentMode == 'card' ? s.selectedMethodId : null,

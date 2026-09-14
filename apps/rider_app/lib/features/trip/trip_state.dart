@@ -22,6 +22,7 @@ class TripState extends Equatable {
     this.pickupAddr,
     this.dropoff,
     this.dropoffAddr,
+    this.pickupNote,
     this.estimate,
     this.selectedTier,
     this.trip,
@@ -51,6 +52,9 @@ class TripState extends Equatable {
   final String? pickupAddr;
   final GeoPoint? dropoff;
   final String? dropoffAddr;
+
+  /// A short note for the driver about the pickup, entered before confirming.
+  final String? pickupNote;
   final TripEstimate? estimate;
   final String? selectedTier;
   final Trip? trip;
@@ -126,6 +130,7 @@ class TripState extends Equatable {
     Object? pickupAddr = _s,
     Object? dropoff = _s,
     Object? dropoffAddr = _s,
+    Object? pickupNote = _s,
     Object? estimate = _s,
     Object? selectedTier = _s,
     Object? trip = _s,
@@ -156,6 +161,7 @@ class TripState extends Equatable {
       dropoff: dropoff == _s ? this.dropoff : dropoff as GeoPoint?,
       dropoffAddr:
           dropoffAddr == _s ? this.dropoffAddr : dropoffAddr as String?,
+      pickupNote: pickupNote == _s ? this.pickupNote : pickupNote as String?,
       estimate: estimate == _s ? this.estimate : estimate as TripEstimate?,
       selectedTier:
           selectedTier == _s ? this.selectedTier : selectedTier as String?,
@@ -198,6 +204,7 @@ class TripState extends Equatable {
         pickupAddr,
         dropoff,
         dropoffAddr,
+        pickupNote,
         estimate,
         selectedTier,
         trip,

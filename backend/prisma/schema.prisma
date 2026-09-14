@@ -129,6 +129,10 @@ model Trip {
   dropoffLat      Float      @map("dropoff_lat")
   dropoffLng      Float      @map("dropoff_lng")
 
+  /// A short pickup note from the rider to the driver ("meet at the north gate",
+  /// "wearing a red jacket"). Shown on the driver's offer + en-route screens.
+  pickupNote      String?    @map("pickup_note")
+
   routePolyline   String?    @map("route_polyline")
   stops           Json?      // ordered intermediate stops: [{lat,lng,addr?}]
   distanceM       Int?       @map("distance_m")
