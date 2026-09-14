@@ -79,15 +79,23 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   }
 
   Future<void> _connect() async {
-    try {
-      final token = await sl<TokenStorage>().readAccessToken();
-      if (token != null && mounted) {
-        await context.read<DriverCubit>().init(token);
+    // A fresh sign-in may reach the home before the access token has finished
+    // persisting to secure storage — read it with a few retries rather than
+    // silently skipping the socket connection (which left a just-signed-in
+    // driver never receiving offers). init() is idempotent and self-retries the
+    // socket internally, so one successful call is enough.
+    for (var attempt = 0; attempt < 6 && mounted; attempt++) {
+      try {
+        final token = await sl<TokenStorage>().readAccessToken();
+        if (token != null && token.isNotEmpty) {
+          if (!mounted) return;
+          await context.read<DriverCubit>().init(token);
+          return;
+        }
+      } catch (_) {
+        // Read/connect can fail transiently; retry with backoff below.
       }
-    } catch (_) {
-      // Connect can time out; the realtime client retries with backoff and the
-      // connection banner reflects status. Swallow so a slow/failed initial
-      // connect isn't an unhandled async error.
+      await Future<void>.delayed(Duration(milliseconds: 400 * (attempt + 1)));
     }
   }
 

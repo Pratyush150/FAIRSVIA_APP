@@ -20,7 +20,20 @@ class DriverCubit extends Cubit<DriverState> {
   final List<StreamSubscription<dynamic>> _subs = [];
 
   Future<void> init(String token) async {
-    await _realtime.connect(token);
+    // Bind handlers only once (a re-init after a reconnect must not double-add).
+    final firstInit = _subs.isEmpty;
+    // Attempt the connection, but DON'T let a slow/cold-start connect failure
+    // abort handler subscription: the socket keeps retrying in the background
+    // (reconnection is enabled), and the handlers below must already be bound so
+    // offers are processed once it comes up. Previously a thrown initial connect
+    // skipped every subscription, leaving a freshly-signed-in driver silently
+    // deaf to offers even after the socket reconnected.
+    try {
+      await _realtime.connect(token);
+    } catch (_) {
+      // Cold-start timeout — background reconnection will keep trying.
+    }
+    if (!firstInit) return;
     _subs
       ..add(_realtime.on('trip:offer').listen(
           (d) => _onOffer(RideOffer.fromJson(d))))

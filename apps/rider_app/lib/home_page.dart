@@ -192,15 +192,21 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   }
 
   Future<void> _connectSocket() async {
-    try {
-      final token = await sl<TokenStorage>().readAccessToken();
-      if (token != null && mounted) {
-        await context.read<TripCubit>().init(token);
+    // Retry reading the token (a fresh sign-in may reach home before it has
+    // finished persisting) so we never silently skip the socket connection.
+    // init() is idempotent and self-retries the socket internally.
+    for (var attempt = 0; attempt < 6 && mounted; attempt++) {
+      try {
+        final token = await sl<TokenStorage>().readAccessToken();
+        if (token != null && token.isNotEmpty) {
+          if (!mounted) return;
+          await context.read<TripCubit>().init(token);
+          return;
+        }
+      } catch (_) {
+        // Read/connect can fail transiently; retry with backoff below.
       }
-    } catch (_) {
-      // Connect can time out; the realtime client retries with backoff and the
-      // connection banner reflects status. Swallow so a slow/failed initial
-      // connect isn't an unhandled async error.
+      await Future<void>.delayed(Duration(milliseconds: 400 * (attempt + 1)));
     }
   }
 

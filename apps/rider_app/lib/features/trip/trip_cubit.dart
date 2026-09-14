@@ -22,7 +22,16 @@ class TripCubit extends Cubit<TripState> {
 
   /// Connect the socket and subscribe to trip lifecycle events.
   Future<void> init(String token) async {
-    await _realtime.connect(token);
+    final firstInit = _subs.isEmpty;
+    // Don't let a slow/cold-start connect failure abort subscription: the socket
+    // retries in the background and the handlers must already be bound so live
+    // trip events are processed once it comes up.
+    try {
+      await _realtime.connect(token);
+    } catch (_) {
+      // Cold-start timeout — background reconnection will keep trying.
+    }
+    if (!firstInit) return;
     _subs
       ..add(_realtime.on('trip:matching').listen((_) => _onMatching()))
       ..add(_realtime.on('trip:accepted').listen(_onAccepted))
