@@ -160,7 +160,11 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     }
     if (old.cameraMode != widget.cameraMode) {
       _userPanned = false;
-      if (widget.cameraMode == MapCameraMode.followDriver) _followDriver();
+      if (widget.cameraMode == MapCameraMode.followDriver) {
+        _followDriver();
+      } else {
+        _resetToNorthUp();
+      }
     }
     // Animate the driver from its current (possibly mid-glide) position to the
     // new GPS fix, and rotate toward the direction of travel.
@@ -213,6 +217,28 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           zoom: 17,
           bearing: _driverBearing,
           tilt: 30,
+        ),
+      ),
+    );
+  }
+
+  /// Leaving follow mode: undo the heading-up rotation/tilt so the idle map
+  /// isn't left pointing wherever the car last drove.
+  Future<void> _resetToNorthUp() async {
+    final target = _driverTo ??
+        _driverMarker(widget.markers)?.point ??
+        widget.recenter ??
+        widget.initialCenter;
+    final c = await _controller.future;
+    if (!mounted) return;
+    _programmaticMove = true;
+    await c.animateCamera(
+      gmaps.CameraUpdate.newCameraPosition(
+        gmaps.CameraPosition(
+          target: _g(target),
+          zoom: widget.initialZoom,
+          bearing: 0,
+          tilt: 0,
         ),
       ),
     );
