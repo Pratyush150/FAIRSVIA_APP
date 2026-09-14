@@ -189,3 +189,83 @@ and accept the Trust prompt. After that: set the team on both Runner targets,
 build with `API_BASE_URL=http://192.168.1.44:3000/api/v1` and no
 `MOCK_LOCATION`, install rider + driver, and run the driver bot near the
 phone's real GPS.
+
+## 8. Functional round on the final builds (2026-09-14, afternoon)
+
+Three UI-driven test passes ran in parallel on four simulators against the
+same local backend, each recording a screenshot per step and the backend
+request line (`METHOD /path -> status`, now printed by the dev logger) for
+every call the apps made. Both Runner workspaces were also built directly
+with `xcodebuild` (Debug, iOS Simulator): BUILD SUCCEEDED for rider and
+driver.
+
+| Pass | Where | Evidence |
+|---|---|---|
+| Trip flows (cash ride + chat, card + promo + tip, rider cancel, late-cancel fee, no drivers, start-code lockout, scheduled ride firing and cancel, background/cold relaunch, dark mode, safety sheet, presence) | rider iPhone 17 + driver iPhone 16 Pro | 174 screenshots, `fx_trip_NN_*.png` |
+| Rider account features (sign-up, search, ride sheet, map picker, saved places, payments, scheduled rides, support, profile, deep link, dark mode, XXXL text, cold relaunch) | fresh rider on iPhone 16 | 103 screenshots, `fx_rider_NN_*.png` |
+| Driver onboarding + account (sign-up, vehicle setup, online/offline vs Redis, location gate, earnings, payouts + Connect, support, profile, deep link, dark mode, XXXL) | fresh driver on iPhone 16 Plus, placed in Fort Lauderdale so it could not take the Miami offers | 81 screenshots, `fx_driver_NN_*.png` |
+
+Endpoints exercised through the apps (all returned the expected status; an
+expired access token produced a 401 → transparent refresh → retry every
+time): auth otp/request, otp/verify, refresh, logout; users/me (GET, PATCH);
+users/me/places (GET, POST, PATCH, DELETE); places autocomplete, details,
+reverse; trips/estimate, trips (POST incl. scheduled and 409 PRICE_CHANGED),
+trips/:id, trips/active, trips/history, trips/scheduled, trips/:id/cancel,
+arrived, start, complete, rating, messages (GET, POST); promos/quote;
+payments/methods (GET, POST), payments/:id/tip, payments/:id/receipt;
+drivers/status, drivers/onboarding, drivers/me, drivers/me/earnings,
+drivers/balance, drivers/connect/status, drivers/connect/onboard,
+drivers/:id/favorite; me/favorites; me/notifications; support/tickets (GET,
+POST), support/tickets/:id, support/tickets/:id/messages. Socket events
+observed: trip offer/accept/assigned/arrived/started/driver_location/
+completed/cancelled, chat messages, driver status, presence sync.
+
+### Defects found and their status
+
+| # | Sev | Finding (as observed) | Status |
+|---|---|---|---|
+| T1 | P1 | Rider cold relaunch mid-ride showed "Your driver ★ —" (no name/vehicle/plate) | Fixed: `GET /trips/active` and `/trips/:id` carry the driver + vehicle snapshot. Verified live: full card with start code after terminate + relaunch |
+| T2 | P1 | Driver stayed "Online" for minutes after the server had it offline; the presence poll compared against the stored column | Fixed: `GET /drivers/me` reports the live Redis presence; the app polls it every 30 s and flips after two offline answers. Verified live: flipped within 75 s of a forced offline |
+| T3 | P1 | Scheduled ride fired but the rider's card had no start code until a relaunch | Fixed: `trip:accepted` carries the code and the rider fetches the trip when the event arrives without one. Verified live: code shown the moment the driver accepted |
+| T4 | P1 | $30 cancellation fee (4.6× the fare) from a local `.env` override, charged even when the driver's start code was locked, and never shown in the dialog | Fixed: fee capped at the fare estimate, waived while the start code is locked, amount shown in the dialog; local env reset to $5 |
+| T5 | P2 | "N min away" on every tier was the trip duration | Fixed: nearest online driver of that tier, "no cars nearby" when none. Verified live: Economy "2 min away", other tiers "no cars nearby" |
+| T6 | P2 | Driver completion sheet ignored the rider's tip | Fixed: `trip:tip_added` updates the sheet. Verified live: "The rider added a $2 tip", earnings 74.50 → 76.50 |
+| T7 | P2 | Rider's car marker sat 40–90 m from the car at pickup/dropoff | Open: not reproduced in this run (marker on the pin at arrival); the earlier observation was taken with 15 s screenshot latency on a saturated Mac. Re-check on a device |
+| T8 | P2 | Promo discount came out of the driver's payout | Fixed: payout computed on the gross fare |
+| T9 | P3 | Fare details did not add up under the minimum fare | Fixed: "Minimum fare" line |
+| T10 | P3 | Card receipts did not name the card | Fixed: "Paid with Visa ••4242" |
+| T11 | P3 | Navigate on the simulator opened nothing | Simulator has no maps app installed; the app shows "No navigation app could be opened". Works on a device with Google Maps / Waze / Apple Maps |
+| T12 | P3 | Driver distance to pickup/dropoff was crow-flies | Fixed: measured along the road when the leg's polyline is known |
+| T13 | P3 | Dev-code chip neither tappable nor auto-submitting | Fixed: tap to use (typing still auto-submits) |
+| T14 | P3 | Driver map snapped to city zoom on status change / trip end | Fixed: street-level zoom (16) on recenter |
+| T15 | P3 | No "ride cancelled" feedback for the rider on a free cancel | Fixed: snackbar |
+| R1 | P1 | Cards could not be removed or re-defaulted | Fixed: per-card menu, DELETE / PATCH default routes |
+| R2 | P2 | Support-form validation invisible (SnackBar under the modal) | Fixed: inline |
+| R3 | P2 | Backend accepted a phone without country code | Fixed: strict E.164 on both ends |
+| R4 | P2 | Sign-in Continue hidden under the keyboard on iPhone 16 | Fixed: pinned above the keyboard |
+| R5 | P2 | "Card" pre-selected with no card on file | Fixed: Cash default, "Add card" chip |
+| R6 | P2 | Sign out never revoked the session server-side; no confirmation | Fixed: confirmation + `POST /auth/logout` |
+| R7 | P3 | Promo error / applied chip below the fold | Fixed: scrolls into view |
+| R8 | P3 | Raw validator text on name setup | Fixed: 120-char cap client-side |
+| R9 | P3 | No Home/Work shortcuts on Plan your ride | Fixed |
+| R10 | P3 | Clearing the profile name silently kept the old one | Fixed: validation error |
+| R11 | P3 | Material calendar + clock dial on iOS | Fixed: iOS wheel picker |
+| R12 | P3 | Duplicate autocomplete / reverse-geocode calls | Fixed |
+| D1 | P2 | Wrong OTP gave no feedback | Fixed: inline error, digits cleared |
+| D2 | P2 | Onboarding accepted an empty make; no colour; dialog closed before the server replied | Fixed: validation, colour field, waits for the server; vehicle fields required server-side |
+| D3 | P2 | No way to view/edit the vehicle | Fixed: menu → Vehicle |
+| D4 | P3 | Location gate bypassed on mock-GPS builds | By design for simulator builds (`MOCK_LOCATION` is ignored in release); needs a device to exercise |
+| D5 | P3 | GPS pings stop while the app is backgrounded on the simulator | Simulator only exercises the mock stream; real background location needs a device |
+| D6 | P3 | Deep links `fairsvia-rider://` / `fairsvia-driver://` open the app but do nothing else | Open (scheme registered for the Connect return URL; no in-app routing) |
+| D7 | P3 | "Today's earnings" is the gross fare total, not payouts | Open (copy/definition question for the owner) |
+
+Still open from earlier rounds and unchanged: push notifications, PrivacyInfo
++ ATS hygiene for release, wait timer / no-show UI, driver-cancel UI, masked
+call and share-trip link, pre-permission explainer, 4 stale backend e2e
+specs. The physical iPhone is paired but Xcode still has no Apple ID, so no
+device install has happened.
+
+### Gate after this round
+
+analyze clean; shared_models 35, core 91, rider 72 (+1 skipped golden),
+driver 46; backend jest 345, tsc OK.

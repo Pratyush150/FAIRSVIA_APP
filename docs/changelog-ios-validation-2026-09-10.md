@@ -104,7 +104,30 @@ Full findings and status: `docs/ios-audit-report-2026-09-14.md`.
 | Short realistic ride recorder (~106 m trip, 55 m approach, steps fire on real server state) | `tools/ios-e2e-record-short.sh` |
 | Debug error banner no longer masks real errors (plain text + copy) | `packages/core/lib/src/debug/error_overlay.dart` |
 
-## 8. Still required before a field test
+## 8. 2026-09-14 functional round (three UI-driven test passes on the final builds)
+Findings and status: `docs/ios-audit-report-2026-09-14.md` §8.
+
+| What | Where |
+|---|---|
+| Rider cold relaunch mid-ride: `GET /trips/:id` and `/trips/active` carry `driver` + `vehicle` | `backend/src/trips/trips.service.ts` (`driverSnapshot`) |
+| Scheduled rides: `trip:accepted` carries `startOtp`; rider fetches the trip when the event arrives without one | `backend/src/dispatch/dispatch.service.ts`, `apps/rider_app/lib/features/trip/trip_cubit.dart` (`_onAccepted`) |
+| Cancellation fee capped at the fare estimate, waived while the start code is locked, amount on every trip payload and in the cancel dialog; "Ride cancelled." feedback | `backend/src/trips/trips.service.ts`, `packages/shared_models/lib/src/trip.dart` (`cancellationFee`), `apps/rider_app/lib/home_page.dart` |
+| Driver payout computed on the gross fare (promo absorbed by the platform) | `backend/src/payments/payments.service.ts` (`splitFor`) |
+| Receipt: minimum-fare top-up line, card brand/last4 | `backend/src/trips/trips.service.ts` (`breakdownFor`), `backend/src/payments/payments.service.ts` (`getReceipt`), `packages/shared_models/lib/src/fare_breakdown.dart`, `packages/core/lib/src/account/receipt_page.dart`, `packages/core/lib/src/trip/payments_remote_data_source.dart` |
+| Tier "N min away" = nearest online driver of the tier (null → "no cars nearby") | `backend/src/dispatch/dispatch.service.ts` (`nearestDriverEtaS`), `packages/shared_models/lib/src/fare_tier.dart`, rider `home_page.dart` |
+| Price lock bounces only on a fare change (not a surge-only tick) | `backend/src/trips/trips.service.ts` (`assertPriceLock`) |
+| Tip reaches the driver's completion sheet (`trip:tip_added`) | `backend/src/payments/payments.service.ts`, `apps/driver_app/lib/features/driver/driver_cubit.dart` (`_onTipAdded`) |
+| Driver presence: app polls `GET /drivers/me` every 30 s while online; the endpoint reports the live Redis status | `apps/driver_app/lib/features/driver/driver_cubit.dart` (`_pollPresence`), `backend/src/drivers/drivers.service.ts` (`getProfileWithPresence`) |
+| Driver: distance to pickup/dropoff along the road; street-level zoom on recenter; vehicle editor (menu → Vehicle) with validation; onboarding waits for the server | `apps/driver_app/lib/home_page.dart`, `packages/core/lib/src/driver/driver_remote_data_source.dart` (`DriverProfile`, `me()`) |
+| Saved cards: remove / set default (`DELETE /payments/methods/:id`, `PATCH .../:id/default`), "Add card" chip, cash default with no card | `backend/src/payments/{payments.controller.ts,payments.service.ts}`, `packages/core/lib/src/account/payment_methods_page.dart`, rider `trip_cubit.dart` |
+| Sign-in: Continue pinned above the keyboard, country code required (`+`), strict E.164 on the server; OTP error inline with cleared digits; dev-code chip tappable | `packages/core/lib/src/auth/presentation/{phone_entry_page.dart,otp_page.dart}`, `backend/src/auth/dto/*.ts` |
+| Sign out: confirmation, `POST /auth/logout`, driver goes offline first, blocked mid-trip | `packages/core/lib/src/auth/auth_repository.dart`, `packages/core/lib/src/account/account_menu_page.dart` |
+| Support sheet errors inline; driver copy; category "Other" | `packages/core/lib/src/account/support_page.dart` |
+| Scheduling uses the iOS wheel picker; promo error scrolls into view; Home/Work shortcuts on Plan your ride; duplicate autocomplete/reverse calls removed | rider `home_page.dart`, `destination_search_page.dart`, `map_picker_page.dart` |
+| Dev request log lines show method, URL and status | `backend/src/common/logging/logging.module.ts` |
+| Vehicle fields must be non-empty (trimmed) | `backend/src/drivers/dto/onboarding.dto.ts` |
+
+## 9. Still required before a field test
 - Google Maps key is in place locally (gitignored files) — every new machine needs it added again.
 - Backend service keys (Google/OSRM routing, SMS, Stripe) and a phone-reachable backend URL.
 - Signed device builds (Apple Team on the Runner targets); real GPS / background location only exercised with `MOCK_LOCATION`.
