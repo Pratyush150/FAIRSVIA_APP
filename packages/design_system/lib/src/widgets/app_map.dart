@@ -209,11 +209,24 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   static const double _minFitSpanMeters = 180;
   static const double _closeZoom = 16.8;
 
+  // The bounds we last animated the camera to. Re-fitting on every GPS tick
+  // makes the map re-project constantly (a jank source); we skip a re-fit when
+  // the framed points barely moved and only follow once an endpoint shifts
+  // more than [_refitThresholdMeters] — a throttled "camera director".
+  List<LatLng>? _lastFittedBounds;
+  static const double _refitThresholdMeters = 20;
+
   Future<void> _fit() async {
     final pts = widget.fitBounds;
     if (pts == null || pts.length < 2) return;
+    // Throttle the follow: don't re-fit for sub-20m movements.
+    if (_lastFittedBounds != null &&
+        _boundsClose(pts, _lastFittedBounds!, _refitThresholdMeters)) {
+      return;
+    }
     final c = await _controller.future;
     if (!mounted) return;
+    _lastFittedBounds = List<LatLng>.of(pts);
     // Car almost at its target: settle on the point at street zoom rather than
     // snapping to an over-tight bounds (keeps the "zoom in on arrival" smooth).
     if (_spanMeters(pts) < _minFitSpanMeters) {
@@ -225,6 +238,16 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     await c.animateCamera(
       gmaps.CameraUpdate.newLatLngBounds(_boundsOf(pts), _boundsPixelPadding),
     );
+  }
+
+  /// True when every point of [a] is within [m] metres of the matching point
+  /// of [b] (same length assumed) — i.e. the framing barely changed.
+  bool _boundsClose(List<LatLng> a, List<LatLng> b, double m) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (_distanceMeters(a[i], b[i]) > m) return false;
+    }
+    return true;
   }
 
   /// Diagonal span of the points' bounding box, in metres.
