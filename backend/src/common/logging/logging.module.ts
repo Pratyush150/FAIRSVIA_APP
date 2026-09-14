@@ -28,6 +28,12 @@ const isProd = process.env.NODE_ENV === 'production';
           return existing;
         },
         redact: ['req.headers.authorization', 'req.headers.cookie'],
+        // Dev pretty output drops `req`/`res`, so put the route + status in
+        // the message itself; that is what a human tailing the log needs.
+        customSuccessMessage: (req, res) =>
+          `${req.method} ${req.url} -> ${res.statusCode}`,
+        customErrorMessage: (req, res, err) =>
+          `${req.method} ${req.url} -> ${res.statusCode} ${err.message}`,
         transport: isProd
           ? undefined
           : {
