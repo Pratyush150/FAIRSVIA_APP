@@ -91,6 +91,19 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   double _driverBearing = 0;
   gmaps.BitmapDescriptor? _driverIcon; // custom car puck, generated once
 
+  // Cached route polylines. Recomputing the route split (an O(route) scan) plus
+  // copying the whole line on every animation frame janks on mid-range phones,
+  // so we rebuild the line only when the route changes or the car has moved
+  // enough. The marker still glides at full frame rate; only the (expensive)
+  // line recompute is throttled by distance.
+  Set<gmaps.Polyline> _polylines = const {};
+  LatLng? _polyDriverAt; // interpolated car point the cache was built for
+  bool _polyHadDriver = false;
+  int _polyRouteLen = -1; // length + endpoints cheaply identify a route change
+  LatLng? _polyRouteFirst;
+  LatLng? _polyRouteLast;
+  static const double _polyResampleMeters = 3.0;
+
   @override
   void initState() {
     super.initState();
@@ -309,11 +322,30 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   /// line shrinks behind the car as it drives and vanishes on arrival (Uber
   /// style). The already-driven part is drawn faintly. Without a driver we draw
   /// the whole route as one bold line.
-  Set<gmaps.Polyline> _buildPolylines() {
+  /// Rebuild [_polylines] only when the route changed, the driver appeared or
+  /// vanished, or the car moved past [_polyResampleMeters] — keeping the
+  /// per-frame build path cheap while the marker glides smoothly.
+  void _syncPolylines() {
     final route = widget.route;
-    if (route.length < 2) return const {};
-
     final driver = _currentDriverPoint();
+    final hasDriver = driver != null;
+    final routeChanged = route.length != _polyRouteLen ||
+        (route.isNotEmpty &&
+            (route.first != _polyRouteFirst || route.last != _polyRouteLast));
+    final moved = hasDriver &&
+        (_polyDriverAt == null ||
+            _distanceMeters(driver, _polyDriverAt!) > _polyResampleMeters);
+    if (!routeChanged && !moved && hasDriver == _polyHadDriver) return;
+    _polyRouteLen = route.length;
+    _polyRouteFirst = route.isEmpty ? null : route.first;
+    _polyRouteLast = route.isEmpty ? null : route.last;
+    _polyDriverAt = driver;
+    _polyHadDriver = hasDriver;
+    _polylines = _computePolylines(route, driver);
+  }
+
+  Set<gmaps.Polyline> _computePolylines(List<LatLng> route, LatLng? driver) {
+    if (route.length < 2) return const {};
     if (driver == null) {
       return {
         gmaps.Polyline(
@@ -434,13 +466,14 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    _syncPolylines();
     return gmaps.GoogleMap(
       initialCameraPosition: gmaps.CameraPosition(
         target: _g(widget.initialCenter),
         zoom: widget.initialZoom,
       ),
       markers: _buildMarkers(),
-      polylines: _buildPolylines(),
+      polylines: _polylines,
       padding: widget.boundsPadding,
       myLocationEnabled: false,
       myLocationButtonEnabled: false,
