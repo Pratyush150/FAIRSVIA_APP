@@ -186,6 +186,11 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   }
 
   Future<void> _loadSavedPlaces() async {
+    // Returning from the account menu after "Sign out" pops back here for a
+    // frame; don't fire an authenticated call with the tokens already gone.
+    if (context.read<AuthBloc>().state.status != AuthStatus.authenticated) {
+      return;
+    }
     try {
       final places = await sl<UsersRemoteDataSource>().listPlaces();
       if (mounted) setState(() => _savedPlaces = places);
