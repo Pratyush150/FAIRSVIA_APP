@@ -67,6 +67,12 @@ class DriverCubit extends Cubit<DriverState> {
           )))
       ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
       ..add(_realtime.on('trip:message').listen(_onMessage))
+      // The server's view of our presence: sent on every connect and whenever
+      // it takes us offline itself (socket drop, stale GPS, presence lost).
+      ..add(_realtime.on('driver:status_changed').listen(_onServerStatus))
+      // A rejected frame now carries the real message (`{status:'error',
+      // code, message, event}`) instead of a masked 'Internal server error'.
+      ..add(_realtime.on('exception').listen(_onServerException))
       // Reconnection resilience: re-announce presence and re-fetch the active
       // trip after a dropped socket so the driver's screen stays truthful.
       ..add(_realtime.reconnects.listen((_) => _onReconnect()))
@@ -78,6 +84,19 @@ class DriverCubit extends Cubit<DriverState> {
     // If this app was killed and reopened mid-trip, restore the live trip
     // screen instead of showing the idle "go online" home.
     await _restoreActiveTrip();
+    // Today's total for the offline sheet — otherwise it read "Go online to
+    // start earning" on every cold start, whatever the driver had made today.
+    await _loadTodayEarnings();
+  }
+
+  /// Best-effort refresh of [DriverState.lastEarned] (today's total).
+  Future<void> _loadTodayEarnings() async {
+    try {
+      final earnings = await _remote.earnings(range: 'today');
+      if (!isClosed) emit(state.copyWith(lastEarned: earnings.total));
+    } catch (_) {
+      // Cosmetic; the figure refreshes after the next completed trip.
+    }
   }
 
   /// Maps a server trip status to the driver's in-trip phase (null = not a
@@ -95,7 +114,15 @@ class DriverCubit extends Cubit<DriverState> {
     }
   }
 
-  Future<void> _restoreActiveTrip() async {
+  /// In-flight [_restoreActiveTrip], so a connect-time `on_trip` sync arriving
+  /// while [init]/[resumeFromBackground] is already restoring shares the one
+  /// request instead of racing it.
+  Future<void>? _restoring;
+
+  Future<void> _restoreActiveTrip() =>
+      _restoring ??= _doRestoreActiveTrip().whenComplete(() => _restoring = null);
+
+  Future<void> _doRestoreActiveTrip() async {
     try {
       final trip = await _remote.getActiveTrip();
       if (trip == null) return;
@@ -432,6 +459,81 @@ class DriverCubit extends Cubit<DriverState> {
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));
     }
+  }
+
+  /// `driver:status_changed` — the server's view of our presence, with why it
+  /// changed. `reason: 'sync'` is the snapshot sent on every connect; the
+  /// other reasons mean the server flipped us itself. The failure mode this
+  /// closes: a socket drop took the driver offline server-side, the app came
+  /// back still showing "Online", and riders saw "no drivers" while the driver
+  /// sat waiting for offers that could never come.
+  void _onServerStatus(Map<String, dynamic> data) {
+    final status = data['status'] as String?;
+    final reason = data['reason'] as String?;
+    switch (status) {
+      case 'offline':
+        // Mid-trip the server never forces us offline (a brief drop must let
+        // the driver resume), so a stray 'offline' with a live trip is stale.
+        if (!state.isOnline || state.trip != null) return;
+        // The connect-time snapshot can predate our own reconnect re-announce
+        // (see [_onReconnect]), which is already on the wire — let it win. If
+        // that re-announce is refused, the `exception` frame flips us below.
+        if (reason == 'sync') return;
+        _cancelAcceptTimer();
+        // Make the server match the screen even if a reconnect re-announce
+        // raced this event and put us back online without our knowledge.
+        _realtime.emit('driver:status', {'status': 'offline'});
+        emit(state.copyWith(
+          phase: DriverPhase.offline,
+          offer: null,
+          busy: false,
+          error: _forcedOfflineMessage(reason),
+        ));
+      case 'online':
+        // Only the connect-time snapshot may put us online on its own: it
+        // means the server still holds our presence from before a relaunch.
+        if (state.isOnline || reason != 'sync') return;
+        emit(state.copyWith(phase: DriverPhase.online));
+      case 'on_trip':
+        if (state.isOnline || reason != 'sync') return;
+        unawaited(_restoreActiveTrip());
+    }
+  }
+
+  static String _forcedOfflineMessage(String? reason) {
+    switch (reason) {
+      case 'stale_location':
+      case 'presence_lost':
+        return 'You were set offline — no location received for a while. '
+            'Go online again.';
+      default:
+        return "Connection dropped — you're offline. Go online again.";
+    }
+  }
+
+  /// `exception` — a server handler rejected one of our frames. Nest used to
+  /// mask every such error as 'Internal server error'; the real, showable
+  /// message now arrives (e.g. "Finish your current trip before going
+  /// offline.").
+  void _onServerException(Map<String, dynamic> data) {
+    final message = data['message'] as String?;
+    if (message == null || message.isEmpty) return;
+    final code = (data['code'] as num?)?.toInt() ?? 500;
+    // A refused `driver:status` (e.g. the reconnect re-announce hit "Documents
+    // are not verified yet") means we are NOT online server-side — don't keep
+    // showing "Online" with no offers ever coming.
+    final refusedOnline = data['event'] == 'driver:status' &&
+        code >= 400 &&
+        code < 500 &&
+        state.isOnline &&
+        state.trip == null;
+    if (refusedOnline) _cancelAcceptTimer();
+    emit(state.copyWith(
+      phase: refusedOnline ? DriverPhase.offline : null,
+      offer: refusedOnline ? null : state.offer,
+      busy: refusedOnline ? false : null,
+      error: message,
+    ));
   }
 
   void _onCancelledByRider() {

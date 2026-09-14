@@ -66,6 +66,10 @@ class FakeRealtimeClient implements RealtimeClient {
 
 Future<void> tick() => Future<void>.delayed(const Duration(milliseconds: 10));
 
+/// States `init()` emits on its own with the default stubs: one for today's
+/// earnings (`lastEarned`). blocTests that start with `init` skip these.
+const initStates = 1;
+
 void main() {
   late FakeRealtimeClient realtime;
   late MockDriverRemote remote;
@@ -345,6 +349,7 @@ void main() {
         cubit.acceptOffer();
       },
       wait: const Duration(milliseconds: 50),
+      skip: initStates,
       expect: () => [
         // goOnline
         isA<DriverState>().having((s) => s.busy, 'busy', isTrue),
@@ -453,6 +458,7 @@ void main() {
         await cubit.init('token');
         await cubit.goOnline();
       },
+      skip: initStates,
       expect: () => [
         isA<DriverState>()
             .having((s) => s.busy, 'busy', isTrue)
@@ -479,6 +485,7 @@ void main() {
         await cubit.init('token');
         await cubit.goOnline();
       },
+      skip: initStates,
       expect: () => [
         isA<DriverState>()
             .having((s) => s.busy, 'busy', isTrue)
@@ -523,6 +530,339 @@ void main() {
       verify(() => remote.setStatus('online')).called(1);
       await cubit.close();
     });
+  });
+
+  // ── Server-driven presence: driver:status_changed ─────────────────────────
+  group('driver:status_changed', () {
+    const staleMsg = 'You were set offline — no location received for a '
+        'while. Go online again.';
+    const dropMsg = "Connection dropped — you're offline. Go online again.";
+
+    blocTest<DriverCubit, DriverState>(
+      'offline/stale_location while idle-online flips the UI offline with the '
+      'no-location message and tells the server',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.emitted.clear();
+        realtime.push('driver:status_changed',
+            {'status': 'offline', 'reason': 'stale_location'});
+        await tick();
+      },
+      skip: initStates + 2, // goOnline busy → online
+      expect: () => [
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.offline)
+            .having((s) => s.error, 'error', staleMsg)
+            .having((s) => s.busy, 'busy', isFalse),
+      ],
+      verify: (_) {
+        expect(
+          realtime.emitted.any((e) =>
+              e.$1 == 'driver:status' && e.$2['status'] == 'offline'),
+          isTrue,
+        );
+      },
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'offline/presence_lost uses the no-location message',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.push('driver:status_changed',
+            {'status': 'offline', 'reason': 'presence_lost'});
+        await tick();
+      },
+      skip: initStates + 2,
+      expect: () => [
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.offline)
+            .having((s) => s.error, 'error', staleMsg),
+      ],
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'offline/disconnect uses the connection-dropped message and clears an '
+      'offer on screen (accept timer included)',
+      build: () => make(acceptGrace: Duration.zero),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.push('trip:offer', {...offerJson, 'expiresInSec': 0});
+        await tick();
+        cubit.acceptOffer();
+        realtime.push(
+            'driver:status_changed', {'status': 'offline', 'reason': 'disconnect'});
+        await tick();
+      },
+      wait: const Duration(milliseconds: 50),
+      skip: initStates + 4, // busy, online, offered, accept-busy
+      expect: () => [
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.offline)
+            .having((s) => s.offer, 'offer', isNull)
+            .having((s) => s.busy, 'busy', isFalse)
+            .having((s) => s.error, 'error', dropMsg),
+        // No later "taken or cancelled" reset: the accept timer was cancelled.
+      ],
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'offline/sync while online is the connect-time snapshot our reconnect '
+      're-announce supersedes — no flip',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.push(
+            'driver:status_changed', {'status': 'offline', 'reason': 'sync'});
+        await tick();
+      },
+      skip: initStates + 2,
+      expect: () => <DriverState>[],
+      verify: (cubit) => expect(cubit.state.phase, DriverPhase.online),
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'offline while on a trip is ignored (server never forces mid-trip)',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.push('trip:assigned', {'tripId': 'trip-1'});
+        await tick();
+        realtime.push('driver:status_changed',
+            {'status': 'offline', 'reason': 'disconnect'});
+        await tick();
+      },
+      skip: initStates + 3, // busy, online, enRoute
+      expect: () => <DriverState>[],
+      verify: (cubit) {
+        expect(cubit.state.phase, DriverPhase.enRoute);
+        expect(cubit.state.error, isNull);
+      },
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'offline while already offline does nothing',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        realtime.push('driver:status_changed',
+            {'status': 'offline', 'reason': 'disconnect'});
+        await tick();
+      },
+      skip: initStates,
+      expect: () => <DriverState>[],
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'online/sync matching an online app does nothing',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.push(
+            'driver:status_changed', {'status': 'online', 'reason': 'sync'});
+        await tick();
+      },
+      skip: initStates + 2,
+      expect: () => <DriverState>[],
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'on_trip/sync matching an in-trip app does nothing',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.push('trip:assigned', {'tripId': 'trip-1'});
+        await tick();
+        realtime.push(
+            'driver:status_changed', {'status': 'on_trip', 'reason': 'sync'});
+        await tick();
+      },
+      skip: initStates + 3,
+      expect: () => <DriverState>[],
+      verify: (_) => verify(() => remote.getActiveTrip()).called(1), // init only
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'online/sync while the app is offline restores the online phase (server '
+      'still holds our presence from before a relaunch)',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        realtime.push(
+            'driver:status_changed', {'status': 'online', 'reason': 'sync'});
+        await tick();
+      },
+      skip: initStates,
+      expect: () => [
+        isA<DriverState>().having((s) => s.phase, 'phase', DriverPhase.online),
+      ],
+      verify: (_) => verifyNever(() => remote.setStatus(any())),
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'on_trip/sync while the app is offline restores the live trip screen',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        // The trip appears on the server after init's own restore ran.
+        when(() => remote.getActiveTrip()).thenAnswer((_) async => trip);
+        realtime.push(
+            'driver:status_changed', {'status': 'on_trip', 'reason': 'sync'});
+        await tick();
+      },
+      skip: initStates,
+      expect: () => [
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.enRoute)
+            .having((s) => s.trip?.id, 'trip', 'trip-1'),
+      ],
+    );
+
+    test('online/on_trip with a non-sync reason never flips an offline app',
+        () async {
+      final cubit = make();
+      await cubit.init('token');
+      realtime.push('driver:status_changed',
+          {'status': 'online', 'reason': 'presence_lost'});
+      realtime.push('driver:status_changed',
+          {'status': 'on_trip', 'reason': 'disconnect'});
+      await tick();
+      expect(cubit.state.phase, DriverPhase.offline);
+      await cubit.close();
+    });
+  });
+
+  // ── Server exception frames ───────────────────────────────────────────────
+  group('exception frames', () {
+    blocTest<DriverCubit, DriverState>(
+      'surface the server message as the cubit error',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        realtime.push('exception', {
+          'status': 'error',
+          'code': 400,
+          'message': 'Finish your current trip before going offline.',
+          'event': 'driver:status',
+        });
+        await tick();
+      },
+      skip: initStates,
+      expect: () => [
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.offline)
+            .having((s) => s.error, 'error',
+                'Finish your current trip before going offline.'),
+      ],
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'a refused driver:status while idle-online flips the app offline '
+      '(the server never registered us)',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.push('exception', {
+          'status': 'error',
+          'code': 403,
+          'message': 'Documents are not verified yet',
+          'event': 'driver:status',
+        });
+        await tick();
+      },
+      skip: initStates + 2,
+      expect: () => [
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.offline)
+            .having((s) => s.error, 'error', 'Documents are not verified yet'),
+      ],
+    );
+
+    blocTest<DriverCubit, DriverState>(
+      'a refused frame on another event keeps the phase and shows the message',
+      build: () => make(),
+      act: (cubit) async {
+        await cubit.init('token');
+        await cubit.goOnline();
+        realtime.push('exception', {
+          'status': 'error',
+          'code': 400,
+          'message': 'tripId must be a UUID',
+          'event': 'trip:accept',
+        });
+        await tick();
+      },
+      skip: initStates + 2,
+      expect: () => [
+        isA<DriverState>()
+            .having((s) => s.phase, 'phase', DriverPhase.online)
+            .having((s) => s.error, 'error', 'tripId must be a UUID'),
+      ],
+    );
+
+    test('a frame without a message is ignored', () async {
+      final cubit = make();
+      await cubit.init('token');
+      realtime.push('exception', {'status': 'error', 'code': 500});
+      await tick();
+      expect(cubit.state.error, isNull);
+      await cubit.close();
+    });
+  });
+
+  // ── Arrival geofence ──────────────────────────────────────────────────────
+  test('markArrived surfaces the geofence 400 and stays en route', () async {
+    when(() => remote.arrived(any())).thenThrow(const ApiException(
+        "You're still 340 m from the pickup",
+        statusCode: 400));
+    final cubit = make();
+    await cubit.init('token');
+    await cubit.goOnline();
+    realtime.push('trip:assigned', {'tripId': 'trip-1'});
+    await tick();
+
+    await cubit.markArrived();
+    expect(cubit.state.phase, DriverPhase.enRoute);
+    expect(cubit.state.busy, isFalse);
+    expect(cubit.state.error, "You're still 340 m from the pickup");
+
+    // Closer now: the retry goes through.
+    when(() => remote.arrived(any())).thenAnswer((_) async {});
+    await cubit.markArrived();
+    expect(cubit.state.phase, DriverPhase.arrived);
+    expect(cubit.state.error, isNull);
+    await cubit.close();
+  });
+
+  // ── Today's earnings on the offline sheet ─────────────────────────────────
+  test("init loads today's earnings total for the offline sheet", () async {
+    when(() => remote.earnings(range: 'today')).thenAnswer(
+      (_) async => const DriverEarnings(total: 83.5, trips: 4, range: 'today'),
+    );
+    final cubit = make();
+    await cubit.init('token');
+    expect(cubit.state.lastEarned, 83.5);
+    expect(cubit.state.phase, DriverPhase.offline);
+    await cubit.close();
+  });
+
+  test('a failed earnings fetch on init is silent', () async {
+    when(() => remote.earnings(range: any(named: 'range')))
+        .thenThrow(const ApiException('nope', statusCode: 500));
+    final cubit = make();
+    await cubit.init('token');
+    expect(cubit.state.lastEarned, isNull);
+    expect(cubit.state.error, isNull);
+    await cubit.close();
   });
 
   // ── #6 Listeners registered before connect ────────────────────────────────

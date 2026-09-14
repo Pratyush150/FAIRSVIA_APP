@@ -56,6 +56,78 @@ void main() {
       expect(o.riderRating, isNull);
       expect(o.approachDistanceM, isNull);
       expect(o.approachLabel, isNull);
+      expect(o.approachEtaS, isNull);
+      expect(o.approachSource, isNull);
+      expect(o.approachEtaLabel, isNull);
+      expect(o.surge, 1);
+      expect(o.hasSurge, isFalse);
+      expect(o.surgeLabel, isNull);
+    });
+  });
+
+  group('RideOffer approach ETA, trip leg and surge', () {
+    test('parses road approach figures and surge', () {
+      final o = RideOffer.fromJson({
+        ...base(),
+        'approachDistanceM': 2300,
+        'approachEtaS': 372,
+        'approachSource': 'road',
+        'surge': 1.3,
+      });
+      expect(o.approachEtaS, 372);
+      expect(o.approachSource, 'road');
+      expect(o.surge, 1.3);
+      expect(o.hasSurge, isTrue);
+      expect(o.surgeLabel, '1.3× surge');
+      // Road figures are shown as-is (no "~").
+      expect(o.approachEtaLabel, '6 min · 1.4 mi to pickup');
+    });
+
+    test('straight-line approach with a nominal ETA keeps the "~"', () {
+      final o = RideOffer.fromJson({
+        ...base(),
+        'approachDistanceM': 2300,
+        'approachEtaS': 372,
+        'approachSource': 'straight',
+      });
+      expect(o.approachEtaLabel, '6 min · ~1.4 mi to pickup');
+    });
+
+    test('approachEtaLabel never reads "0 min" and handles "< 500 ft"', () {
+      final o = RideOffer.fromJson({
+        ...base(),
+        'approachDistanceM': 90,
+        'approachEtaS': 12,
+        'approachSource': 'road',
+      });
+      expect(o.approachEtaLabel, '1 min · < 500 ft to pickup');
+    });
+
+    test('approachEtaLabel falls back to the distance-only label without an '
+        'ETA', () {
+      final o = RideOffer.fromJson({...base(), 'approachDistanceM': 2300});
+      expect(o.approachEtaLabel, '~1.4 mi to pickup');
+    });
+
+    test('tripLabel shows miles and minutes, minutes omitted when unknown', () {
+      expect(RideOffer.fromJson(base()).tripLabel, '3.1 mi · 10 min');
+      expect(
+        RideOffer.fromJson({...base(), 'durationS': 0}).tripLabel,
+        '3.1 mi',
+      );
+      // 20 s rounds up to 1 min, never "0 min".
+      expect(
+        RideOffer.fromJson({...base(), 'distanceM': 100, 'durationS': 20})
+            .tripLabel,
+        '0.1 mi · 1 min',
+      );
+    });
+
+    test('surge of exactly 1 (or missing) is not a surge', () {
+      expect(RideOffer.fromJson({...base(), 'surge': 1}).hasSurge, isFalse);
+      expect(RideOffer.fromJson({...base(), 'surge': 1.0}).surgeLabel, isNull);
+      expect(RideOffer.fromJson({...base(), 'surge': 2}).surgeLabel,
+          '2.0× surge');
     });
   });
 }

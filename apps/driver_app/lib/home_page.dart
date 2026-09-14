@@ -424,7 +424,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                 child: _BottomSheet(state: state, myLocation: _myLocation),
               ),
               if (state.phase == DriverPhase.offered && state.offer != null)
-                _OfferOverlay(offer: state.offer!),
+                OfferOverlay(offer: state.offer!),
             ],
           ),
         );
@@ -962,15 +962,17 @@ class _StartTripSheetState extends State<_StartTripSheet> {
   }
 }
 
-class _OfferOverlay extends StatefulWidget {
-  const _OfferOverlay({required this.offer});
+/// The interrupting ride-offer card with its accept/decline countdown. Public
+/// so its content can be widget-tested; only the home page mounts it.
+class OfferOverlay extends StatefulWidget {
+  const OfferOverlay({super.key, required this.offer});
   final RideOffer offer;
 
   @override
-  State<_OfferOverlay> createState() => _OfferOverlayState();
+  State<OfferOverlay> createState() => _OfferOverlayState();
 }
 
-class _OfferOverlayState extends State<_OfferOverlay> {
+class _OfferOverlayState extends State<OfferOverlay> {
   late int _remaining;
   late final int _total;
   Timer? _timer;
@@ -1016,7 +1018,6 @@ class _OfferOverlayState extends State<_OfferOverlay> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final offer = widget.offer;
-    final miles = (offer.distanceM / 1609.34).toStringAsFixed(1);
     final low = _remaining <= 5;
     return Positioned.fill(
       child: Stack(
@@ -1076,9 +1077,32 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                Text('\$${offer.fare.toStringAsFixed(2)}',
-                    style: theme.textTheme.displaySmall),
-                Text('Est. fare · $miles mi trip',
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text('\$${offer.fare.toStringAsFixed(2)}',
+                        style: theme.textTheme.displaySmall),
+                    // Surge premium is baked into the fare; call it out so
+                    // the driver knows why this one pays more.
+                    if (offer.surgeLabel != null) ...[
+                      const SizedBox(width: AppSpacing.sm),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.16),
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radius),
+                        ),
+                        child: Text(offer.surgeLabel!,
+                            style: theme.textTheme.labelMedium
+                                ?.copyWith(color: AppColors.warning)),
+                      ),
+                    ],
+                  ],
+                ),
+                // The trip leg (pickup → dropoff): "4.3 mi · 14 min trip".
+                Text('Est. fare · ${offer.tripLabel} trip',
                     style: theme.textTheme.bodyMedium),
                 // Who you're collecting + how far to reach them, so the driver
                 // isn't accepting blind. Both omitted gracefully on old payloads.
@@ -1105,8 +1129,10 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                     ],
                   ),
                 ],
-                if (offer.approachLabel != null)
-                  Text(offer.approachLabel!,
+                // How far/long to reach the rider — road ETA when the server
+                // has one ("6 min · 1.4 mi to pickup"), else straight-line.
+                if (offer.approachEtaLabel != null)
+                  Text(offer.approachEtaLabel!,
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: AppSpacing.lg),
@@ -1133,6 +1159,15 @@ class _OfferOverlayState extends State<_OfferOverlay> {
                             const SizedBox(height: 2),
                             Text(offer.pickup.address ?? 'Pickup location',
                                 style: theme.textTheme.titleSmall,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 4),
+                            // Where the trip ends, so the driver can judge
+                            // the whole job before accepting.
+                            Text(
+                                '→ ${offer.dropoff.address ?? 'Dropoff location'}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis),
                           ],

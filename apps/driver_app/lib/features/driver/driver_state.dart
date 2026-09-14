@@ -34,6 +34,9 @@ class DriverState extends Equatable {
   final Trip? trip;
   final bool busy;
   final String? error;
+
+  /// Today's earnings total as last fetched (`/drivers/me/earnings?range=
+  /// today` on init and after each completed trip) — not the last trip's fare.
   final double? lastEarned;
   final String? lastTripId;
   final int? riderRating;

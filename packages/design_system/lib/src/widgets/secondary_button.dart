@@ -47,15 +47,21 @@ class SecondaryButton extends StatelessWidget {
                 AppHaptics.light();
                 onPressed!();
               },
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 20),
-              const SizedBox(width: AppSpacing.sm),
+        // Scale the content down rather than overflow when the button is
+        // given a narrow slot (e.g. beside a primary action in a Row).
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 20),
+                const SizedBox(width: AppSpacing.sm),
+              ],
+              Text(label),
             ],
-            Text(label),
-          ],
+          ),
         ),
       ),
     );
