@@ -550,6 +550,8 @@ class _BottomSheet extends StatelessWidget {
           busy: state.busy,
           onAction: () => cubit.markArrived(),
           tripId: state.trip?.id,
+          navLat: state.trip?.pickup.point.lat,
+          navLng: state.trip?.pickup.point.lng,
         );
       case DriverPhase.arrived:
         child = _StartTripSheet(
@@ -565,6 +567,8 @@ class _BottomSheet extends StatelessWidget {
           busy: state.busy,
           onAction: () => cubit.completeTrip(),
           tripId: state.trip?.id,
+          navLat: state.trip?.dropoff.point.lat,
+          navLng: state.trip?.dropoff.point.lng,
         );
       case DriverPhase.completed:
         child = _CompletedSheet(state: state, cubit: cubit);
@@ -663,6 +667,8 @@ class _LifecycleSheet extends StatelessWidget {
     required this.onAction,
     required this.busy,
     this.tripId,
+    this.navLat,
+    this.navLng,
   });
 
   final String title;
@@ -671,6 +677,12 @@ class _LifecycleSheet extends StatelessWidget {
   final VoidCallback onAction;
   final bool busy;
   final String? tripId;
+
+  /// When set, shows a "Navigate in Google Maps" button that hands off
+  /// turn-by-turn to the device's maps app (Uber-style), since there's no
+  /// in-app nav SDK.
+  final double? navLat;
+  final double? navLng;
 
   @override
   Widget build(BuildContext context) {
@@ -700,6 +712,14 @@ class _LifecycleSheet extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(subtitle, style: theme.textTheme.bodyMedium),
+        if (navLat != null && navLng != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          SecondaryButton(
+            label: 'Navigate in Google Maps',
+            icon: Icons.navigation_rounded,
+            onPressed: () => openExternalNavigation(navLat!, navLng!),
+          ),
+        ],
         const SizedBox(height: AppSpacing.md),
         PrimaryButton(
           label: actionLabel,

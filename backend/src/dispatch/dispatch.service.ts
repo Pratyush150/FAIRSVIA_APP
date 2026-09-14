@@ -47,7 +47,11 @@ const PRESENCE_STALE_MS = Number(process.env.PRESENCE_STALE_MS ?? 45000);
 // MATCHING (rider still sees "finding driver") and re-sweep, up to a bounded
 // total window. Only after the window elapses do we declare no_drivers. This
 // turns momentary supply exhaustion from a hard failure into a short wait.
-const MATCH_WINDOW_MS = 45000;
+// ~90s: a rider keeps "finding driver" this long, and — critically — a driver
+// who comes online within this window of a booking still gets offered the
+// waiting ride (each re-sweep re-reads the live pool, so a freshly-online driver
+// in the pickup's region is picked up on the next pass).
+const MATCH_WINDOW_MS = 90000;
 const RESWEEP_DELAY_MS = 2500;
 // Cap how many of the closest candidates get a road-ETA refinement, to bound the
 // routing calls added to the hot matching path.
