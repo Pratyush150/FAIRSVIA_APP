@@ -312,6 +312,10 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
   /// Frame the map for the current phase: heading to pickup → show the driver +
   /// the pickup; on a trip → show the whole route.
   List<LatLng>? _fitBounds(DriverState state) {
+    // While online we follow the driver's position at a close navigation zoom
+    // (see the AppMap above), so don't fight it with bounds-framing — the map
+    // stays zoomed in on the car and the route ahead.
+    if (state.isOnline && _myLocation != null) return null;
     final trip = state.trip;
     if (trip == null) return null;
     final pickup = LatLng(trip.pickup.point.lat, trip.pickup.point.lng);
@@ -379,12 +383,13 @@ class _DriverHomeViewState extends State<_DriverHomeView> {
                 initialCenter: _markers(state).isNotEmpty
                     ? _markers(state).first.point
                     : (_myLocation ?? _fallback),
-                // Follow the driver's own GPS while idle (online, no trip) so the
-                // map tracks them instead of freezing on the opening centre. On a
-                // trip, fitBounds frames pickup/route instead.
-                recenter: (state.isOnline && state.trip == null)
-                    ? _myLocation
-                    : null,
+                // A driver navigates, so keep a close zoom and FOLLOW their own
+                // GPS the whole time they're online (idle and on a trip) — the
+                // map tracks the car with the route ahead, like Uber's driver
+                // navigation, instead of framing far-out bounds.
+                initialZoom: 16.5,
+                recenter: state.isOnline ? _myLocation : null,
+                recenterZoom: 16.5,
                 markers: _markers(state),
                 route: _route(state),
                 fitBounds: _fitBounds(state),

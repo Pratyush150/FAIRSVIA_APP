@@ -45,6 +45,8 @@ class AppMap extends StatefulWidget {
     this.onMapReady,
     this.onCenterChanged,
     this.recenter,
+    this.recenterTrigger = 0,
+    this.recenterZoom,
     this.tileProvider,
     this.boundsPadding = const EdgeInsets.all(64),
   });
@@ -57,6 +59,15 @@ class AppMap extends StatefulWidget {
   final VoidCallback? onMapReady;
   final ValueChanged<LatLng>? onCenterChanged;
   final LatLng? recenter;
+
+  /// Bump this to force a re-center on [recenter] even when its value is
+  /// unchanged — so a "locate me" button works on every tap, not only when the
+  /// resolved position differs from last time.
+  final int recenterTrigger;
+
+  /// When set, a recenter also zooms to this level (a precise "locate me").
+  /// Null keeps the current zoom.
+  final double? recenterZoom;
 
   /// Retained for source compatibility with the old flutter_map backend. Ignored.
   final Object? tileProvider;
@@ -115,7 +126,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       _fit();
     }
     if (widget.recenter != null &&
-        widget.recenter != old.recenter &&
+        (widget.recenter != old.recenter ||
+            widget.recenterTrigger != old.recenterTrigger) &&
         (widget.fitBounds == null || widget.fitBounds!.length < 2)) {
       _moveTo(widget.recenter!);
     }
@@ -157,7 +169,12 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   Future<void> _moveTo(LatLng center) async {
     final c = await _controller.future;
     if (!mounted) return;
-    await c.animateCamera(gmaps.CameraUpdate.newLatLng(_g(center)));
+    final z = widget.recenterZoom;
+    await c.animateCamera(
+      z != null
+          ? gmaps.CameraUpdate.newLatLngZoom(_g(center), z)
+          : gmaps.CameraUpdate.newLatLng(_g(center)),
+    );
   }
 
   bool _sameBounds(List<LatLng>? a, List<LatLng>? b) {

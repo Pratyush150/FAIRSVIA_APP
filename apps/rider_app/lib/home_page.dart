@@ -47,6 +47,9 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
   // Set when the rider taps "recenter": AppMap follows this to snap back to the
   // rider's live position after they've panned the map away.
   LatLng? _recenter;
+  // Bumped on every "locate me" tap so the map re-centers even if the resolved
+  // position is identical to last time (otherwise a repeat tap did nothing).
+  int _recenterTick = 0;
 
   // True when location permission is missing — shows a blocking gate, because
   // the rider's real position is required to book (no silent Miami fallback).
@@ -115,6 +118,7 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
     setState(() {
       _myLocation = loc;
       _recenter = MapUtils.toLatLng(loc);
+      _recenterTick++;
     });
   }
 
@@ -341,6 +345,8 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
                   route: _route(state),
                   fitBounds: _fitBounds(state),
                   recenter: _recenter,
+                  recenterTrigger: _recenterTick,
+                  recenterZoom: 16.5,
                   // Keep pickup/dropoff/driver markers framed above the bottom
                   // sheet (which covers ~40% of the screen) rather than behind it.
                   boundsPadding: const EdgeInsets.fromLTRB(40, 96, 40, 300),
