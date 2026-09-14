@@ -780,7 +780,7 @@ class _RideOptions extends StatelessWidget {
             const Spacer(),
             Text(
               '${estimate.distanceMi.toStringAsFixed(1)} mi · '
-              '${(estimate.durationS / 60).round()} min',
+              '${_minutes(estimate.durationS)} min',
               style: theme.textTheme.bodyMedium,
             ),
           ],
@@ -1431,7 +1431,7 @@ class _RideTierTile extends StatelessWidget {
                   Text(tier.label, style: theme.textTheme.titleMedium),
                   const SizedBox(height: 1),
                   Text(
-                    '${tier.capacity} seats · ${(tier.etaSeconds / 60).round()} min away',
+                    '${tier.capacity} seats · ${_minutes(tier.etaSeconds)} min away',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -2364,3 +2364,6 @@ class _ChatIcon extends StatelessWidget {
     return Badge.count(count: unread, child: icon);
   }
 }
+
+/// Whole minutes for a duration, never showing "0 min" for a short hop.
+int _minutes(num seconds) => (seconds / 60).ceil().clamp(1, 9999).toInt();
