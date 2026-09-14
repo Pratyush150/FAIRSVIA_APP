@@ -168,6 +168,34 @@ void main() {
   );
 
   blocTest<TripCubit, TripState>(
+    'driver pings update the live ETA/distance along the approach leg',
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.driverEnRoute,
+      driver: AssignedDriver(
+        name: 'Ava',
+        rating: 4.9,
+        etaSec: 55,
+        etaDistanceM: 111,
+      ),
+      // Straight 111 m leg south along Biscayne Blvd (3 points).
+      driverRoutePolyline: '_ki|C~ulhNbB?bB?',
+    ),
+    act: (c) {
+      c.debugDriverLocation({'lat': 25.7760, 'lng': -80.1880});
+      c.debugDriverLocation({'lat': 25.7752, 'lng': -80.1880});
+    },
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.liveRemainingM, 'remaining at start', closeTo(111, 8))
+          .having((s) => s.liveEtaSec, 'eta at start', closeTo(55, 6)),
+      isA<TripState>()
+          .having((s) => s.liveRemainingM, 'remaining near end', lessThan(40))
+          .having((s) => s.liveEtaSec, 'eta near end', lessThan(20)),
+    ],
+  );
+
+  blocTest<TripCubit, TripState>(
     'selectTier updates the selected tier',
     build: () => TripCubit(repo, realtime, payments, ratings),
     seed: () => const TripState(

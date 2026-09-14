@@ -10,7 +10,8 @@ import '../theme/app_colors.dart';
 import 'map_styles.dart';
 
 /// What a marker represents — drives its icon + colour.
-enum MapMarkerKind { pickup, dropoff, driver, plain }
+/// [me] is the rider's own position (blue dot), [driver] the gliding car.
+enum MapMarkerKind { pickup, dropoff, driver, me, plain }
 
 /// A point to draw on [AppMap].
 class AppMapMarker {
@@ -98,6 +99,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   LatLng? _driverTo; // ...to (the latest GPS fix)
   double _driverBearing = 0;
   gmaps.BitmapDescriptor? _driverIcon; // custom car puck, generated once
+  gmaps.BitmapDescriptor? _meIcon; // rider's blue "you are here" dot
 
   @override
   void initState() {
@@ -112,6 +114,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     _driverFrom = initialDriver;
     _driverTo = initialDriver;
     _makeDriverIcon();
+    _makeMeIcon();
   }
 
   @override
@@ -226,17 +229,21 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       // The driver marker uses the interpolated (gliding) point + travel bearing;
       // everything else is static.
       final point = isDriver ? (_currentDriverPoint() ?? m.point) : m.point;
+      final isMe = m.kind == MapMarkerKind.me;
       final icon = isDriver && _driverIcon != null
           ? _driverIcon!
-          : _iconFor(m.kind);
+          : isMe && _meIcon != null
+              ? _meIcon!
+              : _iconFor(m.kind);
       out.add(gmaps.Marker(
         markerId: gmaps.MarkerId('${m.kind.name}_${i++}'),
         position: _g(point),
         icon: icon,
         anchor:
-            (isDriver || m.kind == MapMarkerKind.pickup)
+            (isDriver || isMe || m.kind == MapMarkerKind.pickup)
                 ? const Offset(0.5, 0.5)
                 : const Offset(0.5, 1.0),
+        zIndexInt: isDriver ? 3 : (isMe ? 2 : 1),
         rotation: isDriver ? _driverBearing : (m.heading ?? 0),
         flat: isDriver,
         infoWindow: m.label != null
@@ -256,6 +263,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         return gmaps.BitmapDescriptor.defaultMarkerWithHue(
             gmaps.BitmapDescriptor.hueRed);
       case MapMarkerKind.driver:
+      case MapMarkerKind.me:
         return gmaps.BitmapDescriptor.defaultMarkerWithHue(
             gmaps.BitmapDescriptor.hueAzure);
       case MapMarkerKind.plain:
@@ -331,6 +339,28 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       if (mounted) setState(() => _driverIcon = icon);
     } catch (_) {
       // Keep the default azure marker if custom rendering fails on a device.
+    }
+  }
+
+  /// Uber-style "you are here" dot: blue disc, white ring, soft halo.
+  Future<void> _makeMeIcon() async {
+    try {
+      const dim = 72.0;
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const center = Offset(dim / 2, dim / 2);
+      canvas.drawCircle(center, 34, Paint()..color = const Color(0x334285F4));
+      canvas.drawCircle(center, 15, Paint()..color = Colors.white);
+      canvas.drawCircle(center, 11, Paint()..color = const Color(0xFF4285F4));
+      final img =
+          await recorder.endRecording().toImage(dim.toInt(), dim.toInt());
+      final data = await img.toByteData(format: ui.ImageByteFormat.png);
+      if (data == null) return;
+      final icon =
+          gmaps.BitmapDescriptor.bytes(data.buffer.asUint8List(), width: 24);
+      if (mounted) setState(() => _meIcon = icon);
+    } catch (_) {
+      // Fall back to the default marker.
     }
   }
 

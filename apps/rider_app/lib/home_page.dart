@@ -196,6 +196,16 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         label: 'Driver',
       ));
     }
+    // "You are here": before a driver is assigned the rider's own position is
+    // the anchor of the map (Uber's blue dot). Once on the way it would only
+    // clutter the pickup pin, so it is dropped for the live-tracking phases.
+    if (state.phase.index <= TripPhase.searching.index ||
+        state.phase == TripPhase.error) {
+      markers.add(AppMapMarker(
+        point: MapUtils.toLatLng(_myLocation),
+        kind: MapMarkerKind.me,
+      ));
+    }
     return markers;
   }
 
@@ -1424,7 +1434,9 @@ class _DriverInfoSheet extends StatelessWidget {
                         ? 'Your driver is here'
                         // Live "Arriving in N min" from the backend approach ETA
                         // when known, else a generic status.
-                        : (driver?.etaLabel ?? 'Your driver is on the way'),
+                        : (_liveEtaLabel(state) ??
+                            driver?.etaLabel ??
+                            'Your driver is on the way'),
                     style: theme.textTheme.headlineSmall,
                   ),
                 ],
@@ -1574,9 +1586,49 @@ class _OnTripSheet extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(state.dropoffAddr ?? '', style: theme.textTheme.bodyMedium),
+        if (_tripEtaLine(state) case final eta?) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              const Icon(Icons.schedule_rounded,
+                  size: 18, color: AppColors.accent),
+              const SizedBox(width: AppSpacing.xs),
+              Text(eta, style: theme.textTheme.titleSmall),
+            ],
+          ),
+        ],
       ],
     );
   }
+}
+
+/// "Arriving in N min" from the live leg progress (null until the first ping).
+String? _liveEtaLabel(TripState state) {
+  final s = state.liveEtaSec;
+  if (s == null) return null;
+  final mins = (s / 60).ceil();
+  return mins <= 1 ? 'Arriving in 1 min' : 'Arriving in $mins min';
+}
+
+/// On-trip readout: "Arriving 3:42 PM · 12 min · 4.1 mi to go" built from the
+/// live progress, or from the routed estimate before the first ping.
+String? _tripEtaLine(TripState state) {
+  final secs = state.liveEtaSec ?? state.estimate?.durationS;
+  final metres =
+      state.liveRemainingM ?? state.estimate?.distanceM;
+  if (secs == null) return null;
+  final arrival = DateTime.now().add(Duration(seconds: secs));
+  final h = arrival.hour % 12 == 0 ? 12 : arrival.hour % 12;
+  final clock =
+      '$h:${arrival.minute.toString().padLeft(2, '0')} ${arrival.hour < 12 ? 'AM' : 'PM'}';
+  final mins = (secs / 60).ceil().clamp(1, 999);
+  final miles = metres == null ? null : (metres / 1609.344);
+  final dist = miles == null
+      ? ''
+      : miles < 0.1
+          ? ' · ${(metres! * 3.28084).round()} ft to go'
+          : ' · ${miles.toStringAsFixed(1)} mi to go';
+  return 'Arriving $clock · $mins min$dist';
 }
 
 /// Opens the safety toolkit (SOS) for the active trip.

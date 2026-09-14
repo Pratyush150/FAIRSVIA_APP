@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:core/core.dart';
+import 'package:flutter/foundation.dart';
+import 'package:design_system/design_system.dart';
 import 'package:equatable/equatable.dart';
 import 'package:shared_models/shared_models.dart';
 
@@ -62,7 +64,11 @@ class TripCubit extends Cubit<TripState> {
       ..add(_realtime.on('trip:accepted').listen(_onAccepted))
       ..add(_realtime.on('trip:driver_location').listen(_onDriverLocation))
       ..add(_realtime.on('trip:arrived').listen((_) => _setPhase(TripPhase.driverArrived)))
-      ..add(_realtime.on('trip:started').listen((_) => _setPhase(TripPhase.onTrip)))
+      ..add(_realtime.on('trip:started').listen((_) => emit(state.copyWith(
+            phase: TripPhase.onTrip,
+            liveEtaSec: null,
+            liveRemainingM: null,
+          ))))
       ..add(_realtime.on('trip:completed').listen(_onCompleted))
       ..add(_realtime.on('trip:no_drivers').listen((_) => _onNoDrivers()))
       // Reconnection resilience: the server replies to `trip:sync` with the
@@ -182,7 +188,50 @@ class TripCubit extends Cubit<TripState> {
     final lat = (data['lat'] as num?)?.toDouble();
     final lng = (data['lng'] as num?)?.toDouble();
     if (lat == null || lng == null) return;
-    emit(state.copyWith(driverLocation: GeoPoint(lat, lng)));
+    final here = GeoPoint(lat, lng);
+    final live = _liveProgress(here);
+    emit(state.copyWith(
+      driverLocation: here,
+      liveEtaSec: live?.etaSec,
+      liveRemainingM: live?.remainingM,
+    ));
+  }
+
+  @visibleForTesting
+  void debugDriverLocation(Map<String, dynamic> data) => _onDriverLocation(data);
+
+  /// Remaining distance + ETA along the leg the driver is currently driving
+  /// (approach polyline while en route, trip route once started), so the
+  /// rider's "Arriving in N min" counts down with the car instead of
+  /// freezing at the match-time estimate. Speed is the leg's routed
+  /// average (distance / duration), falling back to ~8 m/s city driving.
+  ({int etaSec, int remainingM})? _liveProgress(GeoPoint here) {
+    String? encoded;
+    double? metres;
+    double? seconds;
+    switch (state.phase) {
+      case TripPhase.driverEnRoute:
+      case TripPhase.driverArrived:
+        encoded = state.driverRoutePolyline;
+        metres = state.driver?.etaDistanceM?.toDouble();
+        seconds = state.driver?.etaSec?.toDouble();
+      case TripPhase.onTrip:
+        encoded = state.estimate?.polyline ?? state.trip?.routePolyline;
+        metres = state.estimate?.distanceM.toDouble() ??
+            state.trip?.distanceM?.toDouble();
+        seconds = state.estimate?.durationS.toDouble() ??
+            state.trip?.durationS?.toDouble();
+      default:
+        return null;
+    }
+    if (encoded == null || encoded.isEmpty) return null;
+    final route = decodePolyline(encoded);
+    if (route.length < 2) return null;
+    final remaining = routeRemainingMeters(route, LatLng(here.lat, here.lng));
+    final speed = (metres != null && seconds != null && seconds > 0)
+        ? (metres / seconds).clamp(2.0, 30.0)
+        : 8.0;
+    return (etaSec: (remaining / speed).round(), remainingM: remaining.round());
   }
 
   void _onCompleted(Map<String, dynamic> data) {

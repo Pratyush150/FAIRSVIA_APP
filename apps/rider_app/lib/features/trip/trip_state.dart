@@ -27,6 +27,8 @@ class TripState extends Equatable {
     this.trip,
     this.driver,
     this.driverLocation,
+    this.liveEtaSec,
+    this.liveRemainingM,
     this.driverRoutePolyline,
     this.fareFinal,
     this.receipt,
@@ -55,6 +57,11 @@ class TripState extends Equatable {
   final Trip? trip;
   final AssignedDriver? driver;
   final GeoPoint? driverLocation;
+
+  /// Live ETA (s) / distance left (m) along the current leg, recomputed from
+  /// every driver ping — approach leg while matched, trip leg once started.
+  final int? liveEtaSec;
+  final int? liveRemainingM;
 
   /// Encoded polyline of the driver's route TO the pickup, shown on the map
   /// while the driver is en route/arriving (the "approach" leg). Null falls back
@@ -127,6 +134,8 @@ class TripState extends Equatable {
     Object? trip = _s,
     Object? driver = _s,
     Object? driverLocation = _s,
+    Object? liveEtaSec = _s,
+    Object? liveRemainingM = _s,
     Object? driverRoutePolyline = _s,
     Object? fareFinal = _s,
     Object? receipt = _s,
@@ -159,6 +168,9 @@ class TripState extends Equatable {
       driverLocation: driverLocation == _s
           ? this.driverLocation
           : driverLocation as GeoPoint?,
+      liveEtaSec: liveEtaSec == _s ? this.liveEtaSec : liveEtaSec as int?,
+      liveRemainingM:
+          liveRemainingM == _s ? this.liveRemainingM : liveRemainingM as int?,
       driverRoutePolyline: driverRoutePolyline == _s
           ? this.driverRoutePolyline
           : driverRoutePolyline as String?,
@@ -197,6 +209,8 @@ class TripState extends Equatable {
         trip,
         driver,
         driverLocation,
+        liveEtaSec,
+        liveRemainingM,
         driverRoutePolyline,
         fareFinal,
         receipt,
