@@ -10,17 +10,18 @@
 # Usage:
 #   TEAM_ID=ABCDE12345 tools/ios-device-install.sh [rider|driver|both]
 # Optional:
-#   API_BASE_URL   defaults to this Mac's LAN address on port 3000
+#   API_BASE_URL   defaults to the live backend (https://rideapp.fairsvia.com/api/v1),
+#                  which works over mobile data; set it to http://<mac-lan-ip>:3000/api/v1
+#                  to test against a backend running on this Mac (same Wi-Fi only)
 #   DEVICE_UDID    defaults to the first connected iPhone
 #
-# The phone must be on the same Wi-Fi as this Mac, and the backend must be
-# running here (`npm run start:dev` in backend/).
+# The phone needs Developer Mode on (Settings > Privacy & Security > Developer
+# Mode, then restart) before a development build can be installed.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WHICH="${1:-both}"
 : "${TEAM_ID:?Set TEAM_ID to your Apple developer team id (see comments above)}"
-LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1)"
-API_BASE_URL="${API_BASE_URL:-http://${LAN_IP}:3000/api/v1}"
+API_BASE_URL="${API_BASE_URL:-https://rideapp.fairsvia.com/api/v1}"
 DEVICE_UDID="${DEVICE_UDID:-$(xcrun devicectl list devices 2>/dev/null | awk '/iPhone/ {print $(NF-3)}' | head -1)}"
 [ -n "$DEVICE_UDID" ] || { echo "No connected iPhone found (xcrun devicectl list devices)"; exit 1; }
 echo "team=$TEAM_ID device=$DEVICE_UDID api=$API_BASE_URL"
