@@ -420,39 +420,83 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   /// any map colour. Falls back to the default marker if rendering fails.
   Future<void> _makeDriverIcon() async {
     try {
-      const dim = 96.0;
+      const dim = 120.0;
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      final center = const Offset(dim / 2, dim / 2);
-      const bodyW = 30.0, bodyH = 50.0;
-      const dark = Color(0xFF10121A);
+      final cx = dim / 2, cy = dim / 2;
+      final center = Offset(cx, cy);
+      const bodyW = 42.0, bodyH = 82.0;
+      const hh = bodyH / 2, hw = bodyW / 2;
 
-      RRect body(double w, double h, double r, [Offset d = Offset.zero]) =>
+      RRect rr(double w, double h, double r, [Offset d = Offset.zero]) =>
           RRect.fromRectAndRadius(
             Rect.fromCenter(center: center + d, width: w, height: h),
             Radius.circular(r),
           );
 
-      // soft drop shadow
+      // A trapezoid glass pane (wider toward the cabin), y measured from centre.
+      ui.Path pane(double topY, double topHalf, double botY, double botHalf) =>
+          ui.Path()
+            ..moveTo(cx - topHalf, cy + topY)
+            ..lineTo(cx + topHalf, cy + topY)
+            ..lineTo(cx + botHalf, cy + botY)
+            ..lineTo(cx - botHalf, cy + botY)
+            ..close();
+
+      // Soft drop shadow.
       canvas.drawRRect(
-        body(bodyW + 4, bodyH + 4, 12, const Offset(0, 2)),
+        rr(bodyW + 4, bodyH + 4, 16, const Offset(0, 3)),
         Paint()
-          ..color = Colors.black.withValues(alpha: 0.30)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+          ..color = Colors.black.withValues(alpha: 0.28)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
       );
-      // white halo (outline for contrast on dark roads/water)
-      canvas.drawRRect(body(bodyW + 6, bodyH + 6, 12), Paint()..color = Colors.white);
-      // dark car body
-      canvas.drawRRect(body(bodyW, bodyH, 9), Paint()..color = dark);
-      // front windshield (near the top = direction of travel) — light glass
+      // White halo so the car reads on dark roads / water.
+      canvas.drawRRect(rr(bodyW + 7, bodyH + 7, 18), Paint()..color = Colors.white);
+
+      // Headlights (front) + taillights (rear) — drawn under the body so the
+      // body's rounded corners crop them into the car's nose/tail.
+      final head = Paint()..color = const Color(0xFFFFF4D6);
+      canvas.drawRRect(rr(9, 7, 3, Offset(-hw + 8, -hh + 4)), head);
+      canvas.drawRRect(rr(9, 7, 3, Offset(hw - 8, -hh + 4)), head);
+      final tail = Paint()..color = const Color(0xFFFF4D4D);
+      canvas.drawRRect(rr(9, 6, 3, Offset(-hw + 8, hh - 4)), tail);
+      canvas.drawRRect(rr(9, 6, 3, Offset(hw - 8, hh - 4)), tail);
+
+      // Side mirrors.
+      final mirror = Paint()..color = const Color(0xFF2A3346);
+      canvas.drawRRect(rr(6, 9, 2.5, const Offset(-hw - 1, -10)), mirror);
+      canvas.drawRRect(rr(6, 9, 2.5, const Offset(hw + 1, -10)), mirror);
+
+      // Glossy metallic body (vertical gradient, lighter at the roofline).
       canvas.drawRRect(
-        body(bodyW - 10, 11, 3, const Offset(0, -bodyH / 2 + 12)),
-        Paint()..color = const Color(0xFF9FC0FF),
+        rr(bodyW, bodyH, 15),
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(cx, cy - hh),
+            Offset(cx, cy + hh),
+            const [Color(0xFF3A445C), Color(0xFF141A26)],
+          ),
       );
-      // rear window (near the bottom) — dimmer glass
+
+      // Cabin roof (a subtle darker inset between the two windows).
       canvas.drawRRect(
-        body(bodyW - 12, 9, 3, const Offset(0, bodyH / 2 - 11)),
-        Paint()..color = const Color(0xFF6C7A99),
+        rr(bodyW - 11, 30, 8),
+        Paint()..color = const Color(0xFF20283A),
+      );
+      // Windshield (front = direction of travel) — bright glass, wider toward
+      // the cabin; rear window is dimmer.
+      canvas.drawPath(
+        pane(-15, 10, -4, 14),
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(cx, cy - 15),
+            Offset(cx, cy - 4),
+            const [Color(0xFFCFE0FF), Color(0xFF9DBBF2)],
+          ),
+      );
+      canvas.drawPath(
+        pane(4, 14, 15, 10),
+        Paint()..color = const Color(0xFF5B6B88),
       );
 
       final img =

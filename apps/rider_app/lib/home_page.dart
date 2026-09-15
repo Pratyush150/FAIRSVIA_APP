@@ -157,6 +157,15 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
       _recenter = MapUtils.toLatLng(loc);
       _recenterTick++;
     });
+    // Refresh the shown current-location address for the new position.
+    try {
+      final place = await sl<TripRepository>().reverseGeocode(loc.lat, loc.lng);
+      if (mounted && place.address.isNotEmpty) {
+        setState(() => _myLocationAddr = place.address);
+      }
+    } catch (_) {
+      // Non-fatal: keep the existing label if reverse-geocoding fails.
+    }
   }
 
   /// From the location gate: request access (opening system settings if it was
@@ -456,6 +465,8 @@ class _RiderHomeViewState extends State<_RiderHomeView> {
                     onSearch: _openSearch,
                     savedPlaces: _savedPlaces,
                     onPickSaved: _pickSaved,
+                    currentLocation: _myLocationAddr,
+                    onRecenter: _recenterToMe,
                   ),
                 ),
                 // Location is required to book a ride — block the UI with a
@@ -479,12 +490,16 @@ class _BottomSheetForPhase extends StatelessWidget {
     required this.onSearch,
     this.savedPlaces = const [],
     required this.onPickSaved,
+    required this.currentLocation,
+    required this.onRecenter,
   });
 
   final TripState state;
   final VoidCallback onSearch;
   final List<SavedPlace> savedPlaces;
   final ValueChanged<SavedPlace> onPickSaved;
+  final String currentLocation;
+  final VoidCallback onRecenter;
 
   @override
   Widget build(BuildContext context) {
@@ -493,6 +508,8 @@ class _BottomSheetForPhase extends StatelessWidget {
           onTap: onSearch,
           savedPlaces: savedPlaces,
           onPickSaved: onPickSaved,
+          currentLocation: currentLocation,
+          onRecenter: onRecenter,
         ),
       TripPhase.loadingEstimate =>
         const _InfoCard(child: _Busy(label: 'Finding the best route…')),
@@ -551,11 +568,19 @@ class _WhereToCard extends StatelessWidget {
     required this.onTap,
     this.savedPlaces = const [],
     required this.onPickSaved,
+    required this.currentLocation,
+    required this.onRecenter,
   });
 
   final VoidCallback onTap;
   final List<SavedPlace> savedPlaces;
   final ValueChanged<SavedPlace> onPickSaved;
+
+  /// The rider's current-location address, shown as the pickup origin.
+  final String currentLocation;
+
+  /// Tapping the current-location row re-centres the map on the live position.
+  final VoidCallback onRecenter;
 
   IconData _iconFor(String label) {
     final l = label.toLowerCase();
@@ -573,7 +598,53 @@ class _WhereToCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Where to?', style: theme.textTheme.headlineMedium),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
+        // Current location (pickup origin) — shows where the rider is and lets
+        // them re-centre the map on their live position with a tap.
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onRecenter,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: Row(
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: const BoxDecoration(
+                      color: AppColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.my_location_rounded,
+                        size: 13, color: Colors.white),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Current location',
+                            style: theme.textTheme.labelSmall
+                                ?.copyWith(color: AppColors.accentPressed)),
+                        Text(
+                          currentLocation,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.gps_fixed_rounded,
+                      size: 18, color: theme.colorScheme.onSurfaceVariant),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
         // Search pill.
         Material(
           color: Colors.transparent,

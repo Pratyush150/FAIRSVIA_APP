@@ -365,19 +365,29 @@ export class PaymentsService {
       throw new BadRequestException('You can only tip a completed trip');
     }
 
-    const [customerRef, method] = await Promise.all([
-      this.ensureCustomer(userId),
-      this.defaultMethod(userId),
-    ]);
-    await this.provider.charge({
-      amount: tip,
-      currency: trip.currency,
-      customerRef,
-      methodRef: method?.externalId ?? undefined,
-      description: `Tip ${tripId}`,
-      // Stable key per trip so a client retry can't double-charge the tip.
-      idempotencyKey: `tip-${tripId}`,
-    });
+    // How the tip is collected mirrors how the ride was paid:
+    //  - Cash ride: the rider hands the tip to the driver in cash — record it,
+    //    never charge a card (there may be none, and charging would fail).
+    //  - Card ride: charge the rider's saved card. If they somehow have no saved
+    //    method, record the tip anyway rather than failing the whole action
+    //    (the driver is still credited; the charge is reconciled out-of-band).
+    if (trip.paymentMode !== 'cash') {
+      const [customerRef, method] = await Promise.all([
+        this.ensureCustomer(userId),
+        this.defaultMethod(userId),
+      ]);
+      if (method?.externalId) {
+        await this.provider.charge({
+          amount: tip,
+          currency: trip.currency,
+          customerRef,
+          methodRef: method.externalId,
+          description: `Tip ${tripId}`,
+          // Stable key per trip so a client retry can't double-charge the tip.
+          idempotencyKey: `tip-${tripId}`,
+        });
+      }
+    }
 
     // Atomic increment so concurrent tips can't lose an update (read-modify-write
     // would race).
