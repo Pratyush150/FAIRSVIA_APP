@@ -71,6 +71,21 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   LatLng? _recenter;
   int _recenterSeq = 0;
 
+  // Live position watch: keeps the pickup on the phone's real location and, on
+  // the FIRST real GPS fix, snaps the camera to it — so the map self-corrects
+  // off the fallback without the rider having to tap recenter.
+  StreamSubscription<GeoPoint>? _posSub;
+  bool _snappedToMe = false;
+
+  // --- Live re-routing ---
+  // When the driver's live position leaves the drawn route, we re-fetch the
+  // optimal road route from where the car actually is, so the line follows the
+  // road the driver took. [_rerouteGate] rate-limits it; [_liveRoutePolyline]
+  // holds the freshest line for [_liveRouteLeg] ('approach' or 'trip').
+  final RerouteGate _rerouteGate = RerouteGate();
+  String? _liveRoutePolyline;
+  String? _liveRouteLeg;
+
   @override
   void initState() {
     super.initState();
@@ -83,7 +98,31 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _posSub?.cancel();
     super.dispose();
+  }
+
+  /// Watch live GPS so the map lands on the phone's real location on its own.
+  /// The first real fix snaps the camera (replacing the fallback); after that we
+  /// keep [_myLocation] fresh for the pickup but leave the camera to the rider.
+  void _startLocationWatch() {
+    _posSub?.cancel();
+    _posSub = _location.positionStream().listen((loc) {
+      if (!mounted) return;
+      setState(() {
+        _myLocation = loc;
+        _hasRealLocation = true;
+        _locationIssue = null;
+        if (_myLocationAddr == DestinationSearchPage.unsetPickupLabel) {
+          _myLocationAddr = 'Current location';
+        }
+        if (!_snappedToMe) {
+          _snappedToMe = true;
+          _recenter = MapUtils.toLatLng(loc);
+          _recenterSeq++;
+        }
+      });
+    }, onError: (_) {});
   }
 
   @override
@@ -123,7 +162,11 @@ class _RiderHomeViewState extends State<_RiderHomeView>
       // taps recenter (seen when GPS/permission resolves after the first frame).
       _recenter = MapUtils.toLatLng(result.point);
       _recenterSeq++;
+      if (result.isReal) _snappedToMe = true;
     });
+    // Keep watching GPS so the map self-corrects off the fallback the moment a
+    // real fix arrives (indoors/cold start), without a manual recenter.
+    _startLocationWatch();
     // The fallback is a city centre, not the rider: no address for it — the
     // pickup field keeps saying "Set pickup location" until they choose one.
     if (!result.isReal) return;
@@ -313,12 +356,30 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     return markers;
   }
 
-  List<LatLng> _route(TripState state) {
+  /// The active leg for re-routing: 'approach' (driver→pickup) while the driver
+  /// is on the way, 'trip' (→destination) once moving, else null (no live line).
+  String? _legKey(TripState state) {
+    if (state.phase == TripPhase.driverEnRoute ||
+        state.phase == TripPhase.driverArrived) {
+      return 'approach';
+    }
+    if (state.phase == TripPhase.onTrip) return 'trip';
+    return null;
+  }
+
+  /// The planned (or freshly re-routed) line for the current leg, untrimmed.
+  List<LatLng> _plannedRoute(TripState state) {
+    final leg = _legKey(state);
+    // Prefer a freshly re-routed line for the current leg — the road the driver
+    // actually took — over the route planned at booking/accept.
+    if (leg != null && _liveRoutePolyline != null && _liveRouteLeg == leg) {
+      final live = MapUtils.decodePolyline(_liveRoutePolyline!);
+      if (live.length >= 2) return live;
+    }
     // While the driver is on the way, draw THEIR route to the pickup (the
     // approach leg) so the line matches where the car is actually going; once
     // the trip starts, fall back to the pickup→destination trip route.
-    final approaching = state.phase == TripPhase.driverEnRoute ||
-        state.phase == TripPhase.driverArrived;
+    final approaching = leg == 'approach';
     final approachRoute = state.driverRoutePolyline;
     // After a cold-start restore there is no estimate; the trip carries its own
     // route polyline, so fall back to that rather than drawing nothing.
@@ -328,7 +389,55 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         ? approachRoute
         : (state.estimate?.polyline ?? state.trip?.routePolyline);
     if (encoded == null || encoded.isEmpty) return const [];
-    final route = MapUtils.decodePolyline(encoded);
+    return MapUtils.decodePolyline(encoded);
+  }
+
+  /// If the driver has left the drawn route, re-fetch the optimal road route
+  /// from the car's live position to its current target (pickup, then dropoff).
+  /// Throttled by [_rerouteGate]; best-effort (a failure keeps the current line).
+  Future<void> _maybeReroute(TripState state) async {
+    final driver = state.driverLocation;
+    final leg = _legKey(state);
+    if (driver == null || leg == null) return;
+    final target = leg == 'approach' ? state.pickup : state.dropoff;
+    if (target == null) return;
+
+    final route = _plannedRoute(state);
+    if (route.length < 2) return;
+    final from = MapUtils.toLatLng(driver);
+    final split = splitRouteAtPoint(route, from);
+    if (!_rerouteGate.shouldReroute(
+      from: from,
+      offRouteMeters: split.offRouteMeters,
+      leg: leg,
+    )) {
+      return;
+    }
+    _rerouteGate.begin();
+    String? poly;
+    try {
+      poly = await sl<TripRepository>().route(
+        fromLat: driver.lat,
+        fromLng: driver.lng,
+        toLat: target.lat,
+        toLng: target.lng,
+      );
+    } catch (_) {
+      poly = null;
+    } finally {
+      _rerouteGate.end(from);
+    }
+    if (!mounted || poly == null) return;
+    setState(() {
+      _liveRoutePolyline = poly;
+      _liveRouteLeg = leg;
+    });
+  }
+
+  List<LatLng> _route(TripState state) {
+    final approaching = _legKey(state) == 'approach';
+    final route = _plannedRoute(state);
+    if (route.isEmpty) return route;
     // Trim the line behind the car so it "eats" the route as it drives; once
     // the driver has arrived the approach line has nothing left to show.
     if (state.phase == TripPhase.driverArrived && approaching) return const [];
@@ -406,6 +515,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         listenWhen: (prev, curr) =>
             prev.phase != curr.phase ||
             prev.notice != curr.notice ||
+            prev.driverLocation != curr.driverLocation ||
             (curr.phase == TripPhase.idle && prev.error != curr.error),
         listener: (context, state) {
           final cubit = context.read<TripCubit>();
@@ -416,6 +526,13 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                 .showSnackBar(SnackBar(content: Text(notice)));
             cubit.clearNotice();
           }
+          // Drop a stale re-routed line when the leg changes (approach → trip),
+          // and keep the drawn line on the road the driver actually takes.
+          final leg = _legKey(state);
+          if (leg != _liveRouteLeg && _liveRoutePolyline != null) {
+            _liveRoutePolyline = null;
+          }
+          unawaited(_maybeReroute(state));
           if (state.phase == _lastPhase) return;
           _lastPhase = state.phase;
           // Back to idle (change destination / cancel / done): the camera was
@@ -859,6 +976,8 @@ class _RideOptions extends StatelessWidget {
         _ScheduleRow(state: state),
         const SizedBox(height: AppSpacing.sm),
         _PromoField(state: state),
+        const SizedBox(height: AppSpacing.sm),
+        _PickupNoteField(state: state),
       ],
     );
   }
@@ -1656,12 +1775,12 @@ class _SheetWarning extends StatelessWidget {
 Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) async {
   final messenger = ScaffoldMessenger.of(context);
   final cubit = context.read<TripCubit>();
-  final confirmed = await showDialog<bool>(
+  final reason = await showDialog<String>(
     context: context,
     builder: (_) => CancelRideDialog(cubit: cubit, feeWarning: feeWarning),
   );
-  if (confirmed != true) return;
-  final fee = await cubit.cancelTrip();
+  if (reason == null) return;
+  final fee = await cubit.cancelTrip(reason: reason);
   messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(
@@ -1683,7 +1802,18 @@ String _feeLabel(TripCubit cubit) {
   return fee == null ? '' : '\$${fee.toStringAsFixed(2)}';
 }
 
-/// "Cancel this ride?" prompt. If the trip ends underneath it (driver
+/// The cancellation reasons a rider can pick from (Uber-style), captured for
+/// ops/analytics instead of a hardcoded label.
+const List<String> cancelReasons = [
+  'Driver is taking too long',
+  'Wrong pickup location',
+  'Booked by mistake',
+  'Changed my plans',
+  'Other',
+];
+
+/// "Cancel this ride?" prompt: pops with the chosen reason, or null to keep
+/// the ride. If the trip ends underneath it (driver
 /// cancelled, no-drivers timeout, trip completed) it closes itself instead
 /// of leaving a stale prompt whose "Cancel ride" would reset a flow that
 /// already moved on. The self-close is guarded so it never pops a dialog
@@ -1711,25 +1841,42 @@ class CancelRideDialog extends StatelessWidget {
         final route = ModalRoute.of(ctx);
         // Already popped (or mid-pop) by a button: nothing to close.
         if (route == null || !route.isCurrent || !route.isActive) return;
-        Navigator.of(ctx).pop(false);
+        Navigator.of(ctx).pop();
       },
       child: AlertDialog(
         title: const Text('Cancel this ride?'),
-        content: Text(
-          feeWarning
-              ? 'Your driver is already on the way. Cancelling is free for 2 minutes '
-                  'after they accept; after that a ${_feeLabel(cubit)} '
-                  'cancellation fee applies.'
-              : 'Are you sure you want to cancel this ride?',
+        contentPadding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                feeWarning
+                    ? 'Your driver is already on the way. Cancelling is free '
+                        'for 2 minutes after they accept; after that a '
+                        '${_feeLabel(cubit)} cancellation fee applies. '
+                        'Let us know why:'
+                    : 'Let us know why:',
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              for (final r in cancelReasons)
+                ListTile(
+                  key: ValueKey('cancel-reason-$r'),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(r),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(context).pop(r),
+                ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Keep ride'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Cancel ride'),
           ),
         ],
       ),
@@ -2225,6 +2372,15 @@ class _CompletedSheet extends StatelessWidget {
                     style: theme.textTheme.bodySmall),
               ),
             ),
+          // Compliment tags — shown once a (positive) rating is given, so the
+          // rider can say what went well (Uber-style). Persisted with the rating.
+          if (state.rating != null && state.rating! >= 4) ...[
+            const SizedBox(height: AppSpacing.md),
+            _ComplimentTags(
+              selected: state.ratingTags,
+              onChanged: (tags) => cubit.updateRatingTags(tags),
+            ),
+          ],
           if (state.driver?.id != null) ...[
             const SizedBox(height: AppSpacing.md),
             _FavoriteDriverButton(
@@ -2582,3 +2738,108 @@ class _ChatIcon extends StatelessWidget {
 
 /// Whole minutes for a duration, never showing "0 min" for a short hop.
 int _minutes(num seconds) => (seconds / 60).ceil().clamp(1, 9999).toInt();
+
+/// Free-text note for the driver ("meet at the lobby"), stored on the trip and
+/// shown on the driver's offer card and en-route sheet.
+class _PickupNoteField extends StatefulWidget {
+  const _PickupNoteField({required this.state});
+  final TripState state;
+
+  @override
+  State<_PickupNoteField> createState() => _PickupNoteFieldState();
+}
+
+class _PickupNoteFieldState extends State<_PickupNoteField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.state.pickupNote ?? '');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      textCapitalization: TextCapitalization.sentences,
+      maxLength: 200,
+      minLines: 1,
+      maxLines: 2,
+      decoration: const InputDecoration(
+        hintText: 'Note for driver (e.g. "meet at the lobby")',
+        prefixIcon: Icon(Icons.sticky_note_2_outlined),
+        isDense: true,
+        counterText: '',
+      ),
+      onChanged: (v) => context.read<TripCubit>().setPickupNote(v),
+    );
+  }
+}
+
+/// Compliment chips shown after a positive rating (Uber-style). Multi-select;
+/// every change re-submits the tag set with the existing star rating.
+class _ComplimentTags extends StatefulWidget {
+  const _ComplimentTags({required this.selected, required this.onChanged});
+  final List<String> selected;
+  final ValueChanged<List<String>> onChanged;
+
+  static const List<String> options = [
+    'Great conversation',
+    'Clean car',
+    'Safe driving',
+    'Great navigation',
+    'On time',
+    'Cool music',
+  ];
+
+  @override
+  State<_ComplimentTags> createState() => _ComplimentTagsState();
+}
+
+class _ComplimentTagsState extends State<_ComplimentTags> {
+  late final Set<String> _selected = {...widget.selected};
+
+  void _toggle(String tag) {
+    setState(() {
+      if (!_selected.add(tag)) _selected.remove(tag);
+    });
+    AppHaptics.selection();
+    widget.onChanged(_selected.toList());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Text('What went well?', style: theme.textTheme.titleSmall),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          alignment: WrapAlignment.center,
+          children: [
+            for (final tag in _ComplimentTags.options)
+              FilterChip(
+                label: Text(tag),
+                selected: _selected.contains(tag),
+                onSelected: (_) => _toggle(tag),
+                showCheckmark: false,
+                selectedColor: AppColors.accentSoft,
+                side: BorderSide(
+                  color: _selected.contains(tag)
+                      ? AppColors.accent
+                      : theme.dividerColor,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}

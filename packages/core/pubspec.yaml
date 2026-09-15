@@ -1,5 +1,5 @@
 name: core
-description: Core app framework (config, network, storage, DI, router, auth) for FairsVia.
+description: Core app framework (config, network, storage, DI, router, auth) for Ride App.
 version: 0.0.1
 publish_to: none
 resolution: workspace

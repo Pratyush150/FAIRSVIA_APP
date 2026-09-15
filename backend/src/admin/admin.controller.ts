@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AdminService } from './admin.service';
+import { DiagnosticsService } from './diagnostics.service';
 import { SetActiveDto } from './dto/set-active.dto';
 import { VerifyDriverDto } from './dto/verify-driver.dto';
 
@@ -19,7 +20,23 @@ import { VerifyDriverDto } from './dto/verify-driver.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.admin)
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly diagnostics: DiagnosticsService,
+  ) {}
+
+  /** Provider readiness "checkpoints": which external APIs are real vs mock. */
+  @Get('diagnostics')
+  providerDiagnostics() {
+    return this.diagnostics.snapshot();
+  }
+
+  /** LIVE probe: actually pings each configured API and reports OK or the
+   *  exact error (read-only — sends no SMS/email, charges nothing). */
+  @Get('diagnostics/probe')
+  providerProbe() {
+    return this.diagnostics.probe();
+  }
 
   @Get('stats')
   stats() {

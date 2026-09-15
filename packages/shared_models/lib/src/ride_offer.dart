@@ -17,6 +17,7 @@ class RideOffer extends Equatable {
     required this.expiresInSec,
     this.riderName,
     this.riderRating,
+    this.pickupNote,
     this.approachDistanceM,
     this.approachEtaS,
     this.approachSource,
@@ -38,6 +39,10 @@ class RideOffer extends Equatable {
   /// older payloads.
   final String? riderName;
   final double? riderRating;
+
+  /// A short pickup note from the rider ("meet at the lobby"), shown on the
+  /// offer so the driver knows where to collect them. Null when none.
+  final String? pickupNote;
 
   /// Distance (metres) from the driver to the pickup — "how far to collect the
   /// rider". Road distance when [approachSource] is `road`, straight-line when
@@ -118,6 +123,7 @@ class RideOffer extends Equatable {
       expiresInSec: (json['expiresInSec'] as num?)?.toInt() ?? 15,
       riderName: rider?['name'] as String?,
       riderRating: (rider?['rating'] as num?)?.toDouble(),
+      pickupNote: json['pickupNote'] as String?,
       approachDistanceM: (json['approachDistanceM'] as num?)?.toInt(),
       approachEtaS: (json['approachEtaS'] as num?)?.toInt(),
       approachSource: json['approachSource'] as String?,
@@ -137,6 +143,7 @@ class RideOffer extends Equatable {
         expiresInSec,
         riderName,
         riderRating,
+        pickupNote,
         approachDistanceM,
         approachEtaS,
         approachSource,

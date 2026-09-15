@@ -75,6 +75,14 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   String? _fitKey;
   List<LatLng>? _fitCache;
 
+  // --- Live re-routing ---
+  // When the driver leaves the drawn route (takes a different/shorter road), we
+  // re-fetch the optimal road route from where they actually are, so the line
+  // relocates onto the road taken. [_rerouteGate] rate-limits it.
+  final RerouteGate _rerouteGate = RerouteGate();
+  String? _liveRoutePolyline;
+  String? _liveRouteLeg;
+
   @override
   void initState() {
     super.initState();
@@ -108,18 +116,26 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   }
 
   Future<void> _connect() async {
-    try {
-      final token = await sl<TokenStorage>().readAccessToken();
-      if (token != null && mounted) {
-        await context.read<DriverCubit>().init(
-          token,
-          tokenProvider: sl<DioClient>().freshAccessToken,
-        );
+    // A fresh sign-in may reach the home before the access token has finished
+    // persisting to secure storage — read it with a few retries rather than
+    // silently skipping the socket connection (which left a just-signed-in
+    // driver never receiving offers). init() is idempotent and self-retries the
+    // socket internally, so one successful call is enough.
+    for (var attempt = 0; attempt < 6 && mounted; attempt++) {
+      try {
+        final token = await sl<TokenStorage>().readAccessToken();
+        if (token != null && token.isNotEmpty) {
+          if (!mounted) return;
+          await context.read<DriverCubit>().init(
+            token,
+            tokenProvider: sl<DioClient>().freshAccessToken,
+          );
+          return;
+        }
+      } catch (_) {
+        // Read/connect can fail transiently; retry with backoff below.
       }
-    } catch (_) {
-      // Connect can time out; the realtime client retries with backoff and the
-      // connection banner reflects status. Swallow so a slow/failed initial
-      // connect isn't an unhandled async error.
+      await Future<void>.delayed(Duration(milliseconds: 400 * (attempt + 1)));
     }
   }
 
@@ -136,6 +152,14 @@ class _DriverHomeViewState extends State<_DriverHomeView>
     // skip GPS streaming there so going online still works for UI testing.
     if (kIsWeb) return;
     if (!await ensureLocationPermission()) return;
+
+    // Push ONE fix immediately so a stationary driver (parked, waiting for
+    // rides — the normal case) enters the dispatch pool right away. The position
+    // stream below uses a distanceFilter, so it only emits AFTER the driver
+    // moves — without this initial fix a still driver is never indexed and never
+    // receives offers. (Skipped in mock mode: that stream emits immediately.)
+    if (!_isMockLocation) await _sendCurrentFix();
+
     _posSub = driverPositionStream().listen((pos) {
       if (!mounted) return;
       setState(() => _myLocation = LatLng(pos.latitude, pos.longitude));
@@ -147,14 +171,58 @@ class _DriverHomeViewState extends State<_DriverHomeView>
             accuracy: pos.accuracy,
             at: pos.timestamp,
           );
+      // Keep the drawn line on the road actually being driven.
+      unawaited(_maybeReroute(context.read<DriverCubit>().state));
     });
     // Keep presence fresh while parked — well under the backend's stale window.
     _heartbeat?.cancel();
     _heartbeat = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
       final loc = _myLocation;
-      if (loc == null || !mounted) return;
-      context.read<DriverCubit>().sendLocation(loc.latitude, loc.longitude);
+      if (loc != null) {
+        context.read<DriverCubit>().sendLocation(loc.latitude, loc.longitude);
+      } else if (!_isMockLocation) {
+        // Still no stream fix (stationary) — actively fetch one so presence
+        // never lapses and the driver stays in the pool.
+        unawaited(_sendCurrentFix());
+      }
     });
+  }
+
+  static const bool _isMockLocation =
+      String.fromEnvironment('MOCK_LOCATION') != '';
+
+  /// Fetch the current position once and push it — so presence exists even
+  /// before the movement-triggered stream emits (the parked-driver case).
+  Future<void> _sendCurrentFix() async {
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _myLocation = LatLng(pos.latitude, pos.longitude));
+      context.read<DriverCubit>().sendLocation(
+            pos.latitude,
+            pos.longitude,
+            heading: pos.heading,
+            speed: pos.speed,
+          );
+    } catch (_) {
+      // A fresh fix can time out indoors — fall back to the last known one so
+      // the driver still enters the pool rather than staying invisible.
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null && mounted) {
+          setState(() => _myLocation = LatLng(last.latitude, last.longitude));
+          context
+              .read<DriverCubit>()
+              .sendLocation(last.latitude, last.longitude);
+        }
+      } catch (_) {}
+    }
   }
 
   void _stopStreamingLocation() {
@@ -204,6 +272,18 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   /// When the car is being simulated we draw only the *remaining* path from its
   /// current position, so the line shrinks behind it as it drives (and vanishes
   /// on arrival) — matching how Uber/Ola render an active route.
+  /// The active leg for re-routing: 'approach' (→pickup) while heading to the
+  /// rider, 'trip' (→dropoff) once on the trip, else null.
+  String? _legKey(DriverState state) {
+    if (state.trip == null) return null;
+    if (state.phase == DriverPhase.enRoute ||
+        state.phase == DriverPhase.arrived) {
+      return 'approach';
+    }
+    if (state.phase == DriverPhase.onTrip) return 'trip';
+    return null;
+  }
+
   List<LatLng> _route(DriverState state) {
     // No live leg → no line. Without this the simulated car's leftover path
     // kept the previous trip's route on the map after "Done" (seen on iOS).
@@ -216,13 +296,61 @@ class _DriverHomeViewState extends State<_DriverHomeView>
       return [for (final p in remaining) LatLng(p.lat, p.lng)];
     }
     if (simulatedArrived) return const []; // reached it — no line left
-    final approaching = state.phase == DriverPhase.enRoute ||
-        state.phase == DriverPhase.arrived;
+
+    final leg = _legKey(state);
+    // Prefer a freshly re-routed line for the current leg — the road actually
+    // driven — over the route planned at accept (real-GPS re-routing).
+    if (leg != null && _liveRoutePolyline != null && _liveRouteLeg == leg) {
+      final live = decodePolyline(_liveRoutePolyline!);
+      if (live.length >= 2) return live;
+    }
+    final approaching = leg == 'approach';
     final encoded = approaching
         ? (state.approachPolyline ?? state.trip?.routePolyline)
         : state.trip?.routePolyline;
     if (encoded == null || encoded.isEmpty) return const [];
     return decodePolyline(encoded);
+  }
+
+  /// If the driver has left the drawn route, re-fetch the optimal road route
+  /// from their live position to the current target (pickup, then dropoff).
+  /// Throttled by [_rerouteGate]; best-effort (a failure keeps the current line).
+  Future<void> _maybeReroute(DriverState state) async {
+    final me = _myLocation;
+    final leg = _legKey(state);
+    final trip = state.trip;
+    if (me == null || leg == null || trip == null) return;
+    final target = leg == 'approach'
+        ? LatLng(trip.pickup.point.lat, trip.pickup.point.lng)
+        : LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng);
+
+    final route = _route(state);
+    if (route.length < 2) return;
+    final split = splitRouteAtPoint(route, me);
+    if (!_rerouteGate.shouldReroute(
+      from: me,
+      offRouteMeters: split.offRouteMeters,
+      leg: leg,
+    )) {
+      return;
+    }
+    _rerouteGate.begin();
+    String? poly;
+    try {
+      poly = await sl<TripRepository>().route(
+        fromLat: me.latitude,
+        fromLng: me.longitude,
+        toLat: target.latitude,
+        toLng: target.longitude,
+      );
+    } finally {
+      _rerouteGate.end(me);
+    }
+    if (!mounted || poly == null) return;
+    setState(() {
+      _liveRoutePolyline = poly;
+      _liveRouteLeg = leg;
+    });
   }
 
   /// Decode a road polyline and pin its tail to the exact destination, so the
@@ -254,6 +382,10 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   /// ~250 m box around the pickup (a street-level zoom via the same fitBounds
   /// API — AppMap has no explicit zoom setter).
   List<LatLng>? _fitBounds(DriverState state) {
+    // While online we follow the driver's position at a close navigation zoom
+    // (see the AppMap above), so don't fight it with bounds-framing — the map
+    // stays zoomed in on the car and the route ahead.
+    if (state.isOnline && _myLocation != null) return null;
     final trip = state.trip;
     if (trip == null) return null;
     final approaching = state.phase == DriverPhase.enRoute ||
@@ -319,6 +451,11 @@ class _DriverHomeViewState extends State<_DriverHomeView>
           p.error != c.error ||
           p.needsOnboarding != c.needsOnboarding,
       listener: (context, state) {
+        // Drop a stale re-routed line when the leg changes (approach → trip).
+        final leg = _legKey(state);
+        if (leg != _liveRouteLeg && _liveRoutePolyline != null) {
+          _liveRoutePolyline = null;
+        }
         if (state.isOnline) {
           _startStreamingLocation();
         } else {
@@ -669,6 +806,7 @@ class _BottomSheet extends StatelessWidget {
           tripId: state.trip?.id,
           navigateTo: pickup,
           distanceLabel: _distanceLabel(myLocation, pickup, 'pickup', route),
+          note: state.trip?.pickupNote,
         );
       case DriverPhase.arrived:
         child = _StartTripSheet(
@@ -790,6 +928,7 @@ class _LifecycleSheet extends StatelessWidget {
     this.tripId,
     this.navigateTo,
     this.distanceLabel,
+    this.note,
   });
 
   final String title;
@@ -804,6 +943,9 @@ class _LifecycleSheet extends StatelessWidget {
 
   /// Live "0.3 mi to pickup" style readout from the driver's own position.
   final String? distanceLabel;
+
+  /// A pickup note from the rider, shown while heading to the pickup.
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -843,6 +985,12 @@ class _LifecycleSheet extends StatelessWidget {
               const SizedBox(width: AppSpacing.xs),
               Text(distanceLabel!, style: theme.textTheme.titleSmall),
             ],
+          ),
+        ],
+        if (note != null && note!.trim().isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _PickupNoteBanner(
+            note: note!,
           ),
         ],
         const SizedBox(height: AppSpacing.md),
@@ -896,6 +1044,44 @@ String? _distanceLabel(
       : distanceMeters(from, to);
   if (m < 200) return '${m.round()} m to $what';
   return '${(m / 1609.344).toStringAsFixed(1)} mi to $what';
+}
+
+/// A highlighted banner showing the rider's pickup note to the driver.
+class _PickupNoteBanner extends StatelessWidget {
+  const _PickupNoteBanner({required this.note});
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.accentSoft,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.sticky_note_2_outlined,
+              size: 18, color: AppColors.accent),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Note from rider',
+                    style: theme.textTheme.labelMedium
+                        ?.copyWith(color: AppColors.accentPressed)),
+                const SizedBox(height: 2),
+                Text(note, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Opens the safety toolkit (SOS) for the driver's active trip. Drivers get the
@@ -1074,17 +1260,25 @@ class _OfferOverlayState extends State<OfferOverlay> {
     super.initState();
     _total = widget.offer.expiresInSec;
     _remaining = _total;
-    // An incoming offer is urgent and interrupting — announce it firmly.
+    // An incoming offer is urgent and interrupting — announce it firmly, then
+    // keep a repeating buzz going for the whole window so it's hard to miss when
+    // the phone is in a mount/pocket (a persistent alert, like Uber's ping).
     AppHaptics.heavy();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
       setState(() => _remaining -= 1);
-      // A tick of warning as the window closes.
-      if (_remaining > 0 && _remaining <= 3) AppHaptics.light();
       if (_remaining <= 0) {
         t.cancel();
         // Never auto-decline a ride the driver has already accepted.
         if (!_accepted) context.read<DriverCubit>().declineOffer();
+        return;
+      }
+      // Escalating alert: a strong pulse every 2s, then every second in the
+      // final 3s as the window closes.
+      if (_remaining <= 3) {
+        AppHaptics.heavy();
+      } else if (_remaining.isEven) {
+        AppHaptics.medium();
       }
     });
   }
@@ -1264,6 +1458,11 @@ class _OfferOverlayState extends State<OfferOverlay> {
                     ],
                   ),
                 ),
+                if (offer.pickupNote != null &&
+                    offer.pickupNote!.trim().isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  _PickupNoteBanner(note: offer.pickupNote!),
+                ],
                 const SizedBox(height: AppSpacing.xl),
                 Row(
                   children: [

@@ -557,20 +557,28 @@ export class PaymentsService {
       throw new ConflictException('A tip was already added to this trip');
     }
 
+    // How the tip is collected mirrors how the ride was paid:
+    //  - Cash ride: the rider hands the tip to the driver in cash — record it,
+    //    never charge a card (there may be none, and charging would fail).
+    //  - Card ride: charge the card the ride used (falling back to the default).
+    //    With no chargeable method, record the tip anyway rather than failing
+    //    the whole action (the driver is still credited; reconciled out-of-band).
     if (trip.paymentMode !== 'cash') {
       const [customerRef, method] = await Promise.all([
         this.ensureCustomer(userId),
         this.methodFor(trip),
       ]);
-      await this.provider.charge({
-        amount: tip,
-        currency: trip.currency,
-        customerRef,
-        methodRef: method?.externalId ?? undefined,
-        description: `Tip ${tripId}`,
-        // Stable key per trip so a client retry can't double-charge the tip.
-        idempotencyKey: `tip-${tripId}`,
-      });
+      if (method?.externalId) {
+        await this.provider.charge({
+          amount: tip,
+          currency: trip.currency,
+          customerRef,
+          methodRef: method.externalId,
+          description: `Tip ${tripId}`,
+          // Stable key per trip so a client retry can't double-charge the tip.
+          idempotencyKey: `tip-${tripId}`,
+        });
+      }
     }
 
     // Guarded increment: only the first writer (tip still 0) applies. A race

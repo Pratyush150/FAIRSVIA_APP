@@ -100,8 +100,21 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<void> _send() async {
-    final text = _input.text.trim();
+  /// Uber-style one-tap canned phrases. Shared set that reads naturally from
+  /// either rider or driver, so a tap sends instantly without typing.
+  static const List<String> _quickReplies = [
+    "I'm here",
+    'On my way',
+    '2 min away',
+    'Where are you?',
+    'Please wait',
+    'Thanks!',
+  ];
+
+  Future<void> _send() => _sendText(_input.text);
+
+  Future<void> _sendText(String raw) async {
+    final text = raw.trim();
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
@@ -138,6 +151,7 @@ class _ChatPageState extends State<ChatPage> {
       body: Column(
         children: [
           Expanded(child: _body(context)),
+          _quickReplyBar(context),
           _composer(context),
         ],
       ),
@@ -173,6 +187,29 @@ class _ChatPageState extends State<ChatPage> {
         final m = _messages[i];
         return _Bubble(message: m, mine: m.from == widget.currentUserId);
       },
+    );
+  }
+
+  Widget _quickReplyBar(BuildContext context) {
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        itemCount: _quickReplies.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, i) {
+          final phrase = _quickReplies[i];
+          return Align(
+            alignment: Alignment.center,
+            child: ActionChip(
+              label: Text(phrase),
+              // _sendText guards against double-sends while one is in flight.
+              onPressed: () => _sendText(phrase),
+            ),
+          );
+        },
+      ),
     );
   }
 

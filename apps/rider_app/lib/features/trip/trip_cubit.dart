@@ -442,6 +442,20 @@ class TripCubit extends Cubit<TripState> {
     }
   }
 
+  /// Attach/replace compliment tags on the rating already given for this trip
+  /// (the backend updates the existing rating). No-op until a star rating exists.
+  Future<void> updateRatingTags(List<String> tags) async {
+    final tripId = state.trip?.id;
+    final stars = state.rating;
+    if (tripId == null || stars == null) return;
+    try {
+      await _ratings.rate(tripId, stars: stars, tags: tags);
+      emit(state.copyWith(ratingTags: tags));
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+    }
+  }
+
   void _onNoDrivers() {
     // Drop back to the ride options (destination + tier retained) with a clear
     // message, so the rider can just re-tap Confirm instead of being stuck on
@@ -589,6 +603,13 @@ class TripCubit extends Cubit<TripState> {
   void setScheduledAt(DateTime? when) =>
       emit(state.copyWith(scheduledAt: when));
 
+  /// Set (or clear) the rider's pickup note for the driver.
+  void setPickupNote(String? note) {
+    final trimmed = note?.trim();
+    emit(state.copyWith(
+        pickupNote: (trimmed == null || trimmed.isEmpty) ? null : trimmed));
+  }
+
   Future<void> confirmRide() async {
     final s = state;
     if (s.pickup == null || s.dropoff == null || s.selectedTier == null) return;
@@ -600,6 +621,7 @@ class TripCubit extends Cubit<TripState> {
         tier: s.selectedTier!,
         pickupAddr: s.pickupAddr,
         dropoffAddr: s.dropoffAddr,
+        pickupNote: s.pickupNote,
         promoCode: s.appliedPromo?.code,
         paymentMode: s.paymentMode,
         paymentMethodId: s.paymentMode == 'card' ? s.selectedMethodId : null,
@@ -673,7 +695,9 @@ class TripCubit extends Cubit<TripState> {
     return when.isBefore(floor) ? floor : when;
   }
 
-  Future<double> cancelTrip() async {
+  /// [reason] is the rider's chosen cancellation reason (for ops/analytics);
+  /// defaults to a generic label when none was given.
+  Future<double> cancelTrip({String? reason}) async {
     // The trip may have ended while the confirm dialog was open (e.g. the
     // no-drivers timeout bounced us back to the ride options). There is
     // nothing to cancel then — keep the chosen destination and tiers instead
@@ -684,7 +708,12 @@ class TripCubit extends Cubit<TripState> {
     if (trip != null) {
       emit(state.copyWith(error: null));
       try {
-        fee = await _repository.cancelTrip(trip.id, reason: 'Cancelled by rider');
+        fee = await _repository.cancelTrip(
+          trip.id,
+          reason: (reason == null || reason.isEmpty)
+              ? 'Cancelled by rider'
+              : reason,
+        );
       } catch (_) {
         // The server still has a live trip (and a driver on the way) — going
         // idle here would hide a ride that is very much still happening. Keep

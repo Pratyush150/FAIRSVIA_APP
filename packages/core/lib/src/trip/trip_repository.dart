@@ -27,6 +27,21 @@ class TripRepository {
   Future<PlaceDetails> reverseGeocode(double lat, double lng) =>
       _places.reverse(lat, lng);
 
+  /// Fresh road route between two points, for live re-routing when the car
+  /// leaves the drawn path. Returns the encoded polyline (null = keep current).
+  Future<String?> route({
+    required double fromLat,
+    required double fromLng,
+    required double toLat,
+    required double toLng,
+  }) =>
+      _places.route(
+        fromLat: fromLat,
+        fromLng: fromLng,
+        toLat: toLat,
+        toLng: toLng,
+      );
+
   Future<TripEstimate> estimate(
     GeoPoint pickup,
     GeoPoint dropoff, {
@@ -40,6 +55,7 @@ class TripRepository {
     required String tier,
     String? pickupAddr,
     String? dropoffAddr,
+    String? pickupNote,
     String? promoCode,
     String? paymentMode,
     String? paymentMethodId,
@@ -54,6 +70,7 @@ class TripRepository {
         tier: tier,
         pickupAddr: pickupAddr,
         dropoffAddr: dropoffAddr,
+        pickupNote: pickupNote,
         promoCode: promoCode,
         paymentMode: paymentMode,
         paymentMethodId: paymentMethodId,

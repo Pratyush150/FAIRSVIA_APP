@@ -22,6 +22,7 @@ export 'src/widgets/message_bubble.dart';
 export 'src/widgets/otp_input.dart';
 export 'src/widgets/map_placeholder.dart';
 export 'src/widgets/app_map.dart';
+export 'src/widgets/route_progress.dart' hide distanceMeters;
 export 'src/widgets/map_geo.dart';
 export 'src/widgets/connection_banner.dart';
 export 'src/widgets/app_skeleton.dart';

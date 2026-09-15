@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../theme/app_colors.dart';
 import 'map_styles.dart';
+import 'route_progress.dart';
 
 /// What a marker represents — drives its icon + colour.
 /// [me] is the rider's own position (blue dot), [driver] the gliding car.
@@ -53,6 +54,8 @@ class AppMap extends StatefulWidget {
     this.onCenterChanged,
     this.recenter,
     this.recenterSeq = 0,
+    this.recenterTrigger = 0,
+    this.recenterZoom,
     this.tileProvider,
     this.boundsPadding = const EdgeInsets.all(64),
     this.cameraMode = MapCameraMode.fit,
@@ -76,6 +79,15 @@ class AppMap extends StatefulWidget {
   /// request; callers that only follow a moving point can leave it at 0.
   final int recenterSeq;
 
+  /// Bump this to force a re-center on [recenter] even when its value is
+  /// unchanged — so a "locate me" button works on every tap, not only when the
+  /// resolved position differs from last time.
+  final int recenterTrigger;
+
+  /// When set, a recenter also zooms to this level (a precise "locate me").
+  /// Null keeps the current zoom.
+  final double? recenterZoom;
+
   /// Retained for source compatibility with the old flutter_map backend. Ignored.
   final Object? tileProvider;
 
@@ -90,7 +102,9 @@ class AppMap extends StatefulWidget {
   @visibleForTesting
   static bool recenterChanged(AppMap old, AppMap next) =>
       next.recenter != null &&
-      (next.recenter != old.recenter || next.recenterSeq != old.recenterSeq) &&
+      (next.recenter != old.recenter ||
+          next.recenterSeq != old.recenterSeq ||
+          next.recenterTrigger != old.recenterTrigger) &&
       (next.fitBounds == null || next.fitBounds!.length < 2);
 
   @override
@@ -113,6 +127,19 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   // Follow mode: suspended once the user pans until the next recenter.
   bool _userPanned = false;
   bool _programmaticMove = false;
+
+  // Cached route polylines. Recomputing the route split (an O(route) scan) plus
+  // copying the whole line on every animation frame janks on mid-range phones,
+  // so we rebuild the line only when the route changes or the car has moved
+  // enough. The marker still glides at full frame rate; only the (expensive)
+  // line recompute is throttled by distance.
+  Set<gmaps.Polyline> _polylines = const {};
+  LatLng? _polyDriverAt; // interpolated car point the cache was built for
+  bool _polyHadDriver = false;
+  int _polyRouteLen = -1; // length + endpoints cheaply identify a route change
+  LatLng? _polyRouteFirst;
+  LatLng? _polyRouteLast;
+  static const double _polyResampleMeters = 3.0;
 
   @override
   void initState() {
@@ -254,10 +281,14 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     if (!mounted) return;
     // Recenter also restores a street-level zoom: after a route fit the camera
     // is zoomed out over the whole trip, and "recenter" without a zoom left
-    // the rider looking at the entire city.
+    // the rider looking at the entire city. [recenterZoom] lets a "locate me"
+    // tap pick a precise zoom instead.
     _programmaticMove = true;
     await c.animateCamera(
-      gmaps.CameraUpdate.newLatLngZoom(_g(center), widget.initialZoom),
+      gmaps.CameraUpdate.newLatLngZoom(
+        _g(center),
+        widget.recenterZoom ?? widget.initialZoom,
+      ),
     );
   }
 
@@ -272,14 +303,75 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     return true;
   }
 
+  // Pixels of breathing room left around a fitted bounds.
+  static const double _boundsPixelPadding = 56;
+  // Below this diagonal span the two framed points are effectively on top of
+  // each other (the car has nearly reached its target); a bounds-fit would
+  // over-zoom or throw, so we centre + hold a street-level zoom instead.
+  static const double _minFitSpanMeters = 180;
+  static const double _closeZoom = 16.8;
+
+  // The bounds we last animated the camera to. Re-fitting on every GPS tick
+  // makes the map re-project constantly (a jank source); we skip a re-fit when
+  // the framed points barely moved and only follow once an endpoint shifts
+  // more than [_refitThresholdMeters] — a throttled "camera director".
+  List<LatLng>? _lastFittedBounds;
+  static const double _refitThresholdMeters = 20;
+
   Future<void> _fit() async {
     final pts = widget.fitBounds;
     if (pts == null || pts.length < 2) return;
+    // Throttle the follow: don't re-fit for sub-20m movements.
+    if (_lastFittedBounds != null &&
+        _boundsClose(pts, _lastFittedBounds!, _refitThresholdMeters)) {
+      return;
+    }
     final c = await _controller.future;
     if (!mounted) return;
+    _lastFittedBounds = List<LatLng>.of(pts);
+    // Car almost at its target: settle on the point at street zoom rather than
+    // snapping to an over-tight bounds (keeps the "zoom in on arrival" smooth).
+    if (_spanMeters(pts) < _minFitSpanMeters) {
+      await c.animateCamera(
+        gmaps.CameraUpdate.newLatLngZoom(_g(_centroid(pts)), _closeZoom),
+      );
+      return;
+    }
     await c.animateCamera(
-      gmaps.CameraUpdate.newLatLngBounds(_boundsOf(pts), 56),
+      gmaps.CameraUpdate.newLatLngBounds(_boundsOf(pts), _boundsPixelPadding),
     );
+  }
+
+  /// True when every point of [a] is within [m] metres of the matching point
+  /// of [b] (same length assumed) — i.e. the framing barely changed.
+  bool _boundsClose(List<LatLng> a, List<LatLng> b, double m) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (_distanceMeters(a[i], b[i]) > m) return false;
+    }
+    return true;
+  }
+
+  /// Diagonal span of the points' bounding box, in metres.
+  double _spanMeters(List<LatLng> pts) {
+    var minLat = pts.first.latitude, maxLat = pts.first.latitude;
+    var minLng = pts.first.longitude, maxLng = pts.first.longitude;
+    for (final p in pts) {
+      minLat = math.min(minLat, p.latitude);
+      maxLat = math.max(maxLat, p.latitude);
+      minLng = math.min(minLng, p.longitude);
+      maxLng = math.max(maxLng, p.longitude);
+    }
+    return _distanceMeters(LatLng(minLat, minLng), LatLng(maxLat, maxLng));
+  }
+
+  LatLng _centroid(List<LatLng> pts) {
+    var lat = 0.0, lng = 0.0;
+    for (final p in pts) {
+      lat += p.latitude;
+      lng += p.longitude;
+    }
+    return LatLng(lat / pts.length, lng / pts.length);
   }
 
   gmaps.LatLngBounds _boundsOf(List<LatLng> pts) {
@@ -348,59 +440,171 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     }
   }
 
-  Set<gmaps.Polyline> _buildPolylines() {
-    if (widget.route.length < 2) return const {};
-    return {
-      gmaps.Polyline(
-        polylineId: const gmaps.PolylineId('route'),
-        points: [for (final p in widget.route) _g(p)],
-        color: AppColors.accent,
-        width: 5,
-      ),
-    };
+  /// Muted colour for the portion of the route the car has already driven.
+  static const gmaps.Cap _roundCap = gmaps.Cap.roundCap;
+  static final Color _routeDone = const Color(0xFF9AA0A6); // faded grey
+  // Within this distance of the leg's end the line is treated as finished and
+  // cleared entirely, so it vanishes exactly on arrival rather than leaving a stub.
+  static const double _arrivedMeters = 12;
+
+  /// The route line. When a live driver marker is present we **split the route
+  /// at the car** and draw only the part *ahead* of it in bold — so the active
+  /// line shrinks behind the car as it drives and vanishes on arrival (Uber
+  /// style). The already-driven part is drawn faintly. Without a driver we draw
+  /// the whole route as one bold line.
+  /// Rebuild [_polylines] only when the route changed, the driver appeared or
+  /// vanished, or the car moved past [_polyResampleMeters] — keeping the
+  /// per-frame build path cheap while the marker glides smoothly.
+  void _syncPolylines() {
+    final route = widget.route;
+    final driver = _currentDriverPoint();
+    final hasDriver = driver != null;
+    final routeChanged = route.length != _polyRouteLen ||
+        (route.isNotEmpty &&
+            (route.first != _polyRouteFirst || route.last != _polyRouteLast));
+    final moved = hasDriver &&
+        (_polyDriverAt == null ||
+            _distanceMeters(driver, _polyDriverAt!) > _polyResampleMeters);
+    if (!routeChanged && !moved && hasDriver == _polyHadDriver) return;
+    _polyRouteLen = route.length;
+    _polyRouteFirst = route.isEmpty ? null : route.first;
+    _polyRouteLast = route.isEmpty ? null : route.last;
+    _polyDriverAt = driver;
+    _polyHadDriver = hasDriver;
+    _polylines = _computePolylines(route, driver);
   }
 
-  /// Render a white circular "puck" with a dark navigation arrow to a bitmap,
-  /// once — the Uber-style vehicle marker that rotates to the travel bearing.
-  /// Falls back to the default marker if rendering fails.
+  Set<gmaps.Polyline> _computePolylines(List<LatLng> route, LatLng? driver) {
+    if (route.length < 2) return const {};
+    if (driver == null) {
+      return {
+        gmaps.Polyline(
+          polylineId: const gmaps.PolylineId('route'),
+          points: [for (final p in route) _g(p)],
+          color: AppColors.accent,
+          width: 6,
+          startCap: _roundCap,
+          endCap: _roundCap,
+          jointType: gmaps.JointType.round,
+        ),
+      };
+    }
+
+    final split = splitRouteAtPoint(route, driver);
+    // The car has effectively reached the end of this leg — the line "finishes":
+    // drop both the remaining line AND the faint travelled trail so nothing
+    // lingers at the destination (matches Uber, where the route clears on arrival).
+    if (split.remainingMeters < _arrivedMeters) return const {};
+    final out = <gmaps.Polyline>{};
+    if (split.traveled.length >= 2) {
+      out.add(gmaps.Polyline(
+        polylineId: const gmaps.PolylineId('route_done'),
+        points: [for (final p in split.traveled) _g(p)],
+        color: _routeDone.withValues(alpha: 0.5),
+        width: 5,
+        startCap: _roundCap,
+        endCap: _roundCap,
+        jointType: gmaps.JointType.round,
+      ));
+    }
+    if (split.remaining.length >= 2) {
+      out.add(gmaps.Polyline(
+        polylineId: const gmaps.PolylineId('route'),
+        points: [for (final p in split.remaining) _g(p)],
+        color: AppColors.accent,
+        width: 6,
+        startCap: _roundCap,
+        endCap: _roundCap,
+        jointType: gmaps.JointType.round,
+      ));
+    }
+    return out;
+  }
+
+  /// Render a **top-down car** to a bitmap, once — the Uber-style vehicle marker
+  /// that points "up" (the marker's 0°/north) so [AppMap]'s marker rotation aims
+  /// it along the travel bearing. A white halo + soft shadow keep it legible on
+  /// any map colour. Falls back to the default marker if rendering fails.
   Future<void> _makeDriverIcon() async {
     try {
-      const dim = 108.0;
+      const dim = 120.0;
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      final center = const Offset(dim / 2, dim / 2);
-      // soft shadow
-      canvas.drawCircle(
-        center,
-        36,
+      final cx = dim / 2, cy = dim / 2;
+      final center = Offset(cx, cy);
+      const bodyW = 42.0, bodyH = 82.0;
+      const hh = bodyH / 2, hw = bodyW / 2;
+
+      RRect rr(double w, double h, double r, [Offset d = Offset.zero]) =>
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: center + d, width: w, height: h),
+            Radius.circular(r),
+          );
+
+      // A trapezoid glass pane (wider toward the cabin), y measured from centre.
+      ui.Path pane(double topY, double topHalf, double botY, double botHalf) =>
+          ui.Path()
+            ..moveTo(cx - topHalf, cy + topY)
+            ..lineTo(cx + topHalf, cy + topY)
+            ..lineTo(cx + botHalf, cy + botY)
+            ..lineTo(cx - botHalf, cy + botY)
+            ..close();
+
+      // Soft drop shadow.
+      canvas.drawRRect(
+        rr(bodyW + 4, bodyH + 4, 16, const Offset(0, 3)),
         Paint()
           ..color = Colors.black.withValues(alpha: 0.28)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
       );
-      // white disc + dark ring
-      canvas.drawCircle(center, 32, Paint()..color = Colors.white);
-      canvas.drawCircle(
-        center,
-        32,
+      // White halo so the car reads on dark roads / water.
+      canvas.drawRRect(rr(bodyW + 7, bodyH + 7, 18), Paint()..color = Colors.white);
+
+      // Headlights (front) + taillights (rear) — drawn under the body so the
+      // body's rounded corners crop them into the car's nose/tail.
+      final head = Paint()..color = const Color(0xFFFFF4D6);
+      canvas.drawRRect(rr(9, 7, 3, Offset(-hw + 8, -hh + 4)), head);
+      canvas.drawRRect(rr(9, 7, 3, Offset(hw - 8, -hh + 4)), head);
+      final tail = Paint()..color = const Color(0xFFFF4D4D);
+      canvas.drawRRect(rr(9, 6, 3, Offset(-hw + 8, hh - 4)), tail);
+      canvas.drawRRect(rr(9, 6, 3, Offset(hw - 8, hh - 4)), tail);
+
+      // Side mirrors.
+      final mirror = Paint()..color = const Color(0xFF2A3346);
+      canvas.drawRRect(rr(6, 9, 2.5, const Offset(-hw - 1, -10)), mirror);
+      canvas.drawRRect(rr(6, 9, 2.5, const Offset(hw + 1, -10)), mirror);
+
+      // Glossy metallic body (vertical gradient, lighter at the roofline).
+      canvas.drawRRect(
+        rr(bodyW, bodyH, 15),
         Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = const Color(0xFF10121A),
-      );
-      // navigation arrow glyph (points "up" = the marker's 0°/north, then the
-      // marker rotation aims it along the bearing)
-      final tp = TextPainter(textDirection: TextDirection.ltr)
-        ..text = TextSpan(
-          text: String.fromCharCode(Icons.navigation_rounded.codePoint),
-          style: TextStyle(
-            fontSize: 38,
-            fontFamily: Icons.navigation_rounded.fontFamily,
-            package: Icons.navigation_rounded.fontPackage,
-            color: const Color(0xFF10121A),
+          ..shader = ui.Gradient.linear(
+            Offset(cx, cy - hh),
+            Offset(cx, cy + hh),
+            const [Color(0xFF3A445C), Color(0xFF141A26)],
           ),
-        )
-        ..layout();
-      tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+      );
+
+      // Cabin roof (a subtle darker inset between the two windows).
+      canvas.drawRRect(
+        rr(bodyW - 11, 30, 8),
+        Paint()..color = const Color(0xFF20283A),
+      );
+      // Windshield (front = direction of travel) — bright glass, wider toward
+      // the cabin; rear window is dimmer.
+      canvas.drawPath(
+        pane(-15, 10, -4, 14),
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(cx, cy - 15),
+            Offset(cx, cy - 4),
+            const [Color(0xFFCFE0FF), Color(0xFF9DBBF2)],
+          ),
+      );
+      canvas.drawPath(
+        pane(4, 14, 15, 10),
+        Paint()..color = const Color(0xFF5B6B88),
+      );
 
       final img =
           await recorder.endRecording().toImage(dim.toInt(), dim.toInt());
@@ -463,6 +667,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    _syncPolylines();
     return gmaps.GoogleMap(
       initialCameraPosition: gmaps.CameraPosition(
         target: _g(widget.initialCenter),
@@ -472,7 +677,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       // white under light status-bar icons) and a de-cluttered light style.
       style: dark ? mapNightStyle : mapLightStyle,
       markers: _buildMarkers(),
-      polylines: _buildPolylines(),
+      polylines: _polylines,
       padding: widget.boundsPadding,
       myLocationEnabled: false,
       myLocationButtonEnabled: false,

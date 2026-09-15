@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart' show TileProvider;
 import 'package:shared_models/shared_models.dart';
 
+import 'location_service.dart';
+
 /// "Set location on the map" — pan the map under a fixed centre pin to drop a
 /// point anywhere, then confirm. The dropped point is reverse-geocoded to an
 /// address (via the self-hosted Nominatim proxy), which is ideal where text
@@ -35,11 +37,36 @@ class MapPickerPage extends StatefulWidget {
 
 class _MapPickerPageState extends State<MapPickerPage> {
   final _repo = sl<TripRepository>();
+  final _location = LocationService();
   late LatLng _center = LatLng(widget.initial.lat, widget.initial.lng);
 
   Timer? _debounce;
   String? _address; // live label under the pin (null while resolving)
   bool _confirming = false;
+  bool _locating = false;
+
+  // Drives the map back to the rider's live position when "locate me" is tapped.
+  LatLng? _recenter;
+  int _recenterTick = 0;
+
+  /// Centre the map on the rider's current GPS position.
+  Future<void> _locateMe() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      if (!await _location.hasPermission()) {
+        await _location.requestPermission();
+      }
+      final loc = await _location.currentOrFallback();
+      if (!mounted) return;
+      setState(() {
+        _recenter = LatLng(loc.lat, loc.lng);
+        _recenterTick++;
+      });
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
 
   @override
   void initState() {
@@ -113,11 +140,28 @@ class _MapPickerPageState extends State<MapPickerPage> {
             initialCenter: _center,
             initialZoom: 16,
             onCenterChanged: _onCenterChanged,
+            recenter: _recenter,
+            recenterTrigger: _recenterTick,
+            recenterZoom: 16.5,
             tileProvider: widget.tileProvider,
           ),
           // Fixed centre pin — its tip sits on the exact map centre. IgnorePointer
           // so drags pass through to the map beneath.
           const IgnorePointer(child: Center(child: _CenterPin())),
+          // "Locate me" — recentres the pin on the rider's live position.
+          Positioned(
+            right: AppSpacing.md,
+            bottom: 180,
+            child: SafeArea(
+              child: AppCircleButton(
+                icon: _locating
+                    ? Icons.hourglass_bottom_rounded
+                    : Icons.my_location_rounded,
+                tooltip: 'My location',
+                onPressed: _locateMe,
+              ),
+            ),
+          ),
           // Bottom sheet: live address + confirm.
           Align(
             alignment: Alignment.bottomCenter,

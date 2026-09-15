@@ -27,7 +27,7 @@ async function main() {
     process.exit(2);
   }
 
-  console.log(`\n  FairsVia Simulation Engine`);
+  console.log(`\n  Ride App Simulation Engine`);
   console.log(`  scenario=${scenario.name}  drivers=${scenario.drivers}  target=${BASE}`);
   console.log(`  osrm=${OSRM || '(off, straight-line)'}  ws=${WS}  timeScale=${TIME_SCALE}x`);
 

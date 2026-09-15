@@ -270,6 +270,13 @@ describe('PaymentsService', () => {
       tip: 0,
       driverPayout: 80,
     });
+    // The rider's saved card is what the tip is charged to.
+    (prisma as any).paymentMethod.findFirst.mockResolvedValue({
+      id: 'pm_1',
+      userId: 'r1',
+      externalId: 'pm_ext_1',
+      isDefault: true,
+    });
     const provider = makeProvider();
 
     const svc = makeService(prisma, provider);
@@ -277,7 +284,11 @@ describe('PaymentsService', () => {
 
     expect(res).toEqual({ tip: 15, driverPayout: 95, paymentMode: 'card' });
     expect(provider.charge).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 15, idempotencyKey: 'tip-t1' }),
+      expect.objectContaining({
+        amount: 15,
+        methodRef: 'pm_ext_1',
+        idempotencyKey: 'tip-t1',
+      }),
     );
     // Guarded increment: only applies while the trip has no tip yet.
     expect((prisma as any).payment.updateMany).toHaveBeenCalledWith({
@@ -285,6 +296,41 @@ describe('PaymentsService', () => {
       data: { tip: { increment: 15 }, driverPayout: { increment: 15 } },
     });
     expect(ledger.record).toHaveBeenCalledWith('d1', 'tip', 15, expect.anything());
+  });
+
+  it('records a card-ride tip without a charge when the rider has no saved card', async () => {
+    // Previously the missing method made the provider call throw and the tip
+    // silently vanished; the driver is still credited and the charge is
+    // reconciled out-of-band.
+    ledger.record.mockClear();
+    const prisma = makePrisma();
+    (prisma as any).trip.findUnique.mockResolvedValue({
+      id: 't1', riderId: 'r1', driverId: 'd1', currency: 'USD',
+      status: TripStatus.completed, paymentMode: 'card',
+    });
+    (prisma as any).payment.findUnique.mockResolvedValue({ tip: 0, driverPayout: 80 });
+    (prisma as any).paymentMethod.findFirst.mockResolvedValue(null);
+    const provider = makeProvider();
+    const res = await makeService(prisma, provider).addTip('r1', 't1', 5);
+    expect(res).toEqual({ tip: 5, driverPayout: 85, paymentMode: 'card' });
+    expect(provider.charge).not.toHaveBeenCalled();
+    expect(ledger.record).toHaveBeenCalledWith('d1', 'tip', 5, expect.anything());
+  });
+
+  it('a cash-ride tip is recorded to the driver with no card charge', async () => {
+    ledger.record.mockClear();
+    const prisma = makePrisma();
+    (prisma as any).trip.findUnique.mockResolvedValue({
+      id: 't1', riderId: 'r1', driverId: 'd1', currency: 'USD',
+      status: TripStatus.completed, paymentMode: 'cash',
+    });
+    (prisma as any).payment.findUnique.mockResolvedValue({ tip: 0, driverPayout: 80 });
+    const provider = makeProvider();
+    const res = await makeService(prisma, provider).addTip('r1', 't1', 3);
+    expect(res).toEqual({ tip: 3, driverPayout: 83, paymentMode: 'cash' });
+    expect(provider.charge).not.toHaveBeenCalled();
+    // Cash is already in the driver's hand: nothing to credit on the ledger.
+    expect(ledger.record).not.toHaveBeenCalledWith('d1', 'tip', 3, expect.anything());
   });
 
   it('rejects a second tip on the same trip with 409 (no double charge / credit)', async () => {

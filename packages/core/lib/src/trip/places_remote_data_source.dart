@@ -49,6 +49,33 @@ class PlacesRemoteDataSource {
     }
   }
 
+  /// On-demand road route between two points, for **live re-routing** when the
+  /// driver leaves the planned path. Returns the fresh encoded polyline, or null
+  /// when unavailable (the caller keeps the existing line rather than clearing
+  /// it). Best-effort — never throws, so a transient failure can't break the map.
+  Future<String?> route({
+    required double fromLat,
+    required double fromLng,
+    required double toLat,
+    required double toLng,
+  }) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/places/route',
+        queryParameters: {
+          'fromLat': fromLat,
+          'fromLng': fromLng,
+          'toLat': toLat,
+          'toLng': toLng,
+        },
+      );
+      final poly = res.data?['polyline'] as String?;
+      return (poly != null && poly.isNotEmpty) ? poly : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Reverse-geocode raw coordinates (the rider's GPS) to a human address.
   Future<PlaceDetails> reverse(double lat, double lng) async {
     try {

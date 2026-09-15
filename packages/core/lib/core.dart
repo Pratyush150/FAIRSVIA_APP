@@ -49,3 +49,4 @@ export 'src/safety/safety_remote_data_source.dart';
 export 'src/safety/safety_sheet.dart';
 export 'src/util/navigation_launcher.dart';
 export 'src/network/auth_interceptor.dart';
+export 'src/navigation/external_nav.dart';

@@ -22,6 +22,7 @@ class TripState extends Equatable {
     this.pickupAddr,
     this.dropoff,
     this.dropoffAddr,
+    this.pickupNote,
     this.estimate,
     this.selectedTier,
     this.trip,
@@ -40,6 +41,7 @@ class TripState extends Equatable {
     this.tipAmount,
     this.tipping = false,
     this.rating,
+    this.ratingTags = const [],
     this.appliedPromo,
     this.applyingPromo = false,
     this.promoError,
@@ -58,6 +60,9 @@ class TripState extends Equatable {
   final String? pickupAddr;
   final GeoPoint? dropoff;
   final String? dropoffAddr;
+
+  /// A short note for the driver about the pickup, entered before confirming.
+  final String? pickupNote;
   final TripEstimate? estimate;
   final String? selectedTier;
   final Trip? trip;
@@ -96,6 +101,9 @@ class TripState extends Equatable {
   final double? tipAmount;
   final bool tipping;
   final int? rating;
+
+  /// Compliment tags the rider attached to their driver rating (Uber-style).
+  final List<String> ratingTags;
 
   /// A promo code the rider has applied (server-priced); null when none.
   final PromoQuote? appliedPromo;
@@ -161,6 +169,7 @@ class TripState extends Equatable {
     Object? pickupAddr = _s,
     Object? dropoff = _s,
     Object? dropoffAddr = _s,
+    Object? pickupNote = _s,
     Object? estimate = _s,
     Object? selectedTier = _s,
     Object? trip = _s,
@@ -179,6 +188,7 @@ class TripState extends Equatable {
     Object? tipAmount = _s,
     bool? tipping,
     Object? rating = _s,
+    List<String>? ratingTags,
     Object? appliedPromo = _s,
     bool? applyingPromo,
     Object? promoError = _s,
@@ -198,6 +208,7 @@ class TripState extends Equatable {
       dropoff: dropoff == _s ? this.dropoff : dropoff as GeoPoint?,
       dropoffAddr:
           dropoffAddr == _s ? this.dropoffAddr : dropoffAddr as String?,
+      pickupNote: pickupNote == _s ? this.pickupNote : pickupNote as String?,
       estimate: estimate == _s ? this.estimate : estimate as TripEstimate?,
       selectedTier:
           selectedTier == _s ? this.selectedTier : selectedTier as String?,
@@ -225,6 +236,7 @@ class TripState extends Equatable {
       tipAmount: tipAmount == _s ? this.tipAmount : tipAmount as double?,
       tipping: tipping ?? this.tipping,
       rating: rating == _s ? this.rating : rating as int?,
+      ratingTags: ratingTags ?? this.ratingTags,
       appliedPromo: appliedPromo == _s
           ? this.appliedPromo
           : appliedPromo as PromoQuote?,
@@ -251,6 +263,7 @@ class TripState extends Equatable {
         pickupAddr,
         dropoff,
         dropoffAddr,
+        pickupNote,
         estimate,
         selectedTier,
         trip,
@@ -269,6 +282,7 @@ class TripState extends Equatable {
         tipAmount,
         tipping,
         rating,
+        ratingTags,
         appliedPromo,
         applyingPromo,
         promoError,

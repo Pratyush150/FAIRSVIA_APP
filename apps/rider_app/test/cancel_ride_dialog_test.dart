@@ -9,14 +9,14 @@ import 'package:rider_app/home_page.dart';
 class MockTripCubit extends MockCubit<TripState> implements TripCubit {}
 
 void main() {
-  Future<bool?> open(WidgetTester tester, TripCubit cubit) async {
-    bool? result;
+  Future<String?> open(WidgetTester tester, TripCubit cubit) async {
+    String? result;
     await tester.pumpWidget(MaterialApp(
       home: Builder(
         builder: (context) => Scaffold(
           body: ElevatedButton(
             onPressed: () async {
-              result = await showDialog<bool>(
+              result = await showDialog<String>(
                 context: context,
                 builder: (_) =>
                     CancelRideDialog(cubit: cubit, feeWarning: false),
@@ -42,9 +42,9 @@ void main() {
     await open(tester, cubit);
     expect(find.text('Cancel this ride?'), findsOneWidget);
 
-    // User confirms → dialog pops with true; the cubit then goes idle while
-    // the pop is still in flight (what cancelTrip() does).
-    await tester.tap(find.text('Cancel ride'));
+    // User picks a reason → dialog pops with it; the cubit then goes idle
+    // while the pop is still in flight (what cancelTrip() does).
+    await tester.tap(find.text('Changed my plans'));
     states.add(const TripState());
     await tester.pumpAndSettle();
 

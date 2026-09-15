@@ -1,5 +1,5 @@
 name: design_system
-description: Shared UI kit (theme + widgets) for the FairsVia apps.
+description: Shared UI kit (theme + widgets) for the Ride App apps.
 version: 0.0.1
 publish_to: none
 resolution: workspace

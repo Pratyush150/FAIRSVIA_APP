@@ -137,6 +137,58 @@ class LocationService {
   /// Whether the dev mock is in effect for this service instance.
   bool get usingMock => !_releaseMode && _mockPoint != null;
 
+  /// True when the app currently holds foreground (or always) location access.
+  Future<bool> hasPermission() async {
+    if (_mockPoint != null) return true;
+    final p = await _gateway.checkPermission();
+    return p == LocationPermission.whileInUse || p == LocationPermission.always;
+  }
+
+  /// Ask for location access. Prompts, and if the user has permanently denied
+  /// it, opens the app's system settings so they can enable it. Returns
+  /// whether access is granted afterwards.
+  Future<bool> requestPermission() async {
+    if (_mockPoint != null) return true;
+    if (!await _gateway.isLocationServiceEnabled()) {
+      await Geolocator.openLocationSettings();
+    }
+    var p = await _gateway.checkPermission();
+    if (p == LocationPermission.denied) {
+      p = await _gateway.requestPermission();
+    }
+    if (p == LocationPermission.deniedForever) {
+      await Geolocator.openAppSettings();
+      p = await _gateway.checkPermission();
+    }
+    return p == LocationPermission.whileInUse || p == LocationPermission.always;
+  }
+
+  /// A live stream of the rider's position (real GPS), for keeping the map on
+  /// the phone's actual location and snapping to the first real fix once GPS
+  /// resolves. Emits nothing when mocked (the caller keeps its resolved position).
+  Stream<GeoPoint> positionStream() {
+    if (_mockPoint != null) return const Stream.empty();
+    return Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 8,
+      ),
+    ).map((p) => GeoPoint(p.latitude, p.longitude));
+  }
+
+  Future<GeoPoint?> _lastKnown() async {
+    try {
+      final p = await Geolocator.getLastKnownPosition();
+      return p == null ? null : GeoPoint(p.latitude, p.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The rider's position as a bare point (real fix or the city fallback);
+  /// see [resolve] for the source/issue detail.
+  Future<GeoPoint> currentOrFallback() async => (await resolve()).point;
+
   Future<LocationResult> resolve() async {
     final mock = _mockPoint;
     if (mock != null) {
@@ -171,6 +223,12 @@ class LocationService {
         reducedAccuracy: reduced,
       );
     } catch (_) {
+      // A fresh fix can time out indoors; the phone's last known fix is still
+      // the rider's real neighbourhood — far better than the city fallback.
+      final cached = await _lastKnown();
+      if (cached != null) {
+        return LocationResult(point: cached, source: LocationSource.gps);
+      }
       return _fallback(LocationIssue.error);
     }
   }

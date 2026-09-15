@@ -1,4 +1,4 @@
-// FairsVia Prisma schema.
+// Ride App Prisma schema.
 // Phase 0: users + refresh tokens. Geo/trip tables arrive in later phases.
 // Note: PostGIS is enabled via infra/postgres-init/ and used through raw SQL
 // in later phases (Prisma has limited native support for the geography type).
@@ -29,7 +29,7 @@ model User {
   ratingCount Int      @default(0) @map("rating_count")
   isActive    Boolean  @default(true) @map("is_active")
   // Stripe Customer (cus_...) — created lazily on the first saved card so
-  // charges/holds reference a real customer, not the FairsVia user id.
+  // charges/holds reference a real customer, not the Ride App user id.
   stripeCustomerId String? @map("stripe_customer_id") @db.VarChar(64)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -128,6 +128,10 @@ model Trip {
   dropoffAddr     String?    @map("dropoff_addr")
   dropoffLat      Float      @map("dropoff_lat")
   dropoffLng      Float      @map("dropoff_lng")
+
+  /// A short pickup note from the rider to the driver ("meet at the north gate",
+  /// "wearing a red jacket"). Shown on the driver's offer + en-route screens.
+  pickupNote      String?    @map("pickup_note")
 
   routePolyline   String?    @map("route_polyline")
   stops           Json?      // ordered intermediate stops: [{lat,lng,addr?}]
