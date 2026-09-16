@@ -142,14 +142,19 @@ class TripCubit extends Cubit<TripState> {
   /// re-sync whatever trip is live.
   Future<void> resumeFromBackground(String token) async {
     _lastToken = token;
-    // iOS suspends the app and silently kills the transport. socket.io keeps
-    // reporting `connected` until its ping timeout (~45 s), and a `trip:sync`
-    // emitted meanwhile is lost — that is how a rider came back from a locked
-    // screen to a frozen "on the way" card after the driver had completed the
-    // ride. So on every resume: (1) pull the trip over REST, which needs no
-    // socket and applies a completion/cancel that happened while we were
-    // away; (2) tear the socket down and connect fresh instead of trusting
-    // the stale flag.
+    // After an OS suspend, socket.io often still reports the socket as
+    // `connected` while its transport is actually dead (a "zombie" socket),
+    // and anything emitted into it is silently dropped. The rider app has no
+    // background execution, unlike the driver, so it misses every event while
+    // the screen is off. That is how a rider came back from a locked screen to
+    // a frozen "on the way" card after the driver had already completed the
+    // ride: `trip:completed` was gone, and a `trip:sync` emitted on the dead
+    // socket went nowhere.
+    //
+    // So on every resume: (1) pull the trip over REST, which needs no socket
+    // and applies a completion or cancel that happened while we were away;
+    // (2) force a fresh connection rather than trusting `isConnected`. A brief
+    // reconnect on resume is cheap; a stuck trip is not.
     await _refreshTripOverRest();
     await _reconnectHard(token);
   }
