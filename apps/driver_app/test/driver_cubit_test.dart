@@ -132,6 +132,24 @@ void main() {
     );
   });
 
+  test('resumeFromBackground rebuilds the socket even when it looks connected',
+      () async {
+    final cubit = make();
+    await cubit.init('token');
+    await cubit.goOnline();
+    realtime.emitted.clear();
+    // The fake reports connected; a real client would too after a suspend.
+    expect(realtime.isConnected, isTrue);
+    await cubit.resumeFromBackground('token');
+    // A fresh connect re-announces presence (`_onReconnect`).
+    expect(
+      realtime.emitted.where((e) => e.$1 == 'driver:status').length,
+      greaterThanOrEqualTo(1),
+    );
+    expect(cubit.state.connected, isTrue);
+    await cubit.close();
+  });
+
   test('drives the full offer → complete lifecycle', () async {
     final cubit = make();
     await cubit.init('token');

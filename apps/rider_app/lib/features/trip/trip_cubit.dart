@@ -19,6 +19,7 @@ class TripCubit extends Cubit<TripState> {
     this._payments,
     this._ratings, {
     this.staleAfter = const Duration(seconds: 20),
+    this.restPollEvery = const Duration(seconds: 15),
   }) : super(const TripState());
 
   final TripRepository _repository;
@@ -31,6 +32,12 @@ class TripCubit extends Cubit<TripState> {
   /// stale ([TripState.driverStale]). Injectable so tests don't wait 20 s.
   final Duration staleAfter;
   Timer? _staleTimer;
+
+  /// While driver pings are stale, how often to pull the trip over REST (and,
+  /// from the second round, rebuild the socket). Injectable for tests.
+  final Duration restPollEvery;
+  Timer? _restPoll;
+  String? _lastToken;
 
   static const String cancelFailedMessage =
       "Couldn't cancel the ride — check your connection and try again";
@@ -60,6 +67,7 @@ class TripCubit extends Cubit<TripState> {
   /// access token on every (re)connect; without it the given [token] is used.
   Future<void> init(String token, {AccessTokenProvider? tokenProvider}) async {
     _tokenProvider = tokenProvider;
+    _lastToken = token;
     _myId = AuthInterceptor.jwtSubject(token);
     // Subscribe BEFORE connecting. The realtime streams are broadcast
     // controllers that outlive any one socket and are re-bound to each new
@@ -133,20 +141,42 @@ class TripCubit extends Cubit<TripState> {
   /// wedged, leaving "Reconnecting…" up forever — so reconnect explicitly and
   /// re-sync whatever trip is live.
   Future<void> resumeFromBackground(String token) async {
-    // Don't trust `isConnected` alone: after a suspend the socket.io client can
-    // still report `connected` while its transport is dead. Only skip the
-    // reconnect when the live connection stream also says we're up.
-    if (_realtime.isConnected && state.connected) {
-      _resync();
-      return;
-    }
+    _lastToken = token;
+    // iOS suspends the app and silently kills the transport. socket.io keeps
+    // reporting `connected` until its ping timeout (~45 s), and a `trip:sync`
+    // emitted meanwhile is lost — that is how a rider came back from a locked
+    // screen to a frozen "on the way" card after the driver had completed the
+    // ride. So on every resume: (1) pull the trip over REST, which needs no
+    // socket and applies a completion/cancel that happened while we were
+    // away; (2) tear the socket down and connect fresh instead of trusting
+    // the stale flag.
+    await _refreshTripOverRest();
+    await _reconnectHard(token);
+  }
+
+  Future<void> _reconnectHard(String token) async {
     try {
+      _realtime.disconnect();
       await _connectRealtime(token);
+      if (isClosed) return;
       emit(state.copyWith(connected: true));
       await _restoreActiveTrip();
       _resync();
     } catch (_) {
-      emit(state.copyWith(connected: false));
+      if (!isClosed) emit(state.copyWith(connected: false));
+    }
+  }
+
+  /// Server truth for the trip we hold, over REST (works with a dead socket).
+  Future<void> _refreshTripOverRest() async {
+    final id = state.trip?.id;
+    if (id == null) return;
+    try {
+      final fresh = await _repository.getTrip(id);
+      if (isClosed) return;
+      _applyTrip(fresh);
+    } catch (_) {
+      // Still offline; the stale watchdog keeps retrying.
     }
   }
 
@@ -197,6 +227,18 @@ class TripCubit extends Cubit<TripState> {
     if (phase == TripPhase.idle) {
       _resetTracking();
       emit(const TripState());
+    } else if (phase == TripPhase.completed &&
+        state.phase != TripPhase.completed) {
+      // The `trip:completed` event was missed (socket down at the time):
+      // show the summary from the trip row and fetch the receipt for the
+      // itemised fare/tip.
+      _resetTracking();
+      emit(state.copyWith(
+        phase: TripPhase.completed,
+        trip: trip,
+        fareFinal: trip.fareFinal ?? state.fareFinal,
+      ));
+      unawaited(_loadReceipt(trip.id));
     } else {
       // Rehydrate everything the map + sheets draw from the trip itself, not
       // just the phase: after a kill+reopen mid-ride there is no `estimate`,
@@ -266,13 +308,42 @@ class TripCubit extends Cubit<TripState> {
   void _resetTracking() {
     _staleTimer?.cancel();
     _staleTimer = null;
+    _restPoll?.cancel();
+    _restPoll = null;
   }
 
   void _restartStaleWatchdog() {
     _staleTimer?.cancel();
+    // A fresh ping means the socket is alive: stop any REST fallback.
+    _restPoll?.cancel();
+    _restPoll = null;
     _staleTimer = Timer(staleAfter, () {
       if (isClosed || state.driverStale) return;
       emit(state.copyWith(driverStale: true));
+      _startRestPoll();
+    });
+  }
+
+  /// No driver pings for [staleAfter]: the socket may be dead without having
+  /// told us. Pull the trip over REST every [restPollEvery] so an arrival,
+  /// start or completion still shows, and from the second silent round
+  /// rebuild the socket as well.
+  void _startRestPoll() {
+    _restPoll?.cancel();
+    var rounds = 0;
+    _restPoll = Timer.periodic(restPollEvery, (t) async {
+      if (isClosed || state.trip == null) {
+        t.cancel();
+        return;
+      }
+      rounds++;
+      await _refreshTripOverRest();
+      if (isClosed || state.trip == null || !state.driverStale) {
+        t.cancel();
+        return;
+      }
+      final token = _lastToken;
+      if (rounds >= 2 && token != null) await _reconnectHard(token);
     });
   }
 

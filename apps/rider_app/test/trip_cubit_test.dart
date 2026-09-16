@@ -926,6 +926,71 @@ void main() {
     ],
   );
 
+  // Regression (field test, 2026-09-15): the rider locked the screen mid-ride,
+  // the driver completed the trip meanwhile, and the rider came back to a
+  // frozen "on the way" card: `trip:completed` had been missed and the resume
+  // path only re-emitted `trip:sync` on a dead socket.
+  blocTest<TripCubit, TripState>(
+    'resumeFromBackground applies a completion that happened while suspended',
+    setUp: () {
+      when(() => repo.getTrip('t1')).thenAnswer(
+        (_) async => Trip(
+          id: 't1',
+          status: TripStatus.completed,
+          tier: 'economy',
+          pickup: const TripEndpoint(point: pickup),
+          dropoff: const TripEndpoint(point: dropoff),
+          fareFinal: 12.5,
+        ),
+      );
+      when(() => repo.activeTripDetails()).thenAnswer((_) async => null);
+      when(() => payments.receipt('t1')).thenThrow(const ApiException('no'));
+    },
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    // connected:false = the banner was up; the resume path flips it back.
+    seed: () =>
+        TripState(phase: TripPhase.onTrip, trip: trip, connected: false),
+    act: (c) => c.resumeFromBackground('token'),
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.phase, 'phase', TripPhase.completed)
+          .having((s) => s.fareFinal, 'fareFinal', 12.5),
+      isA<TripState>().having((s) => s.connected, 'connected', true),
+    ],
+  );
+
+  test('stale driver pings fall back to REST polling and a rebuilt socket',
+      () async {
+    when(() => repo.getTrip('t1')).thenAnswer(
+      (_) async => Trip(
+        id: 't1',
+        status: TripStatus.arrived,
+        tier: 'economy',
+        pickup: const TripEndpoint(point: pickup),
+        dropoff: const TripEndpoint(point: dropoff),
+      ),
+    );
+    when(() => repo.activeTripDetails()).thenAnswer((_) async => null);
+    final cubit = TripCubit(
+      repo,
+      realtime,
+      payments,
+      ratings,
+      staleAfter: const Duration(milliseconds: 30),
+      restPollEvery: const Duration(milliseconds: 30),
+    );
+    await cubit.init('token');
+    cubit.emit(TripState(phase: TripPhase.driverEnRoute, trip: trip));
+    cubit.debugDriverLocation({'lat': 12.96, 'lng': 77.63});
+    // 30 ms → stale; poll rounds at +30 ms and +60 ms.
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(cubit.state.driverStale, isTrue);
+    // The REST answer (arrived) was applied even though no socket event came.
+    expect(cubit.state.phase, TripPhase.driverArrived);
+    verify(() => repo.getTrip('t1')).called(greaterThanOrEqualTo(2));
+    await cubit.close();
+  });
+
   // Regression: a cancel that failed on the wire (offline) used to reset the
   // UI to Home anyway, hiding a ride the server still had live.
   blocTest<TripCubit, TripState>(

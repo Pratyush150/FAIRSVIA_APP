@@ -150,20 +150,20 @@ class DriverCubit extends Cubit<DriverState> {
   /// WebSocket down while backgrounded and socket.io's own retry can stay
   /// wedged — leaving a driver who looks "Online" but receives no offers.
   Future<void> resumeFromBackground(String token) async {
-    // Don't trust `isConnected` alone: after a suspend the socket.io client can
-    // still report `connected` while its transport is dead. Only skip the
-    // reconnect when the live connection stream also says we're up.
-    if (_realtime.isConnected && state.connected) {
-      await _onReconnect();
-      return;
-    }
+    // After a suspend the socket can look connected while its transport is
+    // dead, and socket.io only notices at ping timeout (~45 s). Rebuild it
+    // every time we come back; `_onReconnect` re-announces presence and
+    // refreshes the trip over REST, so a rider cancel that happened while
+    // the screen was off is applied at once.
     try {
+      _realtime.disconnect();
       await _connectRealtime(token);
+      if (isClosed) return;
       emit(state.copyWith(connected: true));
       await _restoreActiveTrip();
       await _onReconnect();
     } catch (_) {
-      emit(state.copyWith(connected: false));
+      if (!isClosed) emit(state.copyWith(connected: false));
     }
   }
 
