@@ -165,6 +165,13 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token expired or revoked.');
     }
     if (record.revoked) {
+      // A rotated token presented again is usually NOT theft: the client's
+      // refresh reply was lost (dead zone, app suspended mid-request) and it
+      // retried with the only token it still has. Replay the pair we issued
+      // for it, so a flaky network never logs anyone out. Outside that short
+      // window it is treated as reuse.
+      const replay = await this.replayRotation<AuthTokens>(tokenHash);
+      if (replay) return replay;
       await this.onRefreshTokenReuse(payload.sub, record.id);
     }
     if (record.expiresAt < new Date()) {
@@ -178,6 +185,10 @@ export class AuthService {
       data: { revoked: true },
     });
     if (claimed.count === 0) {
+      // Another in-flight refresh won the race a moment ago; hand this caller
+      // the same pair rather than logging the device out.
+      const replay = await this.replayRotation<AuthTokens>(tokenHash);
+      if (replay) return replay;
       await this.onRefreshTokenReuse(payload.sub, record.id);
     }
 
@@ -188,7 +199,42 @@ export class AuthService {
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Account is not active.');
     }
-    return this.issueTokens(user.id, user.role);
+    const issued = await this.issueTokens(user.id, user.role);
+    // Remember what this token rotated into, briefly, so a retry of the same
+    // request gets the same answer instead of a forced logout.
+    await this.rememberRotation(tokenHash, issued);
+    return issued;
+  }
+
+  /** How long a rotated refresh token can be replayed by its own client. */
+  private static readonly rotationReplayTtlS = 120;
+
+  private rotationKey(tokenHash: string): string {
+    return `auth:rotated:${tokenHash}`;
+  }
+
+  private async rememberRotation(
+    tokenHash: string,
+    issued: unknown,
+  ): Promise<void> {
+    try {
+      await this.redis.setEx(
+        this.rotationKey(tokenHash),
+        JSON.stringify(issued),
+        AuthService.rotationReplayTtlS,
+      );
+    } catch {
+      // Best effort: without it the caller simply falls back to reuse handling.
+    }
+  }
+
+  private async replayRotation<T>(tokenHash: string): Promise<T | null> {
+    try {
+      const raw = await this.redis.client.get(this.rotationKey(tokenHash));
+      return raw ? (JSON.parse(raw) as T) : null;
+    } catch {
+      return null;
+    }
   }
 
   /** Revoke every refresh token for the user and reject the request. */
