@@ -237,13 +237,16 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     final c = await _controller.future;
     if (!mounted || _userPanned) return;
     _programmaticMove = true;
+    // Keep the car centred but leave the map flat and north-up at the same
+    // street zoom the rider sees: the heading-up, tilted variant made the
+    // driver's map look like a different product in the field.
     await c.animateCamera(
       gmaps.CameraUpdate.newCameraPosition(
         gmaps.CameraPosition(
           target: _g(target),
-          zoom: 17,
-          bearing: _driverBearing,
-          tilt: 30,
+          zoom: widget.initialZoom,
+          bearing: 0,
+          tilt: 0,
         ),
       ),
     );
