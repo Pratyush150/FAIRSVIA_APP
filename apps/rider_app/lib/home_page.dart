@@ -184,6 +184,15 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   }
 
   /// Banner tap: open the relevant Settings page, or just try again.
+  /// Which fix-it action a given location problem needs.
+  static LocationBannerAction _bannerActionFor(LocationIssue? issue) =>
+      switch (issue) {
+        LocationIssue.servicesOff => LocationBannerAction.openLocationSettings,
+        LocationIssue.deniedForever => LocationBannerAction.openAppSettings,
+        LocationIssue.denied || LocationIssue.error || null =>
+          LocationBannerAction.retry,
+      };
+
   Future<void> _onLocationBannerAction(LocationBannerAction action) async {
     switch (action) {
       case LocationBannerAction.retry:
@@ -652,6 +661,13 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                     onSearch: _openSearch,
                     savedPlaces: _savedPlaces,
                     onPickSaved: _pickSaved,
+                    // Booking is gated while we have no real fix: a ride
+                    // requested from the city-centre fallback would send the
+                    // driver to the wrong place.
+                    locationIssue: _hasRealLocation ? null : _locationIssue,
+                    onFixLocation: () => _onLocationBannerAction(
+                      _bannerActionFor(_locationIssue),
+                    ),
                   ),
                 ),
               ],
@@ -668,6 +684,8 @@ class _BottomSheetForPhase extends StatelessWidget {
     required this.onSearch,
     this.savedPlaces = const [],
     required this.onPickSaved,
+    this.locationIssue,
+    this.onFixLocation,
   });
 
   final TripState state;
@@ -675,11 +693,18 @@ class _BottomSheetForPhase extends StatelessWidget {
   final List<SavedPlace> savedPlaces;
   final ValueChanged<SavedPlace> onPickSaved;
 
+  /// Non-null when no real position is known: the idle sheet then shows a
+  /// blocking "Location required" gate instead of the destination search.
+  final LocationIssue? locationIssue;
+  final VoidCallback? onFixLocation;
+
   @override
   Widget build(BuildContext context) {
     final child = switch (state.phase) {
       TripPhase.idle => _WhereToCard(
           onTap: onSearch,
+          locationIssue: locationIssue,
+          onFixLocation: onFixLocation,
           savedPlaces: savedPlaces,
           onPickSaved: onPickSaved,
         ),
@@ -747,11 +772,15 @@ class _WhereToCard extends StatelessWidget {
     required this.onTap,
     this.savedPlaces = const [],
     required this.onPickSaved,
+    this.locationIssue,
+    this.onFixLocation,
   });
 
   final VoidCallback onTap;
   final List<SavedPlace> savedPlaces;
   final ValueChanged<SavedPlace> onPickSaved;
+  final LocationIssue? locationIssue;
+  final VoidCallback? onFixLocation;
 
   IconData _iconFor(String label) {
     final l = label.toLowerCase();
@@ -764,6 +793,10 @@ class _WhereToCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final issue = locationIssue;
+    if (issue != null) {
+      return _LocationRequiredGate(issue: issue, onFix: onFixLocation);
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -819,6 +852,64 @@ class _WhereToCard extends StatelessWidget {
               Divider(height: 1, color: theme.dividerColor),
           ],
         ],
+      ],
+    );
+  }
+}
+
+/// Booking gate shown in place of the destination search when no real
+/// position is known. Without a real fix the pickup would be the city-centre
+/// fallback, which sends the driver to the wrong place — so booking is
+/// blocked outright rather than allowed to go wrong quietly.
+class _LocationRequiredGate extends StatelessWidget {
+  const _LocationRequiredGate({required this.issue, this.onFix});
+
+  final LocationIssue issue;
+  final VoidCallback? onFix;
+
+  String get _message => switch (issue) {
+        LocationIssue.servicesOff =>
+          'Location Services are off, so we can\'t tell where to pick you '
+              'up. Turn them on to book a ride.',
+        LocationIssue.denied =>
+          'We need your location to set your pickup point and send a driver '
+              'to the right place.',
+        LocationIssue.deniedForever =>
+          'Location access is turned off for this app. Enable it in Settings '
+              'to book a ride.',
+        LocationIssue.error =>
+          "We couldn't read your location. Try again to book a ride.",
+      };
+
+  String get _action => switch (issue) {
+        LocationIssue.servicesOff => 'Turn on Location Services',
+        LocationIssue.denied => 'Allow location',
+        LocationIssue.deniedForever => 'Open Settings',
+        LocationIssue.error => 'Try again',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.location_off_rounded,
+                color: AppColors.warning, size: 24),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text('Location required',
+                  style: theme.textTheme.headlineMedium),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(_message, style: theme.textTheme.bodyMedium),
+        const SizedBox(height: AppSpacing.lg),
+        PrimaryButton(label: _action, onPressed: onFix),
       ],
     );
   }

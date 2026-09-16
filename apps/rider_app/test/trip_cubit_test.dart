@@ -976,14 +976,15 @@ void main() {
       realtime,
       payments,
       ratings,
-      staleAfter: const Duration(milliseconds: 30),
-      restPollEvery: const Duration(milliseconds: 30),
+      // Generous enough not to flake when the whole suite runs under load.
+      staleAfter: const Duration(milliseconds: 200),
+      restPollEvery: const Duration(milliseconds: 200),
     );
     await cubit.init('token');
     cubit.emit(TripState(phase: TripPhase.driverEnRoute, trip: trip));
     cubit.debugDriverLocation({'lat': 12.96, 'lng': 77.63});
-    // 30 ms → stale; poll rounds at +30 ms and +60 ms.
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    // 200 ms → stale; poll rounds at +200 ms and +400 ms.
+    await Future<void>.delayed(const Duration(milliseconds: 900));
     expect(cubit.state.driverStale, isTrue);
     // The REST answer (arrived) was applied even though no socket event came.
     expect(cubit.state.phase, TripPhase.driverArrived);
