@@ -7,8 +7,13 @@ import { TIER_KEYS } from '../pricing/fare-config';
 const CELL_DEG = 0.02;
 /** Demand window: a rider's live request "counts" toward surge for this long. */
 export const DEMAND_TTL = 300;
-/** Supply search radius around the pickup. */
-const SUPPLY_RADIUS_KM = 3;
+/**
+ * Supply search radius around the pickup. Must match dispatch's MAX_RADIUS_KM:
+ * a driver dispatch will actually reach IS available supply. With a smaller
+ * radius the only online driver sitting at, say, 7 km counted as zero supply
+ * and every rider was quoted the surge cap while a car was on its way to them.
+ */
+const SUPPLY_RADIUS_KM = 9;
 /** Hard ceiling on the surge multiplier. */
 export const SURGE_CAP = 2.0;
 
@@ -81,15 +86,22 @@ export class SurgeService {
     return total;
   }
 
-  /** Stepped demand:supply curve — legible surge tiers rather than a raw ratio. */
+  /**
+   * Stepped demand:supply curve — legible surge tiers rather than a raw ratio.
+   *
+   * Surge means "more riders than cars", so it only starts once demand
+   * genuinely exceeds supply: a balanced 1:1 area is not surged. With no
+   * reachable driver at all the request is about to fail with "no drivers",
+   * so quoting a scarcity price the rider can never use would only mislead.
+   */
   private curve(demand: number, supply: number): number {
     if (demand <= 0) return 1;
-    if (supply <= 0) return SURGE_CAP;
+    if (supply <= 0) return 1;
     const ratio = demand / supply;
     if (ratio >= 3) return SURGE_CAP;
     if (ratio >= 2) return 1.5;
-    if (ratio >= 1.2) return 1.3;
-    if (ratio >= 0.8) return 1.2;
+    if (ratio >= 1.5) return 1.3;
+    if (ratio > 1) return 1.2;
     return 1;
   }
 

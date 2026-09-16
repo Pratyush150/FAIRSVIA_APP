@@ -54,16 +54,20 @@ describe('SurgeService', () => {
     expect(await mult({ demand: 0, supply: 5 })).toBe(1);
   });
 
-  it('caps when there is demand but zero supply', async () => {
-    expect(await mult({ demand: 3, supply: 0 })).toBe(SURGE_CAP);
+  it('does not surge when no driver is reachable (the ride will fail anyway)',
+    async () => {
+    expect(await mult({ demand: 3, supply: 0 })).toBe(1);
   });
 
   it('steps up with the demand:supply ratio', async () => {
     expect(await mult({ demand: 6, supply: 2 })).toBe(SURGE_CAP); // ratio 3
     expect(await mult({ demand: 4, supply: 2 })).toBe(1.5); // ratio 2
     expect(await mult({ demand: 3, supply: 2 })).toBe(1.3); // ratio 1.5
-    expect(await mult({ demand: 2, supply: 2 })).toBe(1.2); // ratio 1
+    expect(await mult({ demand: 5, supply: 4 })).toBe(1.2); // ratio 1.25
+    expect(await mult({ demand: 2, supply: 2 })).toBe(1); // balanced → no surge
     expect(await mult({ demand: 1, supply: 3 })).toBe(1); // ratio 0.33
+    // A lone driver anywhere inside the 9 km dispatch range is real supply.
+    expect(await mult({ demand: 1, supply: 1 })).toBe(1);
   });
 
   it('honours an admin override as a floor', async () => {
@@ -72,7 +76,7 @@ describe('SurgeService', () => {
   });
 
   it('lets organic surge exceed a lower override', async () => {
-    expect(await mult({ demand: 3, supply: 0, override: 1.2 })).toBe(SURGE_CAP);
+    expect(await mult({ demand: 3, supply: 0, override: 1.2 })).toBe(1.2);
   });
 
   // Demand is a per-cell set of riders: a single rider hammering "request"
@@ -84,8 +88,8 @@ describe('SurgeService', () => {
       await svc.recordDemand(12.9, 77.6, 'rider-A');
       await svc.recordDemand(12.9, 77.6, 'rider-A');
       await svc.recordDemand(12.9, 77.6, 'rider-A');
-      // demand 1 vs supply 1 → ratio 1 → 1.2x, NOT 2.0x (which demand 3 would give).
-      expect(await svc.multiplierFor(12.9, 77.6)).toBe(1.2);
+      // demand 1 vs supply 1 → balanced → no surge (and NOT the cap).
+      expect(await svc.multiplierFor(12.9, 77.6)).toBe(1);
       expect(client.expire).toHaveBeenCalledWith(expect.stringContaining('surge:demand:'), DEMAND_TTL);
     });
 
@@ -104,7 +108,8 @@ describe('SurgeService', () => {
       await svc.recordDemand(12.9, 77.6, 'rider-A');
       await svc.recordDemand(12.9, 77.6, 'rider-B');
       await svc.releaseDemand(12.9, 77.6, 'rider-A');
-      expect(await svc.multiplierFor(12.9, 77.6)).toBe(1.2); // back to demand 1
+      // Back to demand 1 vs supply 1 → balanced → no surge.
+      expect(await svc.multiplierFor(12.9, 77.6)).toBe(1);
       // Releasing again (or a rider never recorded) is a harmless no-op.
       await expect(svc.releaseDemand(12.9, 77.6, 'rider-A')).resolves.toBeUndefined();
       await expect(svc.releaseDemand(12.9, 77.6, 'rider-Z')).resolves.toBeUndefined();
