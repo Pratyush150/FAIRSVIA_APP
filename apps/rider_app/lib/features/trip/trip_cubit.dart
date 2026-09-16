@@ -133,13 +133,17 @@ class TripCubit extends Cubit<TripState> {
   /// wedged, leaving "Reconnecting…" up forever — so reconnect explicitly and
   /// re-sync whatever trip is live.
   Future<void> resumeFromBackground(String token) async {
-    // Don't trust `isConnected` alone: after a suspend the socket.io client can
-    // still report `connected` while its transport is dead. Only skip the
-    // reconnect when the live connection stream also says we're up.
-    if (_realtime.isConnected && state.connected) {
-      _resync();
-      return;
-    }
+    // After an OS suspend, socket.io often reports the socket as still
+    // `connected` while its transport is actually dead (a "zombie" socket) —
+    // anything emitted into it (e.g. trip:sync) is silently dropped. The old
+    // code trusted that state and skipped the reconnect, so a rider who missed
+    // `trip:completed` while the screen was off stayed stuck on the on-trip
+    // screen until socket.io eventually noticed the dead link (the "took ages
+    // to reconnect"), or forever if the app was closed first. The rider app has
+    // NO background execution (unlike the driver, which keeps its socket alive),
+    // so on resume we ALWAYS force a fresh reconnect (idempotent — connectWith
+    // does disconnect()+forceNew) before re-syncing, rather than trusting
+    // isConnected. A brief reconnect on resume is cheap; a stuck trip is not.
     try {
       await _connectRealtime(token);
       emit(state.copyWith(connected: true));
