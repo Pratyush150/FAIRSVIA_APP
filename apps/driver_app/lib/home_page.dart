@@ -903,9 +903,9 @@ class _CompletedSheet extends StatelessWidget {
         Center(
           child: StarRating(
             value: state.riderRating ?? 0,
-            onRate: state.riderRating == null
-                ? (v) => cubit.rateRider(v)
-                : null,
+            // Always tappable — re-rating corrects the first tap rather than
+            // adding a second vote (see DriverCubit.rateRider).
+            onRate: (v) => cubit.rateRider(v),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),

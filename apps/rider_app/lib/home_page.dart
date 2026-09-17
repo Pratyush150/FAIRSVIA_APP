@@ -380,7 +380,17 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   List<LatLng> _plannedRoute(TripState state) {
     final leg = _legKey(state);
     // Prefer a freshly re-routed line for the current leg — the road the driver
-    // actually took — over the route planned at booking/accept.
+    // actually took — over the route planned at booking/accept. The server's
+    // own recompute wins: it is also what its live ETA is measured against, so
+    // taking it keeps the drawn line and the "N min" agreeing, and spares us a
+    // duplicate routing call.
+    if (leg != null && state.liveRouteLeg == leg) {
+      final pushed = state.liveRoutePolyline;
+      if (pushed != null && pushed.isNotEmpty) {
+        final live = MapUtils.decodePolyline(pushed);
+        if (live.length >= 2) return live;
+      }
+    }
     if (leg != null && _liveRoutePolyline != null && _liveRouteLeg == leg) {
       final live = MapUtils.decodePolyline(_liveRoutePolyline!);
       if (live.length >= 2) return live;
@@ -518,12 +528,56 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     );
   }
 
+  /// A live-ride advisory. Informational only — there is one button, and the
+  /// wording stays neutral: a driver who leaves the route or stops is usually
+  /// dealing with traffic, roadworks or a queue, not doing anything wrong.
+  /// Safety actions stay where riders already look for them (the SOS button).
+  Future<void> _showRideAlert(BuildContext context, TripAlert alert) {
+    AppHaptics.medium();
+    final (title, message) = switch (alert.kind) {
+      TripAlertKind.offRoute => (
+          'Your driver left the route',
+          'Your driver is taking a different road. The map has been updated to '
+              'follow the route they are actually driving.',
+        ),
+      TripAlertKind.driverStopped => (
+          'Your driver has stopped',
+          '${_stoppedFor(alert.stoppedSec)} Message or call them if you need to.',
+        ),
+    };
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "Your driver hasn't moved for about 3 minutes." — rounded, because the
+  /// exact second is noise and a precise number invites false precision.
+  static String _stoppedFor(int? seconds) {
+    if (seconds == null || seconds < 60) {
+      return "Your driver hasn't moved for a few minutes.";
+    }
+    final minutes = (seconds / 60).round();
+    return "Your driver hasn't moved for about "
+        '$minutes ${minutes == 1 ? 'minute' : 'minutes'}.';
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<TripCubit, TripState>(
         listenWhen: (prev, curr) =>
             prev.phase != curr.phase ||
             prev.notice != curr.notice ||
+            prev.alert != curr.alert ||
             prev.driverLocation != curr.driverLocation ||
             (curr.phase == TripPhase.idle && prev.error != curr.error),
         listener: (context, state) {
@@ -534,6 +588,15 @@ class _RiderHomeViewState extends State<_RiderHomeView>
             ScaffoldMessenger.of(context)
                 .showSnackBar(SnackBar(content: Text(notice)));
             cubit.clearNotice();
+          }
+          // Live-ride advisories (driver off route / stopped) as a dialog: the
+          // rider is watching a map that no longer matches what is happening,
+          // and a snackbar that slides away after four seconds is too easy to
+          // miss from the back seat.
+          final alert = state.alert;
+          if (alert != null) {
+            cubit.clearAlert();
+            unawaited(_showRideAlert(context, alert));
           }
           // Drop a stale re-routed line when the leg changes (approach → trip),
           // and keep the drawn line on the road the driver actually takes.
@@ -1768,17 +1831,96 @@ class _RideTierTile extends StatelessWidget {
                 ],
               ),
             ),
-            Text(
-              // Same rule as the confirm footer (Fmt.money): whole dollars
-              // stay whole, otherwise cents — so the list and the CTA agree.
-              '\$${_money(tier.fare)}',
-              style: theme.textTheme.titleLarge?.tabular(),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  // Same rule as the confirm footer (Fmt.money): whole dollars
+                  // stay whole, otherwise cents — so the list and the CTA agree.
+                  '\$${_money(tier.fare)}',
+                  style: theme.textTheme.titleLarge?.tabular(),
+                ),
+                // What that number is made of. Only offered when the backend
+                // itemised the estimate — a "Details" button that opens an
+                // empty sheet is worse than no button.
+                if (tier.breakdown != null)
+                  GestureDetector(
+                    onTap: () => showFareDetailsSheet(context, tier),
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Details',
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.accent)),
+                          const Icon(Icons.keyboard_arrow_right_rounded,
+                              size: 16, color: AppColors.accent),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
       ),
     );
   }
+}
+
+/// The itemised fare behind a tier's "Details" control: exactly the lines the
+/// receipt will show after the ride, so the price is never a bare number the
+/// rider has to take on trust. The backend guarantees these sum to the fare.
+Future<void> showFareDetailsSheet(BuildContext context, FareTier tier) {
+  final breakdown = tier.breakdown;
+  if (breakdown == null) return Future<void>.value();
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      final theme = Theme.of(ctx);
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('${tier.label} fare', style: theme.textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.md),
+              FareBreakdownRows(
+                breakdown: breakdown,
+                currency: tier.currency,
+                showTip: false,
+              ),
+              Divider(height: AppSpacing.lg, color: theme.dividerColor),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Estimated total', style: theme.textTheme.titleMedium),
+                  Text('\$${tier.fare.toStringAsFixed(2)}',
+                      style: theme.textTheme.titleMedium?.tabular()),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'The final fare can differ if the route or traffic changes on '
+                'the day. Tolls and waiting time are charged separately.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _FindingDriver extends StatelessWidget {
@@ -2383,7 +2525,15 @@ class _CompletedSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cubit = context.read<TripCubit>();
-    final fare = state.receipt?.fare ?? state.fareFinal ?? 0;
+    // Take the first source that actually states a fare. The receipt is the
+    // richest, but a capture still settling (or a failed fetch on a weak
+    // signal) can leave it at zero, and showing \$0.00 for a ride that just
+    // happened reads as a broken app — or a free ride.
+    final fare = [
+      state.receipt?.fare,
+      state.fareFinal,
+      state.trip?.fareDisplay,
+    ].firstWhere((v) => v != null && v > 0, orElse: () => null) ?? 0;
     final tip = state.tipAmount ?? state.receipt?.tip ?? 0;
     return SingleChildScrollView(
       child: Column(
@@ -2451,16 +2601,19 @@ class _CompletedSheet extends StatelessWidget {
               child: Text('Rate your driver',
                   style: theme.textTheme.titleMedium)),
           const SizedBox(height: AppSpacing.sm),
-          StarRating(
-            value: state.rating ?? 0,
-            onRate: state.rating == null ? cubit.rateDriver : null,
-          ),
+          // Always tappable: the backend stores one rating per trip and
+          // recomputes the driver's average from it, so tapping again is a
+          // correction, not a second vote. A mis-tapped star used to be
+          // permanent — unfair to the driver and frustrating for the rider.
+          StarRating(value: state.rating ?? 0, onRate: cubit.rateDriver),
           if (state.rating != null)
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.xs),
-                child: Text('Thanks for your feedback!',
-                    style: theme.textTheme.bodySmall),
+                child: Text(
+                  'Thanks for your feedback! Tap a star to change it.',
+                  style: theme.textTheme.bodySmall,
+                ),
               ),
             ),
           // Compliment tags — shown once a (positive) rating is given, so the

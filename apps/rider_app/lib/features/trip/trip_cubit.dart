@@ -111,6 +111,14 @@ class TripCubit extends Cubit<TripState> {
       ..add(_realtime.on('trip:cancelled').listen(_onCancelled))
       ..add(_realtime.on('trip:otp_locked').listen(_onOtpLocked))
       ..add(_realtime.on('trip:payment_warning').listen(_onPaymentWarning))
+      // Live-ride watchdogs: the server sees every GPS fix, so it — not this
+      // app — decides when the driver has left the route or stopped moving.
+      // Each has a matching "all clear" so a raised banner can come down.
+      ..add(_realtime.on('trip:off_route').listen(_onOffRoute))
+      ..add(_realtime.on('trip:back_on_route').listen(_onAllClear))
+      ..add(_realtime.on('trip:driver_stopped').listen(_onDriverStopped))
+      ..add(_realtime.on('trip:driver_moving').listen(_onAllClear))
+      ..add(_realtime.on('trip:route_updated').listen(_onRouteUpdated))
       // Reconnection resilience: the server replies to `trip:sync` with the
       // authoritative trip so we can rehydrate after a dropped socket.
       ..add(_realtime.on('trip:sync').listen(_onSync))
@@ -309,6 +317,61 @@ class TripCubit extends Cubit<TripState> {
     if (state.notice != null) emit(state.copyWith(notice: null));
   }
 
+  /// True while there is a live ride an advisory could be about. A late event
+  /// for a finished trip must not pop a dialog over the home screen.
+  bool _isRiding() =>
+      state.phase == TripPhase.driverEnRoute ||
+      state.phase == TripPhase.driverArrived ||
+      state.phase == TripPhase.onTrip;
+
+  bool _isThisTrip(Map<String, dynamic> data) {
+    final tripId = data['tripId'] as String?;
+    final current = state.trip?.id;
+    return tripId == null || current == null || tripId == current;
+  }
+
+  void _onOffRoute(Map<String, dynamic> data) {
+    if (!_isRiding() || !_isThisTrip(data)) return;
+    emit(state.copyWith(alert: TripAlert(TripAlertKind.offRoute)));
+  }
+
+  void _onDriverStopped(Map<String, dynamic> data) {
+    if (!_isRiding() || !_isThisTrip(data)) return;
+    emit(state.copyWith(
+      alert: TripAlert(
+        TripAlertKind.driverStopped,
+        stoppedSec: (data['stoppedSec'] as num?)?.round(),
+      ),
+    ));
+  }
+
+  /// The condition that raised an advisory has passed (back on the route, or
+  /// moving again): take any banner down.
+  void _onAllClear(Map<String, dynamic> data) {
+    if (state.alert == null || !_isThisTrip(data)) return;
+    emit(state.copyWith(alert: null));
+  }
+
+  /// The UI has shown [TripState.alert]; drop it so the same kind of advisory
+  /// can be raised again later in the ride.
+  void clearAlert() {
+    if (state.alert != null) emit(state.copyWith(alert: null));
+  }
+
+  /// The server re-routed the current leg from where the driver actually is.
+  /// Taking its line means the drawn route and the server's ETA agree, and the
+  /// app doesn't pay for a second routing call to work the same thing out.
+  void _onRouteUpdated(Map<String, dynamic> data) {
+    if (!_isThisTrip(data)) return;
+    final polyline = data['polyline'] as String?;
+    if (polyline == null || polyline.isEmpty) return;
+    emit(state.copyWith(
+      liveRoutePolyline: polyline,
+      liveRouteLeg: data['phase'] as String?,
+    ));
+  }
+
+
   /// Forget the live driver position + stale watchdog (trip over / reset).
   void _resetTracking() {
     _staleTimer?.cancel();
@@ -474,9 +537,15 @@ class TripCubit extends Cubit<TripState> {
 
   void _onCompleted(Map<String, dynamic> data) {
     _resetTracking();
+    final reported = (data['fareFinal'] as num?)?.toDouble();
     emit(state.copyWith(
       phase: TripPhase.completed,
-      fareFinal: (data['fareFinal'] as num?)?.toDouble(),
+      // Never let a completion event without a usable fare wipe out one we
+      // already hold — that is how a finished ride showed \$0.00.
+      fareFinal: (reported != null && reported > 0)
+          ? reported
+          : (state.fareFinal ?? state.trip?.fareDisplay),
+      alert: null,
       breakdown: FareBreakdown.fromJsonOrNull(data['breakdown']),
     ));
     // Pull the full receipt (fare + fee + payout + tip) for the summary sheet.
@@ -484,12 +553,33 @@ class TripCubit extends Cubit<TripState> {
     if (tripId != null) unawaited(_loadReceipt(tripId));
   }
 
+  /// How many times the receipt is re-fetched before giving up, and how long
+  /// to wait between attempts. A rider on a weak signal at the end of a ride
+  /// would otherwise be left looking at a summary with no money on it.
+  static const int receiptAttempts = 4;
+  static const Duration receiptRetryDelay = Duration(seconds: 3);
+
   Future<void> _loadReceipt(String tripId) async {
-    try {
-      final receipt = await _payments.receipt(tripId);
-      emit(state.copyWith(receipt: receipt));
-    } catch (_) {
-      // The fare from the socket event is enough to show a summary.
+    for (var attempt = 0; attempt < receiptAttempts; attempt++) {
+      if (isClosed) return;
+      try {
+        final receipt = await _payments.receipt(tripId);
+        if (isClosed) return;
+        // Only replace what we have with something that actually says a fare.
+        // A capture still settling can answer with zero, and the number from
+        // the completion event is better than blanking the sheet.
+        if (receipt.fare > 0 || state.fareFinal == null) {
+          emit(state.copyWith(receipt: receipt));
+        }
+        if (receipt.fare > 0) return;
+      } catch (_) {
+        // Offline or a hiccup — fall through to the retry.
+      }
+      // Still on this trip's summary? If the rider has moved on, stop.
+      if (state.phase != TripPhase.completed || state.trip?.id != tripId) return;
+      if (attempt < receiptAttempts - 1) {
+        await Future<void>.delayed(receiptRetryDelay);
+      }
     }
   }
 
@@ -506,15 +596,33 @@ class TripCubit extends Cubit<TripState> {
     }
   }
 
-  /// Rate the driver (1–5 stars). One rating per trip.
+  /// Rate the driver (1–5 stars), or change a rating already given.
+  ///
+  /// The backend upserts one rating per (trip, rater) and recomputes the
+  /// driver's average from the rows, so re-rating is a correction rather than
+  /// a second vote. Riders mis-tap, and having to live with a one-star slip
+  /// is worse for the driver than letting it be fixed.
   Future<void> rateDriver(int stars, {String? comment}) async {
     final tripId = state.trip?.id;
-    if (tripId == null || state.rating != null) return;
+    if (tripId == null || stars < 1 || stars > 5) return;
+    final previous = state.rating;
+    if (previous == stars) return;
+    // Show the new value immediately; put the old one back if it doesn't stick.
+    emit(state.copyWith(rating: stars));
     try {
-      await _ratings.rate(tripId, stars: stars, comment: comment);
-      emit(state.copyWith(rating: stars));
+      await _ratings.rate(
+        tripId,
+        stars: stars,
+        comment: comment,
+        // Compliments describe a good ride; they make no sense pinned to a
+        // rating the rider has just lowered.
+        tags: stars >= 4 ? state.ratingTags : const [],
+      );
+      if (stars < 4 && state.ratingTags.isNotEmpty) {
+        emit(state.copyWith(ratingTags: const []));
+      }
     } on ApiException catch (e) {
-      emit(state.copyWith(error: e.message));
+      emit(state.copyWith(rating: previous, error: e.message));
     }
   }
 
@@ -742,6 +850,11 @@ class TripCubit extends Cubit<TripState> {
       tier: tier,
       fare: fare.toDouble(),
       surge: surge?.toDouble(),
+      // Keep "Details" honest across a re-price: the server sends the fresh
+      // itemisation with the 409, so the lines still sum to the new fare.
+      breakdown: FareBreakdown.fromJsonOrNull(
+        est is Map ? est['breakdown'] : null,
+      ),
     );
     // An applied promo stays: its code is re-sent on the next Confirm and
     // the server re-prices the discount against the new fare.

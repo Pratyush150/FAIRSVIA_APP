@@ -764,19 +764,90 @@ void main() {
     verify: (_) => verify(() => payments.tip('t1', 30)).called(1),
   );
 
+  void stubRate() => when(() => ratings.rate('t1',
+      stars: any(named: 'stars'),
+      comment: any(named: 'comment'),
+      tags: any(named: 'tags'))).thenAnswer((_) async {});
+
   blocTest<TripCubit, TripState>(
     'rateDriver submits the rating and records the stars',
-    setUp: () => when(() => ratings.rate('t1',
-        stars: any(named: 'stars'),
-        comment: any(named: 'comment'))).thenAnswer((_) async {}),
+    setUp: stubRate,
     build: () => TripCubit(repo, realtime, payments, ratings),
     seed: () => TripState(phase: TripPhase.completed, trip: trip),
     act: (c) => c.rateDriver(5),
     expect: () => [
       isA<TripState>().having((s) => s.rating, 'rating', 5),
     ],
-    verify: (_) => verify(() => ratings.rate('t1', stars: 5, comment: null))
-        .called(1),
+    verify: (_) => verify(() =>
+        ratings.rate('t1', stars: 5, comment: null, tags: const [])).called(1),
+  );
+
+  /// Riders mis-tap. The backend keeps one rating per (trip, rater) and
+  /// recomputes the driver's average from it, so a second tap is a correction.
+  blocTest<TripCubit, TripState>(
+    'rateDriver can change a rating already given',
+    setUp: stubRate,
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => TripState(phase: TripPhase.completed, trip: trip, rating: 1),
+    act: (c) => c.rateDriver(5),
+    expect: () => [
+      isA<TripState>().having((s) => s.rating, 'rating', 5),
+    ],
+    verify: (_) =>
+        verify(() => ratings.rate('t1', stars: 5, comment: null, tags: const []))
+            .called(1),
+  );
+
+  blocTest<TripCubit, TripState>(
+    'rateDriver re-tapping the same star is a no-op, not a second call',
+    setUp: stubRate,
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => TripState(phase: TripPhase.completed, trip: trip, rating: 4),
+    act: (c) => c.rateDriver(4),
+    expect: () => <TripState>[],
+    verify: (_) => verifyNever(() => ratings.rate(any(),
+        stars: any(named: 'stars'),
+        comment: any(named: 'comment'),
+        tags: any(named: 'tags'))),
+  );
+
+  /// Compliments describe a good ride; they must not stay attached to a
+  /// rating the rider has just dropped to two stars.
+  blocTest<TripCubit, TripState>(
+    'lowering the rating drops the compliment tags with it',
+    setUp: stubRate,
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => TripState(
+      phase: TripPhase.completed,
+      trip: trip,
+      rating: 5,
+      ratingTags: const ['Great conversation'],
+    ),
+    act: (c) => c.rateDriver(2),
+    expect: () => [
+      isA<TripState>().having((s) => s.rating, 'rating', 2),
+      isA<TripState>().having((s) => s.ratingTags, 'ratingTags', isEmpty),
+    ],
+    verify: (_) =>
+        verify(() => ratings.rate('t1', stars: 2, comment: null, tags: const []))
+            .called(1),
+  );
+
+  blocTest<TripCubit, TripState>(
+    'a rejected rating change puts the previous stars back',
+    setUp: () => when(() => ratings.rate('t1',
+        stars: any(named: 'stars'),
+        comment: any(named: 'comment'),
+        tags: any(named: 'tags'))).thenThrow(const ApiException('nope')),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => TripState(phase: TripPhase.completed, trip: trip, rating: 4),
+    act: (c) => c.rateDriver(1),
+    expect: () => [
+      isA<TripState>().having((s) => s.rating, 'rating', 1),
+      isA<TripState>()
+          .having((s) => s.rating, 'rating', 4)
+          .having((s) => s.error, 'error', 'nope'),
+    ],
   );
 
   // Regression: killing the app mid-ride used to drop the rider on the idle
@@ -1152,4 +1223,199 @@ void main() {
       isA<TripState>().having((s) => s.driverStale, 'stale', isFalse),
     ],
   );
+
+  /// The server's GPS watchdogs. These push through the real subscription
+  /// wiring (ScriptedRealtimeClient drops events nobody subscribed to), so a
+  /// handler that was never hooked up fails here rather than passing quietly.
+  group('live-ride advisories', () {
+    setUp(() => when(() => repo.activeTripDetails())
+        .thenAnswer((_) async => null));
+
+    blocTest<TripCubit, TripState>(
+      'trip:off_route raises an advisory during the ride',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+      act: (c) async {
+        await c.init('token');
+        scripted.push('trip:off_route', {'tripId': 't1', 'offsetM': 340});
+      },
+      expect: () => [
+        isA<TripState>()
+            .having((s) => s.alert?.kind, 'alert', TripAlertKind.offRoute),
+      ],
+    );
+
+    blocTest<TripCubit, TripState>(
+      'trip:driver_stopped carries how long the driver has been stationary',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+      act: (c) async {
+        await c.init('token');
+        scripted.push(
+            'trip:driver_stopped', {'tripId': 't1', 'stoppedSec': 195});
+      },
+      expect: () => [
+        isA<TripState>()
+            .having((s) => s.alert?.kind, 'alert', TripAlertKind.driverStopped)
+            .having((s) => s.alert?.stoppedSec, 'stoppedSec', 195),
+      ],
+    );
+
+    blocTest<TripCubit, TripState>(
+      'an all-clear takes the advisory back down',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => TripState(
+        phase: TripPhase.onTrip,
+        trip: trip,
+        alert: TripAlert(TripAlertKind.offRoute),
+      ),
+      act: (c) async {
+        await c.init('token');
+        scripted.push('trip:back_on_route', {'tripId': 't1'});
+      },
+      expect: () => [
+        isA<TripState>().having((s) => s.alert, 'alert', isNull),
+      ],
+    );
+
+    blocTest<TripCubit, TripState>(
+      'the rider dismissing it lets the same advisory be raised again later',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+      act: (c) async {
+        await c.init('token');
+        scripted.push('trip:driver_stopped', {'tripId': 't1', 'stoppedSec': 200});
+        c.clearAlert();
+        scripted.push('trip:driver_stopped', {'tripId': 't1', 'stoppedSec': 400});
+      },
+      expect: () => [
+        isA<TripState>().having((s) => s.alert?.stoppedSec, 'first', 200),
+        isA<TripState>().having((s) => s.alert, 'dismissed', isNull),
+        isA<TripState>().having((s) => s.alert?.stoppedSec, 'second', 400),
+      ],
+    );
+
+    blocTest<TripCubit, TripState>(
+      'a late advisory for a finished ride never pops over the home screen',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => const TripState(),
+      act: (c) async {
+        await c.init('token');
+        scripted.push(
+            'trip:driver_stopped', {'tripId': 't1', 'stoppedSec': 200});
+      },
+      expect: () => <TripState>[],
+    );
+
+    blocTest<TripCubit, TripState>(
+      "an advisory for somebody else's trip is ignored",
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+      act: (c) async {
+        await c.init('token');
+        scripted.push('trip:off_route', {'tripId': 'other-trip'});
+      },
+      expect: () => <TripState>[],
+    );
+
+    blocTest<TripCubit, TripState>(
+      'trip:route_updated adopts the road the driver is actually on',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+      act: (c) async {
+        await c.init('token');
+        scripted.push('trip:route_updated', {
+          'tripId': 't1',
+          'phase': 'trip',
+          'polyline': 'abcdEfghI',
+        });
+      },
+      expect: () => [
+        isA<TripState>()
+            .having((s) => s.liveRoutePolyline, 'polyline', 'abcdEfghI')
+            .having((s) => s.liveRouteLeg, 'leg', 'trip'),
+      ],
+    );
+
+    blocTest<TripCubit, TripState>(
+      'an empty route update is ignored rather than blanking the line',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => TripState(
+        phase: TripPhase.onTrip,
+        trip: trip,
+        liveRoutePolyline: 'keepme',
+        liveRouteLeg: 'trip',
+      ),
+      act: (c) async {
+        await c.init('token');
+        scripted.push('trip:route_updated', {'tripId': 't1', 'polyline': ''});
+      },
+      expect: () => <TripState>[],
+    );
+  });
+
+  /// Regression: a completed ride showing $0.00. The completion event is where
+  /// a good fare can be lost, so it must never overwrite one we already hold
+  /// with nothing.
+  group('the fare on a finished ride', () {
+    setUp(() {
+      when(() => repo.activeTripDetails()).thenAnswer((_) async => null);
+      when(() => payments.receipt('t1'))
+          .thenThrow(const ApiException('offline'));
+    });
+
+    blocTest<TripCubit, TripState>(
+      'a completion event without a fare falls back to the trip estimate',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+      act: (c) async {
+        await c.init('token');
+        scripted.push('trip:completed', {'tripId': 't1'});
+      },
+      expect: () => [
+        isA<TripState>()
+            .having((s) => s.phase, 'phase', TripPhase.completed)
+            .having((s) => s.fareFinal, 'fare', 142.98),
+      ],
+    );
+
+    blocTest<TripCubit, TripState>(
+      'a zero fare on the event does not wipe out one already held',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () =>
+          TripState(phase: TripPhase.onTrip, trip: trip, fareFinal: 24.5),
+      act: (c) async {
+        await c.init('token');
+        scripted.push('trip:completed', {'tripId': 't1', 'fareFinal': 0});
+      },
+      expect: () => [
+        isA<TripState>().having((s) => s.fareFinal, 'fare', 24.5),
+      ],
+    );
+
+    blocTest<TripCubit, TripState>(
+      'a real fare on the event is what gets shown',
+      build: () => TripCubit(
+          repo, scripted = ScriptedRealtimeClient(), payments, ratings),
+      seed: () => TripState(phase: TripPhase.onTrip, trip: trip),
+      act: (c) async {
+        await c.init('token');
+        scripted.push('trip:completed', {'tripId': 't1', 'fareFinal': 31.4});
+      },
+      expect: () => [
+        isA<TripState>().having((s) => s.fareFinal, 'fare', 31.4),
+      ],
+    );
+  });
+
 }

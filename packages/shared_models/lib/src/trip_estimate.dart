@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import 'fare_breakdown.dart';
 import 'fare_tier.dart';
 import 'geo_point.dart';
 import 'price_comparison.dart';
@@ -42,10 +43,14 @@ class TripEstimate extends Equatable {
   /// tiers keep their quoted fares: the rider is re-confirming the tier they
   /// picked, and the server only re-priced that one. Unknown [tier] → the
   /// surge still updates, no fare changes.
+  /// [breakdown] is the server's fresh itemisation of the new fare when the
+  /// 409 carried one. Passing null drops the tier's old breakdown rather than
+  /// keeping lines that no longer add up to the price being confirmed.
   TripEstimate repriced({
     required String tier,
     required double fare,
     double? surge,
+    FareBreakdown? breakdown,
   }) =>
       TripEstimate(
         distanceM: distanceM,
@@ -65,6 +70,7 @@ class TripEstimate extends Equatable {
                     fare: fare,
                     currency: t.currency,
                     etaSeconds: t.etaSeconds,
+                    breakdown: breakdown,
                   )
                 : t,
         ],

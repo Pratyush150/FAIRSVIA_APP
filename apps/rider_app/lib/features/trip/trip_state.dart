@@ -15,6 +15,27 @@ enum TripPhase {
   error,
 }
 
+/// A live-ride advisory raised by the server's GPS watchdogs: the driver has
+/// left the route, or has been stationary long enough to be worth mentioning.
+/// Advisory only — neither changes the ride, the fare, or what the rider can do.
+enum TripAlertKind { offRoute, driverStopped }
+
+/// One raised advisory. [raisedAt] makes two consecutive alerts of the same
+/// kind distinct values, so the UI's listener fires for the second one too.
+class TripAlert extends Equatable {
+  TripAlert(this.kind, {this.stoppedSec, DateTime? raisedAt})
+      : raisedAt = raisedAt ?? DateTime.now();
+
+  final TripAlertKind kind;
+
+  /// How long the driver had been stationary, for [TripAlertKind.driverStopped].
+  final int? stoppedSec;
+  final DateTime raisedAt;
+
+  @override
+  List<Object?> get props => [kind, stoppedSec, raisedAt];
+}
+
 class TripState extends Equatable {
   const TripState({
     this.phase = TripPhase.idle,
@@ -53,6 +74,9 @@ class TripState extends Equatable {
     this.connected = true,
     this.error,
     this.notice,
+    this.alert,
+    this.liveRoutePolyline,
+    this.liveRouteLeg,
   });
 
   final TripPhase phase;
@@ -138,6 +162,20 @@ class TripState extends Equatable {
   /// show as a snackbar; cleared with [TripCubit.clearNotice] once shown.
   final String? notice;
 
+  /// The advisory currently worth showing the rider, or null. Cleared by
+  /// [TripCubit.clearAlert] once shown, and by the server's own "all clear"
+  /// events (back on route / moving again).
+  final TripAlert? alert;
+
+  /// The route the server recomputed after the driver left the planned one —
+  /// the road actually being driven. Preferred over the planned line so the
+  /// map and the server's ETA describe the same path.
+  final String? liveRoutePolyline;
+
+  /// Which leg [liveRoutePolyline] belongs to ('approach' or 'trip'), so a
+  /// line from the previous leg is never drawn on this one.
+  final String? liveRouteLeg;
+
   /// The breakdown to draw on the completion sheet: the receipt's (it also
   /// carries the tip) over the socket event's.
   FareBreakdown? get fareBreakdown => receipt?.breakdown ?? breakdown;
@@ -200,6 +238,9 @@ class TripState extends Equatable {
     bool? connected,
     Object? error = _s,
     Object? notice = _s,
+    Object? alert = _s,
+    Object? liveRoutePolyline = _s,
+    Object? liveRouteLeg = _s,
   }) {
     return TripState(
       phase: phase ?? this.phase,
@@ -253,6 +294,12 @@ class TripState extends Equatable {
       connected: connected ?? this.connected,
       error: error == _s ? this.error : error as String?,
       notice: notice == _s ? this.notice : notice as String?,
+      alert: alert == _s ? this.alert : alert as TripAlert?,
+      liveRoutePolyline: liveRoutePolyline == _s
+          ? this.liveRoutePolyline
+          : liveRoutePolyline as String?,
+      liveRouteLeg:
+          liveRouteLeg == _s ? this.liveRouteLeg : liveRouteLeg as String?,
     );
   }
 
@@ -294,5 +341,8 @@ class TripState extends Equatable {
         connected,
         error,
         notice,
+        alert,
+        liveRoutePolyline,
+        liveRouteLeg,
       ];
 }

@@ -462,15 +462,20 @@ class DriverCubit extends Cubit<DriverState> {
     }
   }
 
-  /// Rate the rider (1–5) for the just-completed trip.
+  /// Rate the rider (1–5) for the just-completed trip, or change a rating
+  /// already given. The backend upserts one rating per (trip, rater), so
+  /// tapping a different star corrects the first tap rather than adding a
+  /// second vote — same as on the rider side.
   Future<void> rateRider(int stars) async {
     final tripId = state.lastTripId;
-    if (tripId == null || state.riderRating != null) return;
+    if (tripId == null || stars < 1 || stars > 5) return;
+    final previous = state.riderRating;
+    if (previous == stars) return;
+    emit(state.copyWith(riderRating: stars));
     try {
       await _ratings.rate(tripId, stars: stars);
-      emit(state.copyWith(riderRating: stars));
     } on ApiException catch (e) {
-      emit(state.copyWith(error: e.message));
+      emit(state.copyWith(riderRating: previous, error: e.message));
     }
   }
 
