@@ -3,3 +3,6 @@ dist
 coverage
 *.log
 .env
+# Backups of the real env carry the same live secrets.
+.env.bak*
+.env.*.bak
