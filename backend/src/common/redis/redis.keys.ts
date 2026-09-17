@@ -24,6 +24,11 @@ export const RedisKeys = {
   // DB read or a routing call. Written at assignment (approach leg) and at
   // trip start (trip leg); removed when the trip ends.
   tripNav: (id: string) => `trip:${id}:nav`,
+  // Per-trip watchdog state for the rider-facing alerts LocationService raises
+  // off the GPS stream: the last point the driver actually moved from, and
+  // once-per-episode flags so a deviation or a long stop pops one alert, not
+  // one per ping. TTL'd, and deleted with the rest of the trip's hot keys.
+  tripWatch: (id: string) => `trip:${id}:watch`,
   surgeOverride: () => 'surge:override',
   driverOfferLock: (id: string) => `driver:${id}:offerlock`,
   // Cross-process offer signalling: the dispatch worker records who a trip is

@@ -2,6 +2,7 @@ import {
   decodePolyline,
   encodePolyline,
   haversineMeters,
+  projectOntoPolyline,
   remainingAlongPolyline,
 } from './geo.util';
 
@@ -84,5 +85,43 @@ describe('remainingAlongPolyline', () => {
   it('returns null for a degenerate route', () => {
     expect(remainingAlongPolyline(route[0], [route[0]])).toBeNull();
     expect(remainingAlongPolyline(route[0], [])).toBeNull();
+  });
+});
+
+/**
+ * `offsetM` is what the off-route watchdog keys on, so it needs to mean
+ * "metres from the road the rider is watching", not "metres from a vertex".
+ */
+describe('projectOntoPolyline offset', () => {
+  const route = [
+    { lat: 25.75, lng: -80.19 },
+    { lat: 25.79, lng: -80.19 },
+  ];
+
+  it('is ~0 for a point on the line, including between vertices', () => {
+    expect(projectOntoPolyline(route[0], route)!.offsetM).toBeLessThanOrEqual(1);
+    expect(projectOntoPolyline({ lat: 25.77, lng: -80.19 }, route)!.offsetM)
+      .toBeLessThanOrEqual(1);
+  });
+
+  it('measures the perpendicular distance for a point beside the line', () => {
+    // ~1 km east of a north-south line, halfway along.
+    const p = { lat: 25.77, lng: -80.179 };
+    const expected = haversineMeters(p, { lat: 25.77, lng: -80.19 });
+    expect(Math.abs(projectOntoPolyline(p, route)!.offsetM - expected))
+      .toBeLessThan(expected * 0.02);
+  });
+
+  it('measures from the endpoint for a point past the end of the route', () => {
+    // North of the last vertex: the nearest point on the route IS that vertex.
+    const p = { lat: 25.80, lng: -80.19 };
+    const expected = haversineMeters(p, route[1]);
+    const proj = projectOntoPolyline(p, route)!;
+    expect(Math.abs(proj.offsetM - expected)).toBeLessThan(expected * 0.02);
+    expect(proj.remainingM).toBe(0);
+  });
+
+  it('returns null for a degenerate route', () => {
+    expect(projectOntoPolyline(route[0], [route[0]])).toBeNull();
   });
 });

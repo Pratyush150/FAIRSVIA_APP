@@ -70,13 +70,24 @@ export function decodePolyline(encoded: string): LatLng[] {
   return points;
 }
 
+/** Where a point sits relative to a route. */
+export interface PolylineProjection {
+  /** Metres left to travel along the route from the nearest point on it. */
+  remainingM: number;
+  /** Perpendicular distance from the route to the point (metres). */
+  offsetM: number;
+}
+
 /**
- * Metres left to travel along a route from the point on it nearest to `pos`.
- * Snaps `pos` onto the closest segment (planar projection — fine at city
- * scale) and sums the remainder of that segment plus every later segment.
- * Returns null for a route with fewer than two points.
+ * Project `pos` onto `route`. Snaps to the closest segment (planar projection
+ * — fine at city scale) and reports both how far is left along the route from
+ * there and how far off the route the point itself is. Returns null for a
+ * route with fewer than two points.
  */
-export function remainingAlongPolyline(pos: LatLng, route: LatLng[]): number | null {
+export function projectOntoPolyline(
+  pos: LatLng,
+  route: LatLng[],
+): PolylineProjection | null {
   if (route.length < 2) return null;
   // Local equirectangular frame (metres) centred on the query point.
   const cosLat = Math.cos((pos.lat * Math.PI) / 180);
@@ -110,5 +121,14 @@ export function remainingAlongPolyline(pos: LatLng, route: LatLng[]): number | n
       remaining = (1 - t) * segLen + suffix[i + 1];
     }
   }
-  return Math.round(remaining);
+  return { remainingM: Math.round(remaining), offsetM: Math.round(best) };
+}
+
+/**
+ * Metres left to travel along a route from the point on it nearest to `pos`.
+ * Thin wrapper over [projectOntoPolyline] for callers that only need the
+ * remainder.
+ */
+export function remainingAlongPolyline(pos: LatLng, route: LatLng[]): number | null {
+  return projectOntoPolyline(pos, route)?.remainingM ?? null;
 }

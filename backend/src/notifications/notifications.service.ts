@@ -22,7 +22,9 @@ export type TripNotificationKind =
   | 'completed'
   | 'cancelled'
   | 'no_drivers'
-  | 'scheduled_started';
+  | 'scheduled_started'
+  | 'off_route'
+  | 'driver_stopped';
 
 /** Rider-facing copy per milestone. */
 const TRIP_COPY: Record<TripNotificationKind, PushMessage> = {
@@ -35,6 +37,18 @@ const TRIP_COPY: Record<TripNotificationKind, PushMessage> = {
   scheduled_started: {
     title: 'Finding your driver',
     body: 'Your scheduled ride is now being matched.',
+  },
+  // Raised by the GPS watchdogs (LocationService), so a rider who isn't
+  // staring at the map still learns the ride stopped following the route or
+  // stopped moving. Worded as information, not an accusation — there are
+  // plenty of innocent reasons for both.
+  off_route: {
+    title: 'Your driver left the route',
+    body: 'The route was updated. Tap to see where your driver is.',
+  },
+  driver_stopped: {
+    title: 'Your driver has stopped',
+    body: 'Your driver has not moved for a few minutes.',
   },
 };
 
