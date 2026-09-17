@@ -30,6 +30,24 @@ describe('Ride App API (e2e)', () => {
     await redis.del(`otp:attempts:${p}`);
   };
 
+  /**
+   * A brand-new signed-in rider. A rider may only have ONE trip in flight at a
+   * time (enforced since the trips hardening pass), so any test that creates a
+   * trip needs its own rider — sharing the suite's `token` makes the second
+   * creation a 409 and the failure looks like a trip bug rather than a test
+   * that outgrew the rule.
+   */
+  const freshRider = async () => {
+    const p = `+196${Math.floor(Math.random() * 1e8)}`;
+    const r1 = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({ phone: p });
+    const r2 = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({ phone: p, code: r1.body.devCode });
+    return r2.body.accessToken as string;
+  };
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -172,9 +190,10 @@ describe('Ride App API (e2e)', () => {
   });
 
   it('records the payment mode (defaults to card, accepts cash)', async () => {
+    const rider = await freshRider();
     const cash = await request(server)
       .post('/api/v1/trips')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${rider}`)
       .send({
         pickupLat: 28.6139,
         pickupLng: 77.209,
@@ -189,7 +208,7 @@ describe('Ride App API (e2e)', () => {
     // An unknown payment mode is rejected by validation.
     await request(server)
       .post('/api/v1/trips')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${rider}`)
       .send({
         pickupLat: 28.6139,
         pickupLng: 77.209,
@@ -229,7 +248,7 @@ describe('Ride App API (e2e)', () => {
     // Create a multi-stop trip; the stop is persisted and the fare reflects it.
     const created = await request(server)
       .post('/api/v1/trips')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${await freshRider()}`)
       .send({
         ...base,
         tier: 'economy',
@@ -651,24 +670,26 @@ describe('Ride App API (e2e)', () => {
     expect(res.body.ok).toBe(true);
   });
 
-  it('in-trip chat: send, list, reject empty + non-participants', async () => {
+  // `tripId` is the remote-pickup trip that is deliberately never matched, so
+  // it has no driver — and chat only opens once the two parties are paired
+  // (ChatService.isChatOpen). The send/list/grace-window/rate-limit behaviour is
+  // covered against a paired trip in chat.service.spec.ts; what the HTTP layer
+  // owes us here is the access control around it.
+  it('in-trip chat: closed before a driver is paired, and never open to non-participants', async () => {
     const send = await request(server)
       .post(`/api/v1/trips/${tripId}/messages`)
       .set('Authorization', `Bearer ${token}`)
       .send({ text: 'On my way!' });
-    expect(send.status).toBe(201);
-    expect(send.body.text).toBe('On my way!');
-    expect(send.body.from).toBeDefined();
+    expect(send.status).toBe(403);
 
+    // The rider may still read their own (empty) thread.
     const list = await request(server)
       .get(`/api/v1/trips/${tripId}/messages`)
       .set('Authorization', `Bearer ${token}`);
     expect(list.status).toBe(200);
-    expect(list.body.some((m: { text: string }) => m.text === 'On my way!')).toBe(
-      true,
-    );
+    expect(Array.isArray(list.body)).toBe(true);
 
-    // whitespace-only is rejected
+    // whitespace-only is rejected on its own merits, before the chat-open check
     await request(server)
       .post(`/api/v1/trips/${tripId}/messages`)
       .set('Authorization', `Bearer ${token}`)
@@ -734,7 +755,7 @@ describe('Ride App API (e2e)', () => {
         refreshToken: r2.body.refreshToken as string };
     }
 
-    it('rotates refresh tokens and rejects reuse of the old one', async () => {
+    it('rotates refresh tokens, replays the rotation for its own client, and rejects a genuinely revoked token', async () => {
       const u = await freshUser();
       const rotated = await request(server)
         .post('/api/v1/auth/refresh')
@@ -743,11 +764,28 @@ describe('Ride App API (e2e)', () => {
       expect(rotated.body.accessToken).toBeDefined();
       expect(rotated.body.refreshToken).not.toBe(u.refreshToken);
 
-      // Reusing the now-rotated (revoked) token must be rejected.
-      const reuse = await request(server)
+      // Presenting the just-rotated token again inside the replay window hands
+      // back the SAME pair rather than treating it as theft. A client whose
+      // refresh response was lost to a dropped network retries with the only
+      // token it still has, and signing it out for that is the logout riders
+      // and drivers hit every time they changed network.
+      const replay = await request(server)
         .post('/api/v1/auth/refresh')
         .send({ refreshToken: u.refreshToken });
-      expect(reuse.status).toBe(401);
+      expect(replay.status).toBe(200);
+      expect(replay.body.refreshToken).toBe(rotated.body.refreshToken);
+
+      // A token that was revoked outright (signed out everywhere) is still
+      // refused — the replay window only covers the pair we just issued.
+      await request(server)
+        .post('/api/v1/auth/logout')
+        .set('Authorization', `Bearer ${rotated.body.accessToken}`)
+        .send({ refreshToken: rotated.body.refreshToken })
+        .expect(200);
+      const revoked = await request(server)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: rotated.body.refreshToken });
+      expect(revoked.status).toBe(401);
     });
 
     // A remote pickup (Seattle) — far from any Miami test/sim driver — so the
@@ -1001,9 +1039,13 @@ describe('Ride App API (e2e)', () => {
       const grossFare = gross.body.tiers[0].fare as number;
 
       // Rider requests the ride with the code; the stored estimate is discounted.
+      // Own rider: the suite's `token` already has a trip in flight, and a
+      // rider may only have one. The per-user promo limit below is checked
+      // against this same rider — that is whose redemption it is.
+      const promoRider = await freshRider();
       const withPromo = await request(server)
         .post('/api/v1/trips')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${promoRider}`)
         .send({ ...route, tier: 'economy', promoCode: code.toLowerCase() });
       expect(withPromo.status).toBe(201);
       expect(withPromo.body.promoCode).toBe(code);
@@ -1013,10 +1055,11 @@ describe('Ride App API (e2e)', () => {
         2,
       );
 
-      // Per-user limit is 1 by default: a second quote is rejected.
+      // Per-user limit is 1 by default: a second quote by the rider who already
+      // redeemed it is rejected.
       await request(server)
         .post('/api/v1/promos/quote')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Authorization', `Bearer ${promoRider}`)
         .send({ code, subtotal: 200 })
         .expect(400);
     });
