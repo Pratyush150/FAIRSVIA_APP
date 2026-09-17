@@ -1923,6 +1923,280 @@ Future<void> showFareDetailsSheet(BuildContext context, FareTier tier) {
   );
 }
 
+/// "Details" for the ride that is actually happening: what it costs, which car
+/// is coming, and where it is going. Before this, the fare was visible only on
+/// the tier picker and after arrival — a rider mid-ride had no way to check the
+/// number they had agreed to, and the car's plate was only on the pickup sheet.
+Future<void> showRideDetailsSheet(BuildContext context, TripState state) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (sheetCtx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+        child: RideDetailsContent(state: state),
+      ),
+    ),
+  );
+}
+
+/// Body of the live-ride details sheet (its own widget so it can be tested
+/// without driving a whole booking flow).
+class RideDetailsContent extends StatelessWidget {
+  const RideDetailsContent({super.key, required this.state});
+
+  final TripState state;
+
+  /// Shown in place of an amount when no source has priced the ride yet.
+  static const String unknownFare = 'Not priced yet';
+
+  /// "White Toyota Camry", skipping whatever the payload didn't carry.
+  static String? vehicleLine(AssignedDriver? driver) {
+    if (driver == null) return null;
+    final parts = [driver.vehicleColor, driver.vehicleMake, driver.vehicleModel]
+        .whereType<String>()
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty)
+        .toList();
+    return parts.isEmpty ? null : parts.join(' ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final trip = state.trip;
+    final driver = state.driver;
+    final fare = state.displayFare;
+    final breakdown = state.fareBreakdown;
+    final distanceM = trip?.distanceM ?? state.estimate?.distanceM;
+    final surge = state.estimate?.surge ?? 1.0;
+    final paymentMode = trip?.paymentMode ?? state.paymentMode;
+    final vehicle = vehicleLine(driver);
+
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Ride details', style: theme.textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.lg),
+
+          // --- Fare -------------------------------------------------------
+          AppCard(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      state.fareIsFinal ? 'Total fare' : 'Estimated fare',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    Text(
+                      fare == null ? unknownFare : '\$${_money(fare)}',
+                      style: theme.textTheme.titleMedium?.tabular(),
+                    ),
+                  ],
+                ),
+                if (!state.fareIsFinal) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'The final fare is metered on the distance actually '
+                      'driven.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+                if (breakdown != null) ...[
+                  Divider(height: AppSpacing.lg, color: theme.dividerColor),
+                  FareBreakdownRows(
+                    breakdown: breakdown,
+                    currency: state.receipt?.currency ?? trip?.currency ?? 'USD',
+                    showTip: false,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // --- Car + driver -----------------------------------------------
+          if (driver != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppCard(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      AppAvatar(name: driver.name, size: 44),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(driver.name,
+                                style: theme.textTheme.titleMedium),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                const Icon(Icons.star_rounded,
+                                    size: 15, color: AppColors.star),
+                                const SizedBox(width: 3),
+                                Text(driver.rating.toStringAsFixed(1),
+                                    style: theme.textTheme.labelLarge),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (vehicle != null)
+                    _RideDetailRow(
+                      icon: Icons.directions_car_rounded,
+                      label: 'Vehicle',
+                      value: vehicle,
+                    ),
+                  if (driver.plate case final plate?
+                      when plate.trim().isNotEmpty)
+                    _RideDetailRow(
+                      icon: Icons.confirmation_number_outlined,
+                      label: 'Plate',
+                      value: plate,
+                    ),
+                ],
+              ),
+            ),
+          ],
+
+          // --- Route + payment ---------------------------------------------
+          const SizedBox(height: AppSpacing.md),
+          AppCard(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            child: Column(
+              children: [
+                _RideDetailRow(
+                  icon: Icons.trip_origin,
+                  label: 'Pickup',
+                  // After a cold start mid-ride the cubit's own addresses may
+                  // not be populated; the trip row always has them.
+                  value: state.pickupAddr ?? trip?.pickup.address ?? '—',
+                ),
+                _RideDetailRow(
+                  icon: Icons.place_rounded,
+                  label: 'Dropoff',
+                  value: state.dropoffAddr ?? trip?.dropoff.address ?? '—',
+                ),
+                if (distanceM != null)
+                  _RideDetailRow(
+                    icon: Icons.straighten_rounded,
+                    label: 'Distance',
+                    value: Fmt.distance(distanceM),
+                  ),
+                if (_tripEtaLine(state) case final eta?)
+                  _RideDetailRow(
+                    icon: Icons.schedule_rounded,
+                    label: 'Arrival',
+                    value: eta,
+                  ),
+                _RideDetailRow(
+                  icon: paymentMode == 'cash'
+                      ? Icons.payments_outlined
+                      : Icons.credit_card_rounded,
+                  label: 'Payment',
+                  value: paymentMode == 'cash'
+                      ? 'Cash to your driver'
+                      : (state.receipt?.cardLabel ?? 'Card'),
+                ),
+                if (surge > 1.0)
+                  _RideDetailRow(
+                    icon: Icons.trending_up_rounded,
+                    label: 'Surge',
+                    value: Fmt.surge(surge),
+                  ),
+                if (trip?.promoCode case final code? when code.isNotEmpty)
+                  _RideDetailRow(
+                    icon: Icons.local_offer_outlined,
+                    label: 'Promo',
+                    value: code,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RideDetailRow extends StatelessWidget {
+  const _RideDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.accent),
+          const SizedBox(width: AppSpacing.sm),
+          Text(label, style: theme.textTheme.bodyMedium),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The "Details" affordance carried by the live-ride sheets.
+class RideDetailsButton extends StatelessWidget {
+  const RideDetailsButton({super.key, required this.state});
+
+  final TripState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return SecondaryButton(
+      label: 'Details',
+      icon: Icons.receipt_long_rounded,
+      onPressed: () => showRideDetailsSheet(context, state),
+    );
+  }
+}
+
 class _FindingDriver extends StatelessWidget {
   const _FindingDriver({required this.state});
   final TripState state;
@@ -2295,6 +2569,10 @@ class DriverInfoSheet extends StatelessWidget {
           ),
         ],
         const SizedBox(height: AppSpacing.md),
+        // The fare and the car, reachable while the rider waits — both used to
+        // disappear from the app the moment a driver accepted.
+        RideDetailsButton(state: state),
+        const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
             Expanded(
@@ -2373,6 +2651,9 @@ class _OnTripSheet extends StatelessWidget {
             ],
           ),
         ],
+        const SizedBox(height: AppSpacing.md),
+        // Mid-ride, this is the only way to see the fare and the car's details.
+        RideDetailsButton(state: state),
       ],
     );
   }

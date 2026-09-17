@@ -180,6 +180,32 @@ class TripState extends Equatable {
   /// carries the tip) over the socket event's.
   FareBreakdown? get fareBreakdown => receipt?.breakdown ?? breakdown;
 
+  /// What this ride costs, from the best source we currently hold, or null when
+  /// nothing has priced it yet.
+  ///
+  /// Each source counts only when it is non-null AND greater than zero, falling
+  /// through otherwise. No ride here is free — there is a minimum fare — so a
+  /// zero always means a number we failed to load, and showing the rider a
+  /// confident "\$0.00" for that is worse than showing what we quoted them.
+  double? get displayFare {
+    for (final candidate in [
+      receipt?.fare,
+      fareFinal,
+      trip?.fareFinal,
+      trip?.fareEstimate,
+      discountedFare,
+      selectedFare?.fare,
+    ]) {
+      if (candidate != null && candidate > 0) return candidate;
+    }
+    return null;
+  }
+
+  /// True once the fare is settled rather than an estimate the metered
+  /// distance can still move.
+  bool get fareIsFinal =>
+      (receipt?.fare ?? fareFinal ?? trip?.fareFinal ?? 0) > 0;
+
   FareTier? get selectedFare {
     final tiers = estimate?.tiers;
     if (tiers == null || selectedTier == null) return null;
