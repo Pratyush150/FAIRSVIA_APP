@@ -43,6 +43,38 @@ class _StatusAdapter implements HttpClientAdapter {
 }
 
 
+/// Answers the first request with a 401 and then fails at the transport layer
+/// — i.e. the refresh never reaches the server. This is what a phone changing
+/// network, entering a lift, or hitting a dead cell looks like to Dio.
+class _OfflineRefreshAdapter implements HttpClientAdapter {
+  final paths = <String>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    paths.add(options.path);
+    if (options.path.contains('/auth/refresh')) {
+      throw DioException.connectionError(
+        requestOptions: options,
+        reason: 'Network is unreachable',
+      );
+    }
+    return ResponseBody.fromString(
+      '{"message":"nope"}',
+      401,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 /// Unsigned JWT with the given `exp` (seconds since epoch) — the interceptor
 /// only reads the payload, it never verifies signatures.
 String _jwt(int exp) {
@@ -119,6 +151,92 @@ void main() {
     );
     expect(await interceptor.freshAccessToken(), isNull);
     expect(adapter.paths, ['/auth/refresh']);
+  });
+
+
+  /// The regression behind "getting logged out when switching network / when
+  /// reopening the app": a refresh that never reached the server was treated
+  /// as the server rejecting the session.
+  group('an unreachable server never ends the session', () {
+    late _OfflineRefreshAdapter offline;
+
+    setUp(() {
+      offline = _OfflineRefreshAdapter();
+      refreshDio = Dio(BaseOptions(baseUrl: 'http://x'))
+        ..httpClientAdapter = offline;
+      interceptor = AuthInterceptor(storage, refreshDio);
+      dio = Dio(BaseOptions(baseUrl: 'http://x'))
+        ..httpClientAdapter = offline
+        ..interceptors.add(interceptor);
+    });
+
+    test('a 401 whose refresh cannot reach the server keeps the tokens',
+        () async {
+      await storage.save(
+        const AuthTokens(accessToken: 'old', refreshToken: 'r1'),
+      );
+      var fired = 0;
+      interceptor.sessionExpired.listen((_) => fired++);
+
+      await expectLater(dio.get<dynamic>('/me'), throwsA(isA<DioException>()));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(offline.paths, ['/me', '/auth/refresh']);
+      expect(fired, 0, reason: 'the server never said the session was over');
+      expect(await storage.hasSession(), isTrue);
+      expect(await storage.readRefreshToken(), 'r1');
+    });
+
+    test('freshAccessToken returns null without discarding the session',
+        () async {
+      final past = DateTime.now().subtract(const Duration(minutes: 1));
+      await storage.save(
+        AuthTokens(
+          accessToken: _jwt(past.millisecondsSinceEpoch ~/ 1000),
+          refreshToken: 'r1',
+        ),
+      );
+      // The socket handshake simply has no token to offer right now...
+      expect(await interceptor.freshAccessToken(), isNull);
+      // ...but the session survives for the next attempt.
+      expect(await storage.hasSession(), isTrue);
+    });
+  });
+
+  test('a 500 from the refresh endpoint is not an expiry either', () async {
+    final broken = _StatusAdapter(500);
+    final rDio = Dio(BaseOptions(baseUrl: 'http://x'))
+      ..httpClientAdapter = broken;
+    final i = AuthInterceptor(storage, rDio);
+    final d = Dio(BaseOptions(baseUrl: 'http://x'))
+      ..httpClientAdapter = _StatusAdapter(401)
+      ..interceptors.add(i);
+    await storage.save(const AuthTokens(accessToken: 'old', refreshToken: 'r1'));
+    var fired = 0;
+    i.sessionExpired.listen((_) => fired++);
+
+    await expectLater(d.get<dynamic>('/me'), throwsA(isA<DioException>()));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(fired, 0);
+    expect(await storage.hasSession(), isTrue);
+  });
+
+  test('a 403 from the refresh endpoint does end the session', () async {
+    final rDio = Dio(BaseOptions(baseUrl: 'http://x'))
+      ..httpClientAdapter = _StatusAdapter(403);
+    final i = AuthInterceptor(storage, rDio);
+    final d = Dio(BaseOptions(baseUrl: 'http://x'))
+      ..httpClientAdapter = _StatusAdapter(401)
+      ..interceptors.add(i);
+    await storage.save(const AuthTokens(accessToken: 'old', refreshToken: 'r1'));
+    final expired = Completer<void>();
+    i.sessionExpired.listen((_) => expired.complete());
+
+    await expectLater(d.get<dynamic>('/me'), throwsA(isA<DioException>()));
+
+    await expired.future.timeout(const Duration(seconds: 2));
+    expect(await storage.hasSession(), isFalse);
   });
 
   test('jwtExpiry reads exp and tolerates garbage', () {

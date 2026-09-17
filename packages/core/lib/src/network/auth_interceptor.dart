@@ -6,6 +6,25 @@ import 'package:shared_models/shared_models.dart';
 
 import 'token_storage.dart';
 
+/// What came back from an attempt to refresh the token pair.
+///
+/// The distinction between the two failures is the whole point: only the
+/// server saying "this refresh token is no good" means the session is over.
+/// A refresh that never reached the server says nothing about the session, and
+/// treating it as expiry is what signed riders and drivers out every time they
+/// changed network or reopened the app on a weak signal.
+enum RefreshOutcome {
+  /// A new pair was issued and stored.
+  refreshed,
+
+  /// The server answered, and the answer was no (401/403). Session is over.
+  rejected,
+
+  /// The server never gave a verdict — offline, timeout, DNS, 5xx, proxy.
+  /// The stored tokens are left exactly as they are.
+  unreachable,
+}
+
 /// Attaches the access token to every request and, on a 401, transparently
 /// refreshes the token pair once and retries the original request.
 ///
@@ -18,7 +37,7 @@ class AuthInterceptor extends Interceptor {
   // Bare Dio (no interceptors) used only to hit /auth/refresh, avoiding recursion.
   final Dio _refreshDio;
 
-  Completer<bool>? _refreshing;
+  Completer<RefreshOutcome>? _refreshing;
 
   final _sessionExpired = StreamController<void>.broadcast();
 
@@ -53,8 +72,15 @@ class AuthInterceptor extends Interceptor {
       return handler.next(err);
     }
 
-    final refreshed = await _refreshTokens();
-    if (!refreshed) {
+    final outcome = await _refreshTokens();
+    if (outcome == RefreshOutcome.unreachable) {
+      // We could not ask. Keep the tokens and let the caller see a plain
+      // network error: the next request on a working connection refreshes
+      // normally. Signing out here is how switching from WiFi to cellular
+      // mid-session logged people out.
+      return handler.next(err);
+    }
+    if (outcome == RefreshOutcome.rejected) {
       // Only a real session can expire: a 401 with no refresh token (e.g. an
       // unauthenticated call during sign-in) is just an error, not a sign-out.
       final hadSession = await _storage.hasSession();
@@ -88,8 +114,8 @@ class AuthInterceptor extends Interceptor {
         return current;
       }
     }
-    final refreshed = await _refreshTokens();
-    if (!refreshed) return null;
+    final outcome = await _refreshTokens();
+    if (outcome != RefreshOutcome.refreshed) return null;
     return _storage.readAccessToken();
   }
 
@@ -126,37 +152,58 @@ class AuthInterceptor extends Interceptor {
     }
   }
 
-  Future<bool> _refreshTokens() {
+  Future<RefreshOutcome> _refreshTokens() {
     // Coalesce concurrent refreshes.
     final inFlight = _refreshing;
     if (inFlight != null) return inFlight.future;
 
-    final completer = Completer<bool>();
+    final completer = Completer<RefreshOutcome>();
     _refreshing = completer;
 
-    _doRefresh().then((ok) {
+    _doRefresh().then((outcome) {
       _refreshing = null;
-      completer.complete(ok);
-    }).catchError((_) {
+      completer.complete(outcome);
+    }).catchError((Object _) {
       _refreshing = null;
-      completer.complete(false);
+      // An unexpected throw is not the server telling us the session is dead.
+      completer.complete(RefreshOutcome.unreachable);
     });
 
     return completer.future;
   }
 
-  Future<bool> _doRefresh() async {
+  Future<RefreshOutcome> _doRefresh() async {
     final refreshToken = await _storage.readRefreshToken();
-    if (refreshToken == null || refreshToken.isEmpty) return false;
+    // Nothing to refresh with: there is no session to keep alive.
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return RefreshOutcome.rejected;
+    }
 
-    final response = await _refreshDio.post<Map<String, dynamic>>(
-      '/auth/refresh',
-      data: {'refreshToken': refreshToken},
-    );
-    final data = response.data;
-    if (data == null) return false;
+    try {
+      final response = await _refreshDio.post<Map<String, dynamic>>(
+        '/auth/refresh',
+        data: {'refreshToken': refreshToken},
+      );
+      final data = response.data;
+      // A 2xx with no body is a broken gateway, not a rejected session.
+      if (data == null) return RefreshOutcome.unreachable;
+      await _storage.save(AuthTokens.fromJson(data));
+      return RefreshOutcome.refreshed;
+    } on DioException catch (e) {
+      return _isRejection(e)
+          ? RefreshOutcome.rejected
+          : RefreshOutcome.unreachable;
+    } catch (_) {
+      // Malformed body, storage failure — nothing that proves expiry.
+      return RefreshOutcome.unreachable;
+    }
+  }
 
-    await _storage.save(AuthTokens.fromJson(data));
-    return true;
+  /// True only when the server itself refused the refresh token. Everything
+  /// else — no connection, timeout, 5xx, a captive-portal redirect — leaves
+  /// the session intact.
+  static bool _isRejection(DioException e) {
+    final status = e.response?.statusCode;
+    return status == 401 || status == 403;
   }
 }

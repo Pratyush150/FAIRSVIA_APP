@@ -1,5 +1,6 @@
 import 'package:shared_models/shared_models.dart';
 
+import '../network/api_exception.dart';
 import '../network/token_storage.dart';
 import 'auth_remote_data_source.dart';
 
@@ -20,18 +21,33 @@ class AuthRepository {
   Future<AppUser> verifyOtp(String phone, String code) async {
     final session = await _remote.verifyOtp(phone, code);
     await _storage.save(session.tokens);
+    await _storage.cacheUser(session.user);
     return session.user;
   }
 
-  /// Restore the session on app start. Returns null if not logged in or the
-  /// stored session is no longer valid.
+  /// Restore the session on app start.
+  ///
+  /// Only the server actively rejecting us (401/403, after the interceptor has
+  /// already tried to refresh) means the session is over. Anything else is the
+  /// network, and the tokens are kept: reopening the app on a weak signal, in
+  /// a lift, or mid-handover between WiFi and cellular used to clear them and
+  /// dump the user back on the phone-number screen with a live ride running.
+  /// In that case we fall back to the last user the server confirmed, so the
+  /// app opens signed in and the first successful call corrects anything stale.
   Future<AppUser?> restoreSession() async {
     if (!await _storage.hasSession()) return null;
     try {
-      return await _remote.getMe();
+      final user = await _remote.getMe();
+      await _storage.cacheUser(user);
+      return user;
+    } on ApiException catch (e) {
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        await _storage.clear();
+        return null;
+      }
+      return _storage.readCachedUser();
     } catch (_) {
-      await _storage.clear();
-      return null;
+      return _storage.readCachedUser();
     }
   }
 
