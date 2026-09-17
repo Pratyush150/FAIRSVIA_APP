@@ -184,15 +184,31 @@ async function main() {
   section('5. Driver stops for a while');
   const parked = { lat: onRoutePoint.lat, lng: onRoutePoint.lng };
   const stoppedAfterS = Number(process.env.STOPPED_AFTER_S ?? 4);
-  for (let i = 0; i < stoppedAfterS + 4; i++) {
+  // Time the alert against the wall clock from the moment the car stops, not
+  // against the figure the alert reports — the driver may already have been
+  // stationary before this section started (the run-up parks them briefly),
+  // so the reported duration legitimately counts from that earlier moment.
+  let firedAt = null;
+  const parkedAt = Date.now();
+  const stoppedSeen = stopped.length;
+  rSock.on('trip:driver_stopped', () => {
+    firedAt ??= Date.now();
+  });
+  for (let i = 0; i < stoppedAfterS + 6; i++) {
     dSock.emit('driver:location', { lat: parked.lat, lng: parked.lng, speed: 0, accuracy: 5 });
     await wait(1000);
   }
+  const raised = stopped.slice(stoppedSeen);
   check(stopped.length === 1, `standing still alerts exactly once (got ${stopped.length})`);
-  if (stopped.length) {
+  if (raised.length) {
+    const waited = Math.round((firedAt - parkedAt) / 1000);
     check(
-      typeof stopped[0].stoppedSec === 'number' && stopped[0].stoppedSec >= stoppedAfterS,
-      `the alert says how long: ${stopped[0].stoppedSec}s`,
+      raised[0].stoppedSec >= stoppedAfterS,
+      `the alert reports a full stop: ${raised[0].stoppedSec}s (threshold ${stoppedAfterS}s)`,
+    );
+    check(
+      waited <= stoppedAfterS + 5,
+      `it fired promptly once the threshold passed (+${waited}s)`,
     );
   }
 
