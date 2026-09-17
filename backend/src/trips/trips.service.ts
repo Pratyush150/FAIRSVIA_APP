@@ -231,7 +231,7 @@ export class TripsService {
     // all), refuse with the fresh numbers so the app re-confirms — the audit
     // caught a rider quoted 1.0x and charged 2.0x because the fare was simply
     // recomputed here. Within tolerance, the quote itself is what we store.
-    this.assertPriceLock(dto, est.fare, surge);
+    this.assertPriceLock(dto, est, surge);
     const grossFare = dto.quotedFare ?? est.fare;
     const lockedSurge = dto.quotedSurge ?? surge;
 
@@ -346,7 +346,12 @@ export class TripsService {
    *   { code: 'PRICE_CHANGED', fare, surge, estimate: { fare, surge, tier } }
    * No quote supplied (older clients) → nothing to compare, live price applies.
    */
-  private assertPriceLock(dto: CreateTripDto, fare: number, surge: number): void {
+  private assertPriceLock(
+    dto: CreateTripDto,
+    est: { fare: number; breakdown: unknown },
+    surge: number,
+  ): void {
+    const fare = est.fare;
     if (dto.quotedFare === undefined && dto.quotedSurge === undefined) return;
     const surgeChanged =
       dto.quotedSurge !== undefined && Math.abs(dto.quotedSurge - surge) > 1e-9;
@@ -366,7 +371,15 @@ export class TripsService {
         : 'The price has changed. Please confirm the new fare.',
       fare,
       surge,
-      estimate: { tier: dto.tier, fare, surge, currency: CURRENCY },
+      // Carry the fresh itemisation too, so the app's "Details" list still
+      // adds up to the number it is now asking the rider to confirm.
+      estimate: {
+        tier: dto.tier,
+        fare,
+        surge,
+        currency: CURRENCY,
+        breakdown: est.breakdown,
+      },
     });
   }
 
@@ -561,6 +574,7 @@ export class TripsService {
       RedisKeys.driverActiveTrip(driverId),
       RedisKeys.driverActiveRider(driverId),
       RedisKeys.tripNav(tripId),
+      RedisKeys.tripWatch(tripId),
     );
     await this.prisma.driverProfile.update({
       where: { userId: driverId },
@@ -661,8 +675,29 @@ export class TripsService {
 
     // Need a meaningful trail (>= 50 m) to trust the odometer over the estimate.
     if (!Number.isFinite(driven) || driven < 50) {
+      // The estimate is only a usable answer if there actually is one. A trip
+      // whose `fareEstimate` is missing or zero used to settle at exactly
+      // $0.00 here — a free ride for the rider, no earning for the driver, and
+      // a receipt that reads as broken. Re-price the routed distance/time
+      // instead; `estimateForTier` is floored at the tier's minimum fare, so
+      // the worst case is the minimum rather than nothing.
+      let fareFinal = estimate;
+      if (!(fareFinal > 0)) {
+        const repriced = this.pricing.estimateForTier(
+          trip.tier,
+          trip.distanceM ?? 0,
+          trip.durationS ?? 0,
+          surge,
+        ).fare;
+        fareFinal = Math.max(repriced - discount, 0);
+        this.logger.warn(
+          `trip ${trip.id} had no usable fare estimate (${String(
+            trip.fareEstimate,
+          )}) and no GPS trail; settled at the re-priced minimum ${fareFinal}`,
+        );
+      }
       return {
-        fareFinal: estimate,
+        fareFinal,
         distanceM: trip.distanceM,
         durationS: trip.durationS,
         breakdown: this.breakdownFor(
@@ -671,7 +706,7 @@ export class TripsService {
           trip.durationS ?? 0,
           surge,
           discount,
-          estimate,
+          fareFinal,
         ),
       };
     }
@@ -967,7 +1002,7 @@ export class TripsService {
     await this.redis.client.del(
       RedisKeys.driverActiveTrip(driverId),
       RedisKeys.driverActiveRider(driverId),
-      ...(tripId ? [RedisKeys.tripNav(tripId)] : []),
+      ...(tripId ? [RedisKeys.tripNav(tripId), RedisKeys.tripWatch(tripId)] : []),
     );
   }
 

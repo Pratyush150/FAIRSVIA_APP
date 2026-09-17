@@ -321,11 +321,40 @@ describe('TripsService', () => {
       expect(notifications.notifyTrip).toHaveBeenCalledWith(
         'driver-1', 'completed', { tripId: 'trip-1', earned: '8.80' }, 'driver',
       );
-      // Leg navigation context is cleared with the active-trip keys.
+      // Leg navigation context and the GPS watchdog state are cleared with the
+      // active-trip keys.
       expect(redis.client.del).toHaveBeenCalledWith(
         RedisKeys.driverActiveTrip('driver-1'),
         RedisKeys.driverActiveRider('driver-1'),
         RedisKeys.tripNav('trip-1'),
+        RedisKeys.tripWatch('trip-1'),
+      );
+    });
+
+    /**
+     * A completed ride must never settle at nothing. Without a usable GPS
+     * trail the fare falls back to the up-front estimate — but when that
+     * estimate is itself missing or zero the old code handed the rider a
+     * $0.00 receipt and the driver a $0.00 earning. Re-pricing the routed
+     * distance is floored at the tier minimum, so the worst case is the
+     * minimum fare rather than nothing.
+     */
+    it.each([
+      ['a null estimate', null],
+      ['a zero estimate', 0],
+    ])('re-prices the ride rather than settling at $0 with %s', async (_label, fareEstimate) => {
+      const { svc, prisma, realtime, payments } = make({ fare: 7.25 });
+      prisma.trip.findUnique.mockResolvedValue({ ...trip, fareEstimate });
+      // Echo back whatever fare the trip settled at, as a real capture would.
+      payments.captureForTrip.mockImplementation(async () => ({
+        fareFinal: 7.25, platformFee: 1.45, driverPayout: 5.8,
+      }));
+
+      const receipt = await svc.completeTrip('driver-1', 'trip-1');
+
+      expect(receipt.fareFinal).toBe(7.25);
+      expect(realtime.emitToUser).toHaveBeenCalledWith(
+        'rider-1', 'trip:completed', expect.objectContaining({ fareFinal: 7.25 }),
       );
     });
   });

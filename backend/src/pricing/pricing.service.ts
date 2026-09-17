@@ -13,11 +13,17 @@ import {
 } from './fare-config';
 
 export interface FareBreakdown {
+  /** All three ride components are reported AFTER surge, so the lines the
+   *  rider is shown add up to the fare they are quoted. */
   baseFare: number;
   distanceFare: number;
   timeFare: number;
+  /** Flat, never surged. */
   bookingFee: number;
   surgeMultiplier: number;
+  /** Top-up applied when the metered components fell short of the tier's
+   *  minimum fare (0 when they didn't), so the lines still sum to the fare. */
+  minimumFareAdjustment: number;
 }
 
 export interface FareEstimate {
@@ -123,7 +129,10 @@ export class PricingService implements OnModuleInit {
   }
 
   /**
-   * fare = (base + perMile*mi + perMin*min) * surge + bookingFee, floored at minFare.
+   * fare = (base + perMile*mi + perMin*min) * surge + bookingFee, floored at
+   * minFare. The returned breakdown always sums to `fare`: base/distance/time
+   * carry the surge, the booking fee doesn't, and any shortfall against the
+   * minimum fare is reported as its own line.
    */
   estimateForTier(
     tier: string,
@@ -169,22 +178,36 @@ export class PricingService implements OnModuleInit {
 
     const distanceFare = cfg.perMile * distanceMi;
     const timeFare = cfg.perMin * durationMin;
-    const preFare = (cfg.baseFare + distanceFare + timeFare) * surge;
-    const total = Math.max(preFare + cfg.bookingFee, cfg.minFare);
+
+    // Round each line to cents FIRST, then total them. Rounding the lines and
+    // the total independently leaves the two up to a cent apart, and a rider
+    // reading the "Details" list can do the addition themselves — so the fare
+    // is defined as the sum of what they are shown, floored at the minimum.
+    const base = round2(cfg.baseFare * surge);
+    const distance = round2(distanceFare * surge);
+    const time = round2(timeFare * surge);
+    const booking = round2(cfg.bookingFee);
+    const metered = round2(base + distance + time + booking);
+    const fare = Math.max(metered, round2(cfg.minFare));
+    const shortfall = round2(fare - metered);
 
     return {
       tier: cfg.tier,
       label: cfg.label,
       capacity: cfg.capacity,
-      fare: round2(total),
+      fare,
       currency: CURRENCY,
       etaSeconds: durationS,
       breakdown: {
-        baseFare: round2(cfg.baseFare),
-        distanceFare: round2(distanceFare * surge),
-        timeFare: round2(timeFare * surge),
-        bookingFee: round2(cfg.bookingFee),
+        // Surged, so these lines and the booking fee sum to the quoted fare.
+        // Reporting an un-surged base here understated the itemisation by
+        // base*(surge-1) and pushed the difference into the minimum-fare line.
+        baseFare: base,
+        distanceFare: distance,
+        timeFare: time,
+        bookingFee: booking,
         surgeMultiplier: surge,
+        minimumFareAdjustment: shortfall > 0 ? shortfall : 0,
       },
     };
   }
