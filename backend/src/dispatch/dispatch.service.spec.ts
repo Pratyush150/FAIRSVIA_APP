@@ -1,4 +1,4 @@
-import { DispatchService } from './dispatch.service';
+import { DispatchService, clampOfferTtl } from './dispatch.service';
 import { RedisKeys } from '../common/redis/redis.keys';
 import { DISPATCH_JOB } from '../common/queue/queue.constants';
 
@@ -427,5 +427,32 @@ describe('DispatchService', () => {
     await svc.runDispatch('trip-1');
 
     expect(stateMachine.transition).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The offer window is the rider's worst-case wait per unresponsive driver, so
+ * it is not something a stray .env value should be able to blow out. Field
+ * testing ran with OFFER_TTL_MS=90000 and drivers saw a 90-second countdown.
+ */
+describe('offer TTL clamp', () => {
+  it('keeps a sensible value as-is', () => {
+    expect(clampOfferTtl(15000)).toBe(15000);
+    expect(clampOfferTtl(10000)).toBe(10000);
+  });
+
+  it('caps a demo-length window at 30 s', () => {
+    expect(clampOfferTtl(90000)).toBe(30000);
+    expect(clampOfferTtl(600000)).toBe(30000);
+  });
+
+  it('raises an unusably short window to 5 s', () => {
+    expect(clampOfferTtl(500)).toBe(5000);
+  });
+
+  it('falls back to the default for junk', () => {
+    expect(clampOfferTtl(NaN)).toBe(15000);
+    expect(clampOfferTtl(0)).toBe(15000);
+    expect(clampOfferTtl(-1)).toBe(15000);
   });
 });

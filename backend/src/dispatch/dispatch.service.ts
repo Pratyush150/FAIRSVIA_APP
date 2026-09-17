@@ -22,10 +22,23 @@ import {
 // How long a driver has to respond to an offer before we move on. A driver who
 // *ghosts* (neither accepts nor declines) blocks this rider's sequential offer
 // loop for the whole window, so it directly bounds the worst-case match-latency
-// tail. 10s is still an easy human-tap window while keeping ghost recovery snappy.
-// How long a driver has to accept an offer. Configurable so demos/recordings
-// can give a human time to switch apps; production keeps the snappy 10s.
-const OFFER_TTL_MS = Number(process.env.OFFER_TTL_MS ?? 10000);
+// tail: every unresponsive driver in the ring costs the waiting rider a full
+// window. 15s matches what the big networks give a driver — comfortably enough
+// to glance at the card and tap, without stranding the rider behind someone who
+// put their phone down.
+//
+// It stays configurable for demos, but is CLAMPED: a stray `OFFER_TTL_MS=90000`
+// left in a deployed .env is how field testing ended up with a 90-second
+// countdown on the driver's phone, and (before the lock TTL was derived from
+// it) how the same driver could be offered two trips at once.
+const OFFER_TTL_MIN_MS = 5000;
+const OFFER_TTL_MAX_MS = 30000;
+export const OFFER_TTL_MS = clampOfferTtl(Number(process.env.OFFER_TTL_MS ?? 15000));
+
+export function clampOfferTtl(ms: number): number {
+  if (!Number.isFinite(ms) || ms <= 0) return 15000;
+  return Math.min(OFFER_TTL_MAX_MS, Math.max(OFFER_TTL_MIN_MS, ms));
+}
 // The per-driver offer lock MUST outlive the offer window, or a second dispatch
 // could lock the same driver mid-offer and double-assign them (both trips accept).
 // Hold the lock a fixed buffer beyond however long the driver has to respond.
