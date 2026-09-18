@@ -99,40 +99,94 @@ async function main() {
   let noDrivers = 0;
   let timedOut = 0;
   let errors = 0;
+  let stuckRiders = 0;
+  const errSamples = new Map(); // "status body" -> count
   let cursor = 0;
 
+  // A rider may only hold one live trip (the backend refuses a second with
+  // 409). Any path that leaves this ride in flight therefore has to cancel it,
+  // or that rider spends the rest of the run instantly 409-ing and burns the
+  // whole ride queue. Returns false when the trip could not be released —
+  // `in_progress` is past the rider-cancellable window, so that rider retires.
+  const releaseRider = async (rider, tripId) => {
+    if (!tripId) return true;
+    try {
+      await api(`/trips/${tripId}/cancel`, {
+        method: 'POST',
+        token: rider.token,
+        body: { reason: 'load-test cleanup' },
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Resolves to 'ok' (rider is free for another ride) or 'stuck' (rider still
+  // holds a live trip and must be retired from the pool).
   const runOneRide = async (rider) => {
     const t0 = Date.now();
     const matchP = awaitMatch(rider.socket, MATCH_TIMEOUT);
+    const pickup = { lat: CENTER.lat + jitter(), lng: CENTER.lng + jitter() };
     let trip;
     try {
       trip = await api('/trips', {
         method: 'POST',
         token: rider.token,
         body: {
-          pickupLat: CENTER.lat + jitter(),
-          pickupLng: CENTER.lng + jitter(),
+          pickupLat: pickup.lat,
+          pickupLng: pickup.lng,
           dropoffLat: 25.7806, dropoffLng: -80.2420,
           tier: 'economy', pickupAddr: 'Load', dropoffAddr: 'Test',
         },
       });
     } catch {
       errors += 1;
-      return;
+      // The create itself failed, so there is nothing of ours in flight.
+      return 'ok';
     }
 
     const res = await matchP;
-    if (res.type === 'timeout') { timedOut += 1; return; }
-    if (res.type === 'no_drivers') { noDrivers += 1; return; }
+    if (res.type === 'timeout') {
+      timedOut += 1;
+      return (await releaseRider(rider, trip.id)) ? 'ok' : 'stuck';
+    }
+    if (res.type === 'no_drivers') {
+      noDrivers += 1;
+      return (await releaseRider(rider, trip.id)) ? 'ok' : 'stuck';
+    }
 
     matched += 1;
     matchMs.push(Date.now() - t0);
     const d = drivers.get(res.data.driver.id);
-    if (!d) return; // matched to an unknown driver (shouldn't happen)
+    if (!d) {
+      // Matched to a driver we don't own (shouldn't happen) — we can't drive
+      // this ride to completion, so hand the trip back rather than orphan it.
+      return (await releaseRider(rider, trip.id)) ? 'ok' : 'stuck';
+    }
 
     try {
+      // Drive the matched driver to the pickup before they mark arrived. The
+      // backend enforces a 150 m arrival geofence (assertNearPickup), so a
+      // driver sitting wherever they spawned would be legitimately refused —
+      // a real driver drives to the rider first. The GET below gives the fix
+      // time to land in Redis, plus a small margin under load.
+      d.socket.emit('driver:location', { lat: pickup.lat, lng: pickup.lng });
       const view = await api(`/trips/${trip.id}`, { token: rider.token });
-      await api(`/trips/${trip.id}/arrived`, { method: 'POST', token: d.token });
+      await wait(100);
+      try {
+        await api(`/trips/${trip.id}/arrived`, { method: 'POST', token: d.token });
+      } catch (e) {
+        // The driver's pickup fix can lose a write race against the location
+        // this driver emitted when it was returned to the pool (the gateway
+        // does not serialize async handlers), leaving the stored position at
+        // the old spot. Re-send the fix and tap again — what a real driver
+        // app does when the geofence refuses the first tap.
+        if (e.status !== 400) throw e;
+        d.socket.emit('driver:location', { lat: pickup.lat, lng: pickup.lng });
+        await wait(250);
+        await api(`/trips/${trip.id}/arrived`, { method: 'POST', token: d.token });
+      }
       await api(`/trips/${trip.id}/start`, {
         method: 'POST', token: d.token, body: { otp: view.startOtp },
       });
@@ -140,9 +194,15 @@ async function main() {
       completed += 1;
       e2eMs.push(Date.now() - t0);
       goOnline(d); // return the driver to the pool
-    } catch {
+      return 'ok';
+    } catch (e) {
       errors += 1;
+      // Keep a tally of *why* rides fail — a bare count can't tell a backend
+      // fault from the harness driving the flow wrong.
+      const key = `${e.status || 'net'} ${String(e.bodyText || e.message).slice(0, 120)}`;
+      errSamples.set(key, (errSamples.get(key) || 0) + 1);
       goOnline(d);
+      return (await releaseRider(rider, trip.id)) ? 'ok' : 'stuck';
     }
   };
 
@@ -150,7 +210,13 @@ async function main() {
     for (;;) {
       const i = cursor++;
       if (i >= RIDES) return;
-      await runOneRide(rider);
+      const outcome = await runOneRide(rider);
+      if (outcome === 'stuck') {
+        // This rider can no longer start a ride; retire it instead of letting
+        // it spin through the remaining queue on instant 409s.
+        stuckRiders += 1;
+        return;
+      }
       if ((matched + noDrivers + timedOut) % 25 === 0) {
         process.stdout.write(
           `\r  progress: ${completed} completed / ${matched} matched / ` +
@@ -177,6 +243,13 @@ async function main() {
   console.log(`  no-drivers        ${noDrivers}`);
   console.log(`  timed-out         ${timedOut}`);
   console.log(`  errors            ${errors}`);
+  console.log(`  riders retired    ${stuckRiders}`);
+  if (errSamples.size > 0) {
+    console.log('  failure breakdown:');
+    for (const [k, v] of [...errSamples].sort((a, b) => b[1] - a[1]).slice(0, 5)) {
+      console.log(`    ${String(v).padStart(4)} x  ${k}`);
+    }
+  }
   console.log(`  throughput        ${throughput.toFixed(1)} completed rides/s`);
   printStats('match latency', matchMs);
   printStats('end-to-end', e2eMs);
