@@ -102,9 +102,13 @@ class _CompletedSheetState extends State<CompletedSheet> {
       state.trip?.fareDisplay,
     ].firstWhere((v) => v != null && v > 0, orElse: () => null) ?? 0;
     final tip = state.tipAmount ?? state.receipt?.tip ?? 0;
-    // A tip that has actually been sent — once this exists the choice is final,
-    // because the server allows exactly one per trip.
-    final double? sentTip = state.tipAmount ?? state.receipt?.tip;
+    // A tip that has actually been charged. The backend puts `tip: 0` on the
+    // receipt of every untipped ride, and taking that at face value locked the
+    // whole tip section on arrival — chips greyed out, "Tip of \$0 added."
+    // under them — so a rider who wanted to tip simply could not. Only an
+    // amount greater than zero is a tip that was sent.
+    final double? sentTip = [state.tipAmount, state.receipt?.tip]
+        .firstWhere((v) => v != null && v > 0, orElse: () => null);
     final double? chosenTip = sentTip ?? _pendingTip;
     final bool locked = sentTip != null || state.tipping;
     return SingleChildScrollView(

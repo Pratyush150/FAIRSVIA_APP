@@ -134,15 +134,29 @@ class ErrorOverlay extends StatelessWidget {
                             ),
                           ),
                         ),
-                        IconButton(
-                          tooltip: 'Copy error',
-                          icon: const Icon(Icons.copy, color: Colors.white),
-                          onPressed: () =>
-                              Clipboard.setData(ClipboardData(text: err)),
+                        // Semantics, not `tooltip:` — for the same reason as
+                        // the Text above. A Tooltip needs an Overlay ancestor
+                        // and this banner sits above the Navigator that
+                        // provides one, so a tooltip here threw "No Overlay
+                        // widget found" and took down the very screen that was
+                        // trying to report the original error. The banner must
+                        // never be able to fail while reporting a failure.
+                        Semantics(
+                          label: 'Copy error',
+                          button: true,
+                          child: IconButton(
+                            icon: const Icon(Icons.copy, color: Colors.white),
+                            onPressed: () =>
+                                Clipboard.setData(ClipboardData(text: err)),
+                          ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: () => lastCaughtError.value = null,
+                        Semantics(
+                          label: 'Dismiss error',
+                          button: true,
+                          child: IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            onPressed: () => lastCaughtError.value = null,
+                          ),
                         ),
                       ],
                     ),

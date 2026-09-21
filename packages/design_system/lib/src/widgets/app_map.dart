@@ -288,10 +288,23 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
 
   /// Start or stop automatic following, telling the app when it changes so it
   /// can show a "Recenter" control exactly while following is suspended.
+  ///
+  /// The notification is deferred to after the frame. Following changes from
+  /// `didUpdateWidget` (a mode change, an honoured recenter), which runs
+  /// *during* build — and a listener that calls setState there throws
+  /// "setState() called during build", taking the whole screen down with it.
+  /// The flag itself flips immediately; only the telling waits.
   void _setFollowing(bool following) {
     if (_userPanned == !following) return; // no change
     _userPanned = !following;
-    widget.onFollowingChanged?.call(following);
+    final notify = widget.onFollowingChanged;
+    if (notify == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Re-check: the state can flip back before the frame ends (a pan
+      // immediately followed by a recenter), and reporting a change that is
+      // no longer true would leave the app's control out of step with us.
+      if (mounted && _userPanned == !following) notify(following);
+    });
   }
 
   AppMapMarker? _driverMarker(List<AppMapMarker> ms) {
@@ -528,6 +541,11 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     final c = await _controller.future;
     if (!mounted) return;
     _lastFittedBounds = List<LatLng>.of(pts);
+    // A fit is OUR camera move. Without this it looks exactly like a long drag
+    // to the gesture classifier — which is how framing a route on the first
+    // frame of a phase silently suspended follow mode and raised the Recenter
+    // pill before the rider had touched the map.
+    _programmaticUntil = DateTime.now().add(_programmaticWindow);
     // Car almost at its target: settle on the point at street zoom rather than
     // snapping to an over-tight bounds (keeps the "zoom in on arrival" smooth).
     if (_spanMeters(pts) < _minFitSpanMeters) {
