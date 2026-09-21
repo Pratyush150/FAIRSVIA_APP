@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'geo_point.dart';
+
 /// Driver + vehicle details shown to the rider once matched (`trip:accepted`).
 class AssignedDriver extends Equatable {
   const AssignedDriver({
@@ -13,6 +15,7 @@ class AssignedDriver extends Equatable {
     this.phone,
     this.etaSec,
     this.etaDistanceM,
+    this.lastLocation,
   });
 
   /// The driver's user id (used to favourite them). Null on older payloads.
@@ -34,6 +37,14 @@ class AssignedDriver extends Equatable {
   /// or routing failed, so the UI simply omits the countdown rather than lying.
   final int? etaSec;
   final int? etaDistanceM;
+
+  /// The driver's last known position, as the backend saw it when the trip was
+  /// fetched. Only present on a restored trip (`GET /trips/:id`, `/trips/active`
+  /// and `trip:sync`) — the accept event has no position yet. It seeds the map
+  /// so a rider returning to the screen sees the car where it is now, not where
+  /// it was when they left; live movement still arrives over
+  /// `trip:driver_location`.
+  final GeoPoint? lastLocation;
 
   String get vehicleLabel => [
         if (vehicleColor != null) vehicleColor,
@@ -64,7 +75,18 @@ class AssignedDriver extends Equatable {
       phone: _nonEmpty(driver['phone'] as String?),
       etaSec: (json['etaSec'] as num?)?.toInt(),
       etaDistanceM: (json['etaDistanceM'] as num?)?.toInt(),
+      lastLocation: _location(json['driverLocation']),
     );
+  }
+
+  /// `{lat, lng, ...}` from the trip payload, or null when the backend had no
+  /// fresh fix for this driver (offline, or never pinged).
+  static GeoPoint? _location(Object? raw) {
+    if (raw is! Map) return null;
+    final lat = (raw['lat'] as num?)?.toDouble();
+    final lng = (raw['lng'] as num?)?.toDouble();
+    if (lat == null || lng == null) return null;
+    return GeoPoint(lat, lng);
   }
 
   static String? _nonEmpty(String? s) {
@@ -84,5 +106,6 @@ class AssignedDriver extends Equatable {
         phone,
         etaSec,
         etaDistanceM,
+        lastLocation,
       ];
 }

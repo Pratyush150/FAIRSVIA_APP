@@ -380,4 +380,52 @@ describe('TripsService', () => {
       });
     });
   });
+  describe('TripsService.getTrip — driver position on a restored trip', () => {
+    // A rider reopening the app (cold start, or back from a suspend) had no
+    // driver position until the next `trip:driver_location` ping, so the marker
+    // sat where it was when they left — or nowhere. The snapshot now carries the
+    // server's last known fix.
+    function setup(loc?: Record<string, string>) {
+      const { svc, prisma, store } = make();
+      const trip = {
+        id: 'trip-1',
+        riderId: 'rider-1',
+        driverId: 'driver-1',
+        status: 'accepted',
+        pickupLat: 1,
+        pickupLng: 2,
+        dropoffLat: 3,
+        dropoffLng: 4,
+      };
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'driver-1',
+        fullName: 'Ava',
+        ratingAvg: 4.9,
+        driverProfile: { vehicleMake: 'Toyota', plateNumber: 'ABC123' },
+      });
+      if (loc) store[RedisKeys.driverLoc('driver-1')] = loc;
+      return svc;
+    }
+
+    it('includes the driver last known position', async () => {
+      const svc = setup({ lat: '12.34', lng: '56.78', heading: '90', ts: '1700' });
+      const res = (await svc.getTrip('rider-1', 'trip-1')) as Record<string, any>;
+      expect(res.driverLocation).toEqual({
+        lat: 12.34,
+        lng: 56.78,
+        heading: 90,
+        ts: 1700,
+      });
+    });
+
+    it('returns null when the driver has no fresh fix, rather than failing', async () => {
+      const svc = setup();
+      const res = (await svc.getTrip('rider-1', 'trip-1')) as Record<string, any>;
+      expect(res.driverLocation).toBeNull();
+      // The rest of the snapshot must still be there — the position is
+      // best-effort and never allowed to take the trip down with it.
+      expect(res.driver.name).toBe('Ava');
+    });
+  });
 });

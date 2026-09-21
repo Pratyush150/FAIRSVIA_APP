@@ -923,6 +923,58 @@ void main() {
     ],
   );
 
+  // Regression: a restored screen showed the car wherever it was when the app
+  // went away — or nowhere at all after a cold start — because the driver's
+  // position only ever arrived over `trip:driver_location`. The snapshot now
+  // carries the server's last fix so the first frame is already correct.
+  blocTest<TripCubit, TripState>(
+    'init seeds the driver marker from the snapshot\'s last known position',
+    setUp: () => when(() => repo.activeTripDetails()).thenAnswer(
+      (_) async => ActiveTrip.fromJson(const {
+        'id': 't1',
+        'status': 'accepted',
+        'tier': 'economy',
+        'pickup': {'lat': 12.9611, 'lng': 77.6387},
+        'dropoff': {'lat': 12.9674, 'lng': 77.5904},
+        'driver': {'id': 'd1', 'name': 'Ava', 'rating': 4.9},
+        'vehicle': {'make': 'Toyota', 'model': 'Prius', 'plate': 'ABC123'},
+        'driverLocation': {'lat': 12.9630, 'lng': 77.6200, 'heading': 90},
+      }),
+    ),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    act: (c) => c.init('token'),
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.driverLocation?.lat, 'driver lat', 12.9630)
+          .having((s) => s.driverLocation?.lng, 'driver lng', 77.6200),
+    ],
+  );
+
+  // A snapshot without the key (older backend, or the driver has no fresh fix
+  // in Redis) must not blank out a position we already hold.
+  blocTest<TripCubit, TripState>(
+    'a snapshot with no driverLocation leaves the marker where it is',
+    setUp: () => when(() => repo.activeTripDetails()).thenAnswer(
+      (_) async => ActiveTrip.fromJson(const {
+        'id': 't1',
+        'status': 'accepted',
+        'tier': 'economy',
+        'pickup': {'lat': 12.9611, 'lng': 77.6387},
+        'dropoff': {'lat': 12.9674, 'lng': 77.5904},
+        'driver': {'id': 'd1', 'name': 'Ava', 'rating': 4.9},
+        'vehicle': {'make': 'Toyota', 'model': 'Prius', 'plate': 'ABC123'},
+      }),
+    ),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(driverLocation: GeoPoint(12.9, 77.6)),
+    act: (c) => c.init('token'),
+    expect: () => [
+      isA<TripState>()
+          .having((s) => s.driverLocation?.lat, 'driver lat', 12.9)
+          .having((s) => s.driverLocation?.lng, 'driver lng', 77.6),
+    ],
+  );
+
   // Regression: init() awaited connect() BEFORE subscribing, so a first
   // connect that threw (connect_error / 8 s timeout) left the session with no
   // listeners at all — deaf for good, even once socket.io's own retry landed.

@@ -70,6 +70,9 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   // no-op and the button would feel dead.
   LatLng? _recenter;
   int _recenterSeq = 0;
+  // The phase whose opening frame has already been shown. While it matches the
+  // live phase the camera follows the car instead of re-fitting.
+  TripPhase? _followedPhase;
 
   // Live position watch: keeps the pickup on the phone's real location and, on
   // the FIRST real GPS fix, snaps the camera to it — so the map self-corrects
@@ -208,7 +211,20 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   /// leg / arrival box) it re-fits those bounds — that is "where the ride
   /// is" — otherwise it snaps back to the rider's live GPS position.
   Future<void> _recenterToMe() async {
-    final bounds = _fitBounds(context.read<TripCubit>().state);
+    final state = context.read<TripCubit>().state;
+    // While a driver is being tracked, "recenter" means the car — that is what
+    // the rider is watching. Re-fitting the route here (what it used to do)
+    // left them staring at a zoomed-out box with a stale camera, and tapping
+    // again did nothing because the bounds had not changed.
+    if (_isLiveTracking(state)) {
+      setState(() {
+        _recenter = MapUtils.toLatLng(state.driverLocation!);
+        _recenterSeq++;
+        _followedPhase = state.phase; // resume following after the snap
+      });
+      return;
+    }
+    final bounds = _fitBounds(state);
     if (bounds != null && bounds.length >= 2) {
       _refitCurrentBounds();
       return;
@@ -481,6 +497,25 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   /// on every GPS tick). Once the driver has arrived we frame the car and the
   /// pickup, or a fixed ~250 m box around the pickup when they're (nearly) the
   /// same point. Otherwise we fit pickup→dropoff.
+  /// Phases where a driver is on the map and the rider is watching them move.
+  /// The camera follows the car in these, instead of holding a static frame
+  /// that the driver eventually drives out of.
+  static bool _isLiveTracking(TripState state) =>
+      state.driverLocation != null &&
+      (state.phase == TripPhase.driverEnRoute ||
+          state.phase == TripPhase.driverArrived ||
+          state.phase == TripPhase.onTrip);
+
+  /// The camera frames the ride once when a phase begins, then hands over to
+  /// follow mode. Re-fitting on every driver ping would re-zoom the map a
+  /// second at a time; not fitting at all would leave the rider looking at the
+  /// wrong part of the city when the phase changes.
+  List<LatLng>? _fitBoundsForCamera(TripState state) {
+    if (_fitSuppressed) return null;
+    if (_isLiveTracking(state) && _followedPhase == state.phase) return null;
+    return _fitBounds(state);
+  }
+
   List<LatLng>? _fitBounds(TripState state) {
     // Prefer the estimate's endpoints; after a cold-start restore there is no
     // estimate, so frame the restored trip's pickup/dropoff instead.
@@ -607,6 +642,12 @@ class _RiderHomeViewState extends State<_RiderHomeView>
           unawaited(_maybeReroute(state));
           if (state.phase == _lastPhase) return;
           _lastPhase = state.phase;
+          // Let this phase's opening frame land, then hand the camera to
+          // follow mode for the rest of the phase.
+          _followedPhase = null;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _followedPhase = state.phase);
+          });
           // Back to idle (change destination / cancel / done): the camera was
           // fitted to the route bounds — bring it back to the rider instead of
           // leaving it zoomed out over the whole route.
@@ -641,9 +682,12 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                   initialZoom: 16, // street level on the rider, like Uber
                   markers: _markers(state),
                   route: _route(state),
-                  fitBounds: _fitSuppressed ? null : _fitBounds(state),
+                  fitBounds: _fitBoundsForCamera(state),
                   recenter: _recenter,
                   recenterSeq: _recenterSeq,
+                  cameraMode: _isLiveTracking(state)
+                      ? MapCameraMode.followDriverEdge
+                      : MapCameraMode.fit,
                   // Keep pickup/dropoff/driver markers framed above the bottom
                   // sheet (which covers ~40% of the screen) rather than behind it.
                   boundsPadding: EdgeInsets.fromLTRB(
@@ -781,7 +825,7 @@ class _BottomSheetForPhase extends StatelessWidget {
       TripPhase.driverEnRoute => DriverInfoSheet(state: state, arrived: false),
       TripPhase.driverArrived => DriverInfoSheet(state: state, arrived: true),
       TripPhase.onTrip => _OnTripSheet(state: state),
-      TripPhase.completed => _CompletedSheet(state: state),
+      TripPhase.completed => CompletedSheet(state: state),
       TripPhase.error => _ErrorCard(
           message: state.error ?? 'Something went wrong',
           onRetry: onSearch,
@@ -2798,12 +2842,26 @@ SnackBar _completionSnackBar(String text) => SnackBar(
 /// Bottom margin that clears the Done button (button + sheet padding).
 const double _kCompletionSnackBarLift = 96;
 
-class _CompletedSheet extends StatelessWidget {
-  const _CompletedSheet({required this.state});
+/// The post-ride sheet: fare, rating, favourite-driver and the tip flow.
+/// Public (like [DriverInfoSheet]) so it can be widget-tested on its own.
+class CompletedSheet extends StatefulWidget {
+  const CompletedSheet({super.key, required this.state});
   final TripState state;
 
   @override
+  State<CompletedSheet> createState() => _CompletedSheetState();
+}
+
+class _CompletedSheetState extends State<CompletedSheet> {
+  /// The amount the rider has picked but not yet confirmed. A tip can only be
+  /// sent once (the backend rejects a second one with 409), so the choice has
+  /// to stay changeable on this side of the send rather than firing on the
+  /// first tap — which is what made a mis-tap permanent.
+  double? _pendingTip;
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final theme = Theme.of(context);
     final cubit = context.read<TripCubit>();
     // Take the first source that actually states a fare. The receipt is the
@@ -2816,6 +2874,11 @@ class _CompletedSheet extends StatelessWidget {
       state.trip?.fareDisplay,
     ].firstWhere((v) => v != null && v > 0, orElse: () => null) ?? 0;
     final tip = state.tipAmount ?? state.receipt?.tip ?? 0;
+    // A tip that has actually been sent — once this exists the choice is final,
+    // because the server allows exactly one per trip.
+    final double? sentTip = state.tipAmount ?? state.receipt?.tip;
+    final double? chosenTip = sentTip ?? _pendingTip;
+    final bool locked = sentTip != null || state.tipping;
     return SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2925,32 +2988,58 @@ class _CompletedSheet extends StatelessWidget {
                     padding: const EdgeInsets.only(right: AppSpacing.sm),
                     child: _TipChip(
                       amount: amt,
-                      selected: state.tipAmount == amt,
-                      onTap: (state.tipping || state.tipAmount != null)
+                      selected: sentTip == null
+                          ? _pendingTip == amt
+                          : sentTip == amt,
+                      // Locked only once the tip has actually been sent.
+                      onTap: locked
                           ? null
-                          : () => cubit.tipDriver(amt),
+                          : () => setState(() => _pendingTip = amt),
                     ),
                   ),
                 ),
               // Custom amount — a rider isn't limited to the presets.
               Expanded(
                 child: _CustomTipChip(
-                  // Highlight when the added tip isn't one of the presets.
-                  selected: state.tipAmount != null &&
-                      !const [2.0, 3.0, 5.0].contains(state.tipAmount),
-                  onTap: (state.tipping || state.tipAmount != null)
+                  // Highlight when the chosen tip isn't one of the presets.
+                  selected: chosenTip != null &&
+                      !const [2.0, 3.0, 5.0].contains(chosenTip),
+                  onTap: locked
                       ? null
-                      : () => _promptCustomTip(context, cubit),
+                      : () async {
+                          final amount = await _askCustomTip(context);
+                          if (amount != null && mounted) {
+                            setState(() => _pendingTip = amount);
+                          }
+                        },
                 ),
               ),
             ],
           ),
-          if (state.tipAmount != null)
+          if (sentTip != null)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: Text('Tip of \$${_money(state.tipAmount!)} added.',
+              child: Text('Tip of \$${_money(sentTip)} added.',
                   style: theme.textTheme.bodySmall),
+            )
+          else if (_pendingTip != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            PrimaryButton(
+              label: state.tipping
+                  ? 'Adding tip…'
+                  : 'Add \$${_money(_pendingTip!)} tip',
+              onPressed: state.tipping
+                  ? null
+                  : () => cubit.tipDriver(_pendingTip!),
             ),
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(
+                'You can change this until you add it.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.xl),
           PrimaryButton(
             label: 'Done',
@@ -3143,7 +3232,10 @@ class _CustomTipChip extends StatelessWidget {
 }
 
 /// Prompt for a custom tip amount and submit it.
-Future<void> _promptCustomTip(BuildContext context, TripCubit cubit) async {
+/// Ask for a custom tip amount. Returns the amount, or null if the rider
+/// backed out — sending it is the caller's job, so the choice stays
+/// changeable until they confirm.
+Future<double?> _askCustomTip(BuildContext context) async {
   final controller = TextEditingController();
   final amount = await showDialog<double>(
     context: context,
@@ -3184,14 +3276,14 @@ Future<void> _promptCustomTip(BuildContext context, TripCubit cubit) async {
                 }
                 Navigator.pop(dialogCtx, v);
               },
-              child: const Text('Add tip'),
+              child: const Text('Use amount'),
             ),
           ],
         ),
       );
     },
   );
-  if (amount != null) cubit.tipDriver(amount);
+  return amount;
 }
 
 /// Format a dollar amount without trailing `.00` (so `$4` not `$4.00`, but

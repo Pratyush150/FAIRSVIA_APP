@@ -273,6 +273,14 @@ class TripCubit extends Cubit<TripState> {
         stops: trip.stops,
         driver: driver ?? state.driver,
         driverRoutePolyline: polyline,
+        // Seed the car's position from the snapshot so a restored screen shows
+        // it where it is now. Without this the marker sat at whatever we last
+        // saw before the app was suspended — or nowhere at all after a cold
+        // start — until the next `trip:driver_location` ping arrived.
+        // The snapshot is read from the same Redis fix the live pings come
+        // from, so it is never staler than what we hold: prefer it, and keep
+        // the current position only when the server had no fix to give.
+        driverLocation: driver?.lastLocation ?? state.driverLocation,
       ));
     }
   }

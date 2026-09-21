@@ -823,6 +823,31 @@ export class TripsService {
       })
       .catch(() => null);
     if (!driver) return {};
+    // Last known position, so a rider restoring the screen (cold start, or
+    // back from a suspend) sees the car where it actually is instead of where
+    // it was when the app went away. Live movement still arrives over
+    // `trip:driver_location`; this only seeds the first frame. Never fatal —
+    // a missing or unreadable fix just means no marker until the next ping.
+    let driverLocation: { lat: number; lng: number; heading: number; ts: number } | null =
+      null;
+    try {
+      const loc = await this.redis.client.hgetall(
+        RedisKeys.driverLoc(trip.driverId),
+      );
+      const lat = Number(loc?.lat);
+      const lng = Number(loc?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        driverLocation = {
+          lat,
+          lng,
+          heading: Number(loc?.heading) || 0,
+          ts: Number(loc?.ts) || 0,
+        };
+      }
+    } catch {
+      // ignore — the snapshot is best-effort
+    }
+
     return {
       driver: {
         id: driver.id,
@@ -835,6 +860,7 @@ export class TripsService {
         color: driver.driverProfile?.vehicleColor,
         plate: driver.driverProfile?.plateNumber,
       },
+      driverLocation,
     };
   }
 

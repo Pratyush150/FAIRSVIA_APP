@@ -18,7 +18,14 @@ enum MapMarkerKind { pickup, dropoff, driver, me, plain }
 /// demand; [followDriver] keeps the driver marker centred, heading-up, at
 /// street zoom (Uber Driver's navigation view) until the user pans — a
 /// recenter request resumes following.
-enum MapCameraMode { fit, followDriver }
+///
+/// [followDriverEdge] is the rider's live-tracking view: the camera holds
+/// still while the car is comfortably inside the viewport and only pans once
+/// it nears an edge, which keeps the route ahead on screen without the map
+/// sliding under the rider on every GPS fix. Zoom is never changed, so a
+/// pinch the rider made survives; panning suspends following until the next
+/// recenter, exactly as [followDriver] does.
+enum MapCameraMode { fit, followDriver, followDriverEdge }
 
 /// A point to draw on [AppMap].
 class AppMapMarker {
@@ -96,6 +103,43 @@ class AppMap extends StatefulWidget {
   /// See [MapCameraMode].
   final MapCameraMode cameraMode;
 
+  /// Fraction of the viewport, per side, treated as the "edge" in
+  /// [MapCameraMode.followDriverEdge]. The car is left alone while it sits in
+  /// the middle band; crossing into a margin pans the camera back onto it.
+  /// 0.28 keeps roughly the middle 44% quiet, which is enough to stop a car
+  /// drifting off screen between pans without the map twitching on every fix.
+  static const double edgeMargin = 0.28;
+
+  /// Whether the camera should pan to keep [target] comfortably on screen,
+  /// given the currently visible box [sw]..[ne]. Pure so the rule can be
+  /// tested without a live map controller.
+  ///
+  /// Returns false when the box is not measurable (zero/negative span, which
+  /// also covers a view straddling the antimeridian) — there is nothing to
+  /// compare against, so the camera is left alone.
+  @visibleForTesting
+  static bool needsEdgePan(LatLng target, LatLng sw, LatLng ne,
+      {double margin = edgeMargin}) {
+    final latSpan = ne.latitude - sw.latitude;
+    final lngSpan = ne.longitude - sw.longitude;
+    if (latSpan <= 0 || lngSpan <= 0) return false;
+    final insideLat = target.latitude >= sw.latitude + latSpan * margin &&
+        target.latitude <= ne.latitude - latSpan * margin;
+    final insideLng = target.longitude >= sw.longitude + lngSpan * margin &&
+        target.longitude <= ne.longitude - lngSpan * margin;
+    return !(insideLat && insideLng);
+  }
+
+  /// How long the driver marker should glide for, given the gap between the
+  /// last two fixes. Stretching the glide over the real interval keeps the car
+  /// moving until the next fix lands, instead of darting ahead in a fixed
+  /// window and then sitting frozen — which reads as jumping even though the
+  /// position is interpolated. Clamped so a stalled stream can't leave it
+  /// crawling, and a burst can't make it strobe.
+  @visibleForTesting
+  static Duration glideFor(Duration gap) =>
+      Duration(milliseconds: gap.inMilliseconds.clamp(400, 2500));
+
   /// Whether a rebuild from [old] to [next] carries a recenter request the
   /// camera should honour. A request is suppressed while [fitBounds] frames
   /// two or more points (the fit owns the camera then).
@@ -121,12 +165,20 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   late final AnimationController _driverAnim;
   LatLng? _driverFrom; // where the car is gliding from
   LatLng? _driverTo; // ...to (the latest GPS fix)
+  // When the last fix landed. The glide is stretched to match the gap between
+  // fixes: a fixed 900ms animation against a 3s ping makes the car dart ahead
+  // and then sit frozen, which reads as jumping even though it interpolates.
+  DateTime? _lastFixAt;
   double _driverBearing = 0;
   gmaps.BitmapDescriptor? _driverIcon; // custom car puck, generated once
   gmaps.BitmapDescriptor? _meIcon; // rider's blue "you are here" dot
   // Follow mode: suspended once the user pans until the next recenter.
   bool _userPanned = false;
   bool _programmaticMove = false;
+  // Camera target when the current gesture began. A pinch barely moves the
+  // centre while a drag moves it a long way, which is how we tell them apart:
+  // zooming must NOT stop the map following the car, but panning must.
+  gmaps.LatLng? _gestureStartTarget;
 
   // Cached route polylines. Recomputing the route split (an O(route) scan) plus
   // copying the whole line on every animation frame janks on mid-range phones,
@@ -189,6 +241,10 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       _userPanned = false;
       if (widget.cameraMode == MapCameraMode.followDriver) {
         _followDriver();
+      } else if (widget.cameraMode == MapCameraMode.followDriverEdge) {
+        // Entering rider follow: nudge once if the car is already off-centre,
+        // then leave the camera alone until it nears an edge.
+        _followDriverEdge();
       } else {
         _resetToNorthUp();
       }
@@ -208,10 +264,23 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       }
       _driverFrom = from;
       _driverTo = next;
+      // Stretch the glide over the observed gap between fixes so the car is
+      // still moving when the next one lands, instead of arriving early and
+      // freezing. Clamped so a stalled stream can't leave it crawling.
+      final now = DateTime.now();
+      final gap = _lastFixAt == null
+          ? _driverAnim.duration!
+          : now.difference(_lastFixAt!);
+      _lastFixAt = now;
+      _driverAnim.duration = AppMap.glideFor(gap);
       _driverAnim
         ..reset()
         ..forward();
-      if (widget.cameraMode == MapCameraMode.followDriver) _followDriver();
+      if (widget.cameraMode == MapCameraMode.followDriver) {
+        _followDriver();
+      } else if (widget.cameraMode == MapCameraMode.followDriverEdge) {
+        _followDriverEdge();
+      }
     } else if (next == null) {
       _driverFrom = null;
       _driverTo = null;
@@ -250,6 +319,35 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  /// How far the camera centre must travel during one gesture before it counts
+  /// as a deliberate pan. A pinch-zoom holds the centre roughly still, so this
+  /// keeps follow mode alive through zooming while still yielding the camera
+  /// the moment the user drags the map somewhere else.
+  static const double _panThresholdMeters = 40.0;
+
+  /// Rider live-tracking camera: pan only when the car nears the edge of what
+  /// is on screen, and never change zoom (a pinch the rider made must stick).
+  Future<void> _followDriverEdge() async {
+    if (_userPanned) return;
+    final target = _currentDriverPoint() ?? _driverTo;
+    if (target == null) return;
+    final c = await _controller.future;
+    if (!mounted || _userPanned) return;
+    final gmaps.LatLngBounds region;
+    try {
+      region = await c.getVisibleRegion();
+    } catch (_) {
+      return; // controller not ready yet; the next fix will retry
+    }
+    if (!mounted || _userPanned) return;
+    final sw = LatLng(region.southwest.latitude, region.southwest.longitude);
+    final ne = LatLng(region.northeast.latitude, region.northeast.longitude);
+    if (!AppMap.needsEdgePan(target, sw, ne)) return;
+    _programmaticMove = true;
+    // newLatLng, not newLatLngZoom: keep whatever zoom is on screen.
+    await c.animateCamera(gmaps.CameraUpdate.newLatLng(_g(target)));
   }
 
   /// Leaving follow mode: undo the heading-up rotation/tilt so the idle map
@@ -695,15 +793,28 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         widget.onMapReady?.call();
       },
       onCameraMoveStarted: () {
-        // A move we did not start is the user panning: stop following until
-        // they tap recenter.
-        if (!_programmaticMove &&
-            widget.cameraMode == MapCameraMode.followDriver) {
-          _userPanned = true;
+        // Don't decide yet: a pinch and a drag both land here. Remember where
+        // the centre was and classify once the gesture settles.
+        if (!_programmaticMove && widget.cameraMode != MapCameraMode.fit) {
+          _gestureStartTarget = _lastCameraTarget;
         }
       },
       onCameraMove: (pos) => _lastCameraTarget = pos.target,
       onCameraIdle: () {
+        final start = _gestureStartTarget;
+        _gestureStartTarget = null;
+        if (start != null && !_programmaticMove) {
+          final end = _lastCameraTarget;
+          // No end position to compare against: treat it as a pan rather than
+          // silently keeping a camera the user may have moved.
+          final moved = end == null
+              ? double.infinity
+              : _distanceMeters(
+                  LatLng(start.latitude, start.longitude),
+                  LatLng(end.latitude, end.longitude),
+                );
+          if (moved > _panThresholdMeters) _userPanned = true;
+        }
         _programmaticMove = false;
         final t = _lastCameraTarget;
         if (t != null && widget.onCenterChanged != null) {
