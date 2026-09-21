@@ -1,0 +1,45 @@
+# Scrape config for the RideVela stack.
+#
+# Every backend replica is scraped DIRECTLY, never through nginx: nginx uses
+# ip_hash for Socket.IO session affinity, which would pin the scraper to one
+# replica and silently halve the data while looking perfectly healthy.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    stack: ridevela
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # The NestJS backend. `/metrics` sits outside the /api/v1 prefix.
+  # Add one target per replica when the prod profile scales out — a single
+  # entry pointing at a load balancer measures the balancer, not the app.
+  - job_name: backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['backend:3000']
+        labels:
+          replica: '1'
+
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres_exporter:9187']
+
+  - job_name: redis
+    static_configs:
+      - targets: ['redis_exporter:9121']
+
+  - job_name: node
+    static_configs:
+      - targets: ['node_exporter:9100']

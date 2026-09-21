@@ -1,0 +1,134 @@
+# Alert thresholds. Every number here comes from the load sweep of
+# 2026-09-17/18 (tools/load-test/README.md), not from a blog post — an alert
+# tuned to someone else's system is noise, and noise gets muted.
+groups:
+  - name: ridevela-availability
+    rules:
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Backend replica {{ $labels.instance }} is not scrapeable'
+          description: >-
+            Prometheus cannot reach /metrics. Either the process is down or it
+            is wedged. Check `docker logs ubernav_backend` and the readiness
+            probe at /api/v1/health/ready.
+
+      - alert: HighErrorRate
+        # 5xx share of all responses. Ignores 4xx: a client sending bad
+        # requests is not an outage.
+        expr: >-
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(http_requests_total[5m])), 0.001) > 0.01
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: '5xx rate above 1% for 5 minutes'
+
+  - name: ridevela-marketplace
+    rules:
+      - alert: MatchLatencySlow
+        # Measured p95 at the 300-ride ceiling was 2.46s. Alerting at 2.5s
+        # means "we are at the edge of what we measured", not a guess.
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum(rate(trip_match_duration_seconds_bucket[5m])) by (le)
+          ) > 2.5
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Match p95 above 2.5s (measured ceiling was 2.46s)'
+          description: >-
+            Riders are waiting longer to be matched. Check dispatch queue depth
+            first — backlog there moves before this does.
+
+      - alert: DispatchBacklog
+        # The earliest signal in the whole system: the load sweep showed
+        # waiting jobs climb here before anything a rider can see goes wrong.
+        expr: dispatch_queue_depth{queue="dispatch",state="waiting"} > 50
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Dispatch queue backlog above 50 waiting jobs'
+          description: >-
+            This precedes rider-visible failure. Check worker health and Redis
+            before riders start seeing "no drivers".
+
+      - alert: ActiveTripsNearCeiling
+        # 83% of the measured 300-ride ceiling on the dev stack. The prod
+        # profile has never been benchmarked, so raise this once it has.
+        expr: active_trips > 250
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Active trips above 250 (measured ceiling ~300)'
+
+      - alert: NoDriversOnline
+        # Not a bug on its own — but a marketplace with no supply serves
+        # nobody, and it is invisible from any purely technical metric.
+        expr: sum(drivers_online) == 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'No drivers online anywhere for 10 minutes'
+
+  - name: ridevela-vendors
+    rules:
+      - alert: VendorErrorRate
+        # The failure that actually happened: 20,370 Google OVER_QUERY_LIMIT
+        # errors during the sweep, invisible for hours.
+        expr: >-
+          sum by (vendor) (rate(vendor_request_duration_seconds_count{status="error"}[5m]))
+          / clamp_min(sum by (vendor) (rate(vendor_request_duration_seconds_count[5m])), 0.001) > 0.05
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: '{{ $labels.vendor }} error rate above 5%'
+          description: >-
+            If this is Google, the geo fallback to OSRM/Nominatim should already
+            be carrying the traffic — confirm osm request rate has picked up.
+
+      - alert: PaymentFailuresExhausted
+        # Retries that eventually succeed are a vendor blip. Exhausted ones are
+        # rides that happened and were never paid for.
+        expr: increase(payment_failures_total{reason="exhausted"}[15m]) > 0
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: 'A fare capture exhausted its retries — revenue lost'
+
+  - name: ridevela-infrastructure
+    rules:
+      - alert: DiskSpaceLow
+        # Already breached on the current host (97% used). Left at 90% so it
+        # keeps meaning something once that is cleaned up.
+        expr: >-
+          (1 - node_filesystem_avail_bytes{mountpoint="/rootfs",fstype!~"tmpfs|overlay"}
+           / node_filesystem_size_bytes{mountpoint="/rootfs",fstype!~"tmpfs|overlay"}) > 0.90
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Host disk above 90% full'
+          description: >-
+            Prometheus itself writes ~1-2 GB/month. Run `docker system prune`
+            and check retention settings before this fills.
+
+      - alert: PostgresConnectionsHigh
+        expr: >-
+          sum(pg_stat_activity_count) / clamp_min(sum(pg_settings_max_connections), 1) > 0.8
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Postgres using over 80% of max_connections'
+
+      - alert: RedisMemoryHigh
+        # Redis holds hot/ephemeral state (GPS, presence). Eviction there is
+        # silent data loss on the live map.
+        expr: >-
+          redis_memory_used_bytes / clamp_min(redis_memory_max_bytes, 1) > 0.85
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Redis above 85% of its memory limit'

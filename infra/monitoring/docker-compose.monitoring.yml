@@ -1,0 +1,161 @@
+# RideVela observability stack.
+#
+# Opt-in and separate from the app stack, per the standing dev/prod separation
+# rule: bringing this up or down must never touch a running backend.
+#
+#   cd infra/monitoring
+#   docker compose -f docker-compose.monitoring.yml up -d
+#
+# It joins the app's existing network (`infra_default`) read-only, so
+# Prometheus can scrape `backend:3000` by service name without the app stack
+# needing to know this exists.
+#
+# DISK: the host sits near capacity. Prometheus is capped by BOTH time and
+# size below, and Loki by time, so this stack cannot quietly fill the disk.
+# Run `docker system prune` first if space is tight — the plan measured ~40 GB
+# reclaimable in unused images.
+
+name: ridevela-monitoring
+
+networks:
+  app:
+    name: infra_default
+    external: true
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alertmanager_data:
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: ridevela_prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      # Two caps, not one. Time alone is a promise about a rate we have not
+      # measured; the size cap is the one that actually protects the disk.
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=8GB'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - '9099:9090' # 9090 is taken by tools/webserve.py
+    networks: [app, monitoring]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: ridevela_alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - '9093:9093'
+    networks: [monitoring]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: ridevela_grafana
+    restart: unless-stopped
+    environment:
+      # Change the password on first login. Kept explicit rather than left at
+      # admin/admin so it is obvious this is a credential someone owns.
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-ridevela}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+      GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
+      # Read by the provisioned Postgres datasource.
+      RIDEVELA_DB_USER: ${POSTGRES_USER:-ubernav}
+      RIDEVELA_DB_PASSWORD: ${POSTGRES_PASSWORD:-ubernav}
+      RIDEVELA_DB_NAME: ${POSTGRES_DB:-ubernav}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - '3001:3000' # 3000 is the backend
+    depends_on: [prometheus]
+    networks: [app, monitoring]
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: ridevela_loki
+    restart: unless-stopped
+    command: ['-config.file=/etc/loki/loki-config.yml']
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    ports:
+      - '3100:3100'
+    networks: [monitoring]
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    container_name: ridevela_promtail
+    restart: unless-stopped
+    command: ['-config.file=/etc/promtail/promtail-config.yml']
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      # Container stdout lives here; the socket supplies the container labels
+      # that make a log line searchable by service.
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+    networks: [monitoring]
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: ridevela_postgres_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: >-
+        postgresql://${POSTGRES_USER:-ubernav}:${POSTGRES_PASSWORD:-ubernav}@postgres:5432/${POSTGRES_DB:-ubernav}?sslmode=disable
+    networks: [app, monitoring]
+
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    container_name: ridevela_redis_exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    networks: [app, monitoring]
+
+  node_exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: ridevela_node_exporter
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|run|var/lib/docker/.+)($$|/)'
+    pid: host
+    volumes:
+      - /:/rootfs:ro,rslave
+    networks: [monitoring]
+
+  # cAdvisor is deliberately ABSENT.
+  #
+  # This host runs Docker's newer `overlayfs` storage driver; cAdvisor (through
+  # v0.52) still looks for `/var/lib/docker/image/overlay2/layerdb`, fails to
+  # identify any container's read-write layer, and therefore registers NO
+  # containers at all — it exposes host cgroup series with no `name` label and
+  # nothing else. `--disable_metrics=disk,diskIO` does not help: the failure is
+  # in container registration, not metric collection.
+  #
+  # Nothing is actually lost. Per-container CPU and memory for the three
+  # services that matter come from better sources already in this stack:
+  #   backend   → process_* metrics from prom-client, on /metrics
+  #   postgres  → postgres_exporter
+  #   redis     → redis_exporter
+  # and the host totals come from node_exporter. Re-add cAdvisor only if
+  # upstream gains overlayfs support, or if OSRM/Nominatim container stats
+  # become worth a second agent.

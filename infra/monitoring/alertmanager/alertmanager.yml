@@ -1,0 +1,47 @@
+# Where alerts go.
+#
+# Deliberately shipped with NO delivery integration configured. An Alertmanager
+# pointed at a dead webhook looks exactly like one that is working, and the
+# first time anyone notices is the outage it failed to page for. Fill in one of
+# the commented receivers and restart; until then alerts are visible in the
+# Alertmanager UI (:9093) and in Grafana's alert view.
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  group_by: ['alertname', 'severity']
+  # Wait briefly before the first notification so a burst of related alerts
+  # arrives as one message rather than twelve.
+  group_wait: 30s
+  group_interval: 5m
+  # Critical alerts repeat every hour; everything else stays quiet for four,
+  # because an alert that repeats too often gets muted and then ignored.
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity="critical"]
+      receiver: critical
+      repeat_interval: 1h
+
+receivers:
+  - name: default
+  - name: critical
+    # --- Pick one and fill it in -------------------------------------------
+    # slack_configs:
+    #   - api_url: https://hooks.slack.com/services/XXX/YYY/ZZZ
+    #     channel: '#ridevela-alerts'
+    #     title: '{{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})'
+    #     text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}'
+    #
+    # email_configs:
+    #   - to: ops@ridevela.com
+    #     from: alerts@ridevela.com
+    #     smarthost: email-smtp.us-east-1.amazonaws.com:587
+    #     auth_username: <SES SMTP user>
+    #     auth_password: <SES SMTP password>
+
+inhibit_rules:
+  # If the backend is down, every downstream alert it causes is noise.
+  - source_matchers: [alertname="BackendDown"]
+    target_matchers: [severity="warning"]
+    equal: ['stack']

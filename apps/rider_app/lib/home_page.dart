@@ -78,6 +78,18 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   // Last seen socket state, so a reconnect (false → true) can be told apart
   // from a rebuild that merely happens to be connected.
   bool _wasConnected = true;
+
+  // The bottom sheet's real height, measured after each frame.
+  //
+  // This drives the map's `padding`, which does two jobs at once: it keeps the
+  // camera framing the strip of map the rider can actually SEE, and it is what
+  // positions Google's logo and attribution. A guessed constant here is why the
+  // "Google" watermark floated in the middle of the map instead of sitting just
+  // above the sheet — the padding was bigger than the sheet it was meant to
+  // describe. (The logo cannot be removed: the Maps Platform terms require it
+  // to stay visible and unobscured. It can only be positioned.)
+  final GlobalKey _sheetKey = GlobalKey();
+  double _sheetHeight = 0;
   // The phase whose opening frame has already been shown. While it matches the
   // live phase the camera follows the car instead of re-fitting.
   TripPhase? _followedPhase;
@@ -172,6 +184,22 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     _resyncCameraToRide();
   }
 
+  /// Read the sheet's height after the frame it was laid out in, and adopt it
+  /// if it moved enough to matter.
+  ///
+  /// The 1px deadband is not cosmetic: calling setState for a sub-pixel
+  /// difference would schedule another frame, measure again, and loop forever.
+  void _measureSheet() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _sheetKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return;
+      final height = box.size.height;
+      if ((height - _sheetHeight).abs() < 1) return;
+      setState(() => _sheetHeight = height);
+    });
+  }
+
   /// Put the camera back on the live ride after a gap (resume, reconnect).
   /// Bumping [_recenterSeq] is what makes AppMap honour the request even when
   /// the coordinate is unchanged, and resuming follow mode is what makes the
@@ -192,8 +220,9 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     final result = await _location.resolve();
     if (!mounted) return;
     // See _startLocationWatch: a ride on screen owns the camera.
-    final mayMove =
-        RideCamera.myLocationMayMoveCamera(context.read<TripCubit>().state);
+    final mayMove = RideCamera.myLocationMayMoveCamera(
+      context.read<TripCubit>().state,
+    );
     setState(() {
       _myLocation = result.point;
       _hasRealLocation = result.isReal;
@@ -222,8 +251,10 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     // Resolve the GPS to a real address so the pickup shows where the rider
     // actually is (e.g. "Bhukum, Pune") instead of a generic label.
     try {
-      final place = await sl<TripRepository>()
-          .reverseGeocode(result.point.lat, result.point.lng);
+      final place = await sl<TripRepository>().reverseGeocode(
+        result.point.lat,
+        result.point.lng,
+      );
       if (mounted && place.address.isNotEmpty) {
         setState(() => _myLocationAddr = place.address);
       }
@@ -238,8 +269,9 @@ class _RiderHomeViewState extends State<_RiderHomeView>
       switch (issue) {
         LocationIssue.servicesOff => LocationBannerAction.openLocationSettings,
         LocationIssue.deniedForever => LocationBannerAction.openAppSettings,
-        LocationIssue.denied || LocationIssue.error || null =>
-          LocationBannerAction.retry,
+        LocationIssue.denied ||
+        LocationIssue.error ||
+        null => LocationBannerAction.retry,
       };
 
   Future<void> _onLocationBannerAction(LocationBannerAction action) async {
@@ -338,11 +370,11 @@ class _RiderHomeViewState extends State<_RiderHomeView>
       pickupAddr = chosen.address;
     }
     await context.read<TripCubit>().chooseDestination(
-          pickup: pickup,
-          pickupAddr: pickupAddr,
-          dropoff: place.point,
-          dropoffAddr: place.address ?? place.label,
-        );
+      pickup: pickup,
+      pickupAddr: pickupAddr,
+      dropoff: place.point,
+      dropoffAddr: place.address ?? place.label,
+    );
   }
 
   Future<void> _connectSocket() async {
@@ -375,11 +407,11 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     );
     if (choice != null && mounted) {
       await context.read<TripCubit>().chooseDestination(
-            pickup: choice.pickup,
-            pickupAddr: choice.pickupAddr,
-            dropoff: choice.dropoff,
-            dropoffAddr: choice.dropoffAddr,
-          );
+        pickup: choice.pickup,
+        pickupAddr: choice.pickupAddr,
+        dropoff: choice.dropoff,
+        dropoffAddr: choice.dropoffAddr,
+      );
     }
   }
 
@@ -429,15 +461,16 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   /// Everything the map draws this frame. One object so the markers, the line
   /// and the camera box are always derived from the same snapshot.
   RideMapLayer _mapLayer(TripState state) => RideMapLayer(
-        state: state,
-        myLocation: _myLocation,
-        liveRoutePolyline: _liveRoutePolyline,
-        liveRouteLeg: _liveRouteLeg,
-        fitSuppressed: _fitSuppressed,
-        followedPhase: _followedPhase,
-      );
+    state: state,
+    myLocation: _myLocation,
+    liveRoutePolyline: _liveRoutePolyline,
+    liveRouteLeg: _liveRouteLeg,
+    fitSuppressed: _fitSuppressed,
+    followedPhase: _followedPhase,
+  );
 
-  static bool _isLiveTracking(TripState state) => RideCamera.tracksDriver(state);
+  static bool _isLiveTracking(TripState state) =>
+      RideCamera.tracksDriver(state);
 
   Future<void> _showTripEndedDialog(BuildContext context, String message) {
     AppHaptics.heavy();
@@ -464,14 +497,14 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     AppHaptics.medium();
     final (title, message) = switch (alert.kind) {
       TripAlertKind.offRoute => (
-          'Your driver left the route',
-          'Your driver is taking a different road. The map has been updated to '
-              'follow the route they are actually driving.',
-        ),
+        'Your driver left the route',
+        'Your driver is taking a different road. The map has been updated to '
+            'follow the route they are actually driving.',
+      ),
       TripAlertKind.driverStopped => (
-          'Your driver has stopped',
-          '${_stoppedFor(alert.stoppedSec)} Message or call them if you need to.',
-        ),
+        'Your driver has stopped',
+        '${_stoppedFor(alert.stoppedSec)} Message or call them if you need to.',
+      ),
     };
     return showDialog<void>(
       context: context,
@@ -502,221 +535,230 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<TripCubit, TripState>(
-        listenWhen: (prev, curr) =>
-            prev.phase != curr.phase ||
-            prev.notice != curr.notice ||
-            prev.alert != curr.alert ||
-            prev.connected != curr.connected ||
-            prev.driverLocation != curr.driverLocation ||
-            (curr.phase == TripPhase.idle && prev.error != curr.error),
-        listener: (context, state) {
-          final cubit = context.read<TripCubit>();
-          // Socket came back: the cubit re-syncs the trip, and the map catches
-          // up with it. Without this the rider watches "Connected" appear over
-          // a car still frozen where the connection dropped.
-          if (state.connected && !_wasConnected) _resyncCameraToRide();
-          _wasConnected = state.connected;
-          // One-shot server notices (payment warnings) as a snackbar.
-          final notice = state.notice;
-          if (notice != null) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(notice)));
-            cubit.clearNotice();
-          }
-          // Live-ride advisories (driver off route / stopped) as a dialog: the
-          // rider is watching a map that no longer matches what is happening,
-          // and a snackbar that slides away after four seconds is too easy to
-          // miss from the back seat.
-          final alert = state.alert;
-          if (alert != null) {
-            cubit.clearAlert();
-            unawaited(_showRideAlert(context, alert));
-          }
-          // Drop a stale re-routed line when the leg changes (approach → trip),
-          // and keep the drawn line on the road the driver actually takes.
-          final leg = _mapLayer(state).legKey;
-          if (leg != _liveRouteLeg && _liveRoutePolyline != null) {
-            _liveRoutePolyline = null;
-          }
-          unawaited(_maybeReroute(state));
-          if (state.phase == _lastPhase) return;
-          _lastPhase = state.phase;
-          // Let this phase's opening frame land, then hand the camera to
-          // follow mode for the rest of the phase.
-          _followedPhase = null;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() => _followedPhase = state.phase);
-          });
-          // Back to idle (change destination / cancel / done): the camera was
-          // fitted to the route bounds — bring it back to the rider instead of
-          // leaving it zoomed out over the whole route.
-          if (state.phase == TripPhase.idle) {
-            _recenterToMe();
-            // Ended from the server side (driver cancelled): the idle sheet
-            // has nowhere to show it, so tell the rider explicitly.
-            if (state.error != null) _showTripEndedDialog(context, state.error!);
-          }
-          // Tactile punctuation on the moments that matter in the ride flow.
-          switch (state.phase) {
-            case TripPhase.driverEnRoute:
-              AppHaptics.success(); // a driver accepted — you're matched
-            case TripPhase.driverArrived:
-              AppHaptics.medium(); // your driver is here
-            case TripPhase.completed:
-              AppHaptics.success(); // trip done
-            case TripPhase.error:
-              AppHaptics.heavy();
-            case _:
-              break;
-          }
-        },
-        builder: (context, state) {
-          final layer = _mapLayer(state);
-          return Scaffold(
-            body: Stack(
-              children: [
-                // Google Maps SDK via the shared AppMap (native on mobile, JS
-                // on web) — the basemap is styled per theme inside AppMap.
-                AppMap(
-                  initialCenter: MapUtils.toLatLng(_myLocation),
-                  initialZoom: 16, // street level on the rider, like Uber
-                  markers: layer.markers,
-                  route: layer.route,
-                  fitBounds: layer.cameraFitBounds,
-                  recenter: _recenter,
-                  recenterSeq: _recenterSeq,
-                  // A recenter also restores street-level zoom, so the button
-                  // works the same after a pinch, after a route fit and after
-                  // the app has been in the background.
-                  recenterZoom: RideCamera.recenterZoom,
-                  cameraMode: _isLiveTracking(state)
-                      ? MapCameraMode.followDriverEdge
-                      : MapCameraMode.fit,
-                  // The map tells us when it stops following (the rider
-                  // panned); that is what raises the Recenter pill.
-                  onFollowingChanged: (following) {
-                    if (following != _following) {
-                      setState(() => _following = following);
-                    }
-                  },
-                  // Keep pickup/dropoff/driver markers framed above the bottom
-                  // sheet (which covers ~40% of the screen) rather than behind it.
-                  boundsPadding: EdgeInsets.fromLTRB(
-                    40,
-                    96,
-                    40,
-                    // Match the sheet actually on screen in this phase so the
-                    // fitted route lands in the visible strip of map.
-                    state.phase == TripPhase.choosingRide
-                        ? MediaQuery.sizeOf(context).height *
-                                kRideOptionsSheetFraction +
-                            24
-                        : 300,
-                  ),
+      listenWhen: (prev, curr) =>
+          prev.phase != curr.phase ||
+          prev.notice != curr.notice ||
+          prev.alert != curr.alert ||
+          prev.connected != curr.connected ||
+          prev.driverLocation != curr.driverLocation ||
+          (curr.phase == TripPhase.idle && prev.error != curr.error),
+      listener: (context, state) {
+        final cubit = context.read<TripCubit>();
+        // Socket came back: the cubit re-syncs the trip, and the map catches
+        // up with it. Without this the rider watches "Connected" appear over
+        // a car still frozen where the connection dropped.
+        if (state.connected && !_wasConnected) _resyncCameraToRide();
+        _wasConnected = state.connected;
+        // One-shot server notices (payment warnings) as a snackbar.
+        final notice = state.notice;
+        if (notice != null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(notice)));
+          cubit.clearNotice();
+        }
+        // Live-ride advisories (driver off route / stopped) as a dialog: the
+        // rider is watching a map that no longer matches what is happening,
+        // and a snackbar that slides away after four seconds is too easy to
+        // miss from the back seat.
+        final alert = state.alert;
+        if (alert != null) {
+          cubit.clearAlert();
+          unawaited(_showRideAlert(context, alert));
+        }
+        // Drop a stale re-routed line when the leg changes (approach → trip),
+        // and keep the drawn line on the road the driver actually takes.
+        final leg = _mapLayer(state).legKey;
+        if (leg != _liveRouteLeg && _liveRoutePolyline != null) {
+          _liveRoutePolyline = null;
+        }
+        unawaited(_maybeReroute(state));
+        if (state.phase == _lastPhase) return;
+        _lastPhase = state.phase;
+        // Let this phase's opening frame land, then hand the camera to
+        // follow mode for the rest of the phase.
+        _followedPhase = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _followedPhase = state.phase);
+        });
+        // Back to idle (change destination / cancel / done): the camera was
+        // fitted to the route bounds — bring it back to the rider instead of
+        // leaving it zoomed out over the whole route.
+        if (state.phase == TripPhase.idle) {
+          _recenterToMe();
+          // Ended from the server side (driver cancelled): the idle sheet
+          // has nowhere to show it, so tell the rider explicitly.
+          if (state.error != null) _showTripEndedDialog(context, state.error!);
+        }
+        // Tactile punctuation on the moments that matter in the ride flow.
+        switch (state.phase) {
+          case TripPhase.driverEnRoute:
+            AppHaptics.success(); // a driver accepted — you're matched
+          case TripPhase.driverArrived:
+            AppHaptics.medium(); // your driver is here
+          case TripPhase.completed:
+            AppHaptics.success(); // trip done
+          case TripPhase.error:
+            AppHaptics.heavy();
+          case _:
+            break;
+        }
+      },
+      builder: (context, state) {
+        final layer = _mapLayer(state);
+        // The sheet resizes as the ride moves through its phases; re-measure
+        // every build so the map's inset follows it.
+        _measureSheet();
+        return Scaffold(
+          body: Stack(
+            children: [
+              // Google Maps SDK via the shared AppMap (native on mobile, JS
+              // on web) — the basemap is styled per theme inside AppMap.
+              AppMap(
+                initialCenter: MapUtils.toLatLng(_myLocation),
+                initialZoom: 16, // street level on the rider, like Uber
+                markers: layer.markers,
+                route: layer.route,
+                fitBounds: layer.cameraFitBounds,
+                recenter: _recenter,
+                recenterSeq: _recenterSeq,
+                // A recenter also restores street-level zoom, so the button
+                // works the same after a pinch, after a route fit and after
+                // the app has been in the background.
+                recenterZoom: RideCamera.recenterZoom,
+                cameraMode: _isLiveTracking(state)
+                    ? MapCameraMode.followDriverEdge
+                    : MapCameraMode.fit,
+                // The map tells us when it stops following (the rider
+                // panned); that is what raises the Recenter pill.
+                onFollowingChanged: (following) {
+                  if (following != _following) {
+                    setState(() => _following = following);
+                  }
+                },
+                // Keep pickup/dropoff/driver markers framed above the bottom
+                // sheet (which covers ~40% of the screen) rather than behind it.
+                // Inset the map by what is actually covering it. Markers stay
+                // framed in the visible strip, and Google's attribution sits
+                // just above the sheet instead of floating mid-map. Falls back
+                // to a proportion of the screen for the first frame, before the
+                // sheet has been measured.
+                boundsPadding: EdgeInsets.fromLTRB(
+                  40,
+                  96,
+                  40,
+                  (_sheetHeight > 0
+                          ? _sheetHeight
+                          : MediaQuery.sizeOf(context).height * 0.34) +
+                      AppSpacing.sm,
                 ),
-                // Banner and top controls share one column so the
-                // "Reconnecting…" bar pushes the buttons down instead of being
-                // drawn underneath them. The banner pads for the status bar
-                // itself, so the controls only take the inset while it's hidden.
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ConnectionBanner(connected: state.connected),
-                      LocationBanner(
-                        issue: _locationIssue,
-                        reducedAccuracy: _reducedAccuracy,
-                        onAction: _onLocationBannerAction,
-                      ),
-                      SafeArea(
-                        top: state.connected &&
-                            _locationIssue == null &&
-                            !_reducedAccuracy,
-                        bottom: false,
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          child: Align(
-                            alignment: Alignment.topRight,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                AppCircleButton(
-                                  icon: Icons.menu_rounded,
-                                  tooltip: 'Account menu',
-                                  onPressed: () async {
-                                    await Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const AccountMenuPage(
-                                            isDriver: false),
+              ),
+              // Banner and top controls share one column so the
+              // "Reconnecting…" bar pushes the buttons down instead of being
+              // drawn underneath them. The banner pads for the status bar
+              // itself, so the controls only take the inset while it's hidden.
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ConnectionBanner(connected: state.connected),
+                    LocationBanner(
+                      issue: _locationIssue,
+                      reducedAccuracy: _reducedAccuracy,
+                      onAction: _onLocationBannerAction,
+                    ),
+                    SafeArea(
+                      top:
+                          state.connected &&
+                          _locationIssue == null &&
+                          !_reducedAccuracy,
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AppCircleButton(
+                                icon: Icons.menu_rounded,
+                                tooltip: 'Account menu',
+                                onPressed: () async {
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const AccountMenuPage(
+                                        isDriver: false,
                                       ),
-                                    );
-                                    // Saved places may have changed in the
-                                    // account pages; refresh the quick-picks.
-                                    _loadSavedPlaces();
-                                  },
-                                ),
-                                const SizedBox(height: AppSpacing.sm),
-                                // One control, two meanings — and it says
-                                // which. During a ride it centres the CAR; at
-                                // rest it centres the rider. A button labelled
-                                // "my location" that quietly does neither is
-                                // how riders learned not to trust it.
-                                AppCircleButton(
-                                  icon: _isLiveTracking(state)
-                                      ? Icons.gps_fixed_rounded
-                                      : Icons.my_location_rounded,
-                                  tooltip: _isLiveTracking(state)
-                                      ? 'Recenter on your driver'
-                                      : 'Recenter on my location',
-                                  onPressed: _recenterToMe,
-                                ),
-                              ],
-                            ),
+                                    ),
+                                  );
+                                  // Saved places may have changed in the
+                                  // account pages; refresh the quick-picks.
+                                  _loadSavedPlaces();
+                                },
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              // One control, two meanings — and it says
+                              // which. During a ride it centres the CAR; at
+                              // rest it centres the rider. A button labelled
+                              // "my location" that quietly does neither is
+                              // how riders learned not to trust it.
+                              AppCircleButton(
+                                icon: _isLiveTracking(state)
+                                    ? Icons.gps_fixed_rounded
+                                    : Icons.my_location_rounded,
+                                tooltip: _isLiveTracking(state)
+                                    ? 'Recenter on your driver'
+                                    : 'Recenter on my location',
+                                onPressed: _recenterToMe,
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Raised only while the camera is NOT following — the
-                      // rider panned, so the car may now be off screen. It
-                      // takes them back to the live position and resumes
-                      // automatic tracking.
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: RecenterPill(
-                          visible: _isLiveTracking(state) && !_following,
-                          onPressed: _recenterToMe,
-                        ),
-                      ),
-                      RideSheetForPhase(
-                    state: state,
-                    onSearch: _openSearch,
-                    savedPlaces: _savedPlaces,
-                    onPickSaved: _pickSaved,
-                    // Booking is gated while we have no real fix: a ride
-                    // requested from the city-centre fallback would send the
-                    // driver to the wrong place.
-                    locationIssue: _hasRealLocation ? null : _locationIssue,
-                    onFixLocation: () => _onLocationBannerAction(
-                      _bannerActionFor(_locationIssue),
                     ),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        },
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Raised only while the camera is NOT following — the
+                    // rider panned, so the car may now be off screen. It
+                    // takes them back to the live position and resumes
+                    // automatic tracking.
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: RecenterPill(
+                        visible: _isLiveTracking(state) && !_following,
+                        onPressed: _recenterToMe,
+                      ),
+                    ),
+                    RideSheetForPhase(
+                      key: _sheetKey,
+                      state: state,
+                      onSearch: _openSearch,
+                      savedPlaces: _savedPlaces,
+                      onPickSaved: _pickSaved,
+                      // Booking is gated while we have no real fix: a ride
+                      // requested from the city-centre fallback would send the
+                      // driver to the wrong place.
+                      locationIssue: _hasRealLocation ? null : _locationIssue,
+                      onFixLocation: () => _onLocationBannerAction(
+                        _bannerActionFor(_locationIssue),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

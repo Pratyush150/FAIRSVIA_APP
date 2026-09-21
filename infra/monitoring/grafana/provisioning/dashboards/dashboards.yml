@@ -1,0 +1,16 @@
+apiVersion: 1
+
+providers:
+  - name: RideVela
+    orgId: 1
+    folder: RideVela
+    type: file
+    disableDeletion: false
+    # Dashboards are version-controlled files, not UI state. Edits made in the
+    # browser are for exploring; anything worth keeping gets exported back into
+    # infra/monitoring/grafana/dashboards/ and committed.
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
