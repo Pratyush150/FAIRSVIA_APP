@@ -1,0 +1,608 @@
+part of 'ride_sheets.dart';
+
+/// The post-ride sheet: the receipt, the rating, and the tip flow.
+
+/// A toggle to add/remove the just-completed trip's driver as a favourite.
+class _FavoriteDriverButton extends StatefulWidget {
+  const _FavoriteDriverButton({required this.driverId, this.driverName});
+  final String driverId;
+  final String? driverName;
+
+  @override
+  State<_FavoriteDriverButton> createState() => _FavoriteDriverButtonState();
+}
+
+class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
+  final _favorites = sl<FavoritesRemoteDataSource>();
+  bool _favorited = false;
+  bool _busy = false;
+
+  Future<void> _toggle() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final next = !_favorited;
+    try {
+      if (next) {
+        await _favorites.add(widget.driverId);
+      } else {
+        await _favorites.remove(widget.driverId);
+      }
+      if (mounted) setState(() => _favorited = next);
+      messenger.showSnackBar(_completionSnackBar(next
+          ? 'Added ${widget.driverName ?? 'driver'} to favourites'
+          : 'Removed from favourites'));
+    } on ApiException catch (e) {
+      messenger.showSnackBar(_completionSnackBar(e.message));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _busy ? null : _toggle,
+      icon: Icon(
+        _favorited ? Icons.favorite : Icons.favorite_border,
+        color: _favorited ? AppColors.error : null,
+        size: 18,
+      ),
+      label: Text(_favorited ? 'Favourited' : 'Add to favourites'),
+    );
+  }
+}
+
+/// Snackbar for the trip-complete sheet: floats above the pinned Done button
+/// instead of sliding up over it (a fixed snackbar sits flush with the
+/// bottom edge, exactly where the CTA is).
+SnackBar _completionSnackBar(String text) => SnackBar(
+      content: Text(text),
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        _kCompletionSnackBarLift,
+      ),
+    );
+
+/// Bottom margin that clears the Done button (button + sheet padding).
+const double _kCompletionSnackBarLift = 96;
+
+/// The post-ride sheet: fare, rating, favourite-driver and the tip flow.
+/// Public (like [DriverInfoSheet]) so it can be widget-tested on its own.
+class CompletedSheet extends StatefulWidget {
+  const CompletedSheet({super.key, required this.state});
+  final TripState state;
+
+  @override
+  State<CompletedSheet> createState() => _CompletedSheetState();
+}
+
+class _CompletedSheetState extends State<CompletedSheet> {
+  /// The amount the rider has picked but not yet confirmed. A tip can only be
+  /// sent once (the backend rejects a second one with 409), so the choice has
+  /// to stay changeable on this side of the send rather than firing on the
+  /// first tap — which is what made a mis-tap permanent.
+  double? _pendingTip;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final theme = Theme.of(context);
+    final cubit = context.read<TripCubit>();
+    // Take the first source that actually states a fare. The receipt is the
+    // richest, but a capture still settling (or a failed fetch on a weak
+    // signal) can leave it at zero, and showing \$0.00 for a ride that just
+    // happened reads as a broken app — or a free ride.
+    final fare = [
+      state.receipt?.fare,
+      state.fareFinal,
+      state.trip?.fareDisplay,
+    ].firstWhere((v) => v != null && v > 0, orElse: () => null) ?? 0;
+    final tip = state.tipAmount ?? state.receipt?.tip ?? 0;
+    // A tip that has actually been sent — once this exists the choice is final,
+    // because the server allows exactly one per trip.
+    final double? sentTip = state.tipAmount ?? state.receipt?.tip;
+    final double? chosenTip = sentTip ?? _pendingTip;
+    final bool locked = sentTip != null || state.tipping;
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                color: AppColors.accentSoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_rounded,
+                  color: AppColors.accent, size: 36),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Center(
+            child: Column(
+              children: [
+                Text(RideStatus.of(state).title,
+                    style: theme.textTheme.headlineSmall),
+                if (RideStatus.of(state).subtitle case final total?) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    total,
+                    style: theme.textTheme.titleMedium
+                        ?.tabular()
+                        .copyWith(color: AppColors.accentInk),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppCard(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            child: Column(
+              children: [
+                _ReceiptRow(label: 'Fare', value: fare),
+                if (tip > 0) _ReceiptRow(label: 'Tip', value: tip),
+                Divider(height: AppSpacing.lg, color: theme.dividerColor),
+                _ReceiptRow(label: 'Total', value: fare + tip, bold: true),
+                // Itemised lines (base / distance / time / booking fee /
+                // surge / promo) when the backend recorded them; older
+                // trips keep the two-line total above.
+                if (state.fareBreakdown != null)
+                  _FareDetails(
+                    breakdown: state.fareBreakdown!,
+                    currency: state.receipt?.currency ?? 'USD',
+                  ),
+              ],
+            ),
+          ),
+          if (state.receipt?.isCash ?? false)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.md),
+              child: Row(
+                children: [
+                  const Icon(Icons.payments_outlined,
+                      size: 16, color: AppColors.warning),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Pay \$${_money(fare + tip)} in cash to your driver',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AppColors.warning),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: AppSpacing.xl),
+          // Rating
+          Center(
+              child: Text('Rate your driver',
+                  style: theme.textTheme.titleMedium)),
+          const SizedBox(height: AppSpacing.sm),
+          // Always tappable: the backend stores one rating per trip and
+          // recomputes the driver's average from it, so tapping again is a
+          // correction, not a second vote. A mis-tapped star used to be
+          // permanent — unfair to the driver and frustrating for the rider.
+          StarRating(value: state.rating ?? 0, onRate: cubit.rateDriver),
+          if (state.rating != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Text(
+                  'Thanks for your feedback! Tap a star to change it.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ),
+          // Compliment tags — shown once a (positive) rating is given, so the
+          // rider can say what went well (Uber-style). Persisted with the rating.
+          if (state.rating != null && state.rating! >= 4) ...[
+            const SizedBox(height: AppSpacing.md),
+            _ComplimentTags(
+              selected: state.ratingTags,
+              onChanged: (tags) => cubit.updateRatingTags(tags),
+            ),
+          ],
+          if (state.driver?.id != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            _FavoriteDriverButton(
+              driverId: state.driver!.id!,
+              driverName: state.driver!.name,
+            ),
+          ],
+          const SizedBox(height: AppSpacing.xl),
+          // Tips
+          Text('Add a tip', style: theme.textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              for (final amt in const [2.0, 3.0, 5.0])
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    child: _TipChip(
+                      amount: amt,
+                      selected: sentTip == null
+                          ? _pendingTip == amt
+                          : sentTip == amt,
+                      // Locked only once the tip has actually been sent.
+                      // Tapping the chosen amount again clears it: there was
+                      // otherwise no way back to "no tip" once a chip had been
+                      // touched, which is a dead end for a mis-tap.
+                      onTap: locked
+                          ? null
+                          : () => setState(
+                                () => _pendingTip = _pendingTip == amt ? null : amt,
+                              ),
+                    ),
+                  ),
+                ),
+              // Custom amount — a rider isn't limited to the presets.
+              Expanded(
+                child: _CustomTipChip(
+                  // Highlight when the chosen tip isn't one of the presets.
+                  selected: chosenTip != null &&
+                      !const [2.0, 3.0, 5.0].contains(chosenTip),
+                  onTap: locked
+                      ? null
+                      : () async {
+                          final amount = await _askCustomTip(context);
+                          if (amount != null && mounted) {
+                            setState(() => _pendingTip = amount);
+                          }
+                        },
+                ),
+              ),
+            ],
+          ),
+          // A tip that failed to send. Without this the button simply went
+          // back to saying "Add \$5 tip" with no explanation, which reads as
+          // the sheet being stuck — the rider has no way to tell a rejected
+          // charge from a dead button. The choice stays live so they can retry.
+          if (sentTip == null && state.error != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _SheetWarning(message: state.error!),
+          ],
+          if (sentTip != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: Text('Tip of \$${_money(sentTip)} added.',
+                  style: theme.textTheme.bodySmall),
+            )
+          else if (_pendingTip != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            PrimaryButton(
+              label: state.tipping
+                  ? 'Adding tip…'
+                  : 'Add \$${_money(_pendingTip!)} tip',
+              onPressed: state.tipping
+                  ? null
+                  : () => cubit.tipDriver(_pendingTip!),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(
+                'You can change this until you add it.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.xl),
+          PrimaryButton(
+            label: 'Done',
+            onPressed: () => context.read<TripCubit>().reset(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Collapsible "Fare details" disclosure under the receipt total. The tip
+/// line is the sheet's own (it tracks the just-added tip live), so the
+/// breakdown's tip is not repeated here.
+class _FareDetails extends StatefulWidget {
+  const _FareDetails({required this.breakdown, required this.currency});
+  final FareBreakdown breakdown;
+  final String currency;
+
+  @override
+  State<_FareDetails> createState() => _FareDetailsState();
+}
+
+class _FareDetailsState extends State<_FareDetails> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            child: Row(
+              children: [
+                Text('Fare details',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: AppColors.accent)),
+                const Spacer(),
+                Icon(
+                  _open
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 20,
+                  color: AppColors.accent,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_open)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+            child: FareBreakdownRows(
+              breakdown: widget.breakdown,
+              currency: widget.currency,
+              showTip: false,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ReceiptRow extends StatelessWidget {
+  const _ReceiptRow({required this.label, required this.value, this.bold = false});
+  final String label;
+  final double value;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = bold
+        ? theme.textTheme.titleMedium
+        : theme.textTheme.bodyLarge;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: style),
+          // Show cents so a custom tip like $7.50 sums correctly (whole amounts
+          // still read cleanly as $7.00).
+          Text('\$${value.toStringAsFixed(2)}', style: style?.tabular()),
+        ],
+      ),
+    );
+  }
+}
+
+class _TipChip extends StatelessWidget {
+  const _TipChip({required this.amount, required this.selected, this.onTap});
+  final double amount;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final enabled = onTap != null || selected;
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: selected
+              ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          border: Border.all(
+            color: selected ? AppColors.accent : theme.dividerColor,
+            width: selected ? 1.6 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap == null
+              ? null
+              : () {
+                  AppHaptics.selection();
+                  onTap!();
+                },
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          child: Container(
+            height: 48,
+            alignment: Alignment.center,
+            child: Text(
+              '\$${amount.toStringAsFixed(0)}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: selected
+                    ? AppColors.accent
+                    : (enabled ? theme.colorScheme.onSurface : null),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A tip chip that lets the rider enter any amount, styled like [_TipChip].
+class _CustomTipChip extends StatelessWidget {
+  const _CustomTipChip({required this.selected, this.onTap});
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final enabled = onTap != null || selected;
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: selected
+              ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
+              : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          border: Border.all(
+            color: selected ? AppColors.accent : theme.dividerColor,
+            width: selected ? 1.6 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          child: Container(
+            height: 48,
+            alignment: Alignment.center,
+            child: Text(
+              'Custom',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: selected
+                    ? AppColors.accent
+                    : (enabled ? theme.colorScheme.onSurface : null),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Prompt for a custom tip amount and submit it.
+/// Ask for a custom tip amount. Returns the amount, or null if the rider
+/// backed out — sending it is the caller's job, so the choice stays
+/// changeable until they confirm.
+Future<double?> _askCustomTip(BuildContext context) async {
+  final controller = TextEditingController();
+  final amount = await showDialog<double>(
+    context: context,
+    builder: (dialogCtx) {
+      String? error;
+      return StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Add a tip'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            ],
+            decoration: InputDecoration(
+              prefixText: '\$ ',
+              hintText: '0.00',
+              errorText: error,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final v = double.tryParse(controller.text.trim());
+                if (v == null || v <= 0) {
+                  setLocal(() => error = 'Enter an amount');
+                  return;
+                }
+                if (v > 500) {
+                  setLocal(() => error = 'Max \$500');
+                  return;
+                }
+                Navigator.pop(dialogCtx, v);
+              },
+              child: const Text('Use amount'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+  return amount;
+}
+
+/// Compliment chips shown after a positive rating (Uber-style). Multi-select;
+/// every change re-submits the tag set with the existing star rating.
+class _ComplimentTags extends StatefulWidget {
+  const _ComplimentTags({required this.selected, required this.onChanged});
+  final List<String> selected;
+  final ValueChanged<List<String>> onChanged;
+
+  static const List<String> options = [
+    'Great conversation',
+    'Clean car',
+    'Safe driving',
+    'Great navigation',
+    'On time',
+    'Cool music',
+  ];
+
+  @override
+  State<_ComplimentTags> createState() => _ComplimentTagsState();
+}
+
+class _ComplimentTagsState extends State<_ComplimentTags> {
+  late final Set<String> _selected = {...widget.selected};
+
+  void _toggle(String tag) {
+    setState(() {
+      if (!_selected.add(tag)) _selected.remove(tag);
+    });
+    AppHaptics.selection();
+    widget.onChanged(_selected.toList());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Text('What went well?', style: theme.textTheme.titleSmall),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          alignment: WrapAlignment.center,
+          children: [
+            for (final tag in _ComplimentTags.options)
+              FilterChip(
+                label: Text(tag),
+                selected: _selected.contains(tag),
+                onSelected: (_) => _toggle(tag),
+                showCheckmark: false,
+                selectedColor: AppColors.accentSoft,
+                side: BorderSide(
+                  color: _selected.contains(tag)
+                      ? AppColors.accent
+                      : theme.dividerColor,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
