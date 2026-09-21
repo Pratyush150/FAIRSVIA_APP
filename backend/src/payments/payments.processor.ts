@@ -7,6 +7,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailService } from '../email/email.service';
 import { TripStateMachine } from '../trips/trip-state-machine';
+import { MetricsService } from '../common/metrics/metrics.service';
 import { PaymentsService } from './payments.service';
 import { CaptureJobData, QUEUE_PAYMENTS } from './payments.queue';
 
@@ -28,6 +29,7 @@ export class PaymentsProcessor extends WorkerHost {
     private readonly notifications: NotificationsService,
     private readonly email: EmailService,
     private readonly stateMachine: TripStateMachine,
+    private readonly metrics: MetricsService,
   ) {
     super();
   }
@@ -68,6 +70,13 @@ export class PaymentsProcessor extends WorkerHost {
       const exhausted = job.attemptsMade + 1 >= attempts;
       this.logger.warn(
         `capture failed for trip ${tripId} (attempt ${job.attemptsMade + 1}/${attempts}): ${String(e)}`,
+      );
+      // Count every failed attempt, and mark the exhausted ones separately:
+      // a burst of retries that eventually succeeds is a vendor blip, while a
+      // rising `exhausted` line is money that never arrived.
+      this.metrics.paymentFailed(
+        'capture',
+        exhausted ? 'exhausted' : 'retrying',
       );
       if (exhausted) await this.markPaymentFailed(tripId, trip.riderId, trip.driverId);
       throw e; // let BullMQ schedule the retry / record the final failure

@@ -5,7 +5,7 @@ import { TripStateMachine } from './trip-state-machine';
 describe('TripStateMachine', () => {
   // isAllowed is a pure function; transition's guard runs before any DB call,
   // so a dummy prisma is fine for the illegal-transition test.
-  const sm = new TripStateMachine({} as never);
+  const sm = new TripStateMachine({} as never, {} as never);
 
   it('allows the canonical happy-path transitions', () => {
     expect(sm.isAllowed(TripStatus.requested, TripStatus.matching)).toBe(true);

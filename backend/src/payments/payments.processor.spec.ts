@@ -33,6 +33,7 @@ describe('PaymentsProcessor', () => {
     const notifications = { notify: jest.fn().mockResolvedValue(undefined) };
     const email = { sendReceipt: jest.fn().mockResolvedValue(undefined) };
     const stateMachine = { transition: jest.fn().mockResolvedValue(undefined) };
+    const metrics = { paymentFailed: jest.fn() };
     const processor = new PaymentsProcessor(
       payments as never,
       prisma as never,
@@ -40,8 +41,18 @@ describe('PaymentsProcessor', () => {
       notifications as never,
       email as never,
       stateMachine as never,
+      metrics as never,
     );
-    return { processor, prisma, payments, realtime, notifications, email, stateMachine };
+    return {
+      processor,
+      prisma,
+      payments,
+      realtime,
+      notifications,
+      email,
+      stateMachine,
+      metrics,
+    };
   }
 
   const job = (attemptsMade: number, attempts = 6) =>

@@ -1,6 +1,7 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { Prisma, TripStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { MetricsService } from '../common/metrics/metrics.service';
 
 /**
  * Server-authoritative allowed transitions (spec §6.2). Every transition is an
@@ -22,7 +23,12 @@ export const ALLOWED_TRANSITIONS: Record<TripStatus, TripStatus[]> = {
 
 @Injectable()
 export class TripStateMachine {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(TripStateMachine.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   isAllowed(from: TripStatus, to: TripStatus): boolean {
     return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
@@ -67,5 +73,33 @@ export class TripStateMachine {
         },
       });
     });
+
+    // Every trip transition passes through here, which makes this the one
+    // place the funnel can be counted without sprinkling counters across six
+    // services. Never allowed to affect the transition itself.
+    void this.record(tripId, to);
+  }
+
+  /**
+   * Feed the observability counters. Best-effort by construction: a metrics
+   * problem must never turn a completed ride into a failed one.
+   */
+  private async record(tripId: string, to: TripStatus): Promise<void> {
+    try {
+      this.metrics.tripStatus(to);
+      if (to !== TripStatus.accepted) return;
+      // The match SLO: requested → accepted. Only read the row on accepts, so
+      // the common transitions stay a single write.
+      const trip = await this.prisma.trip.findUnique({
+        where: { id: tripId },
+        select: { requestedAt: true },
+      });
+      if (!trip?.requestedAt) return;
+      this.metrics.observeMatch(
+        (Date.now() - trip.requestedAt.getTime()) / 1000,
+      );
+    } catch (e) {
+      this.logger.warn(`trip metric for ${tripId} -> ${to}: ${String(e)}`);
+    }
   }
 }

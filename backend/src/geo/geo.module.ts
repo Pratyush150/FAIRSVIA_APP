@@ -1,10 +1,12 @@
 import { Global, Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GEO_PROVIDER } from './geo-provider.interface';
+import { GEO_PROVIDER, GeoProvider as GeoProviderLike } from './geo-provider.interface';
 import { GoogleGeoProvider } from './google-geo.provider';
 import { OsmGeoProvider } from './osm-geo.provider';
 import { StubGeoProvider } from './stub-geo.provider';
 import { FallbackGeoProvider } from './fallback-geo.provider';
+import { InstrumentedGeoProvider } from './instrumented-geo.provider';
+import { MetricsService } from '../common/metrics/metrics.service';
 import { PlacesController } from './places.controller';
 
 @Global()
@@ -15,7 +17,14 @@ import { PlacesController } from './places.controller';
       // Provider precedence: Google (if key) > self-hosted OSM (OSRM +
       // Nominatim, if both URLs set) > deterministic stub (no config needed).
       provide: GEO_PROVIDER,
-      useFactory: (config: ConfigService) => {
+      useFactory: (config: ConfigService, metrics: MetricsService) => {
+        // Every provider is wrapped so its calls land in
+        // vendor_request_duration_seconds. Wrapping happens per-provider, not
+        // around the composed fallback, so Google and OSM are measured
+        // separately — which is what makes a quota wall visible (google errors
+        // climbing while osm takes over) instead of averaged away.
+        const instrument = (p: GeoProviderLike, vendor: string) =>
+          new InstrumentedGeoProvider(p, vendor, metrics);
         const key = config.get<string>('googleMapsApiKey');
         const osrm = config.get<string>('osrmBaseUrl');
         const nominatim = config.get<string>('nominatimBaseUrl');
@@ -27,7 +36,7 @@ import { PlacesController } from './places.controller';
         );
 
         if (key && key.length > 0) {
-          const google = new GoogleGeoProvider(key);
+          const google = instrument(new GoogleGeoProvider(key), 'google');
           // If self-hosted OSM is also configured, wrap Google with an OSRM/
           // Nominatim fallback so a Google outage, quota, or not-yet-enabled API
           // can never take geo down. Otherwise use Google alone.
@@ -38,7 +47,10 @@ import { PlacesController } from './places.controller';
             );
             return new FallbackGeoProvider(
               google,
-              new OsmGeoProvider(osrm as string, nominatim as string),
+              instrument(
+                new OsmGeoProvider(osrm as string, nominatim as string),
+                'osm',
+              ),
             );
           }
           Logger.log('Using Google Maps geo provider', 'GeoModule');
@@ -49,11 +61,14 @@ import { PlacesController } from './places.controller';
             'Using OpenStreetMap geo provider (OSRM + Nominatim)',
             'GeoModule',
           );
-          return new OsmGeoProvider(osrm as string, nominatim as string);
+          return instrument(
+            new OsmGeoProvider(osrm as string, nominatim as string),
+            'osm',
+          );
         }
-        return new StubGeoProvider();
+        return instrument(new StubGeoProvider(), 'stub');
       },
-      inject: [ConfigService],
+      inject: [ConfigService, MetricsService],
     },
   ],
   exports: [GEO_PROVIDER],
