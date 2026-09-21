@@ -25,6 +25,7 @@ describe('DispatchService', () => {
     const prisma = { trip: { findUnique: jest.fn().mockResolvedValue(null) } };
     const drivers = { forceOffline: jest.fn().mockResolvedValue(true) };
     const surge = { releaseDemand: jest.fn().mockResolvedValue(undefined) };
+    const sms = { sendOtp: jest.fn(), sendMessage: jest.fn().mockResolvedValue(undefined) };
     const svc = new DispatchService(
       prisma as never,
       redis as never,
@@ -33,11 +34,12 @@ describe('DispatchService', () => {
       {} as never,
       favorites as never,
       geo as never,
+      sms as never,
       queue as never,
       drivers as never,
       surge as never,
     );
-    return { svc, redis, queue, favorites, realtime, prisma, drivers, surge, geo };
+    return { svc, redis, queue, favorites, realtime, prisma, drivers, surge, geo, sms };
   }
 
   it('dispatchTrip enqueues a durable job keyed by tripId (de-dupe)', async () => {
@@ -238,6 +240,96 @@ describe('DispatchService', () => {
     });
   });
 
+  // A ride booked for somebody else: the booker gets `trip:accepted`, but they
+  // are not in the car. The passenger has to recognise the vehicle and read the
+  // start code out, and may have no app at all — so it goes to them by text.
+  describe('booking for someone else', () => {
+    type AssignInternals = { assign: (trip: unknown, driverId: string) => Promise<boolean> };
+
+    function assignable(extra: Record<string, unknown> = {}) {
+      const ctx = make();
+      ctx.redis.client.get.mockResolvedValue(null); // driver holds no other trip
+      // make() passes bare {} for the state machine and notifications (the
+      // offer tests stub `assign` out wholesale). This suite drives the real
+      // `assign`, so both need to actually work or it bails before the send.
+      const inner = ctx.svc as unknown as {
+        stateMachine: { transition?: jest.Mock };
+        notifications: { notifyTrip?: jest.Mock };
+      };
+      inner.stateMachine.transition = jest.fn().mockResolvedValue(undefined);
+      inner.notifications.notifyTrip = jest.fn().mockResolvedValue(undefined);
+
+      // Pool/bookkeeping writes `assign` makes on its way through.
+      const client = ctx.redis.client as unknown as Record<string, jest.Mock>;
+      for (const fn of ['zrem', 'expire', 'hset', 'srem', 'sadd', 'setex']) {
+        client[fn] ??= jest.fn().mockResolvedValue(1);
+      }
+
+      // The base mock only stubs `trip`; `assign` also reads the driver.
+      const prisma = ctx.prisma as unknown as {
+        user: { findUnique: jest.Mock };
+      };
+      prisma.user = { findUnique: jest.fn() };
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'driver-A',
+        fullName: 'Ava',
+        ratingAvg: 4.9,
+        driverProfile: {
+          vehicleMake: 'Toyota',
+          vehicleModel: 'Prius',
+          vehicleColor: 'White',
+          plateNumber: 'ABC123',
+        },
+      });
+      const trip = {
+        id: 'trip-1',
+        riderId: 'rider-1',
+        pickupLat: 1,
+        pickupLng: 2,
+        dropoffLat: 3,
+        dropoffLng: 4,
+        startOtp: '4821',
+        routePolyline: 'abc',
+        ...extra,
+      };
+      return { ...ctx, trip, internals: ctx.svc as unknown as AssignInternals };
+    }
+
+    it('texts the passenger the start code and what car to look for', async () => {
+      const { internals, trip, sms } = assignable({
+        passengerName: 'Priya',
+        passengerPhone: '+15550001111',
+      });
+
+      await internals.assign(trip, 'driver-A');
+      await new Promise((r) => setImmediate(r)); // fire-and-forget send
+
+      expect(sms.sendMessage).toHaveBeenCalledTimes(1);
+      const [to, body] = sms.sendMessage.mock.calls[0] as [string, string];
+      expect(to).toBe('+15550001111');
+      expect(body).toContain('4821'); // the code they read to the driver
+      expect(body).toContain('Ava');
+      expect(body).toContain('ABC123');
+    });
+
+    it('sends nothing on an ordinary ride', async () => {
+      const { internals, trip, sms } = assignable();
+      await internals.assign(trip, 'driver-A');
+      await new Promise((r) => setImmediate(r));
+      expect(sms.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('a failed text does not undo an assignment that already happened', async () => {
+      const { internals, trip, sms } = assignable({
+        passengerPhone: '+15550001111',
+      });
+      sms.sendMessage.mockRejectedValue(new Error('gateway down'));
+
+      await expect(internals.assign(trip, 'driver-A')).resolves.toBe(true);
+      await new Promise((r) => setImmediate(r));
+    });
+  });
+
   it('sweep never re-offers a trip to a driver who declined it', async () => {
     const { svc, redis, prisma } = make();
     redis.client.smembers.mockResolvedValue(['driver-A']); // declined earlier
@@ -366,6 +458,7 @@ describe('DispatchService', () => {
       stateMachine as never,
       favorites as never,
       { route: jest.fn() } as never,
+      { sendOtp: jest.fn(), sendMessage: jest.fn() } as never,
       {} as never,
       { forceOffline: jest.fn() } as never,
       surge as never,

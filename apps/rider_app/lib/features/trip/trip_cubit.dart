@@ -802,6 +802,11 @@ class TripCubit extends Cubit<TripState> {
         pickupNote: (trimmed == null || trimmed.isEmpty) ? null : trimmed));
   }
 
+  /// Set (or clear) the person this ride is being booked for. Null means the
+  /// ordinary case: the rider is the passenger.
+  void setPassenger(TripPassenger? passenger) =>
+      emit(state.copyWith(passenger: passenger));
+
   Future<void> confirmRide() async {
     final s = state;
     if (s.pickup == null || s.dropoff == null || s.selectedTier == null) return;
@@ -814,6 +819,7 @@ class TripCubit extends Cubit<TripState> {
         pickupAddr: s.pickupAddr,
         dropoffAddr: s.dropoffAddr,
         pickupNote: s.pickupNote,
+        passenger: s.passenger,
         promoCode: s.appliedPromo?.code,
         paymentMode: s.paymentMode,
         paymentMethodId: s.paymentMode == 'card' ? s.selectedMethodId : null,

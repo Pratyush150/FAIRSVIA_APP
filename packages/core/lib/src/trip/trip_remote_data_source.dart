@@ -63,6 +63,7 @@ class TripRemoteDataSource {
     String? pickupAddr,
     String? dropoffAddr,
     String? pickupNote,
+    TripPassenger? passenger,
     String? promoCode,
     String? paymentMode,
     String? paymentMethodId,
@@ -83,6 +84,10 @@ class TripRemoteDataSource {
           'pickupAddr': ?pickupAddr,
           'dropoffAddr': ?dropoffAddr,
           'pickupNote': ?pickupNote,
+          // Booking for somebody else. The backend requires a phone whenever
+          // either is set, which TripPassenger guarantees by construction.
+          'passengerName': ?passenger?.name,
+          'passengerPhone': ?passenger?.phone,
           'promoCode': ?promoCode,
           'paymentMode': ?paymentMode,
           'paymentMethodId': ?paymentMethodId,

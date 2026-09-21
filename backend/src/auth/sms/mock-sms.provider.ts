@@ -22,4 +22,14 @@ export class MockSmsProvider implements SmsProvider {
       this.logger.log(`OTP dispatched to ${phone} (mock provider)`);
     }
   }
+
+  async sendMessage(phone: string, message: string): Promise<void> {
+    // Message bodies are not secrets the way an OTP is, but they can name a
+    // passenger and a pickup, so keep them off default production levels too.
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.debug(`📱  SMS to ${phone}: ${message}  (dev mock)`);
+    } else {
+      this.logger.log(`SMS dispatched to ${phone} (mock provider)`);
+    }
+  }
 }

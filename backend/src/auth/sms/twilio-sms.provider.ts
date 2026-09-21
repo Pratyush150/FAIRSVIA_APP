@@ -26,11 +26,28 @@ export class TwilioSmsProvider implements SmsProvider {
   }
 
   async sendOtp(phone: string, code: string): Promise<void> {
+    await this.send(
+      phone,
+      `Your FairsVia verification code is ${code}. It expires shortly. Do not share it.`,
+      'OTP SMS',
+    );
+  }
+
+  async sendMessage(phone: string, message: string): Promise<void> {
+    await this.send(phone, message, 'SMS');
+  }
+
+  /** One Twilio message. [label] only shapes the success log line. */
+  private async send(
+    phone: string,
+    message: string,
+    label: string,
+  ): Promise<void> {
     const path = `/2010-04-01/Accounts/${this.accountSid}/Messages.json`;
     const body = new URLSearchParams({
       To: phone,
       From: this.fromNumber,
-      Body: `Your FairsVia verification code is ${code}. It expires shortly. Do not share it.`,
+      Body: message,
     });
 
     let res: Response;
@@ -58,10 +75,10 @@ export class TwilioSmsProvider implements SmsProvider {
       message?: string;
     };
     if (!res.ok) {
-      // Never log the OTP itself; log Twilio's error only.
+      // Never log the message body itself; log Twilio's error only.
       this.logger.error(`Twilio error (${res.status}): ${data.message ?? '?'}`);
       throw new BadGatewayException(data.message ?? 'Twilio send failed');
     }
-    this.logger.log(`OTP SMS queued to ${phone} (sid=${data.sid ?? '?'})`);
+    this.logger.log(`${label} queued to ${phone} (sid=${data.sid ?? '?'})`);
   }
 }

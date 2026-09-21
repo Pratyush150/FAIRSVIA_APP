@@ -8,6 +8,7 @@ import { LoggingModule } from './common/logging/logging.module';
 import { MetricsModule } from './common/metrics/metrics.module';
 import { ThrottleModule } from './common/throttle/throttle.module';
 import { AuthModule } from './auth/auth.module';
+import { SmsModule } from './common/sms/sms.module';
 import { UsersModule } from './users/users.module';
 import { GeoModule } from './geo/geo.module';
 import { PricingModule } from './pricing/pricing.module';
@@ -51,6 +52,7 @@ import { HealthController } from './health/health.controller';
     TripStateModule, // global TripStateMachine
     NotificationsModule, // global NotificationsService
     EmailModule, // global EmailService (SES / mock)
+    SmsModule, // global SMS gateway (login OTPs + passenger messages)
     AuthModule,
     UsersModule,
     GeoModule,

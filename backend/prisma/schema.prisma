@@ -133,6 +133,14 @@ model Trip {
   /// "wearing a red jacket"). Shown on the driver's offer + en-route screens.
   pickupNote      String?    @map("pickup_note")
 
+  /// Set when this ride was booked for somebody else: `riderId` stays the
+  /// account that booked and pays, and these describe who is actually
+  /// travelling. The driver is shown these instead of the booker's details,
+  /// and the passenger is texted the start code — they may not have the app.
+  /// Both null = the booker is the passenger, the ordinary case.
+  passengerName   String?    @map("passenger_name") @db.VarChar(80)
+  passengerPhone  String?    @map("passenger_phone") @db.VarChar(20)
+
   routePolyline   String?    @map("route_polyline")
   stops           Json?      // ordered intermediate stops: [{lat,lng,addr?}]
   distanceM       Int?       @map("distance_m")

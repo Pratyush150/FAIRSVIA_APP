@@ -366,6 +366,71 @@ void main() {
     ],
   );
 
+  // Booking for somebody else: the booker still pays and still tracks, but the
+  // passenger's details have to reach the driver (who collects them) and the
+  // backend (which texts them the start code).
+  blocTest<TripCubit, TripState>(
+    'confirmRide forwards the passenger when the ride is for someone else',
+    setUp: () => when(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: any(named: 'tier'),
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        passenger: any(named: 'passenger'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: any(named: 'paymentMode'),
+        paymentMethodId: any(named: 'paymentMethodId'),
+        scheduledAt: any(named: 'scheduledAt'),
+        stops: any(named: 'stops'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
+      ),
+    ).thenAnswer((_) async => trip),
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.choosingRide,
+      pickup: pickup,
+      dropoff: dropoff,
+      estimate: estimate,
+      selectedTier: 'economy',
+      passenger: TripPassenger(phone: '+15550001111', name: 'Priya'),
+    ),
+    act: (c) => c.confirmRide(),
+    verify: (_) => verify(
+      () => repo.createTrip(
+        pickup: any(named: 'pickup'),
+        dropoff: any(named: 'dropoff'),
+        tier: any(named: 'tier'),
+        pickupAddr: any(named: 'pickupAddr'),
+        dropoffAddr: any(named: 'dropoffAddr'),
+        passenger:
+            const TripPassenger(phone: '+15550001111', name: 'Priya'),
+        promoCode: any(named: 'promoCode'),
+        paymentMode: any(named: 'paymentMode'),
+        paymentMethodId: any(named: 'paymentMethodId'),
+        scheduledAt: any(named: 'scheduledAt'),
+        stops: any(named: 'stops'),
+        quotedFare: any(named: 'quotedFare'),
+        quotedSurge: any(named: 'quotedSurge'),
+      ),
+    ).called(1),
+  );
+
+  blocTest<TripCubit, TripState>(
+    'setPassenger(null) puts the ride back to the rider themselves',
+    build: () => TripCubit(repo, realtime, payments, ratings),
+    seed: () => const TripState(
+      phase: TripPhase.choosingRide,
+      passenger: TripPassenger(phone: '+15550001111'),
+    ),
+    act: (c) => c.setPassenger(null),
+    expect: () => [
+      isA<TripState>().having((s) => s.passenger, 'passenger', isNull),
+    ],
+  );
+
   blocTest<TripCubit, TripState>(
     'confirmRide sends the quoted fare + surge the rider saw (price lock)',
     setUp: () => when(

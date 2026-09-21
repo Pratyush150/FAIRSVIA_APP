@@ -1176,9 +1176,146 @@ class _RideOptions extends StatelessWidget {
         _PromoField(state: state),
         const SizedBox(height: AppSpacing.sm),
         _PickupNoteField(state: state),
+        const SizedBox(height: AppSpacing.sm),
+        _BookForSomeoneElseRow(state: state),
       ],
     );
   }
+}
+
+/// "Riding yourself, or booking for someone else?" The booker still pays and
+/// still tracks the ride; the passenger is who the driver collects, and who
+/// gets the start code by text — they may not have the app at all.
+class _BookForSomeoneElseRow extends StatelessWidget {
+  const _BookForSomeoneElseRow({required this.state});
+  final TripState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cubit = context.read<TripCubit>();
+    final passenger = state.passenger;
+
+    if (passenger == null) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+          label: const Text('Book for someone else'),
+          onPressed: () async {
+            final result = await _askPassenger(context, null);
+            if (result != null) cubit.setPassenger(result);
+          },
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        const Icon(Icons.person_pin_circle_outlined,
+            size: 18, color: AppColors.accent),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Ride for ${passenger.displayName}',
+                  style: theme.textTheme.bodyMedium),
+              Text('They get the start code by text',
+                  style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
+        TextButton(
+          onPressed: () async {
+            final result = await _askPassenger(context, passenger);
+            if (result != null) cubit.setPassenger(result);
+          },
+          child: const Text('Edit'),
+        ),
+        IconButton(
+          tooltip: 'Ride it myself',
+          icon: const Icon(Icons.close, size: 18),
+          onPressed: () => cubit.setPassenger(null),
+        ),
+      ],
+    );
+  }
+}
+
+/// Collect the passenger's name and number. A number is required — the driver
+/// calls it and the start code is texted to it — so the dialog refuses to
+/// return without one. Returns null if the rider backs out.
+Future<TripPassenger?> _askPassenger(
+  BuildContext context,
+  TripPassenger? existing,
+) {
+  final nameCtrl = TextEditingController(text: existing?.name ?? '');
+  final phoneCtrl = TextEditingController(text: existing?.phone ?? '');
+  return showDialog<TripPassenger>(
+    context: context,
+    builder: (dialogCtx) {
+      String? error;
+      return StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Who is riding?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Their name (optional)',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: phoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  labelText: 'Their mobile number',
+                  hintText: '+1 305 555 0123',
+                  errorText: error,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'We text them the start code and let you know when the '
+                'driver arrives. You still pay and can track the ride.',
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final phone = phoneCtrl.text.trim();
+                if (phone.replaceAll(RegExp(r'[^0-9]'), '').length < 6) {
+                  setLocal(() => error = 'Enter their mobile number');
+                  return;
+                }
+                final name = nameCtrl.text.trim();
+                Navigator.pop(
+                  dialogCtx,
+                  TripPassenger(
+                    phone: phone,
+                    name: name.isEmpty ? null : name,
+                  ),
+                );
+              },
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 /// Pinned footer for the ride-options sheet: the confirm CTA and the

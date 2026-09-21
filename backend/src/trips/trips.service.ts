@@ -19,6 +19,10 @@ import {
   LatLng,
   RouteResult,
 } from '../geo/geo-provider.interface';
+import {
+  SMS_PROVIDER,
+  SmsProvider,
+} from '../auth/sms/sms-provider.interface';
 import { encodePolyline, haversineMeters } from '../geo/geo.util';
 import { StopDto } from './dto/stop.dto';
 import { CURRENCY } from '../pricing/fare-config';
@@ -119,7 +123,22 @@ export class TripsService {
     private readonly config: ConfigService,
     private readonly comparison: ComparisonService,
     @Inject(GEO_PROVIDER) private readonly geo: GeoProvider,
+    @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
   ) {}
+
+  /** Text the passenger of a ride somebody else booked. Best-effort: they are
+   *  not the account holder and may not have the app, so SMS is the only way
+   *  to reach them — but a gateway failure must never take the ride down. */
+  private notifyPassenger(trip: Trip, message: string): void {
+    if (!trip.passengerPhone) return;
+    void this.sms
+      .sendMessage(trip.passengerPhone, message)
+      .catch((e: Error) =>
+        this.logger.warn(
+          `passenger SMS for trip ${trip.id} failed: ${e.message}`,
+        ),
+      );
+  }
 
   /** Route + fare estimate for every tier (what the rider picks from). */
   async estimate(dto: EstimateDto) {
@@ -239,6 +258,8 @@ export class TripsService {
       ? TripStatus.scheduled
       : TripStatus.requested;
 
+    const passenger = TripsService.resolvePassenger(dto);
+
     let trip = await this.prisma.trip.create({
       data: {
         riderId,
@@ -251,6 +272,8 @@ export class TripsService {
         dropoffLat: dto.dropoffLat,
         dropoffLng: dto.dropoffLng,
         pickupNote: dto.pickupNote?.trim() || undefined,
+        passengerName: passenger?.name,
+        passengerPhone: passenger?.phone,
         routePolyline: route.polyline,
         stops: dto.stops && dto.stops.length > 0 ? (dto.stops as object[]) : undefined,
         distanceM: route.distanceM,
@@ -423,6 +446,9 @@ export class TripsService {
     });
     this.realtime.emitToUser(trip.riderId, 'trip:arrived', { tripId });
     void this.notifications.notifyTrip(trip.riderId, 'arrived', { tripId });
+    // The booker gets the push above; the passenger is standing at the kerb
+    // and may have no app at all, so they get a text.
+    this.notifyPassenger(trip, 'Your FairsVia ride is here at the pickup point.');
     return { status: TripStatus.arrived, arrivedDistanceM: arrivedDistanceM ?? null };
   }
 
@@ -431,6 +457,29 @@ export class TripsService {
    * unknown/stale. Throws 400 when the fix is fresh and outside
    * ARRIVAL_RADIUS_M.
    */
+  /** Who is actually travelling, when the booker is not.
+   *
+   *  A phone is required because everything the passenger needs depends on it:
+   *  the driver calls them, and the start code is texted to them. A name on its
+   *  own would leave the driver looking for somebody they cannot reach, so it
+   *  is refused rather than silently dropped. A phone with no name is fine —
+   *  the driver still has someone to call.
+   */
+  static resolvePassenger(dto: {
+    passengerName?: string;
+    passengerPhone?: string;
+  }): { name: string | null; phone: string } | null {
+    const name = dto.passengerName?.trim() || null;
+    const phone = dto.passengerPhone?.trim() || null;
+    if (!name && !phone) return null; // ordinary ride: the booker travels
+    if (!phone) {
+      throw new BadRequestException(
+        'A passenger phone number is required when booking for someone else.',
+      );
+    }
+    return { name, phone };
+  }
+
   private async assertNearPickup(
     driverId: string,
     trip: Trip,
@@ -1086,6 +1135,12 @@ export class TripsService {
       pickup: { lat: t.pickupLat, lng: t.pickupLng, address: t.pickupAddr },
       dropoff: { lat: t.dropoffLat, lng: t.dropoffLng, address: t.dropoffAddr },
       pickupNote: t.pickupNote,
+      // Who is travelling, when that is not the booker. Both sides see it: the
+      // booker so their screen says who the ride is for, the driver so they
+      // collect and call the right person. Null on an ordinary ride.
+      passenger: t.passengerPhone
+        ? { name: t.passengerName, phone: t.passengerPhone }
+        : null,
       stops: (t.stops as unknown[]) ?? [],
       routePolyline: t.routePolyline,
       distanceM: t.distanceM,

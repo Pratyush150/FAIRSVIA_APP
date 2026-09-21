@@ -10,6 +10,7 @@ export 'src/fare_tier.dart';
 export 'src/price_comparison.dart';
 export 'src/trip_estimate.dart';
 export 'src/trip.dart';
+export 'src/trip_passenger.dart';
 export 'src/ride_offer.dart';
 export 'src/assigned_driver.dart';
 export 'src/saved_place.dart';

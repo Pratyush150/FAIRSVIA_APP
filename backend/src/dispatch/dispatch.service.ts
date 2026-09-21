@@ -12,6 +12,10 @@ import { FavoritesService } from '../favorites/favorites.service';
 import { DriversService } from '../drivers/drivers.service';
 import { SurgeService } from '../surge/surge.service';
 import { GEO_PROVIDER, GeoProvider, RouteResult } from '../geo/geo-provider.interface';
+import {
+  SMS_PROVIDER,
+  SmsProvider,
+} from '../auth/sms/sms-provider.interface';
 import { haversineMeters } from '../geo/geo.util';
 import {
   QUEUE_DISPATCH,
@@ -107,6 +111,7 @@ export class DispatchService {
     private readonly stateMachine: TripStateMachine,
     private readonly favorites: FavoritesService,
     @Inject(GEO_PROVIDER) private readonly geo: GeoProvider,
+    @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
     @InjectQueue(QUEUE_DISPATCH) private readonly queue: Queue,
     private readonly drivers: DriversService,
     private readonly surge: SurgeService,
@@ -679,6 +684,34 @@ export class DispatchService {
       etaSec,
       etaDistanceM,
     });
+    // A ride booked for somebody else: the booker gets the event above, but
+    // they are not in the car. The passenger is the one who has to recognise
+    // the vehicle and read the start code out, and they may have no app at
+    // all — so it goes to them by text. Best-effort; a gateway failure must
+    // not undo an assignment that has already happened.
+    if (trip.passengerPhone) {
+      const car = [
+        driver?.driverProfile?.vehicleColor,
+        driver?.driverProfile?.vehicleMake,
+        driver?.driverProfile?.vehicleModel,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const plate = driver?.driverProfile?.plateNumber;
+      const parts = [
+        `${driver?.fullName ?? 'Your driver'} is on the way to collect you.`,
+        car || plate ? `Look for a ${[car, plate].filter(Boolean).join(', ')}.` : '',
+        `Your start code is ${trip.startOtp}.`,
+      ].filter(Boolean);
+      void this.sms
+        .sendMessage(trip.passengerPhone, parts.join(' '))
+        .catch((e: Error) =>
+          this.logger.warn(
+            `passenger SMS for trip ${trip.id} failed: ${e.message}`,
+          ),
+        );
+    }
+
     // The driver needs the same geometry the rider gets: the approach leg
     // (their car → the pickup) so their map can show exactly where they're
     // collecting the rider from, plus the trip route for the on-trip leg. The

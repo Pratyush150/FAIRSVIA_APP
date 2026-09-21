@@ -807,6 +807,7 @@ class _BottomSheet extends StatelessWidget {
           navigateTo: pickup,
           distanceLabel: _distanceLabel(myLocation, pickup, 'pickup', route),
           note: state.trip?.pickupNote,
+          passenger: state.trip?.passenger,
         );
       case DriverPhase.arrived:
         child = _StartTripSheet(
@@ -929,6 +930,7 @@ class _LifecycleSheet extends StatelessWidget {
     this.navigateTo,
     this.distanceLabel,
     this.note,
+    this.passenger,
   });
 
   final String title;
@@ -946,6 +948,11 @@ class _LifecycleSheet extends StatelessWidget {
 
   /// A pickup note from the rider, shown while heading to the pickup.
   final String? note;
+
+  /// Set when the person who booked is not the person travelling. The driver
+  /// is collecting them, not the booker, so their name and number are what
+  /// matters at the kerb.
+  final TripPassenger? passenger;
 
   @override
   Widget build(BuildContext context) {
@@ -986,6 +993,10 @@ class _LifecycleSheet extends StatelessWidget {
               Text(distanceLabel!, style: theme.textTheme.titleSmall),
             ],
           ),
+        ],
+        if (passenger != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _PassengerBanner(passenger: passenger!),
         ],
         if (note != null && note!.trim().isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -1044,6 +1055,63 @@ String? _distanceLabel(
       : distanceMeters(from, to);
   if (m < 200) return '${m.round()} m to $what';
   return '${(m / 1609.344).toStringAsFixed(1)} mi to $what';
+}
+
+/// Who to collect, when the booker is not the one travelling. Carries a call
+/// button because the driver's usual "message rider" reaches the booker, who
+/// may be in another city — the passenger is the one standing at the kerb.
+class _PassengerBanner extends StatelessWidget {
+  const _PassengerBanner({required this.passenger});
+  final TripPassenger passenger;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.accentSoft,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.person_pin_circle_outlined,
+              size: 18, color: AppColors.accent),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Picking up',
+                    style: theme.textTheme.labelMedium
+                        ?.copyWith(color: AppColors.accentPressed)),
+                const SizedBox(height: 2),
+                Text(passenger.displayName,
+                    style: theme.textTheme.bodyMedium),
+                Text('Booked by someone else',
+                    style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Call passenger',
+            icon: const Icon(Icons.call_outlined, color: AppColors.accent),
+            onPressed: () async {
+              final ok = await dialPhone(passenger.phone);
+              if (!ok && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Could not dial ${passenger.phone}'),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// A highlighted banner showing the rider's pickup note to the driver.

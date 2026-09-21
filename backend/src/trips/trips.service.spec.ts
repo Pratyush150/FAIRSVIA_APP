@@ -81,6 +81,7 @@ describe('TripsService', () => {
     };
     const notifications = { notifyTrip: jest.fn().mockResolvedValue(undefined), notify: jest.fn() };
     const config = { get: jest.fn((k: string) => (k === 'arrivalRadiusM' ? 150 : k === 'cancellationFee' ? 5 : undefined)) };
+    const sms = { sendOtp: jest.fn(), sendMessage: jest.fn().mockResolvedValue(undefined) };
     const svc = new TripsService(
       prisma as never,
       pricing as never,
@@ -97,8 +98,9 @@ describe('TripsService', () => {
       config as never,
       { compare: jest.fn() } as never,
       { route: jest.fn().mockResolvedValue(route) } as never,
+      sms as never,
     );
-    return { svc, store, redis, prisma, created, surge, stateMachine, realtime, notifications, dispatch, payments };
+    return { svc, store, redis, prisma, created, surge, stateMachine, realtime, notifications, dispatch, payments, sms };
   }
 
   const baseDto = {
@@ -380,6 +382,121 @@ describe('TripsService', () => {
       });
     });
   });
+  // Booking a ride for somebody else. The booker stays the account that pays
+  // and tracks; these cover who is actually travelling.
+  describe('booking for someone else', () => {
+    describe('resolvePassenger', () => {
+      it('is null for an ordinary ride, where the booker travels', () => {
+        expect(TripsService.resolvePassenger({})).toBeNull();
+        expect(
+          TripsService.resolvePassenger({ passengerName: '  ' }),
+        ).toBeNull();
+      });
+
+      it('refuses a name with no phone', () => {
+        // Everything the passenger needs runs through the number: the driver
+        // calls them, and the start code is texted to them. A name alone would
+        // leave the driver looking for someone they cannot reach.
+        expect(() =>
+          TripsService.resolvePassenger({ passengerName: 'Priya' }),
+        ).toThrow(BadRequestException);
+      });
+
+      it('accepts a phone without a name — the driver still has someone to call', () => {
+        expect(
+          TripsService.resolvePassenger({ passengerPhone: '+15550001111' }),
+        ).toEqual({ name: null, phone: '+15550001111' });
+      });
+
+      it('trims both', () => {
+        expect(
+          TripsService.resolvePassenger({
+            passengerName: '  Priya  ',
+            passengerPhone: ' +15550001111 ',
+          }),
+        ).toEqual({ name: 'Priya', phone: '+15550001111' });
+      });
+    });
+
+    it('texts the passenger when the driver arrives, not just the booker', async () => {
+      const { svc, prisma, store, sms, notifications } = make();
+      prisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1',
+        riderId: 'rider-1',
+        driverId: 'driver-1',
+        status: TripStatus.accepted,
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
+        passengerName: 'Priya',
+        passengerPhone: '+15550001111',
+      });
+      store[RedisKeys.driverLoc('driver-1')] = {
+        lat: String(pickup.lat),
+        lng: String(pickup.lng),
+        ts: String(Date.now() - 1000),
+      };
+
+      await svc.driverArrived('driver-1', 'trip-1');
+      await new Promise((r) => setImmediate(r)); // the send is fire-and-forget
+
+      expect(sms.sendMessage).toHaveBeenCalledWith(
+        '+15550001111',
+        expect.stringContaining('here'),
+      );
+      // The booker still gets their own push — the text is in addition.
+      expect(notifications.notifyTrip).toHaveBeenCalledWith(
+        'rider-1',
+        'arrived',
+        { tripId: 'trip-1' },
+      );
+    });
+
+    it('sends no text on an ordinary ride', async () => {
+      const { svc, prisma, store, sms } = make();
+      prisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1',
+        riderId: 'rider-1',
+        driverId: 'driver-1',
+        status: TripStatus.accepted,
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
+      });
+      store[RedisKeys.driverLoc('driver-1')] = {
+        lat: String(pickup.lat),
+        lng: String(pickup.lng),
+        ts: String(Date.now() - 1000),
+      };
+
+      await svc.driverArrived('driver-1', 'trip-1');
+      await new Promise((r) => setImmediate(r));
+
+      expect(sms.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('a failed text never takes the arrival down with it', async () => {
+      const { svc, prisma, store, sms } = make();
+      sms.sendMessage.mockRejectedValue(new Error('gateway down'));
+      prisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1',
+        riderId: 'rider-1',
+        driverId: 'driver-1',
+        status: TripStatus.accepted,
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
+        passengerPhone: '+15550001111',
+      });
+      store[RedisKeys.driverLoc('driver-1')] = {
+        lat: String(pickup.lat),
+        lng: String(pickup.lng),
+        ts: String(Date.now() - 1000),
+      };
+
+      const res = await svc.driverArrived('driver-1', 'trip-1');
+      await new Promise((r) => setImmediate(r));
+      expect(res.status).toBe(TripStatus.arrived);
+    });
+  });
+
   describe('TripsService.getTrip — driver position on a restored trip', () => {
     // A rider reopening the app (cold start, or back from a suspend) had no
     // driver position until the next `trip:driver_location` ping, so the marker

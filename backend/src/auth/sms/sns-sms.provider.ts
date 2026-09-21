@@ -24,13 +24,29 @@ export class SnsSmsProvider implements SmsProvider {
   }
 
   async sendOtp(phone: string, code: string): Promise<void> {
-    const message = `Your FairsVia verification code is ${code}. It expires shortly. Do not share it.`;
+    await this.publish(
+      phone,
+      `Your FairsVia verification code is ${code}. It expires shortly. Do not share it.`,
+      'OTP SMS',
+    );
+  }
+
+  async sendMessage(phone: string, message: string): Promise<void> {
+    await this.publish(phone, message, 'SMS');
+  }
+
+  /** One SNS Publish. [label] only shapes the success log line. */
+  private async publish(
+    phone: string,
+    message: string,
+    label: string,
+  ): Promise<void> {
     const body = new URLSearchParams({
       Action: 'Publish',
       Version: '2010-03-31',
       PhoneNumber: phone,
       Message: message,
-      // Transactional SMS = highest delivery priority (OTP use case).
+      // Transactional SMS = highest delivery priority (OTP + ride events).
       'MessageAttributes.entry.1.Name': 'AWS.SNS.SMS.SMSType',
       'MessageAttributes.entry.1.Value.DataType': 'String',
       'MessageAttributes.entry.1.Value.StringValue': 'Transactional',
@@ -57,11 +73,11 @@ export class SnsSmsProvider implements SmsProvider {
     }
 
     if (!res.ok) {
-      // SNS returns an XML error body; log a truncated form, never the OTP.
+      // SNS returns an XML error body; log a truncated form, never the message.
       const text = await res.text().catch(() => '');
       this.logger.error(`SNS error (${res.status}): ${text.slice(0, 200)}`);
       throw new BadGatewayException(`SNS send failed (${res.status})`);
     }
-    this.logger.log(`OTP SMS queued to ${phone} via SNS`);
+    this.logger.log(`${label} queued to ${phone} via SNS`);
   }
 }
