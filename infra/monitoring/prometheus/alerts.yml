@@ -104,9 +104,13 @@ groups:
       - alert: DiskSpaceLow
         # Already breached on the current host (97% used). Left at 90% so it
         # keeps meaning something once that is cleaned up.
+        # `mountpoint="/"`, not "/rootfs": node_exporter strips the
+        # --path.rootfs prefix when it reports. With the prefix left in, this
+        # selector matched nothing and the alert silently could never fire —
+        # the worst kind of alert, because the dashboard looks armed.
         expr: >-
-          (1 - node_filesystem_avail_bytes{mountpoint="/rootfs",fstype!~"tmpfs|overlay"}
-           / node_filesystem_size_bytes{mountpoint="/rootfs",fstype!~"tmpfs|overlay"}) > 0.90
+          (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
+           / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 0.90
         for: 10m
         labels: { severity: critical }
         annotations:
@@ -126,8 +130,15 @@ groups:
       - alert: RedisMemoryHigh
         # Redis holds hot/ephemeral state (GPS, presence). Eviction there is
         # silent data loss on the live map.
+        #
+        # Guarded on a limit actually being set. Redis reports
+        # redis_memory_max_bytes = 0 when `maxmemory` is unconfigured (the
+        # default, and the case here), and clamping that denominator to 1 made
+        # the ratio the raw byte count — so this fired permanently and would
+        # have been muted within a day.
         expr: >-
-          redis_memory_used_bytes / clamp_min(redis_memory_max_bytes, 1) > 0.85
+          redis_memory_max_bytes > 0
+          and (redis_memory_used_bytes / redis_memory_max_bytes) > 0.85
         for: 5m
         labels: { severity: warning }
         annotations:

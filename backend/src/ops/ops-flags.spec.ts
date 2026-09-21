@@ -139,3 +139,105 @@ describe('kill switches at their enforcement points', () => {
     expect(secondary.route).not.toHaveBeenCalled();
   });
 });
+
+describe('pausing dispatch defers work rather than losing it', () => {
+  const onPaused = { isOn: jest.fn().mockResolvedValue(true) } as never;
+  const offPaused = { isOn: jest.fn().mockResolvedValue(false) } as never;
+
+  function makeDispatch(flags: never, trips: Record<string, string> = {}) {
+    const sadd = jest.fn().mockResolvedValue(1);
+    const smembers = jest.fn().mockResolvedValue(Object.keys(trips));
+    const redis = {
+      client: {
+        sadd,
+        smembers,
+        del: jest.fn().mockResolvedValue(1),
+        scard: jest.fn().mockResolvedValue(Object.keys(trips).length),
+      },
+    };
+    const prisma = {
+      trip: {
+        findUnique: jest.fn(({ where }: { where: { id: string } }) =>
+          Promise.resolve(
+            trips[where.id] ? { status: trips[where.id] } : null,
+          ),
+        ),
+      },
+    };
+    const queue = {
+      add: jest.fn().mockResolvedValue({}),
+      remove: jest.fn().mockResolvedValue(1),
+    };
+    return { redis, prisma, queue, sadd, smembers, flags };
+  }
+
+  async function service(ctx: ReturnType<typeof makeDispatch>) {
+    const { DispatchService } = await import('../dispatch/dispatch.service');
+    return new DispatchService(
+      ctx.prisma as never,
+      ctx.redis as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      ctx.queue as never,
+      {} as never,
+      {} as never,
+      ctx.flags,
+    );
+  }
+
+  it('parks the trip instead of throwing, leaving its status alone', async () => {
+    // Throwing looks like deferral but is not: the job has attempts: 3 with a
+    // 2s backoff, so any pause over ~6s exhausts the retries and strands the
+    // rider in `requested` for ever.
+    const ctx = makeDispatch(onPaused, { 't1': 'requested' });
+    const svc = await service(ctx);
+
+    await expect(svc.runDispatch('t1')).resolves.toBeUndefined();
+    expect(ctx.sadd).toHaveBeenCalledWith('dispatch:deferred', 't1');
+    // Never looked the trip up, never transitioned it.
+    expect(ctx.prisma.trip.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('releases parked trips when the pause is lifted', async () => {
+    const ctx = makeDispatch(offPaused, { 't1': 'requested', 't2': 'requested' });
+    const svc = await service(ctx);
+
+    expect(await svc.resumeDeferred()).toBe(2);
+    expect(ctx.queue.add).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears the retained completed job first, or the re-add is discarded',
+    async () => {
+      // THE bug this test exists for: dispatchTrip de-dupes on jobId: tripId,
+      // and BullMQ keeps completed jobs for an hour — so re-adding the same id
+      // is silently dropped while the log reports the trip was released.
+      const ctx = makeDispatch(offPaused, { 't1': 'requested' });
+      const svc = await service(ctx);
+
+      await svc.resumeDeferred();
+      expect(ctx.queue.remove).toHaveBeenCalledWith('t1');
+      const removeOrder = ctx.queue.remove.mock.invocationCallOrder[0];
+      const addOrder = ctx.queue.add.mock.invocationCallOrder[0];
+      expect(removeOrder).toBeLessThan(addOrder);
+    });
+
+  it('drops trips that ended while parked, so the waiting count cannot lie',
+    async () => {
+      const ctx = makeDispatch(offPaused, { 't1': 'cancelled', 't2': 'requested' });
+      const svc = await service(ctx);
+
+      expect(await svc.resumeDeferred()).toBe(1);
+      expect(ctx.queue.add).toHaveBeenCalledTimes(1);
+    });
+
+  it('resuming with nothing parked is a no-op', async () => {
+    const ctx = makeDispatch(offPaused, {});
+    const svc = await service(ctx);
+    expect(await svc.resumeDeferred()).toBe(0);
+    expect(ctx.queue.add).not.toHaveBeenCalled();
+  });
+});

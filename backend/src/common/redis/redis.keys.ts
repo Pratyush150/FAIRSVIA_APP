@@ -1,5 +1,9 @@
 /** Centralized Redis key builders for the hot path (spec §7.2). */
 export const RedisKeys = {
+  // Trips whose dispatch was skipped because an operator paused matching.
+  // Re-dispatched when the pause is lifted, so pausing defers work rather
+  // than stranding riders.
+  dispatchDeferred: () => 'dispatch:deferred',
   driversGeo: (tier: string) => `drivers:geo:${tier}`,
   driverStatus: (id: string) => `driver:${id}:status`,
   driverLoc: (id: string) => `driver:${id}:loc`,

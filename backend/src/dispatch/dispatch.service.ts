@@ -133,18 +133,65 @@ export class DispatchService {
   }
 
   /**
+   * Re-dispatch everything parked while matching was paused, and report how
+   * many were released. Called when the `dispatchPaused` switch goes off.
+   *
+   * Trips that have since ended (cancelled, expired) are dropped from the set
+   * rather than re-offered — `runDispatch` would no-op on them anyway, but
+   * leaving them there makes the "waiting" count lie.
+   */
+  async resumeDeferred(): Promise<number> {
+    const key = RedisKeys.dispatchDeferred();
+    const ids = await this.redis.client.smembers(key);
+    if (ids.length === 0) return 0;
+    await this.redis.client.del(key);
+
+    let released = 0;
+    for (const tripId of ids) {
+      const trip = await this.prisma.trip.findUnique({
+        where: { id: tripId },
+        select: { status: true },
+      });
+      if (trip?.status !== TripStatus.requested) continue;
+      // Drop the retained completed job first. `dispatchTrip` de-dupes on
+      // `jobId: tripId`, and BullMQ keeps completed jobs for an hour
+      // (removeOnComplete.age) — so without this the re-add is silently
+      // discarded as a duplicate and the trip stays parked for ever while the
+      // log cheerfully reports it was released.
+      await this.queue.remove(tripId).catch(() => undefined);
+      await this.dispatchTrip(tripId);
+      released += 1;
+    }
+    this.logger.warn(`dispatch resumed — re-dispatched ${released} trip(s)`);
+    return released;
+  }
+
+  /** How many trips are currently parked behind the pause. */
+  deferredCount(): Promise<number> {
+    return this.redis.client.scard(RedisKeys.dispatchDeferred());
+  }
+
+  /**
    * The actual offer loop — invoked by the queue worker. Idempotent/resumable:
    * a fresh trip is moved REQUESTED→MATCHING; a trip already in MATCHING (e.g.
    * a retried job) simply resumes offering; anything else is a no-op.
    */
   async runDispatch(tripId: string): Promise<void> {
-    // Kill switch: stop matching new trips. Enforced HERE rather than in
-    // dispatchTrip() so the job is still enqueued and simply retried — trips
-    // requested while dispatch is paused are matched when it is un-paused,
-    // instead of being silently dropped on the floor.
+    // Kill switch: stop matching new trips.
+    //
+    // Park the trip in a deferred set and return cleanly. Throwing here (the
+    // obvious implementation) looks like it defers the work but does not: the
+    // job has `attempts: 3` with a 2s backoff, so any pause longer than about
+    // six seconds exhausts the retries and strands the rider in `requested`
+    // for ever. A pause that quietly loses trips is worse than no pause.
+    //
+    // The trip's status is left untouched, so nothing observable changes for
+    // the rider beyond waiting — and `resumeDeferred()` picks it up the moment
+    // the switch goes off.
     if (await this.flags.isOn('dispatchPaused')) {
-      this.logger.warn(`dispatch paused — deferring trip ${tripId}`);
-      throw new Error('Dispatch is paused by an operator');
+      await this.redis.client.sadd(RedisKeys.dispatchDeferred(), tripId);
+      this.logger.warn(`dispatch paused — deferred trip ${tripId}`);
+      return;
     }
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) return;
