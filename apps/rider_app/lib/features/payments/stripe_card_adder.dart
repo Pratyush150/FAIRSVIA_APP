@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:design_system/design_system.dart' show AppBrand;
 import 'package:flutter_stripe/flutter_stripe.dart';
 
 /// Drives real card entry via the native Stripe PaymentSheet (setup-intent
@@ -19,7 +20,7 @@ Future<StripeCardResult> addStripeCard(PaymentsRemoteDataSource payments) async 
 
   await Stripe.instance.initPaymentSheet(
     paymentSheetParameters: SetupPaymentSheetParameters(
-      merchantDisplayName: 'FairsVia',
+      merchantDisplayName: AppBrand.name,
       customerId: setup.customerId,
       customerEphemeralKeySecret: setup.ephemeralKeySecret,
       setupIntentClientSecret: setup.setupIntentClientSecret,

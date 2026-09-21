@@ -1,6 +1,7 @@
 /// Shared UI kit: theme, colors, spacing, typography, and reusable widgets.
 library;
 
+export 'src/theme/app_brand.dart';
 export 'src/theme/app_colors.dart';
 export 'src/theme/app_spacing.dart';
 export 'src/theme/app_elevation.dart';
@@ -27,7 +28,9 @@ export 'src/widgets/map_geo.dart';
 export 'src/widgets/connection_banner.dart';
 export 'src/widgets/app_skeleton.dart';
 export 'src/widgets/pulse_radar.dart';
+export 'src/widgets/recenter_pill.dart';
 export 'src/widgets/blurred_scrim.dart';
+export 'src/widgets/brand_splash.dart';
 
 // Re-export flutter_animate so apps get the `.animate()` API (and our reveal
 // helpers) from a single design_system import.

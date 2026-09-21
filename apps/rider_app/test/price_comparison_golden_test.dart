@@ -62,7 +62,7 @@ PriceComparison _comparison({
       // Must match the brand baked into the committed goldens: the rebrand
       // regenerated the images but left this fixture on the old name, so every
       // golden here has been failing on the brand row ever since.
-      displayName: 'FairsVia',
+      displayName: 'RideVela',
       productName: 'Economy',
       price: oursCheapest ? 9.00 : 16.67,
       priceLow: oursCheapest ? 9.00 : 16.67,

@@ -13,7 +13,7 @@ import 'go_router_refresh_stream.dart';
 GoRouter createAppRouter({
   required AuthBloc authBloc,
   required WidgetBuilder homeBuilder,
-  String appTitle = 'FairsVia',
+  String appTitle = AppBrand.name,
   // The driver app passes [NameSetupPage.driverSubtitle]; riders keep the
   // default copy.
   String nameSetupSubtitle = NameSetupPage.riderSubtitle,

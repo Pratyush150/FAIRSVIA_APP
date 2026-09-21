@@ -18,9 +18,9 @@
 		<string>Your precise location lets riders find you at the pickup and meters trips correctly.</string>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>FairsVia uses your location to share your position with riders and navigate to pickups and drop-offs.</string>
+	<string>RideVela uses your location to share your position with riders and navigate to pickups and drop-offs.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>FairsVia shares your location with riders and keeps navigating to pickups and drop-offs even when the app is in the background, so you never lose a ride.</string>
+	<string>RideVela shares your location with riders and keeps navigating to pickups and drop-offs even when the app is in the background, so you never lose a ride.</string>
 	<!-- Android sets usesCleartextTraffic=true; ATS is the iOS equivalent. Allows
 	     the HTTP dev/LAN backend; Cloudflare builds use HTTPS. Tighten for release. -->
 	<key>NSAppTransportSecurity</key>
@@ -54,7 +54,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>FairsVia Driver</string>
+	<string>RideVela Driver</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -62,7 +62,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>FairsVia Driver</string>
+	<string>RideVela Driver</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

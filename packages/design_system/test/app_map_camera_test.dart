@@ -49,6 +49,53 @@ void main() {
     });
   });
 
+  group('lookAhead', () {
+    test('aims past the car in its direction of travel', () {
+      // Heading due north from the middle of the viewport.
+      final aimed = AppMap.lookAhead(const LatLng(0.5, 0.5), 0, sw, ne);
+      expect(aimed.latitude, greaterThan(0.5)); // moved north
+      expect(aimed.longitude, closeTo(0.5, 1e-9)); // not sideways
+      // Due east.
+      final east = AppMap.lookAhead(const LatLng(0.5, 0.5), 90, sw, ne);
+      expect(east.longitude, greaterThan(0.5));
+      expect(east.latitude, closeTo(0.5, 1e-9));
+    });
+
+    test('the lead stays inside the viewport', () {
+      // A full half-span would put the aim point on the edge; the default
+      // fraction must keep it comfortably short of that.
+      final aimed = AppMap.lookAhead(const LatLng(0.5, 0.5), 0, sw, ne);
+      expect(aimed.latitude - 0.5, lessThan(0.5));
+      expect(aimed.latitude - 0.5, closeTo(0.5 * AppMap.lookAheadFraction, 1e-9));
+    });
+
+    test('a bigger fraction leads further ahead', () {
+      final near = AppMap.lookAhead(const LatLng(0.5, 0.5), 0, sw, ne,
+          fraction: 0.1);
+      final far = AppMap.lookAhead(const LatLng(0.5, 0.5), 0, sw, ne,
+          fraction: 0.4);
+      expect(far.latitude, greaterThan(near.latitude));
+    });
+
+    test('an unknown heading leads nowhere', () {
+      // Leading in a direction we are only guessing at is worse than centring.
+      const car = LatLng(0.5, 0.5);
+      expect(AppMap.lookAhead(car, null, sw, ne), car);
+    });
+
+    test('an unmeasurable viewport leads nowhere', () {
+      const car = LatLng(0.5, 0.5);
+      expect(AppMap.lookAhead(car, 45, sw, sw), car);
+      expect(AppMap.lookAhead(car, 45, ne, sw), car);
+    });
+
+    test('south-west travel leads south and west', () {
+      final aimed = AppMap.lookAhead(const LatLng(0.5, 0.5), 225, sw, ne);
+      expect(aimed.latitude, lessThan(0.5));
+      expect(aimed.longitude, lessThan(0.5));
+    });
+  });
+
   group('glideFor', () {
     test('stretches the glide to match the gap between fixes', () {
       expect(

@@ -14,6 +14,9 @@ import 'features/trip/location_service.dart';
 import 'features/trip/map_picker_page.dart';
 import 'features/trip/map_utils.dart';
 import 'features/trip/price_comparison_card.dart';
+import 'features/trip/ride_camera.dart';
+import 'features/trip/ride_status.dart';
+import 'features/trip/ride_status_header.dart';
 import 'features/trip/trip_cubit.dart';
 
 /// Rider home: full-screen map with a bottom sheet that changes with the
@@ -70,6 +73,13 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   // no-op and the button would feel dead.
   LatLng? _recenter;
   int _recenterSeq = 0;
+  // Whether AppMap's camera is still following the car. Flipped false the
+  // moment the rider pans the map away, which is what surfaces the "Recenter"
+  // pill — the camera yields to them rather than fighting for it.
+  bool _following = true;
+  // Last seen socket state, so a reconnect (false → true) can be told apart
+  // from a rebuild that merely happens to be connected.
+  bool _wasConnected = true;
   // The phase whose opening frame has already been shown. While it matches the
   // live phase the camera follows the car instead of re-fitting.
   TripPhase? _followedPhase;
@@ -112,6 +122,15 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     _posSub?.cancel();
     _posSub = _location.positionStream().listen((loc) {
       if (!mounted) return;
+      // Whether this fix is allowed to move the camera. It is not, whenever a
+      // ride owns the map: the person holding this phone is not necessarily
+      // the passenger — a ride booked for someone else can have the booker in
+      // one city and the car in another — and snapping the camera to the
+      // booker's GPS rips them away from the car they are watching. Their
+      // position still updates the pickup; it just stops steering the map.
+      final mayMove = RideCamera.myLocationMayMoveCamera(
+        context.read<TripCubit>().state,
+      );
       setState(() {
         _myLocation = loc;
         _hasRealLocation = true;
@@ -119,7 +138,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         if (_myLocationAddr == DestinationSearchPage.unsetPickupLabel) {
           _myLocationAddr = 'Current location';
         }
-        if (!_snappedToMe) {
+        if (!_snappedToMe && mayMove) {
           _snappedToMe = true;
           _recenter = MapUtils.toLatLng(loc);
           _recenterSeq++;
@@ -133,7 +152,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     // iOS kills the WebSocket while the app is suspended; re-establish it on
     // resume so live trip updates don't stay dead until a manual restart.
     if (state == AppLifecycleState.resumed) {
-      _resumeSocket();
+      unawaited(_resumeSocket());
       // Back from Settings (banner tap): re-read so the banner clears and
       // the pickup fills in once the rider has enabled location.
       if (_locationIssue != null || _reducedAccuracy) _loadLocation();
@@ -145,11 +164,38 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     if (token != null && mounted) {
       await context.read<TripCubit>().resumeFromBackground(token);
     }
+    // The cubit has now pulled the authoritative trip over REST and rebuilt the
+    // socket, so the state holds the CURRENT driver position. Move the camera
+    // onto it rather than leaving the rider looking at wherever the map was
+    // when they locked their phone — including when they had panned away
+    // before backgrounding, which used to leave following suspended and the
+    // car off screen with no hint that anything had moved.
+    if (!mounted) return;
+    _resyncCameraToRide();
+  }
+
+  /// Put the camera back on the live ride after a gap (resume, reconnect).
+  /// Bumping [_recenterSeq] is what makes AppMap honour the request even when
+  /// the coordinate is unchanged, and resuming follow mode is what makes the
+  /// camera keep up from here on.
+  void _resyncCameraToRide() {
+    final state = context.read<TripCubit>().state;
+    final car = RideCamera.recenterTarget(state);
+    if (car == null) return;
+    setState(() {
+      _recenter = MapUtils.toLatLng(car);
+      _recenterSeq++;
+      _followedPhase = state.phase;
+      _following = true;
+    });
   }
 
   Future<void> _loadLocation() async {
     final result = await _location.resolve();
     if (!mounted) return;
+    // See _startLocationWatch: a ride on screen owns the camera.
+    final mayMove =
+        RideCamera.myLocationMayMoveCamera(context.read<TripCubit>().state);
     setState(() {
       _myLocation = result.point;
       _hasRealLocation = result.isReal;
@@ -163,8 +209,10 @@ class _RiderHomeViewState extends State<_RiderHomeView>
       // Move the camera to the resolved location. GoogleMap's initialCenter is
       // one-shot, so without this the map stays on the fallback until the rider
       // taps recenter (seen when GPS/permission resolves after the first frame).
-      _recenter = MapUtils.toLatLng(result.point);
-      _recenterSeq++;
+      if (mayMove) {
+        _recenter = MapUtils.toLatLng(result.point);
+        _recenterSeq++;
+      }
       if (result.isReal) _snappedToMe = true;
     });
     // Keep watching GPS so the map self-corrects off the fallback the moment a
@@ -215,12 +263,17 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     // While a driver is being tracked, "recenter" means the car — that is what
     // the rider is watching. Re-fitting the route here (what it used to do)
     // left them staring at a zoomed-out box with a stale camera, and tapping
-    // again did nothing because the bounds had not changed.
-    if (_isLiveTracking(state)) {
+    // again did nothing because the bounds had not changed. It is the LATEST
+    // driver coordinate, not the previous camera position and not the rider's
+    // own GPS, so it works after a pan, after a pinch and after the app comes
+    // back from the background.
+    final car = RideCamera.recenterTarget(state);
+    if (car != null) {
       setState(() {
-        _recenter = MapUtils.toLatLng(state.driverLocation!);
+        _recenter = MapUtils.toLatLng(car);
         _recenterSeq++;
         _followedPhase = state.phase; // resume following after the snap
+        _following = true;
       });
       return;
     }
@@ -362,6 +415,9 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         point: MapUtils.toLatLng(state.driverLocation!),
         kind: MapMarkerKind.driver,
         label: 'Driver',
+        // Pings have stopped: keep the last known position on the map but draw
+        // it faded, so "where the car was" never reads as "where the car is".
+        stale: state.driverStale,
         // Last reported compass heading, so the car keeps pointing the way
         // it was going even while pings pause (AppMap otherwise derives it
         // from movement and a stale/parked car would spin to 0°).
@@ -500,11 +556,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   /// Phases where a driver is on the map and the rider is watching them move.
   /// The camera follows the car in these, instead of holding a static frame
   /// that the driver eventually drives out of.
-  static bool _isLiveTracking(TripState state) =>
-      state.driverLocation != null &&
-      (state.phase == TripPhase.driverEnRoute ||
-          state.phase == TripPhase.driverArrived ||
-          state.phase == TripPhase.onTrip);
+  static bool _isLiveTracking(TripState state) => RideCamera.tracksDriver(state);
 
   /// The camera frames the ride once when a phase begins, then hands over to
   /// follow mode. Re-fitting on every driver ping would re-zoom the map a
@@ -613,10 +665,16 @@ class _RiderHomeViewState extends State<_RiderHomeView>
             prev.phase != curr.phase ||
             prev.notice != curr.notice ||
             prev.alert != curr.alert ||
+            prev.connected != curr.connected ||
             prev.driverLocation != curr.driverLocation ||
             (curr.phase == TripPhase.idle && prev.error != curr.error),
         listener: (context, state) {
           final cubit = context.read<TripCubit>();
+          // Socket came back: the cubit re-syncs the trip, and the map catches
+          // up with it. Without this the rider watches "Connected" appear over
+          // a car still frozen where the connection dropped.
+          if (state.connected && !_wasConnected) _resyncCameraToRide();
+          _wasConnected = state.connected;
           // One-shot server notices (payment warnings) as a snackbar.
           final notice = state.notice;
           if (notice != null) {
@@ -685,9 +743,20 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                   fitBounds: _fitBoundsForCamera(state),
                   recenter: _recenter,
                   recenterSeq: _recenterSeq,
+                  // A recenter also restores street-level zoom, so the button
+                  // works the same after a pinch, after a route fit and after
+                  // the app has been in the background.
+                  recenterZoom: RideCamera.recenterZoom,
                   cameraMode: _isLiveTracking(state)
                       ? MapCameraMode.followDriverEdge
                       : MapCameraMode.fit,
+                  // The map tells us when it stops following (the rider
+                  // panned); that is what raises the Recenter pill.
+                  onFollowingChanged: (following) {
+                    if (following != _following) {
+                      setState(() => _following = following);
+                    }
+                  },
                   // Keep pickup/dropoff/driver markers framed above the bottom
                   // sheet (which covers ~40% of the screen) rather than behind it.
                   boundsPadding: EdgeInsets.fromLTRB(
@@ -748,9 +817,18 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                                   },
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
+                                // One control, two meanings — and it says
+                                // which. During a ride it centres the CAR; at
+                                // rest it centres the rider. A button labelled
+                                // "my location" that quietly does neither is
+                                // how riders learned not to trust it.
                                 AppCircleButton(
-                                  icon: Icons.my_location_rounded,
-                                  tooltip: 'Recenter on my location',
+                                  icon: _isLiveTracking(state)
+                                      ? Icons.gps_fixed_rounded
+                                      : Icons.my_location_rounded,
+                                  tooltip: _isLiveTracking(state)
+                                      ? 'Recenter on your driver'
+                                      : 'Recenter on my location',
                                   onPressed: _recenterToMe,
                                 ),
                               ],
@@ -763,7 +841,21 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                 ),
                 Align(
                   alignment: Alignment.bottomCenter,
-                  child: _BottomSheetForPhase(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Raised only while the camera is NOT following — the
+                      // rider panned, so the car may now be off screen. It
+                      // takes them back to the live position and resumes
+                      // automatic tracking.
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: RecenterPill(
+                          visible: _isLiveTracking(state) && !_following,
+                          onPressed: _recenterToMe,
+                        ),
+                      ),
+                      _BottomSheetForPhase(
                     state: state,
                     onSearch: _openSearch,
                     savedPlaces: _savedPlaces,
@@ -775,6 +867,8 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                     onFixLocation: () => _onLocationBannerAction(
                       _bannerActionFor(_locationIssue),
                     ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -2400,19 +2494,14 @@ class _FindingDriver extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Finding your driver',
-                      style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Trip to ${state.dropoffAddr ?? 'your destination'}',
-                    style: theme.textTheme.bodyMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+              child: RideStatusHeader(
+                status: RideStatus.of(state),
+                detail: Text(
+                  'Trip to ${state.dropoffAddr ?? 'your destination'}',
+                  style: theme.textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
           ],
@@ -2625,16 +2714,10 @@ class DriverInfoSheet extends StatelessWidget {
                         : Icons.directions_car_rounded,
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    arrived
-                        ? 'Your driver is here'
-                        // Live "Arriving in N min" from the backend approach ETA
-                        // when known, else a generic status.
-                        : (_liveEtaLabel(state) ??
-                            driver?.etaLabel ??
-                            'Your driver is on the way'),
-                    style: theme.textTheme.headlineSmall,
-                  ),
+                  // Headline + ETA come from RideStatus, so "on the way" turns
+                  // into "almost here" at the same threshold everywhere, and
+                  // the ETA is a sub-line rather than the headline itself.
+                  RideStatusHeader(status: RideStatus.of(state)),
                   // No ping for a while: the car on the map (and the ETA)
                   // may be stale — say so instead of pretending it's live.
                   if (state.driverStale) ...[
@@ -2803,24 +2886,28 @@ class _OnTripSheet extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.navigation, color: AppColors.accent),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text('On the way to your destination',
-                  style: theme.textTheme.titleMedium),
-            ),
-            _sosButton(context, state),
-            IconButton(
-              tooltip: 'Message driver',
-              icon: _ChatIcon(unread: state.unreadMessages),
-              onPressed: () => _openTripChat(context, state),
-            ),
-          ],
+        // On trip the map is the star: the sheet says the state, the time
+        // left and the destination, and gets out of the way.
+        RideStatusHeader(
+          status: RideStatus.of(state),
+          detail: Text(
+            state.dropoffAddr ?? '',
+            style: theme.textTheme.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _sosButton(context, state),
+              IconButton(
+                tooltip: 'Message driver',
+                icon: _ChatIcon(unread: state.unreadMessages),
+                onPressed: () => _openTripChat(context, state),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(state.dropoffAddr ?? '', style: theme.textTheme.bodyMedium),
         if (_tripEtaLine(state) case final eta?) ...[
           const SizedBox(height: AppSpacing.sm),
           Row(
@@ -2828,7 +2915,7 @@ class _OnTripSheet extends StatelessWidget {
               const Icon(Icons.schedule_rounded,
                   size: 18, color: AppColors.accent),
               const SizedBox(width: AppSpacing.xs),
-              Text(eta, style: theme.textTheme.titleSmall),
+              Text(eta, style: theme.textTheme.titleSmall?.tabular()),
             ],
           ),
         ],
@@ -2838,14 +2925,6 @@ class _OnTripSheet extends StatelessWidget {
       ],
     );
   }
-}
-
-/// "Arriving in N min" from the live leg progress (null until the first ping).
-String? _liveEtaLabel(TripState state) {
-  final s = state.liveEtaSec;
-  if (s == null) return null;
-  final mins = (s / 60).ceil();
-  return mins <= 1 ? 'Arriving in 1 min' : 'Arriving in $mins min';
 }
 
 /// On-trip readout: "Arriving 3:42 PM · 12 min · 4.1 mi to go" built from the
@@ -2873,7 +2952,7 @@ String? _tripEtaLine(TripState state) {
 void _openSafety(BuildContext context, TripState state) {
   final tripId = state.trip?.id;
   if (tripId == null) return;
-  final share = 'FairsVia trip to ${state.dropoffAddr ?? 'my destination'}. '
+  final share = '${AppBrand.name} trip to ${state.dropoffAddr ?? 'my destination'}. '
       'Driver: ${state.driver?.name ?? 'assigned'}. Please track my ride.';
   showSafetySheet(
     context,
@@ -3035,7 +3114,21 @@ class _CompletedSheetState extends State<CompletedSheet> {
           ),
           const SizedBox(height: AppSpacing.md),
           Center(
-            child: Text('Trip complete', style: theme.textTheme.headlineSmall),
+            child: Column(
+              children: [
+                Text(RideStatus.of(state).title,
+                    style: theme.textTheme.headlineSmall),
+                if (RideStatus.of(state).subtitle case final total?) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    total,
+                    style: theme.textTheme.titleMedium
+                        ?.tabular()
+                        .copyWith(color: AppColors.accentInk),
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: AppSpacing.lg),
           AppCard(
@@ -3129,9 +3222,14 @@ class _CompletedSheetState extends State<CompletedSheet> {
                           ? _pendingTip == amt
                           : sentTip == amt,
                       // Locked only once the tip has actually been sent.
+                      // Tapping the chosen amount again clears it: there was
+                      // otherwise no way back to "no tip" once a chip had been
+                      // touched, which is a dead end for a mis-tap.
                       onTap: locked
                           ? null
-                          : () => setState(() => _pendingTip = amt),
+                          : () => setState(
+                                () => _pendingTip = _pendingTip == amt ? null : amt,
+                              ),
                     ),
                   ),
                 ),
@@ -3153,6 +3251,14 @@ class _CompletedSheetState extends State<CompletedSheet> {
               ),
             ],
           ),
+          // A tip that failed to send. Without this the button simply went
+          // back to saying "Add \$5 tip" with no explanation, which reads as
+          // the sheet being stuck — the rider has no way to tell a rejected
+          // charge from a dead button. The choice stays live so they can retry.
+          if (sentTip == null && state.error != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _SheetWarning(message: state.error!),
+          ],
           if (sentTip != null)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),

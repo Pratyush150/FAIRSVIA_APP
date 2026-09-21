@@ -593,8 +593,18 @@ class TripCubit extends Cubit<TripState> {
 
   /// Tip the driver (added 100% to their payout).
   Future<void> tipDriver(double amount) async {
+    if (amount <= 0 || state.tipping) return;
     final tripId = state.trip?.id;
-    if (tripId == null || amount <= 0 || state.tipping) return;
+    // No trip to tip against (a completion restored without its trip payload).
+    // Returning silently left the rider tapping a button that did nothing and
+    // never said why; say it instead.
+    if (tripId == null) {
+      emit(state.copyWith(
+        error: "This ride's details are still loading — try the tip again in "
+            'a moment.',
+      ));
+      return;
+    }
     emit(state.copyWith(tipping: true, error: null));
     try {
       await _payments.tip(tripId, amount);

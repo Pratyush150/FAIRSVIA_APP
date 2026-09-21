@@ -23,7 +23,7 @@ class _DriverAppState extends State<DriverApp> {
     _authBloc = sl<AuthBloc>()..add(const AuthStarted());
     _router = createAppRouter(
       authBloc: _authBloc,
-      appTitle: 'FairsVia Driver',
+      appTitle: AppBrand.driverTitle,
       nameSetupSubtitle: NameSetupPage.driverSubtitle,
       homeBuilder: (_) => const DriverHomePage(),
     );
@@ -40,14 +40,19 @@ class _DriverAppState extends State<DriverApp> {
     return BlocProvider.value(
       value: _authBloc,
       child: MaterialApp.router(
-        title: 'FairsVia Driver',
+        title: AppBrand.driverTitle,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: ThemeMode.system,
         routerConfig: _router,
-        builder: (context, child) =>
-            ErrorOverlay(child: child ?? const SizedBox.shrink()),
+        // The brand signature covers the router's first frame — auth gate,
+        // home, or a ride restored from a cold start — so no screen has to
+        // know it exists. It hands over on a fixed timer, not on a load
+        // event: it is a signature, not a loading screen.
+        builder: (context, child) => BrandSplashGate(
+          child: ErrorOverlay(child: child ?? const SizedBox.shrink()),
+        ),
       ),
     );
   }

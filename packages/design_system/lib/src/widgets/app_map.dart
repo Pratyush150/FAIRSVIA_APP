@@ -34,11 +34,17 @@ class AppMapMarker {
     this.kind = MapMarkerKind.plain,
     this.label,
     this.heading,
+    this.stale = false,
   });
 
   final LatLng point;
   final MapMarkerKind kind;
   final String? label;
+
+  /// True when this position is known to be out of date (no ping for a while).
+  /// The marker is drawn faded so the map says "last known", not "live" —
+  /// leaving a stale car at full strength is the map quietly lying.
+  final bool stale;
 
   /// Optional compass heading (degrees, 0 = north) for the driver marker. When
   /// null, [AppMap] derives the heading from successive positions.
@@ -66,6 +72,7 @@ class AppMap extends StatefulWidget {
     this.tileProvider,
     this.boundsPadding = const EdgeInsets.all(64),
     this.cameraMode = MapCameraMode.fit,
+    this.onFollowingChanged,
   });
 
   final LatLng initialCenter;
@@ -103,6 +110,13 @@ class AppMap extends StatefulWidget {
   /// See [MapCameraMode].
   final MapCameraMode cameraMode;
 
+  /// Fired when automatic camera following starts or stops, so the app can
+  /// offer a "Recenter" control exactly while the camera is *not* following.
+  /// True means the camera is tracking the car; false means the user has taken
+  /// it over by panning. Never fired in [MapCameraMode.fit], where there is
+  /// nothing to follow.
+  final ValueChanged<bool>? onFollowingChanged;
+
   /// Fraction of the viewport, per side, treated as the "edge" in
   /// [MapCameraMode.followDriverEdge]. The car is left alone while it sits in
   /// the middle band; crossing into a margin pans the camera back onto it.
@@ -128,6 +142,44 @@ class AppMap extends StatefulWidget {
     final insideLng = target.longitude >= sw.longitude + lngSpan * margin &&
         target.longitude <= ne.longitude - lngSpan * margin;
     return !(insideLat && insideLng);
+  }
+
+  /// Fraction of the viewport's half-span the camera aims *past* the car, in
+  /// its direction of travel, when it pans to keep up. Centring the car exactly
+  /// wastes the half of the screen behind it; leading it puts the route the
+  /// rider is about to drive into view instead. 0.30 is about a third of the
+  /// way to the edge — enough to show what's coming without pushing the car
+  /// itself near the margin that triggered the pan.
+  static const double lookAheadFraction = 0.30;
+
+  /// Where the camera should aim when following a car at [target] travelling on
+  /// [bearingDeg], given the currently visible box [sw]..[ne].
+  ///
+  /// Returns a point offset from the car along its heading, so the upcoming
+  /// route occupies the screen rather than the road already driven. Falls back
+  /// to [target] itself when the viewport is not measurable or no heading is
+  /// known — a look-ahead in an unknown direction is worse than none.
+  ///
+  /// Pure, so the rule is testable without a live map controller.
+  @visibleForTesting
+  static LatLng lookAhead(
+    LatLng target,
+    double? bearingDeg,
+    LatLng sw,
+    LatLng ne, {
+    double fraction = lookAheadFraction,
+  }) {
+    if (bearingDeg == null) return target;
+    final latSpan = ne.latitude - sw.latitude;
+    final lngSpan = ne.longitude - sw.longitude;
+    if (latSpan <= 0 || lngSpan <= 0) return target;
+    final rad = bearingDeg * math.pi / 180;
+    // Bearing is clockwise from north: north components the latitude, east the
+    // longitude. Scaling each axis by its own half-span keeps the lead inside
+    // the viewport whatever its aspect ratio.
+    final dLat = math.cos(rad) * (latSpan / 2) * fraction;
+    final dLng = math.sin(rad) * (lngSpan / 2) * fraction;
+    return LatLng(target.latitude + dLat, target.longitude + dLng);
   }
 
   /// How long the driver marker should glide for, given the gap between the
@@ -169,12 +221,25 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   // fixes: a fixed 900ms animation against a 3s ping makes the car dart ahead
   // and then sit frozen, which reads as jumping even though it interpolates.
   DateTime? _lastFixAt;
+  // The bearing the car is drawn at, and the one it is turning toward. The
+  // marker eases between them over the glide instead of snapping: a car that
+  // teleports from pointing north to pointing east reads as a glitch even when
+  // its position interpolates perfectly.
   double _driverBearing = 0;
+  double _driverBearingFrom = 0;
   gmaps.BitmapDescriptor? _driverIcon; // custom car puck, generated once
   gmaps.BitmapDescriptor? _meIcon; // rider's blue "you are here" dot
   // Follow mode: suspended once the user pans until the next recenter.
   bool _userPanned = false;
-  bool _programmaticMove = false;
+  // Camera moves WE started, which must not be mistaken for the user taking
+  // over. This is a deadline, not a flag: a plain bool was cleared only by
+  // `onCameraIdle`, so an `animateCamera` that moved the camera nowhere (the
+  // target was already on screen — common on a recenter) never produced an
+  // idle event and left the flag latched **on**, silently swallowing the next
+  // real pan. A deadline always expires.
+  DateTime? _programmaticUntil;
+  /// Longest a programmatic camera animation is assumed to take.
+  static const Duration _programmaticWindow = Duration(milliseconds: 1200);
   // Camera target when the current gesture began. A pinch barely moves the
   // centre while a drag moves it a long way, which is how we tell them apart:
   // zooming must NOT stop the map following the car, but panning must.
@@ -215,6 +280,20 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
+  /// True while a camera move we started is still expected to be in flight.
+  bool get _isProgrammatic {
+    final until = _programmaticUntil;
+    return until != null && DateTime.now().isBefore(until);
+  }
+
+  /// Start or stop automatic following, telling the app when it changes so it
+  /// can show a "Recenter" control exactly while following is suspended.
+  void _setFollowing(bool following) {
+    if (_userPanned == !following) return; // no change
+    _userPanned = !following;
+    widget.onFollowingChanged?.call(following);
+  }
+
   AppMapMarker? _driverMarker(List<AppMapMarker> ms) {
     for (final m in ms) {
       if (m.kind == MapMarkerKind.driver) return m;
@@ -229,7 +308,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       _fit();
     }
     if (AppMap.recenterChanged(old, widget)) {
-      _userPanned = false;
+      _setFollowing(true);
       if (widget.cameraMode == MapCameraMode.followDriver &&
           _driverMarker(widget.markers) != null) {
         _followDriver();
@@ -238,7 +317,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       }
     }
     if (old.cameraMode != widget.cameraMode) {
-      _userPanned = false;
+      _setFollowing(true);
       if (widget.cameraMode == MapCameraMode.followDriver) {
         _followDriver();
       } else if (widget.cameraMode == MapCameraMode.followDriverEdge) {
@@ -259,6 +338,9 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
             next.longitude != prevTarget.longitude)) {
       final from = _currentDriverPoint() ?? next;
       if (_distanceMeters(from, next) > 1.0) {
+        // Ease out of whatever angle is currently on screen, so the car turns
+        // through the corner rather than snapping to the new bearing.
+        _driverBearingFrom = _currentDriverBearing();
         _driverBearing = _driverMarker(widget.markers)?.heading ??
             _bearing(from, next);
       }
@@ -298,6 +380,18 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     );
   }
 
+  /// The angle the car is drawn at right now, easing from the bearing it held
+  /// when the fix landed to the new one over the same window as the glide.
+  /// Interpolated the short way round the compass so a turn through north
+  /// (350° → 10°) sweeps 20°, not 340° the wrong way.
+  double _currentDriverBearing() {
+    final t = _driverAnim.isAnimating ? _driverAnim.value : 1.0;
+    var delta = (_driverBearing - _driverBearingFrom) % 360;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    return (_driverBearingFrom + delta * t) % 360;
+  }
+
   /// Heading-up street view centred on the car (zoom 17, slight tilt).
   Future<void> _followDriver() async {
     if (_userPanned) return;
@@ -305,7 +399,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     if (target == null) return;
     final c = await _controller.future;
     if (!mounted || _userPanned) return;
-    _programmaticMove = true;
+    _programmaticUntil = DateTime.now().add(_programmaticWindow);
     // Keep the car centred but leave the map flat and north-up at the same
     // street zoom the rider sees: the heading-up, tilted variant made the
     // driver's map look like a different product in the field.
@@ -345,9 +439,13 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     final sw = LatLng(region.southwest.latitude, region.southwest.longitude);
     final ne = LatLng(region.northeast.latitude, region.northeast.longitude);
     if (!AppMap.needsEdgePan(target, sw, ne)) return;
-    _programmaticMove = true;
+    _programmaticUntil = DateTime.now().add(_programmaticWindow);
+    // Aim PAST the car along its heading so the road it is about to drive
+    // fills the screen, instead of re-centring it and handing half the
+    // viewport back to the road already behind it.
+    final aim = AppMap.lookAhead(target, _driverBearing, sw, ne);
     // newLatLng, not newLatLngZoom: keep whatever zoom is on screen.
-    await c.animateCamera(gmaps.CameraUpdate.newLatLng(_g(target)));
+    await c.animateCamera(gmaps.CameraUpdate.newLatLng(_g(aim)));
   }
 
   /// Leaving follow mode: undo the heading-up rotation/tilt so the idle map
@@ -364,7 +462,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     final current = await c.getZoomLevel();
     final zoom = current < 15 ? 16.0 : current;
     if (!mounted) return;
-    _programmaticMove = true;
+    _programmaticUntil = DateTime.now().add(_programmaticWindow);
     await c.animateCamera(
       gmaps.CameraUpdate.newCameraPosition(
         gmaps.CameraPosition(
@@ -384,7 +482,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     // is zoomed out over the whole trip, and "recenter" without a zoom left
     // the rider looking at the entire city. [recenterZoom] lets a "locate me"
     // tap pick a precise zoom instead.
-    _programmaticMove = true;
+    _programmaticUntil = DateTime.now().add(_programmaticWindow);
     await c.animateCamera(
       gmaps.CameraUpdate.newLatLngZoom(
         _g(center),
@@ -513,7 +611,10 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
                 ? const Offset(0.5, 0.5)
                 : const Offset(0.5, 1.0),
         zIndexInt: isDriver ? 3 : (isMe ? 2 : 1),
-        rotation: isDriver ? _driverBearing : (m.heading ?? 0),
+        rotation: isDriver ? _currentDriverBearing() : (m.heading ?? 0),
+        // A position we know is out of date is drawn faded: the rider can see
+        // the last place the car was without the map implying it is there now.
+        alpha: m.stale ? 0.45 : 1.0,
         flat: isDriver,
         infoWindow: m.label != null
             ? gmaps.InfoWindow(title: m.label)
@@ -787,15 +888,26 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       mapToolbarEnabled: false,
       rotateGesturesEnabled: false,
       tiltGesturesEnabled: false,
+      // Explicit rather than relying on the plugin default: pinch-to-zoom and
+      // scroll are the two gestures this map depends on, and the iOS SDK has
+      // historically differed from Android on what is on by default.
+      zoomGesturesEnabled: true,
+      scrollGesturesEnabled: true,
       onMapCreated: (c) {
         if (!_controller.isCompleted) _controller.complete(c);
+        // Without this the first gesture has no "before" position to compare
+        // against and cannot be classified as a pan.
+        _lastCameraTarget ??= _g(widget.initialCenter);
         _fit();
         widget.onMapReady?.call();
       },
       onCameraMoveStarted: () {
         // Don't decide yet: a pinch and a drag both land here. Remember where
         // the centre was and classify once the gesture settles.
-        if (!_programmaticMove && widget.cameraMode != MapCameraMode.fit) {
+        if (!_isProgrammatic && widget.cameraMode != MapCameraMode.fit) {
+          // Seeded in onMapCreated, so the very FIRST drag of a session is
+          // classified too — it used to be missed (null start), leaving the
+          // camera fighting the user until they panned a second time.
           _gestureStartTarget = _lastCameraTarget;
         }
       },
@@ -803,7 +915,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       onCameraIdle: () {
         final start = _gestureStartTarget;
         _gestureStartTarget = null;
-        if (start != null && !_programmaticMove) {
+        if (start != null && !_isProgrammatic) {
           final end = _lastCameraTarget;
           // No end position to compare against: treat it as a pan rather than
           // silently keeping a camera the user may have moved.
@@ -813,9 +925,11 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
                   LatLng(start.latitude, start.longitude),
                   LatLng(end.latitude, end.longitude),
                 );
-          if (moved > _panThresholdMeters) _userPanned = true;
+          // A pinch holds the centre roughly still, so it stays under the
+          // threshold and following survives the zoom (see [_panThresholdMeters]).
+          if (moved > _panThresholdMeters) _setFollowing(false);
         }
-        _programmaticMove = false;
+        _programmaticUntil = null;
         final t = _lastCameraTarget;
         if (t != null && widget.onCenterChanged != null) {
           widget.onCenterChanged!(LatLng(t.latitude, t.longitude));

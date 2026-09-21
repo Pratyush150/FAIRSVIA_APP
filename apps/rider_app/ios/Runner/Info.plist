@@ -5,7 +5,7 @@
 	<key>GMSApiKey</key>
 	<string>$(MAPS_API_KEY)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>FairsVia uses your location to set your pickup point and show your ride on the map.</string>
+	<string>RideVela uses your location to set your pickup point and show your ride on the map.</string>
 	<!-- iOS 14+ "Precise Location": when the rider granted only approximate
 	     location, the app asks once for temporary full accuracy under this
 	     purpose key (LocationService.preciseRidePurposeKey). -->
@@ -49,7 +49,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>FairsVia Rider</string>
+	<string>RideVela Rider</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -57,7 +57,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>FairsVia Rider</string>
+	<string>RideVela Rider</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

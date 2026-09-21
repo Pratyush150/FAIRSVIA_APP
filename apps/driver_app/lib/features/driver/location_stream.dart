@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:design_system/design_system.dart' show AppBrand;
 import 'package:geolocator/geolocator.dart';
 
 /// Dev/testing override. Build with `--dart-define=MOCK_LOCATION=<lat>,<lng>`
@@ -247,7 +248,7 @@ LocationSettings _platformLocationSettings() {
       distanceFilter: 5,
       forceLocationManager: false,
       foregroundNotificationConfig: const ForegroundNotificationConfig(
-        notificationTitle: 'FairsVia Driver — online',
+        notificationTitle: '${AppBrand.name} Driver — online',
         notificationText: 'Sharing your location so riders can track the ride.',
         enableWakeLock: true,
         setOngoing: true,

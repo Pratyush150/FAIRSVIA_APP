@@ -151,7 +151,7 @@ void main() {
       ),
       arrived: true,
     );
-    expect(find.text('Your driver is here'), findsOneWidget);
+    expect(find.text('Your driver has arrived'), findsOneWidget);
     expect(find.text(TripCubit.otpLockedMessage), findsOneWidget);
   });
 }
