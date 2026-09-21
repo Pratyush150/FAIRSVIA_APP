@@ -34,6 +34,7 @@ import { FavoritesModule } from './favorites/favorites.module';
 import { SupportModule } from './support/support.module';
 import { BackgroundModule } from './background/background.module';
 import { EmailModule } from './email/email.module';
+import { AuditModule } from './common/audit/audit.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -44,6 +45,7 @@ import { HealthController } from './health/health.controller';
     }),
     LoggingModule, // structured pino logging
     MetricsModule, // Prometheus /metrics + request interceptor
+    AuditModule, // append-only log of every admin write
     PrismaModule,
     RedisModule,
     ThrottleModule, // global per-IP rate limiting (Redis-backed)

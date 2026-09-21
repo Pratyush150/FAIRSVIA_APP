@@ -497,3 +497,45 @@ model PromoRedemption {
   @@index([userId])
   @@map("promo_redemptions")
 }
+
+/// Append-only record of every privileged (admin) write: who did it, to what,
+/// from where, and what the request carried.
+///
+/// Authorization was already correct — `JwtAuthGuard` + `RolesGuard` — but
+/// nothing recorded the act. Refunds, surge multipliers, fare tables, promo
+/// codes, driver verification and user deactivation all changed with no trace
+/// of who changed them. This is the accountability half.
+///
+/// Written by `AuditInterceptor`, which keys off the `@Roles(admin)` metadata
+/// rather than a per-route decorator, so a new admin endpoint is covered the
+/// day it is written instead of the day someone remembers to annotate it.
+model AuditLog {
+  id     String @id @default(uuid()) @db.Uuid
+  /// Null only if an unauthenticated request somehow reached an admin route.
+  actorId   String? @map("actor_id") @db.Uuid
+  actorRole String? @map("actor_role") @db.VarChar(20)
+
+  /// Stable name for the operation, e.g. `PATCH /admin/drivers/:id/verify`.
+  action String  @db.VarChar(200)
+  method String  @db.VarChar(10)
+
+  /// The resource acted on, parsed from the route params where there is one.
+  targetType String? @map("target_type") @db.VarChar(60)
+  targetId   String? @map("target_id") @db.VarChar(64)
+
+  /// The request body, with anything secret-looking redacted.
+  payload Json?
+  /// What the handler returned (truncated), or the error message on a failure.
+  result Json?
+
+  statusCode Int     @map("status_code")
+  ip         String? @db.VarChar(64)
+  userAgent  String? @map("user_agent") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("audit_log")
+}

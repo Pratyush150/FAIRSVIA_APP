@@ -58,9 +58,16 @@ async function bootstrap(): Promise<void> {
     credentials: true,
   });
 
+  // Arm SIGTERM/SIGINT handling. PrismaService, RedisService and all four
+  // queue processors implement onModuleDestroy, but without this Nest never
+  // calls them: the process is hard-killed with in-flight dispatch jobs and
+  // open WebSockets still attached. Invisible on a box that never restarts,
+  // fatal under any rolling deploy.
+  app.enableShutdownHooks();
+
   const port = config.get<number>('port') ?? 3000;
   await app.listen(port, '0.0.0.0');
-  Logger.log(`FairsVia backend listening on http://0.0.0.0:${port}/api/v1`, 'Bootstrap');
+  Logger.log(`RideVela backend listening on http://0.0.0.0:${port}/api/v1`, 'Bootstrap');
 }
 
 void bootstrap();
