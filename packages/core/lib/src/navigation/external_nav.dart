@@ -28,3 +28,17 @@ Future<bool> openExternalNavigation(double lat, double lng) async {
   }
   return false;
 }
+
+/// Open an arbitrary URL in a new tab / the system browser. Returns false when
+/// nothing could handle it, so the caller can say so rather than looking dead.
+Future<bool> openExternalUrl(String url) async {
+  try {
+    return await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+      webOnlyWindowName: '_blank',
+    );
+  } catch (_) {
+    return false;
+  }
+}

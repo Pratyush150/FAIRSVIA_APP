@@ -6,12 +6,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/admin_api.dart';
 
+/// The console's sections.
+///
+/// There is deliberately no `monitoring` tab: uptime, memory, error rate and
+/// queue depth live in Grafana, which has history, alerting and something
+/// watching it. A second, worse copy inside the admin app was a surface nobody
+/// looked at until an incident, and by then it could only show `now`.
 enum AdminTab {
   overview,
   trips,
   users,
   drivers,
-  monitoring,
   live,
   support,
   promos,
@@ -25,7 +30,6 @@ class AdminState extends Equatable {
     this.loading = false,
     this.error,
     this.stats,
-    this.ops,
     this.trips = const [],
     this.users = const [],
     this.drivers = const [],
@@ -44,7 +48,6 @@ class AdminState extends Equatable {
   final bool loading;
   final String? error;
   final AdminStats? stats;
-  final OpsMetrics? ops;
   final List<AdminTrip> trips;
   final List<AdminUser> users;
   final List<AdminDriver> drivers;
@@ -69,7 +72,6 @@ class AdminState extends Equatable {
     String? error,
     bool clearError = false,
     AdminStats? stats,
-    OpsMetrics? ops,
     List<AdminTrip>? trips,
     List<AdminUser>? users,
     List<AdminDriver>? drivers,
@@ -88,7 +90,6 @@ class AdminState extends Equatable {
       loading: loading ?? this.loading,
       error: clearError ? null : (error ?? this.error),
       stats: stats ?? this.stats,
-      ops: ops ?? this.ops,
       trips: trips ?? this.trips,
       users: users ?? this.users,
       drivers: drivers ?? this.drivers,
@@ -110,7 +111,6 @@ class AdminState extends Equatable {
         loading,
         error,
         stats,
-        ops,
         trips,
         users,
         drivers,
@@ -166,9 +166,6 @@ class AdminCubit extends Cubit<AdminState> {
           final drivers =
               await _api.drivers(pending: state.driversPendingOnly);
           emit(state.copyWith(loading: false, drivers: drivers));
-        case AdminTab.monitoring:
-          final ops = await _api.metrics();
-          emit(state.copyWith(loading: false, ops: ops));
         case AdminTab.live:
           final live = await _api.live();
           emit(state.copyWith(loading: false, live: live));
@@ -205,8 +202,6 @@ class AdminCubit extends Cubit<AdminState> {
           emit(state.copyWith(stats: stats, trips: trips));
         case AdminTab.trips:
           emit(state.copyWith(trips: await _api.trips(limit: 100)));
-        case AdminTab.monitoring:
-          emit(state.copyWith(ops: await _api.metrics()));
         case AdminTab.live:
           emit(state.copyWith(live: await _api.live()));
         case AdminTab.users:
