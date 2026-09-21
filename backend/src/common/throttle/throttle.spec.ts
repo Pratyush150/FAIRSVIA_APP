@@ -92,16 +92,29 @@ describe('bucketFor', () => {
 });
 
 describe('AppThrottlerGuard', () => {
-  it('skips everything under jest (disabled) and all non-HTTP contexts', async () => {
-    const guard = new AppThrottlerGuard(
-      { throttlers: [{ ttl: 60_000, limit: 1 }] },
-      { increment: jest.fn() } as never,
-      { getAllAndOverride: jest.fn() } as never,
-    );
-    await guard.onModuleInit();
-    // NODE_ENV=test → disabled → canActivate never touches storage.
-    await expect(guard.canActivate(httpContext({ ip: '1.2.3.4', headers: {} }))).resolves.toBe(true);
-    await expect(guard.canActivate(httpContext({}, 'ws'))).resolves.toBe(true);
+  it('skips every context when disabled, and non-HTTP contexts always', async () => {
+    // State the precondition rather than inherit it. The guard reads
+    // `disabled` from the environment at construction, and this test used to
+    // rely on jest defaulting NODE_ENV to 'test'. Jest only does that when
+    // NODE_ENV is unset — the dev container pins it to 'development', so
+    // `make test-backend` failed here while CI (where it is unset) passed.
+    // A test whose result depends on where it runs is not a test.
+    const prev = process.env.THROTTLE_DISABLED;
+    process.env.THROTTLE_DISABLED = 'true';
+    try {
+      const guard = new AppThrottlerGuard(
+        { throttlers: [{ ttl: 60_000, limit: 1 }] },
+        { increment: jest.fn() } as never,
+        { getAllAndOverride: jest.fn() } as never,
+      );
+      await guard.onModuleInit();
+      // Disabled → canActivate never touches storage.
+      await expect(guard.canActivate(httpContext({ ip: '1.2.3.4', headers: {} }))).resolves.toBe(true);
+      await expect(guard.canActivate(httpContext({}, 'ws'))).resolves.toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.THROTTLE_DISABLED;
+      else process.env.THROTTLE_DISABLED = prev;
+    }
   });
 
   it('tracks by req.ip', async () => {
