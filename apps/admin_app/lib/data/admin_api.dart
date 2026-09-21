@@ -369,6 +369,25 @@ class AdminFare {
       );
 }
 
+/// One operational kill switch, as the backend describes it.
+///
+/// The label comes from the server rather than being duplicated here, so a new
+/// switch appears in the console the moment the backend grows one — nobody has
+/// to remember to add it in two places.
+class OpsFlag {
+  const OpsFlag({required this.name, required this.label, required this.on});
+
+  final String name;
+  final String label;
+  final bool on;
+
+  factory OpsFlag.fromJson(Map<String, dynamic> j) => OpsFlag(
+        name: j['name'] as String,
+        label: j['label'] as String? ?? j['name'] as String,
+        on: j['on'] as bool? ?? false,
+      );
+}
+
 class AdminSurgeCell {
   const AdminSurgeCell({required this.cell, required this.demand});
   final String cell;
@@ -531,6 +550,30 @@ class AdminApi {
   Future<void> setSurge(double multiplier) => _guard(
         () => _dio.patch('/admin/surge', data: {'multiplier': multiplier}),
       );
+
+  /// The operational kill switches and their current state.
+  Future<List<OpsFlag>> opsFlags() async {
+    final res = await _guard(
+      () => _dio.get<Map<String, dynamic>>('/admin/ops-flags'),
+    );
+    return ((res.data!['flags'] as List?) ?? [])
+        .map((e) => OpsFlag.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Throw or reset one switch. Returns the full set, so the console shows
+  /// server truth rather than what it optimistically assumed.
+  Future<List<OpsFlag>> setOpsFlag(String name, bool on) async {
+    final res = await _guard(
+      () => _dio.patch<Map<String, dynamic>>(
+        '/admin/ops-flags/$name',
+        data: {'on': on},
+      ),
+    );
+    return ((res.data!['flags'] as List?) ?? [])
+        .map((e) => OpsFlag.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
 
   /// Competitor rate cards (Uber/Lyft/Empower) + their calibration status.
   Future<List<AdminComparisonModel>> comparisonModels() async {

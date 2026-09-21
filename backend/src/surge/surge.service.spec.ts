@@ -1,6 +1,9 @@
 import { DEMAND_TTL, SurgeService, SURGE_CAP } from './surge.service';
 import { RedisService } from '../common/redis/redis.service';
 
+/** Every kill switch off, i.e. normal operation. */
+const flagsAllOff = { isOn: jest.fn().mockResolvedValue(false) };
+
 /** Minimal fake Redis: demand is a SET per cell (scard), `geosearch` by tier. */
 function makeRedis(opts: {
   demand?: number;
@@ -48,7 +51,8 @@ function makeSetRedis() {
 
 describe('SurgeService', () => {
   const mult = (o: Parameters<typeof makeRedis>[0]) =>
-    new SurgeService(makeRedis(o)).multiplierFor(12.9, 77.6);
+    new SurgeService(makeRedis(o), flagsAllOff as never)
+      .multiplierFor(12.9, 77.6);
 
   it('is 1.0 with no demand', async () => {
     expect(await mult({ demand: 0, supply: 5 })).toBe(1);
@@ -84,7 +88,7 @@ describe('SurgeService', () => {
   describe('demand accounting', () => {
     it('counts a rider once per cell however many times they retry', async () => {
       const { redis, client } = makeSetRedis();
-      const svc = new SurgeService(redis);
+      const svc = new SurgeService(redis, flagsAllOff as never);
       await svc.recordDemand(12.9, 77.6, 'rider-A');
       await svc.recordDemand(12.9, 77.6, 'rider-A');
       await svc.recordDemand(12.9, 77.6, 'rider-A');
@@ -95,7 +99,7 @@ describe('SurgeService', () => {
 
     it('two distinct riders in the same cell both count', async () => {
       const { redis } = makeSetRedis();
-      const svc = new SurgeService(redis);
+      const svc = new SurgeService(redis, flagsAllOff as never);
       await svc.recordDemand(12.9, 77.6, 'rider-A');
       await svc.recordDemand(12.9, 77.6, 'rider-B');
       // demand 2 vs supply 1 → ratio 2 → 1.5x
@@ -104,7 +108,7 @@ describe('SurgeService', () => {
 
     it('releaseDemand withdraws a rider whose request ended without a ride', async () => {
       const { redis } = makeSetRedis();
-      const svc = new SurgeService(redis);
+      const svc = new SurgeService(redis, flagsAllOff as never);
       await svc.recordDemand(12.9, 77.6, 'rider-A');
       await svc.recordDemand(12.9, 77.6, 'rider-B');
       await svc.releaseDemand(12.9, 77.6, 'rider-A');

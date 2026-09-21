@@ -52,7 +52,12 @@ override default behavior. Established by the project owner (Sai Kishore).
 
 ## Environment quick-reference
 - Flutter: `/home/nova-robotics/flutter/bin`. Backend runs in Docker
-  (`docker exec ubernav_backend ...`). Backend API: `192.168.1.48:3000/api/v1`.
+  (`docker exec ubernav_backend ...`). Backend API: `<LAN_IP>:3000/api/v1` —
+  the box's address is DHCP and has changed (was `192.168.1.48`, now
+  `192.168.1.69`). Resolve it with `hostname -I` rather than hardcoding;
+  `make build-web` and the visual-check tools now do this themselves.
 - Android SDK: `/home/nova-robotics/Android/Sdk`; JDK 17 at `/home/nova-robotics/jdks`.
 - Headless emulator AVD: `pixel_uber` (android-35 google_apis x86_64, KVM).
 - Web serve: `tools/webserve.py PORT dir` (admin 9090, rider 9091, driver 9092).
+- Monitoring: `infra/monitoring/` — Grafana :3001, Prometheus :9099,
+  Alertmanager :9093. Opt-in; never touches the dev app stack.

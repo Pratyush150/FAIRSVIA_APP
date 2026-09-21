@@ -21,7 +21,7 @@ Ride App — Uber-style ride-hailing: Flutter monorepo (`apps/rider_app`,
 - **Map:** uses `flutter_map` (OpenStreetMap). **No Google Maps key needed.**
 
 ## Backend connectivity
-The backend runs in Docker on the Linux box at **`192.168.1.48:3000/api/v1`**.
+The backend runs in Docker on the Linux box at **`<LAN_IP>:3000/api/v1`**.
 The Mac + iPhone must be on the **same Wi-Fi** to reach it. Confirm the app's
 configured API base URL points there (check `packages/core` network config). If
 unreachable, either fix the base URL or run the backend on the Mac via

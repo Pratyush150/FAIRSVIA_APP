@@ -11,6 +11,7 @@ import { TripStateMachine } from '../trips/trip-state-machine';
 import { FavoritesService } from '../favorites/favorites.service';
 import { DriversService } from '../drivers/drivers.service';
 import { SurgeService } from '../surge/surge.service';
+import { OpsFlagsService } from '../ops/ops-flags.service';
 import { GEO_PROVIDER, GeoProvider, RouteResult } from '../geo/geo-provider.interface';
 import {
   SMS_PROVIDER,
@@ -115,6 +116,7 @@ export class DispatchService {
     @InjectQueue(QUEUE_DISPATCH) private readonly queue: Queue,
     private readonly drivers: DriversService,
     private readonly surge: SurgeService,
+    private readonly flags: OpsFlagsService,
   ) {}
 
   /**
@@ -136,6 +138,14 @@ export class DispatchService {
    * a retried job) simply resumes offering; anything else is a no-op.
    */
   async runDispatch(tripId: string): Promise<void> {
+    // Kill switch: stop matching new trips. Enforced HERE rather than in
+    // dispatchTrip() so the job is still enqueued and simply retried — trips
+    // requested while dispatch is paused are matched when it is un-paused,
+    // instead of being silently dropped on the floor.
+    if (await this.flags.isOn('dispatchPaused')) {
+      this.logger.warn(`dispatch paused — deferring trip ${tripId}`);
+      throw new Error('Dispatch is paused by an operator');
+    }
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) return;
 

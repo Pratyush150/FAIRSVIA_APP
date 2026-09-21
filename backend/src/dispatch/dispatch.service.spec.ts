@@ -2,6 +2,9 @@ import { DispatchService, clampOfferTtl } from './dispatch.service';
 import { RedisKeys } from '../common/redis/redis.keys';
 import { DISPATCH_JOB } from '../common/queue/queue.constants';
 
+/** Every kill switch off, i.e. normal operation. */
+const flagsAllOff = { isOn: jest.fn().mockResolvedValue(false) };
+
 describe('DispatchService', () => {
   function make() {
     const redis = {
@@ -38,6 +41,7 @@ describe('DispatchService', () => {
       queue as never,
       drivers as never,
       surge as never,
+      flagsAllOff as never,
     );
     return { svc, redis, queue, favorites, realtime, prisma, drivers, surge, geo, sms };
   }
@@ -462,6 +466,7 @@ describe('DispatchService', () => {
       {} as never,
       { forceOffline: jest.fn() } as never,
       surge as never,
+      flagsAllOff as never,
     );
     // Skip the real inter-sweep delay so the test is fast.
     (svc as unknown as { sleep: () => Promise<void> }).sleep = () => Promise.resolve();

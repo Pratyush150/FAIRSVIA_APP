@@ -6,12 +6,20 @@ import {
   PlacePrediction,
   RouteResult,
 } from './geo-provider.interface';
+import type { OpsFlagsService } from '../ops/ops-flags.service';
 
 /**
  * Composes a primary provider (e.g. Google) with a secondary (e.g. self-hosted
  * OSRM/Nominatim): every call tries the primary and, on any error, transparently
  * falls back to the secondary. This means a Google outage, quota exhaustion, or a
  * not-yet-enabled API can never take geo down — the app keeps serving on OSM.
+ *
+ * Carries the `geoFallbackOnly` kill switch: when it is on, the primary is not
+ * called at all and everything is served from the secondary. This is the
+ * switch to reach for when a vendor starts rejecting calls — during the load
+ * sweep, Google returned 20,370 OVER_QUERY_LIMIT errors, and every one of them
+ * cost a round trip and a timeout before the fallback took over. Throwing the
+ * switch skips the wasted call entirely.
  *
  * Caveat: place ids are provider-specific. `placeDetails` only falls back to the
  * secondary if the primary throws; a Google place id resolved by the secondary
@@ -25,6 +33,7 @@ export class FallbackGeoProvider implements GeoProvider {
   constructor(
     private readonly primary: GeoProvider,
     private readonly secondary: GeoProvider,
+    private readonly flags?: OpsFlagsService,
   ) {}
 
   private async withFallback<T>(
@@ -32,6 +41,13 @@ export class FallbackGeoProvider implements GeoProvider {
     primary: () => Promise<T>,
     secondary: () => Promise<T>,
   ): Promise<T> {
+    // Operator has taken the primary out of service: don't even try it.
+    // `flags` is optional so this class stays constructible in the unit tests
+    // that exercise the pure fallback behaviour; when it is absent the
+    // switch is simply off, which is the normal state anyway.
+    if (this.flags && (await this.flags.isOn('geoFallbackOnly'))) {
+      return secondary();
+    }
     try {
       return await primary();
     } catch (e) {

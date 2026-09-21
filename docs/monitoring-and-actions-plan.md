@@ -1,7 +1,27 @@
 # Monitoring & Ops-Actions Plan
 
-Status: **planned, not started.** Agreed 2026-09-18. Execute after the current
-branch lands.
+Status: **Phases 1–3 implemented, 2026-09-21.** Phase 4 (Kubernetes) remains a
+deliberate "not yet" — see the recommendation at the bottom, which has not
+changed.
+
+| Phase | State |
+| --- | --- |
+| 1 — Blockers | **Done.** Shutdown hooks armed, `/health` split into liveness + readiness (503 when degraded), `audit_log` + a global interceptor keyed on `@Roles(admin)`. |
+| 2 — Observability | **Done.** `infra/monitoring/` — Prometheus, Grafana (3 provisioned dashboards), Alertmanager (11 rules, **no delivery wired yet — you must fill one in**), Loki/Promtail, Postgres/Redis/host exporters. Business metrics added to the registry. |
+| 3 — Actions | **Done.** Four kill switches (`admin/ops-flags`), enforced in geo, dispatch, surge and payouts, with a confirmed, audited console tab. |
+| 4 — Kubernetes | **Not started, by recommendation.** |
+
+Two deviations from the plan as written, both documented at the point of use:
+
+- **cAdvisor is not in the stack.** Docker here uses the newer `overlayfs`
+  storage driver, which cAdvisor cannot read; it registers no containers at
+  all. Per-service CPU/memory comes from the backend's own `process_*` and
+  `nodejs_*` metrics (including event-loop lag) plus the two datastore
+  exporters. See `infra/monitoring/README.md`.
+- **`/metrics` already existed** and was already wired to an interceptor, so
+  2.1 was scrape configuration rather than instrumentation from scratch.
+
+The original plan follows, unchanged.
 
 Grounded in the load-test sweep of 2026-09-17/18 (see
 `tools/load-test/README.md` for the measured numbers this plan refers to).

@@ -124,6 +124,11 @@ class _AdminScaffold extends StatelessWidget {
                     selectedIcon: Icon(Icons.compare_arrows),
                     label: Text('Compare'),
                   ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.toggle_off_outlined),
+                    selectedIcon: Icon(Icons.toggle_on),
+                    label: Text('Controls'),
+                  ),
                 ],
               ),
               const VerticalDivider(width: 1),
@@ -159,6 +164,7 @@ class _AdminScaffold extends StatelessWidget {
         AdminTab.promos => 'Promotions',
         AdminTab.pricing => 'Pricing & surge',
         AdminTab.comparison => 'Price comparison & calibration',
+        AdminTab.controls => 'Operational controls',
       };
 }
 
@@ -230,6 +236,7 @@ class _Body extends StatelessWidget {
       AdminTab.pricing => _PricingView(fares: state.fares, surge: state.surge),
       AdminTab.comparison =>
         _ComparisonView(models: state.comparisonModels),
+      AdminTab.controls => _ControlsView(flags: state.opsFlags),
     };
   }
 }
@@ -1700,4 +1707,119 @@ Future<void> _showRecordSample(
       ),
     ),
   );
+}
+
+// --- Operational controls ---------------------------------------------------
+
+/// The kill switches.
+///
+/// Every one of these changes how the marketplace behaves for real users, so
+/// each is confirmed before it takes effect and each says plainly what it will
+/// do. They are all reversible, and every flip is recorded in the audit log by
+/// the backend without this screen doing anything.
+class _ControlsView extends StatelessWidget {
+  const _ControlsView({required this.flags});
+
+  final List<OpsFlag> flags;
+
+  /// Off is the healthy state, so an active switch is drawn as a warning
+  /// rather than as a neutral "on".
+  static const _activeTone = AppColors.warning;
+
+  @override
+  Widget build(BuildContext context) {
+    if (flags.isEmpty) {
+      return const _Empty(text: 'No operational controls available.');
+    }
+    final theme = Theme.of(context);
+    final active = flags.where((f) => f.on).length;
+
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        if (active > 0)
+          Container(
+            margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: _activeTone.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppSpacing.radius),
+              border: Border.all(color: _activeTone),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: _activeTone),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    active == 1
+                        ? '1 control is active — the marketplace is not '
+                            'running normally.'
+                        : '$active controls are active — the marketplace is '
+                            'not running normally.',
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Text(
+          'Each of these takes effect immediately, on every server, and is '
+          'recorded against your account. All are reversible.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        for (final flag in flags)
+          Card(
+            margin: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: SwitchListTile(
+              value: flag.on,
+              activeTrackColor: _activeTone,
+              title: Text(flag.label, style: theme.textTheme.titleMedium),
+              subtitle: Text(
+                flag.on ? 'Active' : 'Off (normal operation)',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: flag.on ? _activeTone : null,
+                ),
+              ),
+              secondary: Icon(
+                flag.on ? Icons.toggle_on : Icons.toggle_off_outlined,
+                color: flag.on ? _activeTone : null,
+              ),
+              onChanged: (next) => _confirm(context, flag, next),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _confirm(BuildContext context, OpsFlag flag, bool next) async {
+    final cubit = context.read<AdminCubit>();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(next ? 'Activate this control?' : 'Turn this control off?'),
+        content: Text(
+          next
+              ? '${flag.label}\n\nThis changes how the app behaves for every '
+                  'rider and driver, immediately. It is reversible.'
+              : '${flag.label}\n\nNormal operation resumes immediately.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: next
+                ? FilledButton.styleFrom(backgroundColor: _activeTone)
+                : null,
+            child: Text(next ? 'Activate' : 'Turn off'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await cubit.setOpsFlag(flag.name, next);
+  }
 }

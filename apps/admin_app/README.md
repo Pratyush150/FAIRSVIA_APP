@@ -18,6 +18,6 @@ committed `ios/` trees. If admin ever needs an iOS target, scaffold it with
 ## Run
 
 ```bash
-flutter run -d chrome --dart-define=API_BASE_URL=http://192.168.1.48:3000/api/v1
+flutter run -d chrome --dart-define=API_BASE_URL=http://<LAN_IP>:3000/api/v1
 # or serve a built bundle:  tools/webserve.py 9090 build/web
 ```

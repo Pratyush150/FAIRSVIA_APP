@@ -7,6 +7,7 @@ import { StubGeoProvider } from './stub-geo.provider';
 import { FallbackGeoProvider } from './fallback-geo.provider';
 import { InstrumentedGeoProvider } from './instrumented-geo.provider';
 import { MetricsService } from '../common/metrics/metrics.service';
+import { OpsFlagsService } from '../ops/ops-flags.service';
 import { PlacesController } from './places.controller';
 
 @Global()
@@ -17,7 +18,11 @@ import { PlacesController } from './places.controller';
       // Provider precedence: Google (if key) > self-hosted OSM (OSRM +
       // Nominatim, if both URLs set) > deterministic stub (no config needed).
       provide: GEO_PROVIDER,
-      useFactory: (config: ConfigService, metrics: MetricsService) => {
+      useFactory: (
+        config: ConfigService,
+        metrics: MetricsService,
+        flags: OpsFlagsService,
+      ) => {
         // Every provider is wrapped so its calls land in
         // vendor_request_duration_seconds. Wrapping happens per-provider, not
         // around the composed fallback, so Google and OSM are measured
@@ -51,6 +56,7 @@ import { PlacesController } from './places.controller';
                 new OsmGeoProvider(osrm as string, nominatim as string),
                 'osm',
               ),
+              flags,
             );
           }
           Logger.log('Using Google Maps geo provider', 'GeoModule');
@@ -68,7 +74,7 @@ import { PlacesController } from './places.controller';
         }
         return instrument(new StubGeoProvider(), 'stub');
       },
-      inject: [ConfigService, MetricsService],
+      inject: [ConfigService, MetricsService, OpsFlagsService],
     },
   ],
   exports: [GEO_PROVIDER],

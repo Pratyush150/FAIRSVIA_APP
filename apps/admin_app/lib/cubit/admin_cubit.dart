@@ -21,7 +21,8 @@ enum AdminTab {
   support,
   promos,
   pricing,
-  comparison
+  comparison,
+  controls
 }
 
 class AdminState extends Equatable {
@@ -42,6 +43,7 @@ class AdminState extends Equatable {
     this.fares = const [],
     this.surge = AdminSurge.empty,
     this.comparisonModels = const [],
+    this.opsFlags = const [],
   });
 
   final AdminTab tab;
@@ -52,6 +54,7 @@ class AdminState extends Equatable {
   final List<AdminUser> users;
   final List<AdminDriver> drivers;
   final LiveSnapshot live;
+  final List<OpsFlag> opsFlags;
   final String userQuery;
   final List<AdminSupportTicket> tickets;
 
@@ -76,6 +79,7 @@ class AdminState extends Equatable {
     List<AdminUser>? users,
     List<AdminDriver>? drivers,
     LiveSnapshot? live,
+    List<OpsFlag>? opsFlags,
     String? userQuery,
     List<AdminSupportTicket>? tickets,
     String? ticketFilter,
@@ -94,6 +98,7 @@ class AdminState extends Equatable {
       users: users ?? this.users,
       drivers: drivers ?? this.drivers,
       live: live ?? this.live,
+      opsFlags: opsFlags ?? this.opsFlags,
       userQuery: userQuery ?? this.userQuery,
       tickets: tickets ?? this.tickets,
       ticketFilter: ticketFilter ?? this.ticketFilter,
@@ -115,6 +120,7 @@ class AdminState extends Equatable {
         users,
         drivers,
         live,
+        opsFlags,
         userQuery,
         tickets,
         ticketFilter,
@@ -183,6 +189,8 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.comparison:
           final models = await _api.comparisonModels();
           emit(state.copyWith(loading: false, comparisonModels: models));
+        case AdminTab.controls:
+          emit(state.copyWith(loading: false, opsFlags: await _api.opsFlags()));
       }
     } on ApiException catch (e) {
       emit(state.copyWith(loading: false, error: e.message));
@@ -210,6 +218,7 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.promos:
         case AdminTab.pricing:
         case AdminTab.comparison:
+        case AdminTab.controls:
           return; // not live-refreshed
       }
     } catch (_) {
@@ -236,6 +245,19 @@ class AdminCubit extends Cubit<AdminState> {
   }
 
   /// Approve or reject a driver's documents (KYC gate for going online).
+  /// Throw or reset one kill switch.
+  ///
+  /// The server's reply is adopted wholesale rather than the switch being
+  /// flipped optimistically: an operator has to be able to trust that what the
+  /// console shows is what is actually in force.
+  Future<void> setOpsFlag(String name, bool on) async {
+    try {
+      emit(state.copyWith(opsFlags: await _api.setOpsFlag(name, on)));
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+    }
+  }
+
   Future<void> verifyDriver(AdminDriver driver, bool approved) async {
     try {
       await _api.verifyDriver(driver.id, approved);

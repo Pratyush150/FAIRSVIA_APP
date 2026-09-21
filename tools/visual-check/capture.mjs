@@ -18,13 +18,31 @@ import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
+import { networkInterfaces } from 'node:os';
+
+// The box's LAN address, resolved at run time. It was hardcoded to
+// 192.168.1.48, which stopped being this machine's address — and a stale
+// literal here fails as a connection refused two layers away from the cause.
+// Override with APP_HOST / API_BASE_URL.
+function hostIp() {
+  for (const addrs of Object.values(networkInterfaces())) {
+    for (const a of addrs ?? []) {
+      if (a.family === 'IPv4' && !a.internal && a.address.startsWith('192.168.')) {
+        return a.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+const LAN_IP = hostIp();
+
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const SHOTS = join(__dir, 'shots');
 mkdirSync(SHOTS, { recursive: true });
 
-const API = process.env.API_BASE_URL || 'http://192.168.1.48:3000/api/v1';
-const HOST = process.env.APP_HOST || 'http://192.168.1.48';
+const API = process.env.API_BASE_URL || `http://${LAN_IP}:3000/api/v1`;
+const HOST = process.env.APP_HOST || `http://${LAN_IP}`;
 
 const APPS = [
   { name: 'rider', url: `${HOST}:9091`, phone: '+13055550101' },

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RedisService } from '../common/redis/redis.service';
+import { OpsFlagsService } from '../ops/ops-flags.service';
 import { RedisKeys } from '../common/redis/redis.keys';
 import { TIER_KEYS } from '../pricing/fare-config';
 
@@ -24,7 +25,10 @@ export const SURGE_CAP = 2.0;
  */
 @Injectable()
 export class SurgeService {
-  constructor(private readonly redis: RedisService) {}
+  constructor(
+    private readonly redis: RedisService,
+    private readonly flags: OpsFlagsService,
+  ) {}
 
   private cell(lat: number, lng: number): string {
     return `${Math.round(lat / CELL_DEG)}:${Math.round(lng / CELL_DEG)}`;
@@ -56,6 +60,10 @@ export class SurgeService {
 
   /** Current surge multiplier for a pickup (>= admin override). */
   async multiplierFor(lat: number, lng: number): Promise<number> {
+    // Kill switch: price everything at 1.0x regardless of measured demand.
+    // Checked before the demand/supply reads so throwing it also sheds their
+    // Redis load.
+    if (await this.flags.isOn('surgeDisabled')) return 1;
     const [demand, supply, override] = await Promise.all([
       this.demandAt(lat, lng),
       this.supplyAt(lat, lng),

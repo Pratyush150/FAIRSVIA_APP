@@ -82,6 +82,9 @@ describe('PaymentsService', () => {
 
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
 
+  /** Every kill switch off, i.e. normal operation. */
+  const flagsAllOff = { isOn: jest.fn().mockResolvedValue(false) };
+
   function makeService(prisma: never, provider?: PaymentProvider) {
     return new PaymentsService(
       prisma,
@@ -89,6 +92,7 @@ describe('PaymentsService', () => {
       ledger as never,
       provider ?? new MockPaymentProvider(),
       queue as never,
+      flagsAllOff as never,
     );
   }
 
@@ -1074,6 +1078,7 @@ describe('PaymentsService', () => {
       ledger as never,
       new MockPaymentProvider(),
       queue as never,
+      flagsAllOff as never,
     );
     const body = JSON.stringify({ id: 'e', type: 't', data: { object: {} } });
     await expect(

@@ -20,6 +20,7 @@ import {
 } from './payment-provider.interface';
 import { AddMethodDto } from './dto/add-method.dto';
 import { LedgerService } from '../ledger/ledger.service';
+import { OpsFlagsService } from '../ops/ops-flags.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import {
   StripeEvent,
@@ -47,6 +48,9 @@ export class PaymentsService {
     private readonly ledger: LedgerService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     @InjectQueue(QUEUE_PAYMENTS) private readonly queue: Queue<CaptureJobData>,
+    // Required, not @Optional(): a kill switch that silently does nothing
+    // when it is not wired is worse than no kill switch at all.
+    private readonly flags: OpsFlagsService,
     // Optional so the pure-logic unit tests can build the service without a
     // socket layer; production always has the (global) RealtimeService.
     @Optional() private readonly realtime?: RealtimeService,
@@ -815,6 +819,15 @@ export class PaymentsService {
    * is mirrored here for the transfer path.
    */
   async payout(userId: string, amount: number) {
+    // Kill switch: block withdrawals outright. A driver being told "payouts
+    // are paused" is recoverable; money moving during a suspected ledger fault
+    // is not.
+    if (await this.flags.isOn('payoutsFrozen')) {
+      throw new BadRequestException(
+        'Payouts are temporarily paused. Your balance is safe and ' +
+          'withdrawals will reopen shortly.',
+      );
+    }
     const profile = await this.prisma.driverProfile.findUnique({
       where: { userId },
     });
