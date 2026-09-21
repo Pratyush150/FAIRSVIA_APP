@@ -28,7 +28,11 @@ class SavedPlacesPage extends StatefulWidget {
 class _SavedPlacesPageState extends State<SavedPlacesPage> {
   int _reloadTick = 0;
 
-  void _reload() => setState(() => _reloadTick++);
+  // Called after awaited network calls; the page may have been popped meanwhile.
+  void _reload() {
+    if (!mounted) return;
+    setState(() => _reloadTick++);
+  }
 
   Future<void> _addOrEdit([SavedPlace? existing]) async {
     final picked = await showModalBottomSheet<_PlaceForm>(
@@ -255,7 +259,10 @@ class _PlaceEditorSheetState extends State<_PlaceEditorSheet> {
               for (final quick in const ['Home', 'Work'])
                 ActionChip(
                   label: Text(quick),
-                  onPressed: () => _label.text = quick,
+                  // setState so `_valid` (and the Save button) re-evaluates:
+                  // the TextField's onChanged does not fire for programmatic
+                  // controller writes.
+                  onPressed: () => setState(() => _label.text = quick),
                 ),
             ],
           ),

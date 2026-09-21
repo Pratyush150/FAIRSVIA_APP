@@ -20,6 +20,7 @@ class OtpPage extends StatefulWidget {
 
 class _OtpPageState extends State<OtpPage> {
   String _code = '';
+  final _ctrl = TextEditingController();
 
   // Resend cooldown — a code was just sent when we landed here.
   static const int _resendSeconds = 30;
@@ -35,7 +36,19 @@ class _OtpPageState extends State<OtpPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _ctrl.dispose();
     super.dispose();
+  }
+
+  void _useDevCode(BuildContext context, String code) {
+    _ctrl.text = code;
+    setState(() => _code = code);
+    _submit(context);
+  }
+
+  void _clearCode() {
+    _ctrl.clear();
+    setState(() => _code = '');
   }
 
   void _startCooldown() {
@@ -51,6 +64,8 @@ class _OtpPageState extends State<OtpPage> {
   void _resend(BuildContext context, String phone) {
     context.read<AuthBloc>().add(AuthOtpRequested(phone));
     _startCooldown();
+    // The old digits are dead once a new code is issued.
+    _clearCode();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(const SnackBar(content: Text('New code sent.')));
@@ -71,11 +86,15 @@ class _OtpPageState extends State<OtpPage> {
       ),
       body: SafeArea(
         child: BlocConsumer<AuthBloc, AuthState>(
-          listenWhen: (p, c) => p.error != c.error && c.error != null,
+          // Fire on every failed submit, including a repeat of the same
+          // message (wrong code twice in a row must react twice).
+          listenWhen: (p, c) =>
+              c.error != null && (p.error != c.error || (p.busy && !c.busy)),
           listener: (context, state) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(state.error!)));
+            // A wrong code is rendered inline (below the field); also wipe
+            // the digits so the next attempt starts clean instead of
+            // forcing the user to backspace through the stale code.
+            _clearCode();
           },
           builder: (context, state) {
             return Padding(
@@ -118,6 +137,7 @@ class _OtpPageState extends State<OtpPage> {
                       fontWeight: FontWeight.w700,
                       letterSpacing: 8,
                     ),
+                    controller: _ctrl,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                       LengthLimitingTextInputFormatter(_otpLength),
@@ -125,6 +145,8 @@ class _OtpPageState extends State<OtpPage> {
                     decoration: InputDecoration(
                       counterText: '',
                       hintText: '•' * _otpLength,
+                      errorText: state.error,
+                      errorMaxLines: 3,
                     ),
                     onChanged: (v) {
                       setState(() => _code = v);
@@ -134,7 +156,12 @@ class _OtpPageState extends State<OtpPage> {
                   if (state.devCode != null) ...[
                     const SizedBox(height: AppSpacing.lg),
                     Center(
-                      child: Container(
+                      child: GestureDetector(
+                        // Dev convenience: tap the chip to use the code.
+                        onTap: state.busy
+                            ? null
+                            : () => _useDevCode(context, state.devCode!),
+                        child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.md,
                           vertical: AppSpacing.sm + 2,
@@ -159,6 +186,7 @@ class _OtpPageState extends State<OtpPage> {
                             ),
                           ],
                         ),
+                      ),
                       ),
                     ),
                   ],

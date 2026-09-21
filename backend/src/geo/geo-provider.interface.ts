@@ -10,7 +10,13 @@ export interface PlacePrediction {
   primaryText: string;
   secondaryText: string;
   description: string;
+  /** Straight-line metres from the search bias point, when one was given and
+   *  the provider can tell (Google `distance_meters`; OSM/stub compute it). */
+  distanceM?: number;
 }
+
+/** Bias radius for place search: results near the rider rank first. */
+export const PLACES_BIAS_RADIUS_M = 20000;
 
 export interface PlaceDetails {
   placeId: string;
@@ -32,7 +38,13 @@ export interface RouteResult {
  * GOOGLE_MAPS_API_KEY is configured.
  */
 export interface GeoProvider {
-  autocomplete(query: string, sessionToken?: string): Promise<PlacePrediction[]>;
+  /** `bias` (the rider's position) ranks nearby matches first and, where the
+   *  provider supports it, adds `distanceM` to each prediction. */
+  autocomplete(
+    query: string,
+    sessionToken?: string,
+    bias?: LatLng,
+  ): Promise<PlacePrediction[]>;
   placeDetails(placeId: string): Promise<PlaceDetails>;
   /** Resolve raw coordinates (e.g. the rider's GPS) to a human address. */
   reverse(location: LatLng): Promise<PlaceDetails>;

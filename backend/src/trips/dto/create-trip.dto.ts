@@ -5,6 +5,7 @@ import {
   IsISO8601,
   IsNumber,
   IsOptional,
+  IsPhoneNumber,
   IsString,
   Max,
   MaxLength,
@@ -36,6 +37,31 @@ export class CreateTripDto {
 
   @IsOptional() @IsString() @MaxLength(200)
   dropoffAddr?: string;
+
+  // Price lock: the fare + surge the rider saw on the estimate screen. The
+  // server recomputes both at request time; if they moved (surge kicked in,
+  // route changed) the request is refused with 409 PRICE_CHANGED carrying the
+  // fresh numbers so the rider re-confirms — never silently charged more.
+  @IsOptional() @IsNumber() @Min(0) @Max(100000)
+  quotedFare?: number;
+
+  @IsOptional() @IsNumber() @Min(1) @Max(10)
+  quotedSurge?: number;
+
+  // A short note for the driver about the pickup (e.g. "meet at the lobby").
+  @IsOptional() @IsString() @MaxLength(200)
+  pickupNote?: string;
+
+  // Booking for somebody else. The booker still pays and still tracks the
+  // ride; these say who is actually travelling, so the driver collects (and
+  // calls) the right person and the start code reaches them. Supplying a
+  // passenger requires a phone — a name alone leaves the driver with somebody
+  // to look for and no way to reach them, and no way to send the start code.
+  @IsOptional() @IsString() @MaxLength(80)
+  passengerName?: string;
+
+  @IsOptional() @IsPhoneNumber(undefined)
+  passengerPhone?: string;
 
   // Accepted now but unused until Phase 3 (payments).
   @IsOptional() @IsString() @MaxLength(128)

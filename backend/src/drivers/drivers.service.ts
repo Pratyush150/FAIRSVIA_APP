@@ -8,7 +8,16 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
 import { RedisKeys } from '../common/redis/redis.keys';
+import { RealtimeService } from '../realtime/realtime.service';
 import { OnboardingDto } from './dto/onboarding.dto';
+import { TIER_KEYS } from '../pricing/fare-config';
+
+/** Why the server (not the driver) took a driver offline. */
+export type ForcedOfflineReason =
+  | 'disconnect' // socket dropped / closed without an explicit offline
+  | 'stale_location' // no GPS ping for PRESENCE_STALE_MS while "online"
+  | 'presence_lost' // reconnect found no live presence for a DB-online driver
+  | 'deactivated'; // admin deactivated the account
 
 @Injectable()
 export class DriversService {
@@ -16,6 +25,7 @@ export class DriversService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly config: ConfigService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Create/refresh the driver profile and mark the user as a driver. Documents
@@ -23,6 +33,18 @@ export class DriversService {
    *  driver onboards as pending and an admin must verify before they go online. */
   async onboarding(userId: string, dto: OnboardingDto) {
     const autoVerify = this.config.get<boolean>('driverAutoVerify') ?? true;
+    // Re-verification: a verified driver who changes an identity/vehicle
+    // document field (plate, licence) goes back to pending — the approval was
+    // for the old documents. DRIVER_AUTO_VERIFY (dev-only) keeps auto-approving.
+    const existing = await this.prisma.driverProfile.findUnique({
+      where: { userId },
+      select: { docsVerified: true, plateNumber: true, licenseNo: true },
+    });
+    const identityChanged =
+      !!existing &&
+      (existing.plateNumber !== dto.plateNumber ||
+        (existing.licenseNo ?? null) !== (dto.licenseNo ?? null));
+    const resetVerification = !autoVerify && !!existing?.docsVerified && identityChanged;
     const profile = await this.prisma.driverProfile.upsert({
       where: { userId },
       create: {
@@ -42,6 +64,7 @@ export class DriversService {
         plateNumber: dto.plateNumber,
         vehicleTier: dto.vehicleTier as RideTier,
         licenseNo: dto.licenseNo,
+        ...(resetVerification ? { docsVerified: false } : {}),
       },
     });
     await this.prisma.user.update({
@@ -59,6 +82,23 @@ export class DriversService {
     return profile;
   }
 
+  /**
+   * The profile as the app should see it: `status` is the LIVE presence
+   * (Redis, what dispatch actually consults), falling back to the stored row
+   * when Redis has no entry. The stored column can lag behind a forced
+   * offline, and a driver polling this must learn the truth.
+   */
+  async getProfileWithPresence(userId: string) {
+    const profile = await this.getProfile(userId);
+    let live: string | null = null;
+    try {
+      live = await this.redis.client.get(RedisKeys.driverStatus(userId));
+    } catch {
+      live = null;
+    }
+    return { ...profile, status: live ?? profile.status };
+  }
+
   async setStatus(userId: string, status: 'online' | 'offline') {
     const profile = await this.getProfile(userId);
 
@@ -72,6 +112,17 @@ export class DriversService {
         profile.vehicleTier,
       );
     } else {
+      // Don't let a driver drop offline mid-trip — goOffline wipes the
+      // active-trip Redis linkage, which stops rider location streaming and trip
+      // metering. Make them finish the ride first.
+      const activeTrip = await this.redis.client.get(
+        RedisKeys.driverActiveTrip(userId),
+      );
+      if (activeTrip) {
+        throw new BadRequestException(
+          'Finish your current trip before going offline.',
+        );
+      }
       await this.goOffline(userId, profile.vehicleTier);
     }
 
@@ -80,6 +131,41 @@ export class DriversService {
       data: { status },
     });
     return { status };
+  }
+
+  /**
+   * Server-initiated offline (socket drop, stale GPS, ...). Unlike the
+   * driver's own request this (a) never fires mid-trip — a brief drop must
+   * let the driver reconnect and resume, (b) keeps the durable profile status
+   * in step with Redis (the API audit found `driver_profiles.status` stuck at
+   * 'online' after a disconnect), and (c) tells the driver app why, via
+   * `driver:status_changed`, so its UI can't keep showing "Online" while the
+   * server has stopped offering it trips. Returns whether it flipped.
+   */
+  async forceOffline(
+    userId: string,
+    tier: string | null,
+    reason: ForcedOfflineReason,
+  ): Promise<boolean> {
+    const onTrip = await this.redis.client.get(RedisKeys.driverActiveTrip(userId));
+    if (onTrip) return false;
+    const resolvedTier =
+      tier ?? (await this.redis.client.get(RedisKeys.driverTier(userId)));
+    await this.goOffline(userId, resolvedTier ?? 'economy');
+    if (!tier && !resolvedTier) {
+      // Unknown tier: sweep every pool so no GEO entry can linger.
+      for (const t of TIER_KEYS) {
+        await this.redis.client.zrem(RedisKeys.driversGeo(t), userId);
+      }
+    }
+    await this.prisma.driverProfile
+      .updateMany({ where: { userId, status: 'online' }, data: { status: 'offline' } })
+      .catch(() => undefined);
+    this.realtime.emitToUser(userId, 'driver:status_changed', {
+      status: 'offline',
+      reason,
+    });
+    return true;
   }
 
   /** Remove the driver from the live pool and clear ephemeral state. */

@@ -98,6 +98,13 @@ jobs:
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       NODE_ENV: development
+      # Live-ride watchdog thresholds, shortened so field-issues-check can
+      # exercise "driver stopped" in seconds instead of the 3 real minutes.
+      # These only gate advisory events to the rider — no effect on dispatch,
+      # metering or fares, so the other sims in this job are unaffected.
+      STOPPED_AFTER_S: '4'
+      OFF_ROUTE_PINGS: '2'
+      REROUTE_MIN_GAP_S: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -133,6 +140,12 @@ jobs:
       - name: Trip odometer + fare recompute
         working-directory: tools/fake-driver-simulator
         run: node odometer-ride.mjs
+      # Regressions for the 2026-09-16 field test: offer-window length, the
+      # itemised fare adding up, off-route/stopped advisories firing exactly
+      # once and clearing, a non-zero settled fare, and changeable ratings.
+      - name: Field-test regressions (offers, advisories, fare, ratings)
+        working-directory: tools/fake-driver-simulator
+        run: node field-issues-check.mjs
       - name: Price comparison (multi-provider + minimum)
         working-directory: tools/fake-driver-simulator
         run: node comparison-check.mjs

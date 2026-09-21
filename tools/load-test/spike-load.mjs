@@ -100,18 +100,37 @@ async function runWave(riders, waveNo) {
   let noDrivers = 0;
   let timedOut = 0;
   let errors = 0;
+  let stuck = 0;
+
+  // Riders are reused across waves, and the backend allows one live trip per
+  // rider. A ride left in flight therefore makes that rider 409 on every
+  // later wave, which looks exactly like wave-over-wave dispatch decay. Cancel
+  // on every path that doesn't reach `complete`.
+  const releaseRider = async (rider, tripId) => {
+    if (!tripId) return;
+    try {
+      await api(`/trips/${tripId}/cancel`, {
+        method: 'POST',
+        token: rider.token,
+        body: { reason: 'load-test cleanup' },
+      });
+    } catch {
+      stuck += 1;
+    }
+  };
 
   const fireOne = async (rider) => {
     const t0 = Date.now();
     const matchP = awaitMatch(rider.socket, MATCH_TIMEOUT);
+    const pickup = { lat: CENTER.lat + jitter(), lng: CENTER.lng + jitter() };
     let trip;
     try {
       trip = await api('/trips', {
         method: 'POST',
         token: rider.token,
         body: {
-          pickupLat: CENTER.lat + jitter(),
-          pickupLng: CENTER.lng + jitter(),
+          pickupLat: pickup.lat,
+          pickupLng: pickup.lng,
           dropoffLat: 25.7806, dropoffLng: -80.2420,
           tier: 'economy', pickupAddr: 'Spike', dropoffAddr: 'Test',
         },
@@ -121,26 +140,53 @@ async function runWave(riders, waveNo) {
       return;
     }
     const res = await matchP;
-    if (res.type === 'timeout') { timedOut += 1; return; }
-    if (res.type === 'no_drivers') { noDrivers += 1; return; }
+    if (res.type === 'timeout') {
+      timedOut += 1;
+      await releaseRider(rider, trip.id);
+      return;
+    }
+    if (res.type === 'no_drivers') {
+      noDrivers += 1;
+      await releaseRider(rider, trip.id);
+      return;
+    }
     matched += 1;
     matchMs.push(Date.now() - t0);
     // Complete the ride so its driver returns to the pool for the next wave.
     const d = drivers.get(res.data.driver.id);
-    if (!d) return;
+    if (!d) {
+      await releaseRider(rider, trip.id);
+      return;
+    }
+    let done = false;
     try {
+      // Drive the driver to the pickup first — the backend enforces a 150 m
+      // arrival geofence, so a driver parked where they spawned is refused.
+      d.socket.emit('driver:location', { lat: pickup.lat, lng: pickup.lng });
       const view = await api(`/trips/${trip.id}`, { token: rider.token });
-      await api(`/trips/${trip.id}/arrived`, { method: 'POST', token: d.token });
+      await wait(100);
+      try {
+        await api(`/trips/${trip.id}/arrived`, { method: 'POST', token: d.token });
+      } catch (e) {
+        // Pickup fix can lose a write race against the pool-return location;
+        // re-send and tap again, as a real driver app would.
+        if (e.status !== 400) throw e;
+        d.socket.emit('driver:location', { lat: pickup.lat, lng: pickup.lng });
+        await wait(250);
+        await api(`/trips/${trip.id}/arrived`, { method: 'POST', token: d.token });
+      }
       await api(`/trips/${trip.id}/start`, {
         method: 'POST', token: d.token, body: { otp: view.startOtp },
       });
       await api(`/trips/${trip.id}/complete`, { method: 'POST', token: d.token });
+      done = true;
     } catch {
       // matched already counted; completion errors are reported separately
       errors += 1;
     } finally {
       goOnline(d);
     }
+    if (!done) await releaseRider(rider, trip.id);
   };
 
   const started = Date.now();
@@ -153,7 +199,8 @@ async function runWave(riders, waveNo) {
   console.log(
     `\n  wave ${waveNo}: ${matched}/${attempted} matched ` +
       `(${(successRate * 100).toFixed(1)}%)  ` +
-      `noDrivers=${noDrivers} timedOut=${timedOut} errors=${errors}  ` +
+      `noDrivers=${noDrivers} timedOut=${timedOut} errors=${errors} ` +
+      `stuck=${stuck}  ` +
       `in ${elapsed.toFixed(1)}s`,
   );
   printStats(`  wave ${waveNo} match`, matchMs);

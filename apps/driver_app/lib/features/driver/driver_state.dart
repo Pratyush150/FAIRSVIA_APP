@@ -24,6 +24,9 @@ class DriverState extends Equatable {
     this.needsOnboarding = false,
     this.connected = true,
     this.approachPolyline,
+    this.locationIssue,
+    this.riderName,
+    this.unreadMessages = 0,
   });
 
   final DriverPhase phase;
@@ -31,6 +34,9 @@ class DriverState extends Equatable {
   final Trip? trip;
   final bool busy;
   final String? error;
+
+  /// Today's earnings total as last fetched (`/drivers/me/earnings?range=
+  /// today` on init and after each completed trip) — not the last trip's fare.
   final double? lastEarned;
   final String? lastTripId;
   final int? riderRating;
@@ -46,6 +52,18 @@ class DriverState extends Equatable {
   /// `trip:assigned`. Drawn while heading to pickup so the driver sees exactly
   /// where they're collecting the rider from (Uber-style approach leg).
   final String? approachPolyline;
+
+  /// Display name of the rider on the assigned trip (from the accepted offer),
+  /// used for the chat header. Null when no trip is assigned.
+  final String? riderName;
+
+  /// Rider messages received while the chat page was not open.
+  final int unreadMessages;
+
+  /// Why the last "go online" was refused for lack of location access (null
+  /// when it wasn't). Lets the UI offer the right fix — open app settings for a
+  /// permanent denial, the location-services page when GPS is switched off.
+  final LocationAccess? locationIssue;
 
   bool get isOnline => phase != DriverPhase.offline;
 
@@ -64,6 +82,9 @@ class DriverState extends Equatable {
     bool? needsOnboarding,
     bool? connected,
     Object? approachPolyline = _s,
+    Object? riderName = _s,
+    int? unreadMessages,
+    Object? locationIssue = _s,
   }) {
     return DriverState(
       phase: phase ?? this.phase,
@@ -81,6 +102,11 @@ class DriverState extends Equatable {
       approachPolyline: approachPolyline == _s
           ? this.approachPolyline
           : approachPolyline as String?,
+      riderName: riderName == _s ? this.riderName : riderName as String?,
+      unreadMessages: unreadMessages ?? this.unreadMessages,
+      locationIssue: locationIssue == _s
+          ? this.locationIssue
+          : locationIssue as LocationAccess?,
     );
   }
 
@@ -98,5 +124,8 @@ class DriverState extends Equatable {
         needsOnboarding,
         connected,
         approachPolyline,
+        riderName,
+        unreadMessages,
+        locationIssue,
       ];
 }

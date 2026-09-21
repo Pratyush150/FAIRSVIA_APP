@@ -36,7 +36,6 @@ class ReceiptPage extends StatelessWidget {
 
   Widget _body(BuildContext context, Receipt r) {
     final theme = Theme.of(context);
-    final total = r.fare + r.tip;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
@@ -45,17 +44,44 @@ class ReceiptPage extends StatelessWidget {
         const SizedBox(height: AppSpacing.xs),
         _Trip(trip: trip),
         const SizedBox(height: AppSpacing.lg),
-        _row(context, 'Fare', Fmt.money(r.fare, r.currency)),
+        // Itemised lines first (when the backend recorded them), then the
+        // authoritative fare — a clamp/minimum can move it off the sum.
+        if (r.breakdown != null) ...[
+          FareBreakdownRows(
+            breakdown: r.breakdown!,
+            currency: r.currency,
+            showTip: false,
+            style: theme.textTheme.bodyMedium,
+          ),
+          Divider(height: AppSpacing.md, color: theme.dividerColor),
+        ],
+        _row(context, 'Fare', Fmt.money(r.chargedAmount ?? r.fare, r.currency)),
         if (r.tip > 0) _row(context, 'Tip', Fmt.money(r.tip, r.currency)),
-        const Divider(height: AppSpacing.xl),
-        _row(context, 'Total', Fmt.money(total, r.currency), bold: true),
+        // Refund sits above the divider so "Total" is what was actually paid.
         if (r.isRefunded)
+          _row(
+            context,
+            'Refunded',
+            '- ${Fmt.money(r.refundedAmount, r.currency)}',
+          ),
+        const Divider(height: AppSpacing.xl),
+        _row(context, 'Total', Fmt.money(r.total, r.currency), bold: true),
+        if (r.isCash || r.cardLabel != null)
           Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: _row(
-              context,
-              'Refunded',
-              '- ${Fmt.money(r.refundedAmount, r.currency)}',
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Row(
+              children: [
+                Icon(
+                  r.isCash ? Icons.payments_outlined : Icons.credit_card,
+                  size: 16,
+                  color: AppColors.textSecondaryLight,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  r.isCash ? 'Paid in cash' : 'Paid with ${r.cardLabel}',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
             ),
           ),
         if (showPayout && r.driverPayout != null) ...[
@@ -91,6 +117,60 @@ class ReceiptPage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The itemised lines of a [FareBreakdown]: Base fare, Distance, Time,
+/// Booking fee, then Surge (only when > 1×), Promo (−, only when > 0) and Tip
+/// (only when > 0 and [showTip]). Shared by the receipt page and the rider's
+/// trip-complete sheet so both read the same way.
+class FareBreakdownRows extends StatelessWidget {
+  const FareBreakdownRows({
+    super.key,
+    required this.breakdown,
+    this.currency = 'USD',
+    this.showTip = true,
+    this.style,
+  });
+
+  final FareBreakdown breakdown;
+  final String currency;
+
+  /// Off when the caller already renders a tip line of its own.
+  final bool showTip;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final b = breakdown;
+    final textStyle = style ?? Theme.of(context).textTheme.bodyMedium;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _line('Base fare', Fmt.money(b.baseFare, currency), textStyle),
+        _line('Distance', Fmt.money(b.distanceFare, currency), textStyle),
+        _line('Time', Fmt.money(b.timeFare, currency), textStyle),
+        _line('Booking fee', Fmt.money(b.bookingFee, currency), textStyle),
+        if (b.hasMinimumFare)
+          _line('Minimum fare', Fmt.money(b.minimumFareAdjustment, currency),
+              textStyle),
+        if (b.hasSurge) _line('Surge', Fmt.surge(b.surgeMultiplier), textStyle),
+        if (b.hasPromo)
+          _line('Promo', '−${Fmt.money(b.promoDiscount, currency)}', textStyle),
+        if (showTip && b.hasTip) _line('Tip', Fmt.money(b.tip, currency), textStyle),
+      ],
+    );
+  }
+
+  Widget _line(String label, String value, TextStyle? style) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: style),
+            Text(value, style: style?.tabular()),
+          ],
+        ),
+      );
 }
 
 class _Trip extends StatelessWidget {

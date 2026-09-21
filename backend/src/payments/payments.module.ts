@@ -1,6 +1,9 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Global, Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from './payments.service';
+import { PaymentsProcessor } from './payments.processor';
+import { QUEUE_PAYMENTS } from './payments.queue';
 import { PaymentsController } from './payments.controller';
 import { PaymentsAdminController } from './payments-admin.controller';
 import { ConnectController } from './connect.controller';
@@ -11,6 +14,7 @@ import { StripePaymentProvider } from './stripe-payment.provider';
 
 @Global()
 @Module({
+  imports: [BullModule.registerQueue({ name: QUEUE_PAYMENTS })],
   controllers: [
     PaymentsController,
     PaymentsAdminController,
@@ -19,6 +23,7 @@ import { StripePaymentProvider } from './stripe-payment.provider';
   ],
   providers: [
     PaymentsService,
+    PaymentsProcessor,
     {
       provide: PAYMENT_PROVIDER,
       useFactory: (config: ConfigService) => {

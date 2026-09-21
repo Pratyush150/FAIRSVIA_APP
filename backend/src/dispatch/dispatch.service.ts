@@ -9,7 +9,14 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TripStateMachine } from '../trips/trip-state-machine';
 import { FavoritesService } from '../favorites/favorites.service';
-import { GEO_PROVIDER, GeoProvider } from '../geo/geo-provider.interface';
+import { DriversService } from '../drivers/drivers.service';
+import { SurgeService } from '../surge/surge.service';
+import { GEO_PROVIDER, GeoProvider, RouteResult } from '../geo/geo-provider.interface';
+import {
+  SMS_PROVIDER,
+  SmsProvider,
+} from '../auth/sms/sms-provider.interface';
+import { haversineMeters } from '../geo/geo.util';
 import {
   QUEUE_DISPATCH,
   DISPATCH_JOB,
@@ -19,10 +26,27 @@ import {
 // How long a driver has to respond to an offer before we move on. A driver who
 // *ghosts* (neither accepts nor declines) blocks this rider's sequential offer
 // loop for the whole window, so it directly bounds the worst-case match-latency
-// tail. 10s is still an easy human-tap window while keeping ghost recovery snappy.
-// How long a driver has to accept an offer. Configurable so demos/recordings
-// can give a human time to switch apps; production keeps the snappy 10s.
-const OFFER_TTL_MS = Number(process.env.OFFER_TTL_MS ?? 10000);
+// tail: every unresponsive driver in the ring costs the waiting rider a full
+// window. 15s matches what the big networks give a driver — comfortably enough
+// to glance at the card and tap, without stranding the rider behind someone who
+// put their phone down.
+//
+// It stays configurable for demos, but is CLAMPED: a stray `OFFER_TTL_MS=90000`
+// left in a deployed .env is how field testing ended up with a 90-second
+// countdown on the driver's phone, and (before the lock TTL was derived from
+// it) how the same driver could be offered two trips at once.
+const OFFER_TTL_MIN_MS = 5000;
+const OFFER_TTL_MAX_MS = 30000;
+export const OFFER_TTL_MS = clampOfferTtl(Number(process.env.OFFER_TTL_MS ?? 15000));
+
+export function clampOfferTtl(ms: number): number {
+  if (!Number.isFinite(ms) || ms <= 0) return 15000;
+  return Math.min(OFFER_TTL_MAX_MS, Math.max(OFFER_TTL_MIN_MS, ms));
+}
+// The per-driver offer lock MUST outlive the offer window, or a second dispatch
+// could lock the same driver mid-offer and double-assign them (both trips accept).
+// Hold the lock a fixed buffer beyond however long the driver has to respond.
+const OFFER_LOCK_TTL_MS = OFFER_TTL_MS + 10000;
 // Poll the response key fairly tightly: a driver auto-accepts in well under a
 // second, so this mostly sets the floor on match latency. Cheap Redis GETs.
 const RESPONSE_POLL_MS = 100;
@@ -42,8 +66,29 @@ const PRESENCE_STALE_MS = Number(process.env.PRESENCE_STALE_MS ?? 45000);
 // MATCHING (rider still sees "finding driver") and re-sweep, up to a bounded
 // total window. Only after the window elapses do we declare no_drivers. This
 // turns momentary supply exhaustion from a hard failure into a short wait.
-const MATCH_WINDOW_MS = 45000;
+// ~90s: a rider keeps "finding driver" this long, and — critically — a driver
+// who comes online within this window of a booking still gets offered the
+// waiting ride (each re-sweep re-reads the live pool, so a freshly-online driver
+// in the pickup's region is picked up on the next pass).
+const MATCH_WINDOW_MS = 90000;
 const RESWEEP_DELAY_MS = 2500;
+// Cap how many of the closest candidates get a road-ETA refinement, to bound the
+// routing calls added to the hot matching path.
+const ETA_RANK_LIMIT = 5;
+// Fallback approach speed (m/s) for an ETA when no road route was computed for
+// a candidate — straight-line distance at ~city pace. Only ever a rough hint.
+const FALLBACK_APPROACH_MPS = 8;
+// How long the per-trip "declined" set lives: longer than any matching window.
+const DECLINED_TTL_S = 600;
+
+/** Approach routes computed while ranking, reused for the offer card. */
+type ApproachCache = Map<string, RouteResult | undefined>;
+
+/** Rider identity shown on the driver's offer card. */
+interface RiderInfo {
+  name: string;
+  rating: number;
+}
 
 /**
  * The DISCO equivalent: matches a requested trip to the nearest available
@@ -66,7 +111,10 @@ export class DispatchService {
     private readonly stateMachine: TripStateMachine,
     private readonly favorites: FavoritesService,
     @Inject(GEO_PROVIDER) private readonly geo: GeoProvider,
+    @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
     @InjectQueue(QUEUE_DISPATCH) private readonly queue: Queue,
+    private readonly drivers: DriversService,
+    private readonly surge: SurgeService,
   ) {}
 
   /**
@@ -112,12 +160,29 @@ export class DispatchService {
       .favoriteDriverIds(trip.riderId)
       .catch(() => new Set<string>());
 
+    // Rider identity for the driver's offer card — fetched once per dispatch
+    // (not per offer). Best-effort: a neutral label if the lookup fails.
+    // Wrapped so a failure (sync or async) can never break matching — the offer
+    // just falls back to a neutral rider label.
+    const rider = await Promise.resolve()
+      .then(() =>
+        this.prisma.user.findUnique({
+          where: { id: trip.riderId },
+          select: { fullName: true, ratingAvg: true },
+        }),
+      )
+      .catch(() => null);
+    const riderInfo: RiderInfo = {
+      name: rider?.fullName ?? 'Rider',
+      rating: Number(rider?.ratingAvg ?? 5),
+    };
+
     // Re-sweep until a driver is assigned or the matching window elapses. Each
     // sweep re-reads the live GEO set, so drivers that were busy last pass are
     // reconsidered as they free up.
     const deadline = Date.now() + MATCH_WINDOW_MS;
     for (;;) {
-      const outcome = await this.sweep(trip, favorites, deadline);
+      const outcome = await this.sweep(trip, favorites, riderInfo, deadline);
       if (outcome !== 'exhausted') return; // 'assigned' or 'cancelled'
       if (Date.now() >= deadline) break;
       await this.sleep(RESWEEP_DELAY_MS);
@@ -139,6 +204,10 @@ export class DispatchService {
       });
       this.realtime.emitToUser(trip.riderId, 'trip:no_drivers', { tripId });
       void this.notifications.notifyTrip(trip.riderId, 'no_drivers', { tripId });
+      // Unmet demand must not keep surging the cell for the next rider.
+      await this.surge
+        .releaseDemand(trip.pickupLat, trip.pickupLng, trip.riderId)
+        .catch(() => undefined);
     } catch {
       // Trip left MATCHING (cancelled) — nothing to do.
     }
@@ -155,18 +224,30 @@ export class DispatchService {
   private async sweep(
     trip: Trip,
     favorites: Set<string>,
+    riderInfo: RiderInfo,
     deadline: number,
   ): Promise<'assigned' | 'cancelled' | 'exhausted'> {
     const tried = new Set<string>();
+    // A driver who explicitly declined this trip is never re-offered it — on
+    // this sweep or a later one (the set lives in Redis so a retried job on
+    // another node honours it too).
+    const declined = await this.declinedSet(trip.id);
+    const approach: ApproachCache = new Map();
     for (
       let radiusKm = START_RADIUS_KM;
       radiusKm <= MAX_RADIUS_KM;
       radiusKm += RADIUS_STEP_KM
     ) {
-      const candidates = this.favoritesFirst(
+      let candidates = this.favoritesFirst(
         await this.nearestDrivers(trip, radiusKm),
         favorites,
-      );
+      ).filter((id) => !declined.has(id));
+      // On the closest ring, refine the crow-flies order into real road-ETA
+      // order for the top few non-favourite candidates — nearest-by-road beats
+      // nearest-as-the-crow-flies across rivers/highways. Bounded + fail-open.
+      if (radiusKm === START_RADIUS_KM) {
+        candidates = await this.rankByRoadEta(trip, candidates, favorites, approach);
+      }
       for (const driverId of candidates) {
         // Enforce the match window BETWEEN OFFERS, not just between sweeps: each
         // ghosted offer burns a full OFFER_TTL, so a ring full of unresponsive
@@ -186,10 +267,25 @@ export class DispatchService {
         if ((await this.redis.client.get(RedisKeys.driverStatus(driverId))) !== 'online') {
           continue;
         }
-        if (await this.offerTo(driverId, trip)) return 'assigned';
+        if (await this.offerTo(driverId, trip, riderInfo, approach)) return 'assigned';
       }
     }
     return 'exhausted';
+  }
+
+  private async declinedSet(tripId: string): Promise<Set<string>> {
+    try {
+      const ids = await this.redis.client.smembers(RedisKeys.dispatchDeclined(tripId));
+      return new Set(ids ?? []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  private async markDeclined(tripId: string, driverId: string): Promise<void> {
+    const key = RedisKeys.dispatchDeclined(tripId);
+    await this.redis.client.sadd(key, driverId);
+    await this.redis.client.expire(key, DECLINED_TTL_S);
   }
 
   /**
@@ -207,6 +303,75 @@ export class DispatchService {
       (favorites.has(id) ? fav : rest).push(id);
     }
     return [...fav, ...rest];
+  }
+
+  /**
+   * Refine the nearest non-favourite candidates from crow-flies order into real
+   * road-ETA order (favourites still lead, untouched). Bounded to ETA_RANK_LIMIT
+   * routing calls and fail-open: any error, or a provider without real routing,
+   * just preserves the incoming order. Candidates with no computable route sort
+   * last so a routable driver is always preferred.
+   */
+  private async rankByRoadEta(
+    trip: Trip,
+    candidates: string[],
+    favorites: Set<string>,
+    cache: ApproachCache = new Map(),
+  ): Promise<string[]> {
+    try {
+      const favs = candidates.filter((id) => favorites.has(id));
+      const rest = candidates.filter((id) => !favorites.has(id));
+      const head = rest.slice(0, ETA_RANK_LIMIT);
+      const tail = rest.slice(ETA_RANK_LIMIT);
+      const withEta = await Promise.all(
+        head.map(async (id) => {
+          // Keep the route: the offer card reuses it (road ETA/distance)
+          // instead of paying for a second routing call per offer.
+          const route = await this.approachRoute(id, trip);
+          cache.set(id, route);
+          return { id, eta: route?.durationS ?? Infinity };
+        }),
+      );
+      withEta.sort((a, b) => a.eta - b.eta);
+      return [...favs, ...withEta.map((w) => w.id), ...tail];
+    } catch {
+      return candidates;
+    }
+  }
+
+  /**
+   * Seconds until the closest online driver of [tier] could reach [pickup]
+   * (straight-line distance at a nominal urban pace, plus a minute of
+   * pickup slack), or null when nobody is within 15 km. Drives the "N min
+   * away" line on the rider's tier list; never throws.
+   */
+  async nearestDriverEtaS(
+    pickup: { lat: number; lng: number },
+    tier: string,
+  ): Promise<number | null> {
+    try {
+      const result = (await this.redis.client.geosearch(
+        RedisKeys.driversGeo(tier),
+        'FROMLONLAT',
+        pickup.lng,
+        pickup.lat,
+        'BYRADIUS',
+        15,
+        'km',
+        'ASC',
+        'COUNT',
+        1,
+        'WITHDIST',
+      )) as [string, string][];
+      if (result.length === 0) return null;
+      const [driverId, distKm] = result[0];
+      const alive = await this.evictStale(tier, [driverId]);
+      if (alive.length === 0) return null;
+      const metres = Number(distKm) * 1000;
+      return Math.round(metres / FALLBACK_APPROACH_MPS) + 60;
+    } catch {
+      return null;
+    }
   }
 
   private async nearestDrivers(trip: Trip, radiusKm: number): Promise<string[]> {
@@ -247,14 +412,34 @@ export class DispatchService {
     });
     if (stale.length > 0) {
       await this.redis.client.zrem(RedisKeys.driversGeo(tier), ...stale);
+      // A silent ghost is taken fully offline (Redis + DB) and *told* — the
+      // app may still be showing "Online" (killed location updates, suspended
+      // in the background) while we've stopped offering it trips. Best-effort;
+      // never lets a presence hiccup break matching.
+      await Promise.all(
+        stale.map((id) =>
+          this.drivers.forceOffline(id, tier, 'stale_location').catch(() => false),
+        ),
+      );
     }
     return fresh;
   }
 
   /** Offer to one driver under a lock; resolve when they accept/decline/expire. */
-  private async offerTo(driverId: string, trip: Trip): Promise<boolean> {
+  private async offerTo(
+    driverId: string,
+    trip: Trip,
+    riderInfo: RiderInfo,
+    approach: ApproachCache = new Map(),
+  ): Promise<boolean> {
     const lockKey = RedisKeys.driverOfferLock(driverId);
-    const locked = await this.redis.client.set(lockKey, trip.id, 'PX', 20000, 'NX');
+    const locked = await this.redis.client.set(
+      lockKey,
+      trip.id,
+      'PX',
+      OFFER_LOCK_TTL_MS,
+      'NX',
+    );
     if (locked !== 'OK') return false;
 
     try {
@@ -267,25 +452,50 @@ export class DispatchService {
       );
       await this.redis.client.del(RedisKeys.dispatchResponse(trip.id));
 
+      // How far/long the driver must travel to reach the rider. Distinct from
+      // distanceM/durationS, which are the *trip* leg. Road numbers come from
+      // the route already computed for ranking; otherwise straight-line at a
+      // nominal pace. Lets the driver judge the pickup before accepting.
+      const { approachDistanceM, approachEtaS, approachSource } =
+        await this.approachForOffer(driverId, trip, approach);
+
       this.realtime.emitToUser(driverId, 'trip:offer', {
         tripId: trip.id,
         pickup: { lat: trip.pickupLat, lng: trip.pickupLng, address: trip.pickupAddr },
         dropoff: { lat: trip.dropoffLat, lng: trip.dropoffLng, address: trip.dropoffAddr },
         fare: Number(trip.fareEstimate ?? 0),
+        surge: Number(trip.surgeMultiplier ?? 1),
         tier: trip.tier,
         distanceM: trip.distanceM,
         durationS: trip.durationS,
         expiresInSec: OFFER_TTL_MS / 1000,
+        rider: { name: riderInfo.name, rating: riderInfo.rating },
+        pickupNote: trip.pickupNote ?? undefined,
+        approachDistanceM,
+        approachEtaS,
+        approachSource,
       });
 
-      const accepted = await this.awaitResponse(trip.id, driverId);
+      const verdict = await this.awaitResponse(trip.id, driverId);
       await this.redis.client.del(RedisKeys.dispatchOffer(trip.id));
 
-      if (!accepted) {
+      if (verdict !== 'accepted') {
+        if (verdict === 'declined') {
+          await this.markDeclined(trip.id, driverId).catch(() => undefined);
+        }
         this.realtime.emitToUser(driverId, 'trip:offer_expired', { tripId: trip.id });
         return false;
       }
-      return await this.assign(trip, driverId);
+      const assigned = await this.assign(trip, driverId);
+      if (!assigned) {
+        // The driver tapped Accept but the trip could not be committed to them
+        // (rider cancelled during the offer window, trip already taken, or the
+        // driver is still bound to another trip). Without this the driver app
+        // sits on the offer card with an infinite Accept spinner — it only ever
+        // learned about the not-accepted branch above.
+        this.realtime.emitToUser(driverId, 'trip:offer_expired', { tripId: trip.id });
+      }
+      return assigned;
     } finally {
       await this.redis.client.del(lockKey);
     }
@@ -296,7 +506,10 @@ export class DispatchService {
    * Cross-process: the accept/decline may be handled by another node — it lands
    * in Redis and we pick it up here. Resolves false on TTL timeout.
    */
-  private async awaitResponse(tripId: string, driverId: string): Promise<boolean> {
+  private async awaitResponse(
+    tripId: string,
+    driverId: string,
+  ): Promise<'accepted' | 'declined' | 'timeout'> {
     const respKey = RedisKeys.dispatchResponse(tripId);
     const deadline = Date.now() + OFFER_TTL_MS;
     while (Date.now() < deadline) {
@@ -305,11 +518,11 @@ export class DispatchService {
         await this.redis.client.del(respKey);
         // Format "accepted:driverId" — ignore a response from a stale driver.
         const [verdict, who] = raw.split(':');
-        if (who === driverId) return verdict === '1';
+        if (who === driverId) return verdict === '1' ? 'accepted' : 'declined';
       }
       await this.sleep(RESPONSE_POLL_MS);
     }
-    return false;
+    return 'timeout';
   }
 
   /**
@@ -323,7 +536,19 @@ export class DispatchService {
     accepted: boolean,
   ): Promise<boolean> {
     const offeree = await this.redis.client.get(RedisKeys.dispatchOffer(tripId));
-    if (offeree !== driverId) return false;
+    if (offeree !== driverId) {
+      if (accepted) {
+        // A duplicate accept (double-tap, REST retry after the socket accept
+        // already won) for a trip that IS this driver's must not be answered
+        // with offer_expired — that would make the app drop a live trip.
+        if (await this.isAssignedTo(tripId, driverId)) return true;
+        // Otherwise the offer window closed (or the trip was never offered to
+        // this driver): don't leave them waiting on an assignment that will
+        // never come — tell them the offer is gone.
+        this.realtime.emitToUser(driverId, 'trip:offer_expired', { tripId });
+      }
+      return false;
+    }
     await this.redis.client.set(
       RedisKeys.dispatchResponse(tripId),
       `${accepted ? '1' : '0'}:${driverId}`,
@@ -337,7 +562,35 @@ export class DispatchService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /** Is this trip already live with this driver (accepted/arrived/in_progress)? */
+  private async isAssignedTo(tripId: string, driverId: string): Promise<boolean> {
+    try {
+      const t = await this.prisma.trip.findUnique({
+        where: { id: tripId },
+        select: { driverId: true, status: true },
+      });
+      return (
+        !!t &&
+        t.driverId === driverId &&
+        (t.status === TripStatus.accepted ||
+          t.status === TripStatus.arrived ||
+          t.status === TripStatus.in_progress)
+      );
+    } catch {
+      return false;
+    }
+  }
+
   private async assign(trip: Trip, driverId: string): Promise<boolean> {
+    // Defence in depth against double-assignment: never commit a driver who is
+    // already on another trip (e.g. if their offer lock expired early under a
+    // long OFFER_TTL). The state-machine guard below is per-trip, not per-driver,
+    // so this is the only thing stopping one driver holding two trips at once.
+    const active = await this.redis.client.get(
+      RedisKeys.driverActiveTrip(driverId),
+    );
+    if (active && active !== trip.id) return false;
+
     try {
       await this.stateMachine.transition({
         tripId: trip.id,
@@ -354,8 +607,26 @@ export class DispatchService {
     // Take the driver out of the pool and mark them on-trip.
     await this.redis.client.zrem(RedisKeys.driversGeo(trip.tier), driverId);
     await this.redis.client.set(RedisKeys.driverStatus(driverId), 'on_trip');
-    await this.redis.client.set(RedisKeys.driverActiveTrip(driverId), trip.id);
-    await this.redis.client.set(RedisKeys.driverActiveRider(driverId), trip.riderId);
+    // Link the driver to this trip. completeTrip / cancel clear these keys
+    // explicitly; the TTL is a safety net so a trip abandoned mid-ride (app
+    // crash, socket gone, never completed) can't bench the driver forever —
+    // `location.ingest` skips re-adding an on-trip driver to the pool, so a
+    // stale linkage would otherwise keep them un-dispatchable indefinitely.
+    // After the TTL the driver rejoins the pool on their next location ping.
+    // Far longer than any real ride, so a legitimate trip is never evicted.
+    const activeLinkTtlSeconds = 6 * 60 * 60; // 6 hours
+    await this.redis.client.set(
+      RedisKeys.driverActiveTrip(driverId),
+      trip.id,
+      'EX',
+      activeLinkTtlSeconds,
+    );
+    await this.redis.client.set(
+      RedisKeys.driverActiveRider(driverId),
+      trip.riderId,
+      'EX',
+      activeLinkTtlSeconds,
+    );
 
     const driver = await this.prisma.user.findUnique({
       where: { id: driverId },
@@ -367,10 +638,36 @@ export class DispatchService {
     // instead of the trip route. Best-effort: if the driver's position is
     // unknown or routing fails, omit it and the client falls back to the trip
     // route. Provider-agnostic — uses whatever GeoProvider is configured.
-    const driverPolyline = await this.approachPolyline(driverId, trip);
+    const approach = await this.approachRoute(driverId, trip);
+    const driverPolyline = approach?.polyline || undefined;
+    // Live "arriving in N min" + approach distance for the rider — derived from
+    // the same approach route we already compute for the polyline, so this adds
+    // no extra provider call. Undefined when the driver's position is unknown or
+    // routing failed (older/degraded clients just won't show the countdown).
+    const etaSec = approach?.durationS;
+    const etaDistanceM = approach?.distanceM;
+
+    // Navigation context for the approach leg: each GPS ping now carries a
+    // cheap live ETA/remaining distance to the rider (see LocationService).
+    await this.redis.client
+      .hset(RedisKeys.tripNav(trip.id), {
+        phase: 'approach',
+        targetLat: trip.pickupLat,
+        targetLng: trip.pickupLng,
+        polyline: driverPolyline ?? '',
+        avgSpeedMps:
+          approach && approach.durationS > 0
+            ? approach.distanceM / approach.durationS
+            : '',
+      })
+      .catch(() => undefined);
 
     this.realtime.emitToUser(trip.riderId, 'trip:accepted', {
       tripId: trip.id,
+      // Rider-only event: the start code is what they read to the driver. A
+      // scheduled ride fires while the rider's screen has no trip loaded, so
+      // it has to travel with the match.
+      startOtp: trip.startOtp,
       driver: {
         id: driverId,
         name: driver?.fullName ?? 'Your driver',
@@ -384,14 +681,47 @@ export class DispatchService {
       },
       polyline: trip.routePolyline,
       driverPolyline,
+      etaSec,
+      etaDistanceM,
     });
+    // A ride booked for somebody else: the booker gets the event above, but
+    // they are not in the car. The passenger is the one who has to recognise
+    // the vehicle and read the start code out, and they may have no app at
+    // all — so it goes to them by text. Best-effort; a gateway failure must
+    // not undo an assignment that has already happened.
+    if (trip.passengerPhone) {
+      const car = [
+        driver?.driverProfile?.vehicleColor,
+        driver?.driverProfile?.vehicleMake,
+        driver?.driverProfile?.vehicleModel,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const plate = driver?.driverProfile?.plateNumber;
+      const parts = [
+        `${driver?.fullName ?? 'Your driver'} is on the way to collect you.`,
+        car || plate ? `Look for a ${[car, plate].filter(Boolean).join(', ')}.` : '',
+        `Your start code is ${trip.startOtp}.`,
+      ].filter(Boolean);
+      void this.sms
+        .sendMessage(trip.passengerPhone, parts.join(' '))
+        .catch((e: Error) =>
+          this.logger.warn(
+            `passenger SMS for trip ${trip.id} failed: ${e.message}`,
+          ),
+        );
+    }
+
     // The driver needs the same geometry the rider gets: the approach leg
     // (their car → the pickup) so their map can show exactly where they're
-    // collecting the rider from, plus the trip route for the on-trip leg.
+    // collecting the rider from, plus the trip route for the on-trip leg. The
+    // approach ETA/distance also lets the driver UI show "N min to pickup".
     this.realtime.emitToUser(driverId, 'trip:assigned', {
       tripId: trip.id,
       polyline: trip.routePolyline,
       driverPolyline,
+      etaSec,
+      etaDistanceM,
     });
     void this.notifications.notifyTrip(trip.riderId, 'accepted', {
       tripId: trip.id,
@@ -401,13 +731,20 @@ export class DispatchService {
   }
 
   /**
-   * Best-effort encoded polyline from the driver's last-known position to the
-   * trip pickup. Returns undefined if the position is unknown or routing fails.
+   * Best-effort road route (polyline + duration + distance) from the driver's
+   * last-known position to the trip pickup. Returns undefined if the position is
+   * unknown or routing fails, so callers degrade gracefully (no approach line,
+   * no live ETA) rather than erroring.
    */
-  private async approachPolyline(
+  /**
+   * Straight-line (haversine) distance in metres from the driver's last-known
+   * position to the trip pickup. Undefined if the position is unknown. Cheap —
+   * a single Redis read plus local math, safe to call per offer.
+   */
+  private async approachDistanceM(
     driverId: string,
     trip: Trip,
-  ): Promise<string | undefined> {
+  ): Promise<number | undefined> {
     try {
       const [lat, lng] = await this.redis.client.hmget(
         RedisKeys.driverLoc(driverId),
@@ -417,11 +754,65 @@ export class DispatchService {
       const dlat = lat != null ? Number(lat) : NaN;
       const dlng = lng != null ? Number(lng) : NaN;
       if (!Number.isFinite(dlat) || !Number.isFinite(dlng)) return undefined;
-      const approach = await this.geo.route(
+      return Math.round(
+        haversineMeters(
+          { lat: dlat, lng: dlng },
+          { lat: trip.pickupLat, lng: trip.pickupLng },
+        ),
+      );
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Offer-card approach numbers. Road ETA/distance when the ranking pass
+   * already routed this driver (no extra provider call); otherwise the
+   * straight-line distance and a nominal-pace ETA. Never throws.
+   */
+  private async approachForOffer(
+    driverId: string,
+    trip: Trip,
+    cache: ApproachCache,
+  ): Promise<{
+    approachDistanceM?: number;
+    approachEtaS?: number;
+    approachSource: 'road' | 'straight' | 'unknown';
+  }> {
+    const route = cache.get(driverId);
+    if (route) {
+      return {
+        approachDistanceM: Math.round(route.distanceM),
+        approachEtaS: Math.round(route.durationS),
+        approachSource: 'road',
+      };
+    }
+    const straight = await this.approachDistanceM(driverId, trip);
+    if (straight === undefined) return { approachSource: 'unknown' };
+    return {
+      approachDistanceM: straight,
+      approachEtaS: Math.round(straight / FALLBACK_APPROACH_MPS),
+      approachSource: 'straight',
+    };
+  }
+
+  private async approachRoute(
+    driverId: string,
+    trip: Trip,
+  ): Promise<RouteResult | undefined> {
+    try {
+      const [lat, lng] = await this.redis.client.hmget(
+        RedisKeys.driverLoc(driverId),
+        'lat',
+        'lng',
+      );
+      const dlat = lat != null ? Number(lat) : NaN;
+      const dlng = lng != null ? Number(lng) : NaN;
+      if (!Number.isFinite(dlat) || !Number.isFinite(dlng)) return undefined;
+      return await this.geo.route(
         { lat: dlat, lng: dlng },
         { lat: trip.pickupLat, lng: trip.pickupLng },
       );
-      return approach.polyline || undefined;
     } catch {
       return undefined;
     }

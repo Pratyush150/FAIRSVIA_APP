@@ -25,9 +25,10 @@ Color supportStatusColor(String status) {
 /// The user's list of support tickets, with a "New ticket" action. Opening a
 /// row shows the full thread ([SupportThreadPage]).
 class SupportPage extends StatefulWidget {
-  const SupportPage({super.key, required this.support});
+  const SupportPage({super.key, required this.support, this.isDriver = false});
 
   final SupportRemoteDataSource support;
+  final bool isDriver;
 
   @override
   State<SupportPage> createState() => _SupportPageState();
@@ -72,8 +73,11 @@ class _SupportPageState extends State<SupportPage> {
         isEmpty: (list) => list.isEmpty,
         emptyIcon: Icons.support_agent,
         emptyTitle: 'No support tickets',
-        emptyMessage: 'Have a problem with a ride? Open a ticket and our team '
-            'will help.',
+        emptyMessage: widget.isDriver
+            ? 'Have a problem with a trip, a rider or a payout? Open a '
+                'ticket and our team will help.'
+            : 'Have a problem with a ride? Open a ticket and our team '
+                'will help.',
         builder: (context, list, _) => ListView.separated(
           padding: const EdgeInsets.only(bottom: 88),
           itemCount: list.length,
@@ -127,7 +131,7 @@ const _categories = <String, String>{
   'lost_item': 'Lost item',
   'driver': 'Driver',
   'app': 'App problem',
-  'other': 'Something else',
+  'other': 'Other',
 };
 
 class _NewTicketSheet extends StatefulWidget {
@@ -143,6 +147,9 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
   final _message = TextEditingController();
   String _category = 'other';
   bool _submitting = false;
+  // Rendered inside the sheet: a SnackBar would appear on the page's
+  // Scaffold, i.e. underneath this modal, where nobody can see it.
+  String? _error;
 
   @override
   void dispose() {
@@ -155,14 +162,16 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
     final subject = _subject.text.trim();
     final message = _message.text.trim();
     if (subject.length < 3 || message.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add a subject and describe the issue.')),
-      );
+      setState(() => _error = subject.length < 3
+          ? 'Give the ticket a subject (at least 3 characters).'
+          : 'Describe what happened.');
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
     final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final ticket = await widget.support.create(
         subject: subject,
@@ -171,8 +180,15 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
       );
       navigator.pop(ticket);
     } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      // Anything non-API (parse error, unexpected null…) must still release
+      // the button, otherwise the sheet is stuck "submitting" forever.
+      if (mounted) {
+        setState(() => _error = 'Something went wrong. Please try again.');
+      }
+    } finally {
       if (mounted) setState(() => _submitting = false);
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -225,6 +241,16 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
               alignLabelWithHint: true,
             ),
           ),
+          if (_error != null) ...[
+            Text(
+              _error!,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: AppColors.error),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           const SizedBox(height: AppSpacing.md),
           PrimaryButton(
             label: 'Submit ticket',

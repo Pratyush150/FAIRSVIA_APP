@@ -1,0 +1,126 @@
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:rider_app/features/trip/trip_cubit.dart';
+import 'package:rider_app/home_page.dart';
+
+class MockTripCubit extends MockCubit<TripState> implements TripCubit {}
+
+/// The tip flow on the post-ride sheet.
+///
+/// A tip can only be sent once — the backend rejects a second one with 409 —
+/// so the first tap used to charge immediately and lock the chips, which made
+/// a mis-tap permanent. The choice is now local until the rider confirms it.
+void main() {
+  late MockTripCubit cubit;
+
+  setUp(() {
+    cubit = MockTripCubit();
+    when(() => cubit.tipDriver(any())).thenAnswer((_) async {});
+  });
+
+  Future<void> pump(WidgetTester tester, TripState state) async {
+    whenListen(cubit, const Stream<TripState>.empty(), initialState: state);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BlocProvider<TripCubit>.value(
+            value: cubit,
+            child: CompletedSheet(state: state),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  const completed = TripState(phase: TripPhase.completed, fareFinal: 12.5);
+
+  testWidgets('picking a tip does not charge it yet', (tester) async {
+    await pump(tester, completed);
+
+    await tester.tap(find.text('\$3'));
+    await tester.pumpAndSettle();
+
+    // Nothing sent — the rider has only chosen.
+    verifyNever(() => cubit.tipDriver(any()));
+    // ...and there is now something to confirm.
+    expect(find.text('Add \$3 tip'), findsOneWidget);
+  });
+
+  testWidgets('the choice can be changed before it is confirmed',
+      (tester) async {
+    await pump(tester, completed);
+
+    await tester.tap(find.text('\$2'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add \$2 tip'), findsOneWidget);
+
+    // Changed their mind — this is the case that used to be impossible.
+    await tester.tap(find.text('\$5'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add \$5 tip'), findsOneWidget);
+    expect(find.text('Add \$2 tip'), findsNothing);
+
+    verifyNever(() => cubit.tipDriver(any()));
+  });
+
+  testWidgets('confirming sends exactly the amount last chosen',
+      (tester) async {
+    await pump(tester, completed);
+
+    await tester.tap(find.text('\$2'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('\$5'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add \$5 tip'));
+    await tester.pumpAndSettle();
+
+    verify(() => cubit.tipDriver(5.0)).called(1);
+    verifyNever(() => cubit.tipDriver(2.0));
+  });
+
+  testWidgets('once a tip is sent the chips lock and the total is shown',
+      (tester) async {
+    await pump(
+      tester,
+      const TripState(
+        phase: TripPhase.completed,
+        fareFinal: 12.5,
+        tipAmount: 5,
+      ),
+    );
+
+    expect(find.text('Tip of \$5 added.'), findsOneWidget);
+    // No confirm button remains, and tapping another amount changes nothing.
+    expect(find.textContaining('Add \$'), findsNothing);
+    await tester.tap(find.text('\$2'));
+    await tester.pumpAndSettle();
+    verifyNever(() => cubit.tipDriver(any()));
+  });
+
+  testWidgets('the confirm button is disabled while a tip is in flight',
+      (tester) async {
+    await pump(
+      tester,
+      const TripState(phase: TripPhase.completed, fareFinal: 12.5),
+    );
+    await tester.tap(find.text('\$3'));
+    await tester.pumpAndSettle();
+
+    // Re-pump in the sending state: the button reports progress and cannot be
+    // tapped again, so a double tap can't produce the 409.
+    await pump(
+      tester,
+      const TripState(
+        phase: TripPhase.completed,
+        fareFinal: 12.5,
+        tipping: true,
+      ),
+    );
+    expect(find.text('\$3'), findsOneWidget);
+    verifyNever(() => cubit.tipDriver(any()));
+  });
+}

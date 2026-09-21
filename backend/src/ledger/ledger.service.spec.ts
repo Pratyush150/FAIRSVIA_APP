@@ -4,14 +4,17 @@ import { PrismaService } from '../common/prisma/prisma.service';
 
 function makeService(sum: number) {
   const create = jest.fn().mockResolvedValue({});
-  const prisma = {
+  const prisma: any = {
     ledgerEntry: {
       create,
       aggregate: jest.fn().mockResolvedValue({ _sum: { amount: sum } }),
       findMany: jest.fn().mockResolvedValue([]),
     },
-  } as unknown as PrismaService;
-  return { svc: new LedgerService(prisma), create };
+  };
+  // withdraw() now runs its check+debit inside a serializable $transaction; the
+  // mock runs the callback against the same fake client.
+  prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
+  return { svc: new LedgerService(prisma as unknown as PrismaService), create };
 }
 
 describe('LedgerService', () => {

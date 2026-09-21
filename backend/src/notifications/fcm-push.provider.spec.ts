@@ -1,5 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { FcmPushProvider } from './fcm-push.provider';
+import { StalePushTokenError, isStalePushToken } from './push-provider.interface';
 
 // A throwaway RSA keypair so the JWT actually signs (no real credentials).
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -104,8 +105,36 @@ describe('FcmPushProvider.send', () => {
       }) as unknown as typeof fetch;
 
     const provider = new FcmPushProvider(account);
-    await expect(
-      provider.send({ token: 'stale', platform: 'android' }, { title: 'a', body: 'b' }),
-    ).rejects.toThrow(/FCM send failed \(404\)/);
+    const err = await provider
+      .send({ token: 'stale', platform: 'android' }, { title: 'a', body: 'b' })
+      .catch((e) => e);
+    expect(err.message).toMatch(/FCM send failed \(404\)/);
+    // A 404 / UNREGISTERED is a stale token: typed so the sender prunes it.
+    expect(err).toBeInstanceOf(StalePushTokenError);
+    expect(isStalePushToken(err)).toBe(true);
+  });
+
+  it('marks a 400 whose body says UNREGISTERED as stale, but not other errors', async () => {
+    const mk = (status: number, body: string) =>
+      jest
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ access_token: 'tok', expires_in: 3600 }),
+        })
+        .mockResolvedValueOnce({ ok: false, status, text: async () => body }) as unknown as typeof fetch;
+
+    global.fetch = mk(400, '{"error":{"details":[{"errorCode":"UNREGISTERED"}]}}');
+    const stale = await new FcmPushProvider(account)
+      .send({ token: 't', platform: 'android' }, { title: 'a', body: 'b' })
+      .catch((e) => e);
+    expect(isStalePushToken(stale)).toBe(true);
+
+    global.fetch = mk(503, 'UNAVAILABLE');
+    const transient = await new FcmPushProvider(account)
+      .send({ token: 't', platform: 'android' }, { title: 'a', body: 'b' })
+      .catch((e) => e);
+    expect(isStalePushToken(transient)).toBe(false);
+    expect(transient.message).toMatch(/\(503\)/);
   });
 });

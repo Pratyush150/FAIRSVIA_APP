@@ -7,7 +7,7 @@ import '../bloc/auth_bloc.dart';
 
 /// Phone number entry — step 1 of the OTP login flow. Shared across apps.
 class PhoneEntryPage extends StatefulWidget {
-  const PhoneEntryPage({super.key, this.title = 'UberNav'});
+  const PhoneEntryPage({super.key, this.title = 'FairsVia'});
 
   final String title;
 
@@ -46,9 +46,13 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
             // Scrollable so the content never overflows when the keyboard
             // shrinks the viewport (a fixed gap replaces the old Spacer, which
             // caused a 2px bottom overflow on tall screens with the keyboard up).
-            return SingleChildScrollView(
-              child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.xl),
+            return Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -93,29 +97,55 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                       prefixIcon: Icon(Icons.phone_rounded),
                     ),
                     onChanged: (v) => setState(
-                      () => _valid = RegExp(r'^\+?[1-9]\d{7,14}$')
+                      // Country code is mandatory: without the '+' a local
+                      // number would be sent as-is and never match E.164.
+                      () => _valid = RegExp(r'^\+[1-9]\d{7,14}$')
                           .hasMatch(v.replaceAll(' ', '').trim()),
                     ),
                     onSubmitted: _valid ? (_) => _submit(context) : null,
                   ),
-                  const SizedBox(height: AppSpacing.huge),
-                  Text(
-                    'By continuing you agree to our Terms and Privacy Policy.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: AppColors.textTertiaryLight),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  PrimaryButton(
-                    label: 'Continue',
-                    loading: state.busy,
-                    onPressed:
-                        _valid && !state.busy ? () => _submit(context) : null,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
+                  if (_controller.text.trim().isNotEmpty && !_valid) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Include your country code, e.g. +1 305 555 0137.',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: AppColors.error),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.xl),
                 ],
               ),
-              ),
+                    ),
+                  ),
+                ),
+                // Pinned under the scroll view so the CTA stays visible above
+                // the keyboard on small screens (it used to sit below the
+                // fold with no way to reach it but a blind scroll).
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'By continuing you agree to our Terms and Privacy '
+                        'Policy.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: AppColors.textTertiaryLight),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      PrimaryButton(
+                        label: 'Continue',
+                        loading: state.busy,
+                        onPressed: _valid && !state.busy
+                            ? () => _submit(context)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             );
           },
         ),

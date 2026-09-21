@@ -4,6 +4,7 @@ import {
   LatLng,
   PlaceDetails,
   PlacePrediction,
+  PLACES_BIAS_RADIUS_M,
   RouteResult,
 } from './geo-provider.interface';
 
@@ -21,20 +22,34 @@ export class GoogleGeoProvider implements GeoProvider {
   async autocomplete(
     query: string,
     sessionToken?: string,
+    bias?: LatLng,
   ): Promise<PlacePrediction[]> {
     const url = new URL(`${GoogleGeoProvider.base}/place/autocomplete/json`);
     url.searchParams.set('input', query);
     url.searchParams.set('key', this.apiKey);
     if (sessionToken) url.searchParams.set('sessiontoken', sessionToken);
+    if (bias) {
+      // Soft bias (not a strict bound): a ~20 km circle around the rider so
+      // "Main St" resolves to the one nearby, not the one across the country.
+      // `origin` makes Google return distance_meters per prediction.
+      const point = `${bias.lat},${bias.lng}`;
+      url.searchParams.set('location', point);
+      url.searchParams.set('radius', String(PLACES_BIAS_RADIUS_M));
+      url.searchParams.set('origin', point);
+    }
 
     const data = await this.getJson(url);
     const predictions = (data.predictions ?? []) as any[];
-    return predictions.map((p) => ({
-      placeId: p.place_id as string,
-      primaryText: p.structured_formatting?.main_text ?? p.description,
-      secondaryText: p.structured_formatting?.secondary_text ?? '',
-      description: p.description as string,
-    }));
+    return predictions.map((p) => {
+      const distance = Number(p.distance_meters);
+      return {
+        placeId: p.place_id as string,
+        primaryText: p.structured_formatting?.main_text ?? p.description,
+        secondaryText: p.structured_formatting?.secondary_text ?? '',
+        description: p.description as string,
+        ...(Number.isFinite(distance) ? { distanceM: Math.round(distance) } : {}),
+      };
+    });
   }
 
   async placeDetails(placeId: string): Promise<PlaceDetails> {

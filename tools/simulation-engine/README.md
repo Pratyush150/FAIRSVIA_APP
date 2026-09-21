@@ -1,4 +1,4 @@
-# UberNav Simulation Engine
+# Ride App Simulation Engine
 
 A structured, scenario-driven **simulation and load engine** that drives the real
 backend the way real users would: many riders and drivers as independent actors,

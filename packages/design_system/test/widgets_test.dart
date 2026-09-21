@@ -1,26 +1,15 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:design_system/design_system.dart';
+import 'package:design_system/src/widgets/map_styles.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 
 Widget _wrap(Widget child) => MaterialApp(
       theme: AppTheme.light,
       home: Scaffold(body: child),
     );
-
-/// A 1×1 transparent PNG, so tests render the map without hitting the network.
-final Uint8List _transparentPixel = base64Decode(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-);
-
-class _OfflineTileProvider extends TileProvider {
-  @override
-  ImageProvider getImage(TileCoordinates coordinates, TileLayer options) =>
-      MemoryImage(_transparentPixel);
-}
 
 void main() {
   group('PrimaryButton', () {
@@ -56,6 +45,23 @@ void main() {
   });
 
   group('OtpInput', () {
+    testWidgets('typing into a filled box replaces the digit', (tester) async {
+      String? value;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: OtpInput(length: 4, onChanged: (v) => value = v),
+        ),
+      ));
+      final fields = find.byType(TextField);
+      await tester.enterText(fields.at(3), '1');
+      await tester.pump();
+      expect(value, '1');
+      // Re-enter in the same (already filled) box: must overwrite, not drop.
+      await tester.enterText(fields.at(3), '19');
+      await tester.pump();
+      expect(value, '9');
+    });
+
     testWidgets('reports changes and fires onCompleted when all boxes filled',
         (tester) async {
       String? completed;
@@ -98,14 +104,13 @@ void main() {
   });
 
   group('AppMap', () {
-    testWidgets('renders the OSM map with pickup + dropoff markers',
+    testWidgets('composes a Google map with pickup + dropoff markers',
         (tester) async {
       await tester.pumpWidget(_wrap(SizedBox(
         width: 400,
         height: 600,
         child: AppMap(
           initialCenter: const LatLng(25.7743, -80.1937),
-          tileProvider: _OfflineTileProvider(),
           markers: const [
             AppMapMarker(
               point: LatLng(25.7743, -80.1937),
@@ -119,12 +124,100 @@ void main() {
         ),
       )));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
 
-      // AppMap composes a flutter_map and builds without throwing (offline
-      // tiles). Marker placement is flutter_map's own concern.
+      // AppMap builds a GoogleMap platform view without throwing. The native map
+      // only renders on-device, so this is a build smoke test, not a pixel test.
       expect(find.byType(AppMap), findsOneWidget);
-      expect(find.byType(FlutterMap), findsOneWidget);
+      expect(find.byType(gmaps.GoogleMap), findsOneWidget);
+      // Light theme gets the de-cluttered light basemap style.
+      final map = tester.widget<gmaps.GoogleMap>(find.byType(gmaps.GoogleMap));
+      expect(map.style, mapLightStyle);
+    });
+
+    // Regression: no style was ever applied, so the map stayed white in dark
+    // mode (light status-bar icons on a light map on iOS).
+    testWidgets('builds under the dark theme with the night basemap style',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.dark,
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 600,
+            child: AppMap(initialCenter: const LatLng(25.7743, -80.1937)),
+          ),
+        ),
+      ));
+      await tester.pump();
+
+      expect(find.byType(AppMap), findsOneWidget);
+      final map = tester.widget<gmaps.GoogleMap>(find.byType(gmaps.GoogleMap));
+      expect(map.style, mapNightStyle);
+    });
+
+    test('map styles are valid Google Maps style JSON arrays', () {
+      for (final style in [mapLightStyle, mapNightStyle]) {
+        final decoded = jsonDecode(style);
+        expect(decoded, isA<List<dynamic>>());
+        for (final rule in decoded as List<dynamic>) {
+          expect(rule, isA<Map<String, dynamic>>());
+          expect((rule as Map)['stylers'], isA<List<dynamic>>());
+        }
+      }
+    });
+
+    // Regression: the "recenter on my location" button was dead unless the GPS
+    // fix had moved — LatLng has value equality, so re-storing the same point
+    // was indistinguishable from no request (always the case with a mocked
+    // location). The sequence token makes every explicit request distinct.
+    group('recenterChanged', () {
+      const here = LatLng(25.7743, -80.1937);
+      AppMap map({LatLng? recenter, int seq = 0, List<LatLng>? fit}) => AppMap(
+            initialCenter: here,
+            recenter: recenter,
+            recenterSeq: seq,
+            fitBounds: fit,
+          );
+
+      test('same point with a bumped seq is a new request', () {
+        expect(
+          AppMap.recenterChanged(map(recenter: here), map(recenter: here, seq: 1)),
+          isTrue,
+        );
+      });
+
+      test('same point and same seq is not a request', () {
+        expect(
+          AppMap.recenterChanged(map(recenter: here), map(recenter: here)),
+          isFalse,
+        );
+      });
+
+      test('a moved point with the same seq still recenters (driver follow)',
+          () {
+        expect(
+          AppMap.recenterChanged(
+            map(recenter: here),
+            map(recenter: const LatLng(25.78, -80.2)),
+          ),
+          isTrue,
+        );
+      });
+
+      test('null recenter is never a request', () {
+        expect(AppMap.recenterChanged(map(), map(seq: 1)), isFalse);
+      });
+
+      test('suppressed while fitBounds frames two or more points', () {
+        const fit = [here, LatLng(25.78, -80.2)];
+        expect(
+          AppMap.recenterChanged(
+            map(recenter: here, fit: fit),
+            map(recenter: here, seq: 1, fit: fit),
+          ),
+          isFalse,
+        );
+      });
     });
   });
 

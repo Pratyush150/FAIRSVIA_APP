@@ -1,4 +1,5 @@
 import { PricingService } from './pricing.service';
+import { FARE_CONFIG } from './fare-config';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 describe('PricingService', () => {
@@ -27,6 +28,53 @@ describe('PricingService', () => {
     const est = pricing.estimateForTier('economy', 5000, 600, 2);
     expect(est.fare).toBeCloseTo(19.46, 2);
     expect(est.breakdown.surgeMultiplier).toBe(2);
+    // The base line carries the surge too — it is part of what is multiplied.
+    expect(est.breakdown.baseFare).toBeCloseTo(5, 2);
+    expect(est.breakdown.bookingFee).toBe(2);
+  });
+
+  /**
+   * The rider's "Details" list is these lines. If they don't add up to the
+   * price on the button, the app is showing them arithmetic that is wrong.
+   */
+  describe('the breakdown always sums to the quoted fare', () => {
+    const sum = (b: {
+      baseFare: number;
+      distanceFare: number;
+      timeFare: number;
+      bookingFee: number;
+      minimumFareAdjustment: number;
+    }) =>
+      Math.round(
+        (b.baseFare + b.distanceFare + b.timeFare + b.bookingFee +
+          b.minimumFareAdjustment) * 100,
+      ) / 100;
+
+    it.each([
+      ['a normal trip', 5000, 600, 1],
+      ['a surged trip', 5000, 600, 2],
+      ['an odd surge', 8321, 977, 1.7],
+      ['a minimum-fare trip', 100, 60, 1],
+      ['a surged minimum-fare trip', 100, 60, 1.3],
+      ['a zero-distance trip', 0, 0, 1],
+    ])('%s', (_label, distanceM, durationS, surge) => {
+      for (const tier of ['economy', 'comfort', 'xl', 'premium']) {
+        const est = pricing.estimateForTier(tier, distanceM, durationS, surge);
+        expect(sum(est.breakdown)).toBe(est.fare);
+      }
+    });
+
+    it('reports the shortfall as a minimum-fare line only when it applies', () => {
+      // Long trip: nothing to top up.
+      expect(
+        pricing.estimateForTier('economy', 20000, 1800, 1).breakdown
+          .minimumFareAdjustment,
+      ).toBe(0);
+      // 100 m / 60 s economy is floored from ~4.82 to 6.50.
+      const short = pricing.estimateForTier('economy', 100, 60, 1);
+      expect(short.fare).toBe(6.5);
+      expect(short.breakdown.minimumFareAdjustment).toBeGreaterThan(0);
+    });
   });
 
   it('returns an estimate for every tier', () => {
@@ -43,5 +91,11 @@ describe('PricingService', () => {
 
   it('rejects an unknown tier', () => {
     expect(() => pricing.estimateForTier('gold', 5000, 600)).toThrow();
+  });
+
+  it('exposes each tier minimum fare and rejects unknown tiers', () => {
+    expect(pricing.minFareFor('economy')).toBe(FARE_CONFIG.economy.minFare);
+    expect(pricing.minFareFor('premium')).toBe(FARE_CONFIG.premium.minFare);
+    expect(() => pricing.minFareFor('rocket')).toThrow(/Unknown tier/);
   });
 });

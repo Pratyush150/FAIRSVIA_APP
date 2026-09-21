@@ -1,17 +1,23 @@
-# admin_app
+# Ride App Admin
 
-A new Flutter project.
+Back-office admin panel for Ride App (ops, KYC/background-check review, fare/surge/promo
+config, refunds, live monitoring).
 
-## Getting Started
+## Platform targets — web + Android only (no iOS by design)
 
-This project is a starting point for a Flutter application.
+The admin app ships **`web/` and `android/` only — it has no `ios/` folder, intentionally.**
+It's an internal back-office tool used from a desktop browser (and, if needed, an Android
+device), so an iOS build is not a target. CI builds it via `flutter build web`
+(`.github/workflows/ci.yml`).
 
-A few resources to get you started if this is your first Flutter project:
+This is a deliberate exception to the repo-wide "keep iOS-ready" rule (CLAUDE.md §2),
+which applies to the customer-facing **rider** and **driver** apps. Those two keep full,
+committed `ios/` trees. If admin ever needs an iOS target, scaffold it with
+`flutter create --platforms=ios .` from this directory and commit the generated `ios/`.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Run
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter run -d chrome --dart-define=API_BASE_URL=http://192.168.1.48:3000/api/v1
+# or serve a built bundle:  tools/webserve.py 9090 build/web
+```

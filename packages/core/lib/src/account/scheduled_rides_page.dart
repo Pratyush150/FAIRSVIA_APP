@@ -22,7 +22,35 @@ class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
   // Bump to force AsyncContent to reload after a cancellation.
   int _reloadKey = 0;
 
-  Future<void> _cancel(BuildContext context, Trip trip) async {
+  // In-flight guard: a second tap while the POST is pending is ignored.
+  bool _cancelling = false;
+
+  Future<void> _cancel(Trip trip) async {
+    if (_cancelling) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel this scheduled ride?'),
+        content: Text(
+          trip.scheduledAt != null
+              ? 'Your ride on ${Fmt.dateTime(trip.scheduledAt!)} will be '
+                  'removed from your schedule.'
+              : 'This ride will be removed from your schedule.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep ride'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancel ride'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _cancelling) return;
+    setState(() => _cancelling = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
       await widget.trips.cancel(trip.id, reason: 'Cancelled by rider');
@@ -32,6 +60,8 @@ class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
       if (mounted) setState(() => _reloadKey++);
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
     }
   }
 
@@ -63,12 +93,19 @@ class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                trip.scheduledAt != null
-                    ? Fmt.dateTime(trip.scheduledAt!)
-                    : 'Scheduled',
+                [
+                  if (trip.scheduledAt != null)
+                    Fmt.dateTime(trip.scheduledAt!)
+                  else
+                    'Scheduled',
+                  Fmt.status(trip.tier),
+                  if (trip.fareEstimate != null)
+                    '${Fmt.money(trip.fareEstimate!, trip.currency)} est.',
+                ].join(' · '),
+                maxLines: 2,
               ),
               trailing: TextButton(
-                onPressed: () => _cancel(context, trip),
+                onPressed: _cancelling ? null : () => _cancel(trip),
                 child: const Text('Cancel'),
               ),
             );

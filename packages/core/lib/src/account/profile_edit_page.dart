@@ -72,7 +72,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               ),
               validator: (v) {
                 final t = (v ?? '').trim();
-                if (t.isNotEmpty && t.length < 2) return 'Name is too short';
+                if (t.isEmpty) return 'Enter your name';
+                if (t.length < 2) return 'Name is too short';
                 if (t.length > 120) return 'Name is too long';
                 return null;
               },

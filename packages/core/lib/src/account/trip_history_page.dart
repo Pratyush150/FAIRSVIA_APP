@@ -72,7 +72,11 @@ class _TripTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final completed = trip.status == TripStatus.completed;
-    final fare = trip.fareDisplay;
+    // A cancelled ride was never charged its estimate; only show an amount if
+    // a final fare (cancellation fee) was actually settled.
+    final fare = trip.status == TripStatus.cancelled
+        ? trip.fareFinal
+        : trip.fareDisplay;
     return ListTile(
       onTap: completed ? onTap : null,
       leading: CircleAvatar(
@@ -85,7 +89,9 @@ class _TripTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        '${Fmt.dateTime(trip.completedAt ?? trip.requestedAt)} · '
+        // A scheduled ride is remembered by when it was booked for, not by
+        // the moment the rider tapped Schedule.
+        '${Fmt.dateTime(trip.completedAt ?? trip.scheduledAt ?? trip.requestedAt)} · '
         '${Fmt.status(_snake(trip.status))}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,

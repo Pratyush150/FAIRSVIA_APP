@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:geolocator/geolocator.dart';
 
 /// Dev/testing override. Build with `--dart-define=MOCK_LOCATION=<lat>,<lng>`
@@ -21,18 +22,96 @@ const String _mockLocation = String.fromEnvironment('MOCK_LOCATION');
   return (lat: lat, lng: lng);
 }
 
-/// Ensures location permission and returns a position stream for the driver's
-/// live location while online.
-Future<bool> ensureLocationPermission() async {
-  if (_mockPoint != null) return true; // dev override — no device GPS needed
-  if (!await Geolocator.isLocationServiceEnabled()) return false;
+/// Outcome of a location-access check. Anything but [granted] means the driver
+/// must NOT be flipped online: they'd look online but never stream GPS, so they
+/// never enter the dispatch geo index and never receive an offer.
+enum LocationAccess {
+  granted,
+
+  /// Permission granted but iOS 14+/Android 12+ "Precise Location" is off:
+  /// fixes are ~1–5 km off, useless for dispatch, pickup and metering.
+  reduced,
+
+  /// Permission denied this time; the OS may ask again on the next attempt.
+  denied,
+
+  /// Permanently denied — only the app's Settings page can restore it.
+  deniedForever,
+
+  /// Device location services are switched off system-wide.
+  servicesOff,
+}
+
+/// Signature for the pre-online location check, injectable into the cubit so
+/// tests can stub it without touching the geolocator plugin.
+typedef LocationAccessCheck = Future<LocationAccess> Function();
+
+/// Checks (and, if merely "denied", requests) location access. Call BEFORE
+/// going online so a driver without GPS never ends up online-but-invisible.
+Future<LocationAccess> checkLocationAccess() async {
+  if (_mockPoint != null) return LocationAccess.granted; // dev override
+  // Browser geolocation needs HTTPS and isn't available in the web preview;
+  // going online there is UI-only (streaming is skipped by the page).
+  if (kIsWeb) return LocationAccess.granted;
+  if (!await Geolocator.isLocationServiceEnabled()) {
+    return LocationAccess.servicesOff;
+  }
   var permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) {
     permission = await Geolocator.requestPermission();
   }
-  return permission == LocationPermission.always ||
-      permission == LocationPermission.whileInUse;
+  switch (permission) {
+    case LocationPermission.always:
+    case LocationPermission.whileInUse:
+      return _preciseOrReduced();
+    case LocationPermission.deniedForever:
+      return LocationAccess.deniedForever;
+    case LocationPermission.denied:
+    case LocationPermission.unableToDetermine:
+      return LocationAccess.denied;
+  }
 }
+
+/// iOS 14+ / Android 12+: the user may have granted only approximate
+/// location. Ask once for temporary full accuracy (needs the
+/// NSLocationTemporaryUsageDescriptionDictionary "PreciseRide" purpose key);
+/// if it is still reduced, going online must be refused.
+Future<LocationAccess> _preciseOrReduced() async {
+  try {
+    var acc = await Geolocator.getLocationAccuracy();
+    if (acc == LocationAccuracyStatus.reduced) {
+      acc = await Geolocator.requestTemporaryFullAccuracy(
+        purposeKey: 'PreciseRide',
+      );
+    }
+    if (acc == LocationAccuracyStatus.reduced) return LocationAccess.reduced;
+  } catch (_) {
+    // Platforms without the API (older OS, web) report full accuracy.
+  }
+  return LocationAccess.granted;
+}
+
+/// User-facing explanation for a failed [checkLocationAccess].
+String locationAccessMessage(LocationAccess access) {
+  switch (access) {
+    case LocationAccess.granted:
+      return '';
+    case LocationAccess.reduced:
+      return 'Precise Location is off. Turn it on in Settings so riders can '
+          'find you and trips are metered correctly';
+    case LocationAccess.servicesOff:
+      return 'Turn on location services to go online';
+    case LocationAccess.deniedForever:
+      return 'Location permission is off. Allow it in Settings to go online';
+    case LocationAccess.denied:
+      return 'Location permission is required to go online';
+  }
+}
+
+/// Ensures location permission and returns a position stream for the driver's
+/// live location while online.
+Future<bool> ensureLocationPermission() async =>
+    await checkLocationAccess() == LocationAccess.granted;
 
 Position _mockPositionAt(double lat, double lng, {double heading = 90}) =>
     Position(
@@ -58,17 +137,22 @@ double _simHeading = 90;
 
 List<({double lat, double lng})> _simPath = const [];
 int _simIdx = 0;
-double _simSpeedMps = 14; // ~50 km/h — brisk city driving
+/// Dev/demo override for the simulated car's speed in m/s (mock mode only):
+/// `--dart-define=SIM_SPEED_MPS=20`. Defaults to ~50 km/h city driving.
+const String _simSpeedEnv = String.fromEnvironment('SIM_SPEED_MPS');
+final double _defaultSimSpeedMps = double.tryParse(_simSpeedEnv) ?? 14;
+double _simSpeedMps = _defaultSimSpeedMps;
 
-/// Drive along [path] (road geometry) at [speedMps]. Replaces any current path.
+/// Drive along [path] (road geometry) at [speedMps] (default: SIM_SPEED_MPS or
+/// ~50 km/h). Replaces any current path.
 void driveSimulatedPath(
   List<({double lat, double lng})> path, {
-  double speedMps = 14,
+  double? speedMps,
 }) {
   if (_mockPoint == null || path.length < 2) return;
   _simPath = path;
   _simIdx = 0;
-  _simSpeedMps = speedMps;
+  _simSpeedMps = speedMps ?? _defaultSimSpeedMps;
   _simCurrent = path.first;
 }
 
@@ -159,11 +243,11 @@ Stream<Position> driverPositionStream() {
 LocationSettings _platformLocationSettings() {
   if (Platform.isAndroid) {
     return AndroidSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 5,
       forceLocationManager: false,
       foregroundNotificationConfig: const ForegroundNotificationConfig(
-        notificationTitle: 'UberNav Driver — online',
+        notificationTitle: 'FairsVia Driver — online',
         notificationText: 'Sharing your location so riders can track the ride.',
         enableWakeLock: true,
         setOngoing: true,
@@ -172,8 +256,8 @@ LocationSettings _platformLocationSettings() {
   }
   if (Platform.isIOS) {
     return AppleSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 5,
       // Keeps iOS delivering updates in the background (paired with the
       // UIBackgroundModes:location entitlement in Info.plist).
       allowBackgroundLocationUpdates: true,

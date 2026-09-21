@@ -1,4 +1,4 @@
-# UberNav — Working Rules
+# Ride App — Working Rules
 
 These are binding operating rules for any AI/engineering work in this repo. They
 override default behavior. Established by the project owner (Sai Kishore).

@@ -11,6 +11,7 @@ export 'src/auth/auth_repository.dart';
 export 'src/auth/bloc/auth_bloc.dart';
 export 'src/auth/presentation/phone_entry_page.dart';
 export 'src/auth/presentation/otp_page.dart';
+export 'src/auth/presentation/name_setup_page.dart';
 export 'src/realtime/realtime_client.dart';
 export 'src/driver/driver_remote_data_source.dart';
 export 'src/trip/places_remote_data_source.dart';
@@ -22,6 +23,7 @@ export 'src/router/app_router.dart';
 export 'src/di/injector.dart';
 export 'src/debug/error_overlay.dart';
 // Account feature: profile hub + history/receipt/places/payments/earnings.
+export 'src/account/format.dart';
 export 'src/account/users_remote_data_source.dart';
 export 'src/account/account_menu_page.dart';
 export 'src/account/trip_history_page.dart';
@@ -45,3 +47,6 @@ export 'src/chat/chat_page.dart';
 // Safety toolkit (SOS).
 export 'src/safety/safety_remote_data_source.dart';
 export 'src/safety/safety_sheet.dart';
+export 'src/util/navigation_launcher.dart';
+export 'src/network/auth_interceptor.dart';
+export 'src/navigation/external_nav.dart';

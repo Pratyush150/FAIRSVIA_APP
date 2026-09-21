@@ -2,7 +2,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_models/shared_models.dart';
 
-/// Shows how UberNav's fare for this trip compares to modeled Uber / Lyft /
+/// Shows how FairsVia's fare for this trip compares to modeled Uber / Lyft /
 /// Empower prices, with the minimum-price provider flagged. Competitor prices
 /// are estimates (from published rate cards), which the card states plainly.
 class PriceComparisonCard extends StatelessWidget {
@@ -82,7 +82,7 @@ class PriceComparisonCard extends StatelessWidget {
           for (final q in c.quotes) _QuoteRow(quote: q, money: _money),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Uber, Lyft and Empower prices are estimates from published rates, '
+            'Other services’ prices are estimates from published rates, '
             'not live quotes.',
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -156,7 +156,9 @@ class _QuoteRow extends StatelessWidget {
           Text(
             // Competitor estimates show a range (they're modeled, not exact);
             // our own fare shows a single precise number.
-            quote.isOurs || !quote.hasRange
+            quote.isOurs ||
+                    !quote.hasRange ||
+                    quote.priceLow.round() == quote.priceHigh.round()
                 ? money(quote.price)
                 : '\$${quote.priceLow.round()}–\$${quote.priceHigh.round()}',
             style: theme.textTheme.bodyMedium?.copyWith(

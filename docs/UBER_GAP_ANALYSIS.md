@@ -1,6 +1,6 @@
-# UberNav vs Uber — Feature Gap Analysis
+# Ride App vs Uber — Feature Gap Analysis
 
-A page-by-page / capability-by-capability comparison of **UberNav** (this repo) against
+A page-by-page / capability-by-capability comparison of **Ride App** (this repo) against
 the real **Uber** rider + driver + operations product. Purpose: a living checklist of
 what's built, what's partial, and what's left — so we can prioritise UI and features
 deliberately.
@@ -20,7 +20,7 @@ deliberately.
 
 ## TL;DR — the shape of the gap
 
-UberNav has a **genuinely complete core ride loop** — request → dynamic-tier fare +
+Ride App has a **genuinely complete core ride loop** — request → dynamic-tier fare +
 surge → expanding-ring dispatch with re-sweep → live tracking with road-following
 approach route → OTP start → odometer-metered fare → payment split → two-way rating +
 tip → receipt — plus a real admin ops console. Architecturally it's production-shaped
@@ -46,7 +46,7 @@ by default).
 # Part A — Rider journey (page by page)
 
 ## A1. Onboarding & Auth
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Phone + SMS OTP | 🔌 | Flow ✅; **SMS is mocked** (Twilio impl exists, `SMS_PROVIDER=twilio` to enable). Dev code echoed on screen. |
 | Name + email at signup | ❌ | Only phone captured at signup; name/email edited later in profile. |
@@ -57,7 +57,7 @@ by default).
 | Rider vs driver signup path | 🟡 | Single app-per-role; role is backend-assigned, no in-app "become a driver". |
 
 ## A2. Home screen
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Map + "Where to?" | ✅ | Real OSM tiles, draggable sheet, search pill. |
 | Saved-place shortcuts (Home/Work) | ✅ | Quick-pick rows start a ride in one tap. |
@@ -66,7 +66,7 @@ by default).
 | Nearby-driver dots + ETA on home | ❌ | No idle "cars near you" preview. |
 
 ## A3. Destination & pickup
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Destination autocomplete | ✅ | Debounced backend Places (OSM Nominatim / Google). |
 | Set location on map | ❌ | No "set pickup/drop on map" pin drag. |
@@ -77,7 +77,7 @@ by default).
 | Venue/airport pickup points | ❌ | No curated pickup zones. |
 
 ## A4. Product / ride selection
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Multiple tiers w/ price + ETA + capacity | ✅ | economy/comfort/xl/premium, backend-driven, seats + "min away" + fare. |
 | Upfront pricing + surge indicator | ✅ | Surge banner when multiplier > 1 (capped 2.0×). |
@@ -89,14 +89,14 @@ by default).
 | Pool / shared ride tier | ❌ | Solo rides only; no rider-to-rider matching. |
 
 ## A5. Booking confirmation
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Confirm pickup pin | ❌ | No confirm-pickup step (pickup fixed). |
 | Driver notes / requirements | ❌ | None. |
 | Confirm & request | ✅ | Creates trip (tier/promo/payment/schedule/stops). |
 
 ## A6. Matching / finding a driver
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Finding-driver animation | ✅ | Custom pulse-radar. |
 | Cancel while searching | ✅ | Backend cancel. |
@@ -104,7 +104,7 @@ by default).
 | "No cars available" recovery | 🟡 | `no_drivers` event exists; rider-side retry/upsell UI is minimal (see task #69). |
 
 ## A7. Driver en route
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Live driver tracking on map | ✅ | Marker + **road-following approach route** (driver→pickup), camera frames the leg. |
 | ETA to pickup | 🟡 | "min away" shown on selection; no live-updating countdown card. |
@@ -117,7 +117,7 @@ by default).
 | Cancel w/ fee preview | 🟡 | Cancel ✅; fee is charged server-side (only after accept/arrive) but no explicit fee-preview UI. |
 
 ## A8. On trip
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Live route + ETA | ✅ | Trip route drawn; driver position streamed. |
 | Safety toolkit access | 🟡 | Shield → safety sheet (see A13). |
@@ -126,7 +126,7 @@ by default).
 | In-trip chat | ✅ | Yes. |
 
 ## A9. Trip completion
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Fare breakdown + receipt | ✅ | Fare + tip + total; cash-due note; odometer-based final fare. |
 | Rate driver (stars) | ✅ | 1–5, one per trip. |
@@ -137,7 +137,7 @@ by default).
 | **Rebook this trip** | ❌ | History is view-only → receipt; no one-tap rebook. |
 
 ## A10. Activity / history
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Past trips list | ✅ | `/trips/history`, tap → receipt. |
 | Receipt detail | ✅ | Fare breakdown, refund line, driver payout view. |
@@ -145,7 +145,7 @@ by default).
 | Email receipt | ❌ | No email system at all. |
 
 ## A11. Account & profile
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Account hub | ✅ | Role-aware `AccountMenuPage`. |
 | Edit profile | 🟡 | **Name + email only**; phone read-only; **no photo**, no emergency contacts. |
@@ -154,7 +154,7 @@ by default).
 | Manage devices / sessions | 🟡 | Device push token register/unregister exists (backend); no UI to manage sessions. |
 
 ## A12. Wallet & payments
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Add/list cards | 🟡 🔌 | Add card is **brand + last-4 mock** (no real PAN/tokenization); Stripe impl exists but off. |
 | Set default / delete card | ❌ | Neither. |
@@ -165,7 +165,7 @@ by default).
 | Payment history | ✅ | Via trip receipts. |
 
 ## A13. Safety
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Safety toolkit entry (rider) | 🟡 | Shield button → safety sheet. |
 | Emergency 911/112 button | 🟡 | Emergency number **displayed**, not auto-dialled. |
@@ -177,7 +177,7 @@ by default).
 | PIN verification | ✅ | Start OTP serves this role. |
 
 ## A14. Help & support
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Support tickets + threads | ✅ | Create (6 categories), reply, status flow. |
 | Help center articles / FAQ | ❌ | No knowledge base. |
@@ -185,14 +185,14 @@ by default).
 | Live chat with agent | 🟡 | Ticket threads only (async), no live agent chat. |
 
 ## A15. Promotions & loyalty
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Promo codes | ✅ | Flat/percent, min-subtotal, global + per-user limits, race-safe redemption. |
 | **Invite friends / referrals** | ❌ | None. |
 | **Uber One / membership / rewards** | ❌ | Only one-off codes; no subscription/loyalty. |
 
 ## A16. Notifications
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | In-app inbox | ✅ | Persisted, unread badge, mark-read/all. |
 | **Push (FCM/APNs)** | ❌ | **Mocked — no real provider wired** (falls back to mock even with a key). |
@@ -203,7 +203,7 @@ by default).
 # Part B — Driver journey
 
 ## B1. Onboarding / KYC
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Vehicle details | 🟡 | Make, model, plate, tier (color optional, not in dialog). |
 | **Document upload** (license, insurance, registration) | ❌ | No document UI. |
@@ -213,7 +213,7 @@ by default).
 | Bank / payout onboarding | ❌ | No Stripe Connect onboarding. |
 
 ## B2. Going online / earning mode
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Go online/offline | ✅ | REST + socket, reconnect re-announce. |
 | Online gate on verification | ✅ | Requires `docsVerified` (auto in dev). |
@@ -221,7 +221,7 @@ by default).
 | **Destination filter / trip planner** | ❌ | None. |
 
 ## B3. Receiving & handling trips
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Offer card w/ countdown | ✅ | Fare, miles, pickup, timer, haptics, auto-decline. |
 | **Dropoff / rider rating on offer** | ❌ | Offer shows pickup + fare + distance only. |
@@ -231,13 +231,13 @@ by default).
 | In-trip chat | ✅ | Yes. |
 
 ## B4. Navigation
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Turn-by-turn / nav handoff (Google/Waze) | ❌ | No navigation; driver sees map only. |
 | Mid-trip re-route / ETA | ❌ | None. |
 
 ## B5. Earnings & payouts
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Earnings today/week | ✅ | Total, trips, avg/trip. |
 | Payout ledger | ✅ | Signed entries (earning/tip/commission/withdrawal). |
@@ -245,20 +245,20 @@ by default).
 | Weekly statements / tax docs (1099) | ❌ | None. |
 
 ## B6. Incentives
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | **Quests / boosts / streaks** | ❌ | No driver incentive engine. |
 | Surge zones for drivers | 🟡 | Surge engine exists (pricing) but no driver-facing heatmap. |
 
 ## B7. Ratings & account
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | Rating average | ✅ | Running avg. |
 | Acceptance / cancellation rates | ❌ | Not tracked/shown. |
 | Pro / tiers / rewards | ❌ | None. |
 
 ## B8. Driver safety & support
-| Uber has | UberNav | Notes / gap |
+| Uber has | Ride App | Notes / gap |
 |---|---|---|
 | **Driver SOS / safety toolkit** | ❌ | **Driver has no safety button** (rider does). |
 | Support tickets | ✅ | Shared support system. |
@@ -269,7 +269,7 @@ by default).
 
 Existing tabs (Flutter web): **Overview, Trips, Users, Drivers, Monitoring, Live, Support** — all functional (live tabs auto-refresh 6 s).
 
-| Uber ops has | UberNav | Notes / gap |
+| Uber ops has | Ride App | Notes / gap |
 |---|---|---|
 | Headline metrics | ✅ | Users, drivers, online, active/completed trips, gross + platform revenue. |
 | Trip management + refunds | ✅ | List + partial/full refund. |

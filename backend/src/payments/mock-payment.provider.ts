@@ -48,10 +48,15 @@ export class MockPaymentProvider implements PaymentProvider {
     return { intentId, status: 'captured' };
   }
 
-  async refund(intentId: string, amount?: number): Promise<void> {
+  async refund(
+    intentId: string,
+    amount?: number,
+    _idempotencyKey?: string,
+  ): Promise<string> {
     this.logger.log(
       `refund ${intentId}${amount != null ? ` amount=${amount}` : ' (full)'}`,
     );
+    return `mock_re_${randomUUID()}`;
   }
 
   async createCustomer(params: CustomerParams): Promise<string> {

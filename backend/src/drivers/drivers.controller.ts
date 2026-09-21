@@ -27,7 +27,7 @@ export class DriversController {
 
   @Get('me')
   me(@CurrentUser() user: AuthUser) {
-    return this.drivers.getProfile(user.userId);
+    return this.drivers.getProfileWithPresence(user.userId);
   }
 
   @Post('status')

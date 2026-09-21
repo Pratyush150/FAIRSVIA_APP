@@ -20,6 +20,16 @@ class InboxPage extends StatefulWidget {
 
 class _InboxPageState extends State<InboxPage> {
   int _reloadKey = 0;
+  // Whether the loaded list has anything to mark; drives the app-bar action.
+  bool _hasUnread = false;
+
+  void _noteUnread(List<InboxNotification> list) {
+    final unread = list.any((n) => !n.read);
+    if (unread == _hasUnread) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _hasUnread = unread);
+    });
+  }
 
   Future<void> _markAll(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -37,11 +47,12 @@ class _InboxPageState extends State<InboxPage> {
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.done_all),
-            tooltip: 'Mark all read',
-            onPressed: () => _markAll(context),
-          ),
+          if (_hasUnread)
+            IconButton(
+              icon: const Icon(Icons.done_all),
+              tooltip: 'Mark all read',
+              onPressed: () => _markAll(context),
+            ),
         ],
       ),
       body: AsyncContent<List<InboxNotification>>(
@@ -51,7 +62,9 @@ class _InboxPageState extends State<InboxPage> {
         emptyIcon: Icons.notifications_none,
         emptyTitle: 'No notifications',
         emptyMessage: 'Trip updates and alerts will show up here.',
-        builder: (context, list, _) => ListView.separated(
+        builder: (context, list, _) {
+          _noteUnread(list);
+          return ListView.separated(
           itemCount: list.length,
           separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, i) {
@@ -76,7 +89,8 @@ class _InboxPageState extends State<InboxPage> {
                   : null,
             );
           },
-        ),
+        );
+        },
       ),
     );
   }

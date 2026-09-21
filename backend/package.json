@@ -1,7 +1,7 @@
 {
   "name": "ubernav-backend",
   "version": "0.1.0",
-  "description": "UberNav ride-hailing backend (NestJS modular monolith)",
+  "description": "FairsVia ride-hailing backend (NestJS modular monolith)",
   "private": true,
   "scripts": {
     "build": "nest build",
@@ -26,6 +26,7 @@
     "@nestjs/passport": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/platform-socket.io": "^11.0.0",
+    "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.0.0",
     "@prisma/client": "^6.3.0",
     "@socket.io/redis-adapter": "^8.3.0",

@@ -1,4 +1,4 @@
-# UberNav developer entry points. Run `make help` for the list.
+# Ride App developer entry points. Run `make help` for the list.
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 

@@ -11,7 +11,16 @@ import '../bloc/auth_bloc.dart';
 /// name yet. Captures the rider/driver's name (email optional), saves it, and
 /// refreshes the session user so the router advances to home.
 class NameSetupPage extends StatefulWidget {
-  const NameSetupPage({super.key});
+  const NameSetupPage({super.key, this.subtitle = riderSubtitle});
+
+  /// Default copy, written for riders.
+  static const riderSubtitle = 'So your driver knows who to look for.';
+
+  /// Copy for the driver app, which should pass this explicitly.
+  static const driverSubtitle = "So riders know who's picking them up.";
+
+  /// The line under "What's your name?". Defaults to the rider wording.
+  final String subtitle;
 
   @override
   State<NameSetupPage> createState() => _NameSetupPageState();
@@ -73,7 +82,7 @@ class _NameSetupPageState extends State<NameSetupPage> {
                   style: theme.textTheme.displaySmall),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                'So your driver knows who to look for.',
+                widget.subtitle,
                 style: theme.textTheme.bodyLarge
                     ?.copyWith(color: AppColors.textSecondaryLight),
               ),
@@ -83,10 +92,13 @@ class _NameSetupPageState extends State<NameSetupPage> {
                 autofocus: true,
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
+                // Backend limit; capping here avoids the raw validator text.
+                maxLength: 120,
                 style: theme.textTheme.titleMedium,
                 decoration: const InputDecoration(
                   labelText: 'Full name',
                   hintText: 'Alex Rivera',
+                  counterText: '',
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),

@@ -85,6 +85,38 @@ class ConnectStatus {
       );
 }
 
+/// The driver's own profile row (`GET /drivers/me`).
+class DriverProfile {
+  const DriverProfile({
+    required this.status,
+    required this.vehicleMake,
+    required this.vehicleModel,
+    required this.plateNumber,
+    required this.vehicleTier,
+    required this.docsVerified,
+    this.vehicleColor,
+  });
+
+  factory DriverProfile.fromJson(Map<String, dynamic> j) => DriverProfile(
+        status: j['status'] as String? ?? 'offline',
+        vehicleMake: j['vehicleMake'] as String? ?? '',
+        vehicleModel: j['vehicleModel'] as String? ?? '',
+        vehicleColor: j['vehicleColor'] as String?,
+        plateNumber: j['plateNumber'] as String? ?? '',
+        vehicleTier: j['vehicleTier'] as String? ?? 'economy',
+        docsVerified: j['docsVerified'] as bool? ?? false,
+      );
+
+  /// Server-side presence: 'online' | 'offline' | 'on_trip'.
+  final String status;
+  final String vehicleMake;
+  final String vehicleModel;
+  final String? vehicleColor;
+  final String plateNumber;
+  final String vehicleTier;
+  final bool docsVerified;
+}
+
 /// REST calls for the driver flow (status, onboarding, trip lifecycle, earnings).
 class DriverRemoteDataSource {
   DriverRemoteDataSource(this._dio);
@@ -107,6 +139,13 @@ class DriverRemoteDataSource {
           'vehicleColor': ?vehicleColor,
           'licenseNo': ?licenseNo,
         }));
+  }
+
+  /// Own profile incl. the server's view of our presence.
+  Future<DriverProfile> me() async {
+    final res =
+        await _guard(() => _dio.get<Map<String, dynamic>>('/drivers/me'));
+    return DriverProfile.fromJson(res.data ?? const {});
   }
 
   Future<void> setStatus(String status) =>

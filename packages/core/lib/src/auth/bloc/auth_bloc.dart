@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:shared_models/shared_models.dart';
@@ -11,7 +13,11 @@ part 'auth_state.dart';
 /// Drives the phone-OTP login flow and holds the authenticated user.
 /// Shared by all three apps; each app only supplies the post-login UI.
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc(this._repository) : super(const AuthState()) {
+  /// [sessionExpired] is the network layer's "refresh failed, tokens cleared"
+  /// signal (see `DioClient.sessionExpired`); each tick becomes an
+  /// [AuthSessionExpired] event.
+  AuthBloc(this._repository, {Stream<void>? sessionExpired})
+      : super(const AuthState()) {
     on<AuthStarted>(_onStarted);
     on<AuthOtpRequested>(_onOtpRequested);
     on<AuthOtpSubmitted>(_onOtpSubmitted);
@@ -20,9 +26,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       (event, emit) => emit(state.copyWith(user: event.user)),
     );
     on<AuthSignedOut>(_onSignedOut);
+    on<AuthSessionExpired>(_onSessionExpired);
+    _sessionExpiredSub =
+        sessionExpired?.listen((_) => add(const AuthSessionExpired()));
   }
 
   final AuthRepository _repository;
+  StreamSubscription<void>? _sessionExpiredSub;
+
+  @override
+  Future<void> close() async {
+    await _sessionExpiredSub?.cancel();
+    return super.close();
+  }
 
   Future<void> _onStarted(AuthStarted event, Emitter<AuthState> emit) async {
     final user = await _repository.restoreSession();
@@ -83,6 +99,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     await _repository.signOut();
+    emit(const AuthState(status: AuthStatus.unauthenticated));
+  }
+
+  void _onSessionExpired(AuthSessionExpired event, Emitter<AuthState> emit) {
+    // Only a signed-in session can expire. During sign-in (codeSent) a stray
+    // 401 must not bounce the user off the OTP screen.
+    if (state.status != AuthStatus.authenticated) return;
     emit(const AuthState(status: AuthStatus.unauthenticated));
   }
 }

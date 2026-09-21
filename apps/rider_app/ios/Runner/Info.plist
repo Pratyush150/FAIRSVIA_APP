@@ -2,8 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>GMSApiKey</key>
+	<string>$(MAPS_API_KEY)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>UberNav uses your location to set your pickup point and show your ride on the map.</string>
+	<string>FairsVia uses your location to set your pickup point and show your ride on the map.</string>
+	<!-- iOS 14+ "Precise Location": when the rider granted only approximate
+	     location, the app asks once for temporary full accuracy under this
+	     purpose key (LocationService.preciseRidePurposeKey). -->
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>PreciseRide</key>
+		<string>Your precise location sets the exact pickup point so your driver finds you.</string>
+	</dict>
 	<!-- Android sets usesCleartextTraffic=true; ATS is the iOS equivalent. Allows
 	     the HTTP dev/LAN backend (http://192.168.x). Cloudflare builds use HTTPS
 	     and don't need this; tighten to HTTPS-only for App Store release. -->
@@ -14,11 +24,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>fetch</string>
-		<string>remote-notification</string>
-	</array>
+	<!-- No UIBackgroundModes: the rider app uses foreground location only and has
+	     no push (FCM is server-side mock), so it declares no background modes. -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>https</string>
@@ -33,7 +40,7 @@
 			<string>in.novarobotics.ubernav.rider</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>ubernav</string>
+				<string>fairsvia-rider</string>
 			</array>
 		</dict>
 	</array>
@@ -42,7 +49,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Rider App</string>
+	<string>FairsVia Rider</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -50,7 +57,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>rider_app</string>
+	<string>FairsVia Rider</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -91,8 +98,6 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>

@@ -1,9 +1,36 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../network/api_exception.dart';
 import 'safety_remote_data_source.dart';
+
+/// `tel:` URI for [phone], keeping only digits and a leading `+` so a number
+/// formatted for display ("+1 (305) 555-0123") still dials.
+Uri phoneCallUri(String phone) {
+  final trimmed = phone.trim();
+  final digits = trimmed.replaceAll(RegExp(r'[^0-9]'), '');
+  final plus = trimmed.startsWith('+') ? '+' : '';
+  return Uri(scheme: 'tel', path: '$plus$digits');
+}
+
+/// Opens the phone dialler for [phone] (the rider's "Call driver" / the
+/// driver's "Call rider"). Returns false when the number is unusable or the
+/// device has no dialler (tablets, simulators); the caller can then fall back
+/// to a message. [launch] is injectable for tests.
+Future<bool> dialPhone(
+  String phone, {
+  Future<bool> Function(Uri uri)? launch,
+}) async {
+  final uri = phoneCallUri(phone);
+  if (uri.path.replaceAll('+', '').isEmpty) return false;
+  try {
+    return await (launch ?? launchUrl)(uri);
+  } catch (_) {
+    return false;
+  }
+}
 
 /// Opens the safety bottom sheet for an active trip.
 Future<void> showSafetySheet(
@@ -69,10 +96,48 @@ class _SafetySheetState extends State<_SafetySheet> {
     }
   }
 
+  /// Place an emergency call to 911 via the device dialler. If the platform
+  /// can't open the dialler (e.g. a tablet with no phone), copy the number so
+  /// the rider can still call from another device.
+  Future<void> _call911() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final uri = Uri(scheme: 'tel', path: '911');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (_) {
+      // fall through to the copy fallback
+    }
+    await Clipboard.setData(const ClipboardData(text: '911'));
+    if (mounted) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Dial 911 — number copied')),
+      );
+    }
+  }
+
+  /// Share live trip status. Opens the messaging app with the details pre-filled
+  /// (rider picks a contact and sends), falling back to copying to the clipboard
+  /// if no SMS app can be opened.
   Future<void> _shareTrip() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final sms = Uri(
+        scheme: 'sms',
+        queryParameters: {'body': widget.shareText},
+      );
+      if (await canLaunchUrl(sms)) {
+        await launchUrl(sms, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (_) {
+      // fall through to the clipboard fallback
+    }
     await Clipboard.setData(ClipboardData(text: widget.shareText));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Trip details copied — paste to share')),
       );
     }
@@ -95,33 +160,37 @@ class _SafetySheetState extends State<_SafetySheet> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          // Emergency call — prominent. (Dialling is device-native; we surface
-          // the number so the rider can call immediately.)
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.12),
+          // Emergency call — prominent and tap-to-dial (opens the device
+          // dialler on 911).
+          Material(
+            color: AppColors.error.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(AppSpacing.radius),
+            child: InkWell(
+              onTap: _call911,
               borderRadius: BorderRadius.circular(AppSpacing.radius),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.call, color: AppColors.error),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Emergency services',
-                          style: theme.textTheme.titleMedium),
-                      Text('Call 911 for immediate help',
-                          style: theme.textTheme.bodyMedium),
-                    ],
-                  ),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Row(
+                  children: [
+                    const Icon(Icons.call, color: AppColors.error),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Emergency services',
+                              style: theme.textTheme.titleMedium),
+                          Text('Tap to call 911 for immediate help',
+                              style: theme.textTheme.bodyMedium),
+                        ],
+                      ),
+                    ),
+                    Text('911',
+                        style: theme.textTheme.headlineSmall
+                            ?.copyWith(color: AppColors.error)),
+                  ],
                 ),
-                Text('911',
-                    style: theme.textTheme.headlineSmall
-                        ?.copyWith(color: AppColors.error)),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -145,7 +214,7 @@ class _SafetySheetState extends State<_SafetySheet> {
             )
           else
             PrimaryButton(
-              label: 'Alert UberNav Safety',
+              label: 'Alert FairsVia Safety',
               loading: _alerting,
               onPressed: _alerting ? null : _alert,
             ),

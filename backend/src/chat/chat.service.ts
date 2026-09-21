@@ -1,9 +1,12 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { TripStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
@@ -13,6 +16,17 @@ import { RealtimeService } from '../realtime/realtime.service';
 const MAX_LEN = 500;
 const HISTORY_CAP = 200;
 const TTL_SECONDS = 24 * 60 * 60;
+/** Chat stays open this long after the trip completes (lost item, etc.). */
+export const POST_COMPLETION_GRACE_MS = 15 * 60 * 1000;
+/** Trip states in which the rider and driver are actually paired. */
+const CHAT_OPEN_STATUSES: ReadonlySet<TripStatus> = new Set([
+  TripStatus.accepted,
+  TripStatus.arrived,
+  TripStatus.in_progress,
+]);
+/** Per-sender send limit: a fixed window of RATE_LIMIT messages per RATE_WINDOW_S. */
+const RATE_LIMIT = 10;
+const RATE_WINDOW_S = 10;
 
 export interface ChatMessage {
   id: string;
@@ -44,6 +58,10 @@ export class ChatService {
     if (!clean) throw new BadRequestException('Message cannot be empty');
 
     const trip = await this.participantTrip(senderId, tripId);
+    if (!this.isChatOpen(trip)) {
+      throw new ForbiddenException('Chat is closed for this trip');
+    }
+    await this.assertSendAllowance(senderId);
 
     const msg: ChatMessage = {
       id: randomUUID(),
@@ -54,9 +72,11 @@ export class ChatService {
     };
 
     const key = RedisKeys.tripChat(tripId);
-    await this.redis.client.rpush(key, JSON.stringify(msg));
+    const length = await this.redis.client.rpush(key, JSON.stringify(msg));
     await this.redis.client.ltrim(key, -HISTORY_CAP, -1);
-    await this.redis.client.expire(key, TTL_SECONDS);
+    // Set the TTL once, when the list is created (rpush returned length 1), so
+    // a chatty thread can't keep itself alive forever.
+    if (length === 1) await this.redis.client.expire(key, TTL_SECONDS);
 
     // Deliver to both parties (the sender's echo confirms delivery).
     this.realtime.emitToUser(trip.riderId, 'trip:message', msg);
@@ -71,11 +91,38 @@ export class ChatService {
     return raw.map((r) => JSON.parse(r) as ChatMessage);
   }
 
+  /** Messages may be posted while the parties are paired (accepted → in
+   *  progress) and for a short grace period after completion. */
+  isChatOpen(
+    trip: { status: TripStatus; completedAt: Date | null },
+    now: number = Date.now(),
+  ): boolean {
+    if (CHAT_OPEN_STATUSES.has(trip.status)) return true;
+    if (trip.status === TripStatus.completed && trip.completedAt) {
+      return now - trip.completedAt.getTime() <= POST_COMPLETION_GRACE_MS;
+    }
+    return false;
+  }
+
+  /** Per-user send rate limit (shared by the REST and socket paths). */
+  private async assertSendAllowance(userId: string): Promise<void> {
+    const sent = await this.redis.incrWithTtl(
+      RedisKeys.chatRate(userId),
+      RATE_WINDOW_S,
+    );
+    if (sent > RATE_LIMIT) {
+      throw new HttpException(
+        'You are sending messages too quickly.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
   /** Loads the trip and asserts the user is its rider or driver. */
   private async participantTrip(userId: string, tripId: string) {
     const trip = await this.prisma.trip.findUnique({
       where: { id: tripId },
-      select: { riderId: true, driverId: true },
+      select: { riderId: true, driverId: true, status: true, completedAt: true },
     });
     if (!trip) throw new NotFoundException('Trip not found');
     if (userId !== trip.riderId && userId !== trip.driverId) {

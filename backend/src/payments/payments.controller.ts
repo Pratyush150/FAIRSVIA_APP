@@ -1,10 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -30,6 +33,24 @@ export class PaymentsController {
     return this.payments.addMethod(user.userId, dto);
   }
 
+  /** Make a saved card the default for future rides. */
+  @Patch('methods/:id/default')
+  setDefaultMethod(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.payments.setDefaultMethod(user.userId, id);
+  }
+
+  /** Delete a saved card (another card becomes default if this one was). */
+  @Delete('methods/:id')
+  removeMethod(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.payments.removeMethod(user.userId, id);
+  }
+
   /** Start a card-save: returns the PaymentSheet secrets + publishable key. */
   @Post('setup-intent')
   @HttpCode(HttpStatus.OK)
@@ -48,14 +69,14 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   tip(
     @CurrentUser() user: AuthUser,
-    @Param('tripId') tripId: string,
+    @Param('tripId', ParseUUIDPipe) tripId: string,
     @Body() dto: TipDto,
   ) {
     return this.payments.addTip(user.userId, tripId, dto.amount);
   }
 
   @Get(':tripId/receipt')
-  receipt(@CurrentUser() user: AuthUser, @Param('tripId') tripId: string) {
+  receipt(@CurrentUser() user: AuthUser, @Param('tripId', ParseUUIDPipe) tripId: string) {
     return this.payments.getReceipt(user.userId, tripId);
   }
 }

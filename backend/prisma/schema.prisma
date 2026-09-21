@@ -1,4 +1,4 @@
-// UberNav Prisma schema.
+// Ride App Prisma schema.
 // Phase 0: users + refresh tokens. Geo/trip tables arrive in later phases.
 // Note: PostGIS is enabled via infra/postgres-init/ and used through raw SQL
 // in later phases (Prisma has limited native support for the geography type).
@@ -29,7 +29,7 @@ model User {
   ratingCount Int      @default(0) @map("rating_count")
   isActive    Boolean  @default(true) @map("is_active")
   // Stripe Customer (cus_...) — created lazily on the first saved card so
-  // charges/holds reference a real customer, not the UberNav user id.
+  // charges/holds reference a real customer, not the Ride App user id.
   stripeCustomerId String? @map("stripe_customer_id") @db.VarChar(64)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -129,6 +129,18 @@ model Trip {
   dropoffLat      Float      @map("dropoff_lat")
   dropoffLng      Float      @map("dropoff_lng")
 
+  /// A short pickup note from the rider to the driver ("meet at the north gate",
+  /// "wearing a red jacket"). Shown on the driver's offer + en-route screens.
+  pickupNote      String?    @map("pickup_note")
+
+  /// Set when this ride was booked for somebody else: `riderId` stays the
+  /// account that booked and pays, and these describe who is actually
+  /// travelling. The driver is shown these instead of the booker's details,
+  /// and the passenger is texted the start code — they may not have the app.
+  /// Both null = the booker is the passenger, the ordinary case.
+  passengerName   String?    @map("passenger_name") @db.VarChar(80)
+  passengerPhone  String?    @map("passenger_phone") @db.VarChar(20)
+
   routePolyline   String?    @map("route_polyline")
   stops           Json?      // ordered intermediate stops: [{lat,lng,addr?}]
   distanceM       Int?       @map("distance_m")
@@ -141,6 +153,9 @@ model Trip {
   promoCode       String?    @map("promo_code") @db.VarChar(24)
   promoDiscount   Decimal    @default(0) @map("promo_discount") @db.Decimal(10, 2)
   paymentMode     String     @default("card") @map("payment_mode") @db.VarChar(4) // card|cash
+  // The rider's chosen saved card for this ride (validated to belong to the
+  // rider at creation). Null = charge the rider's default method.
+  paymentMethodId String?    @map("payment_method_id") @db.Uuid
 
   cancelReason    String?    @map("cancel_reason")
   cancelledBy     String?    @map("cancelled_by") @db.VarChar(10)
@@ -204,9 +219,33 @@ model Payment {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip    Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  refunds PaymentRefund[]
 
   @@map("payments")
+}
+
+/// One refund attempt against a payment. The row is committed BEFORE the
+/// provider call (status `pending`) so a retried/duplicated request can never
+/// refund twice: the provider call is keyed on this row's id (Idempotency-Key),
+/// and the outcome is recorded as `succeeded` / `failed`.
+model PaymentRefund {
+  id               String   @id @default(uuid()) @db.Uuid
+  paymentId        String   @map("payment_id") @db.Uuid
+  tripId           String   @map("trip_id") @db.Uuid
+  amount           Decimal  @db.Decimal(10, 2)
+  status           String   @default("pending") @db.VarChar(12) // pending|succeeded|failed
+  reason           String?
+  externalRefundId String?  @map("external_refund_id")
+  failureMessage   String?  @map("failure_message")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([tripId])
+  @@map("payment_refunds")
 }
 
 /// A processed Stripe webhook event, keyed by Stripe's event id. Stripe may

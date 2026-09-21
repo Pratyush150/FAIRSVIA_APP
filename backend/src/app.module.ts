@@ -6,7 +6,9 @@ import { RedisModule } from './common/redis/redis.module';
 import { QueueModule } from './common/queue/queue.module';
 import { LoggingModule } from './common/logging/logging.module';
 import { MetricsModule } from './common/metrics/metrics.module';
+import { ThrottleModule } from './common/throttle/throttle.module';
 import { AuthModule } from './auth/auth.module';
+import { SmsModule } from './common/sms/sms.module';
 import { UsersModule } from './users/users.module';
 import { GeoModule } from './geo/geo.module';
 import { PricingModule } from './pricing/pricing.module';
@@ -31,6 +33,7 @@ import { LedgerModule } from './ledger/ledger.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { SupportModule } from './support/support.module';
 import { BackgroundModule } from './background/background.module';
+import { EmailModule } from './email/email.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -43,10 +46,13 @@ import { HealthController } from './health/health.controller';
     MetricsModule, // Prometheus /metrics + request interceptor
     PrismaModule,
     RedisModule,
+    ThrottleModule, // global per-IP rate limiting (Redis-backed)
     QueueModule, // global BullMQ connection
     RealtimeModule, // global RealtimeService
     TripStateModule, // global TripStateMachine
     NotificationsModule, // global NotificationsService
+    EmailModule, // global EmailService (SES / mock)
+    SmsModule, // global SMS gateway (login OTPs + passenger messages)
     AuthModule,
     UsersModule,
     GeoModule,

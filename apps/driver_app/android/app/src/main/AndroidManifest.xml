@@ -17,12 +17,15 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="UberNav Driver"
+        android:label="FairsVia Driver"
         android:name="${applicationName}"
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
-        <!-- Maps render via flutter_map (MapTiler/OSM raster tiles) — no native
-             Google Maps SDK is linked, so no Google Maps API key is needed. -->
+        <!-- Google Maps SDK key, injected from android/secrets.properties
+             (gitignored) via the ${MAPS_API_KEY} manifest placeholder. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

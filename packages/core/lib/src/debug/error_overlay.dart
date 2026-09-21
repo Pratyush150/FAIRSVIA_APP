@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 
 /// Holds the most recent uncaught error so it can be painted on screen. This
@@ -21,13 +22,6 @@ void reportError(Object error, [StackTrace? stack]) {
   if (text.contains('WebSocketConnectionClosed') ||
       text.contains('WebSocketChannelException')) {
     debugPrint('IGNORED transient socket-close error: $error');
-    return;
-  }
-  // Map-tile fetch failures are equally transient: flutter_map shows a blank
-  // tile and re-requests on the next pan/zoom, and simulators in particular
-  // drop the occasional request (errno 65 "No route to host").
-  if (text.contains('tile.openstreetmap.org')) {
-    debugPrint('IGNORED transient tile-fetch error: $error');
     return;
   }
   final trace = stack?.toString() ?? '';
@@ -124,7 +118,12 @@ class ErrorOverlay extends StatelessWidget {
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxHeight: 220),
                             child: SingleChildScrollView(
-                              child: SelectableText(
+                              // Plain Text, not SelectableText: this banner
+                              // lives above the app's Navigator, so an
+                              // EditableText here has no Overlay and its
+                              // "No Overlay widget found" failure replaced
+                              // the real error we were trying to show.
+                              child: Text(
                                 err,
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -134,6 +133,12 @@ class ErrorOverlay extends StatelessWidget {
                               ),
                             ),
                           ),
+                        ),
+                        IconButton(
+                          tooltip: 'Copy error',
+                          icon: const Icon(Icons.copy, color: Colors.white),
+                          onPressed: () =>
+                              Clipboard.setData(ClipboardData(text: err)),
                         ),
                         IconButton(
                           icon: const Icon(Icons.close, color: Colors.white),

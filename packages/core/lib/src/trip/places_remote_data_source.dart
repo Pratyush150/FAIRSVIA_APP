@@ -9,9 +9,14 @@ class PlacesRemoteDataSource {
 
   final Dio _dio;
 
+  /// Autocomplete [query]. With [near] (the rider's current position) the
+  /// backend biases results around it and reports `distanceM` per prediction;
+  /// when every prediction carries one the list is returned nearest-first
+  /// (the provider's bias alone is soft).
   Future<List<PlacePrediction>> autocomplete(
     String query, {
     String? sessionToken,
+    GeoPoint? near,
   }) async {
     try {
       final res = await _dio.get<Map<String, dynamic>>(
@@ -19,12 +24,14 @@ class PlacesRemoteDataSource {
         queryParameters: {
           'q': query,
           'sessionToken': ?sessionToken,
+          'lat': ?near?.lat,
+          'lng': ?near?.lng,
         },
       );
       final predictions = (res.data?['predictions'] as List<dynamic>? ?? [])
           .map((e) => PlacePrediction.fromJson(e as Map<String, dynamic>))
           .toList();
-      return predictions;
+      return PlacePrediction.sortedByDistance(predictions);
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
     }
@@ -39,6 +46,33 @@ class PlacesRemoteDataSource {
       return PlaceDetails.fromJson(res.data!);
     } on DioException catch (e) {
       throw ApiException.fromDio(e);
+    }
+  }
+
+  /// On-demand road route between two points, for **live re-routing** when the
+  /// driver leaves the planned path. Returns the fresh encoded polyline, or null
+  /// when unavailable (the caller keeps the existing line rather than clearing
+  /// it). Best-effort — never throws, so a transient failure can't break the map.
+  Future<String?> route({
+    required double fromLat,
+    required double fromLng,
+    required double toLat,
+    required double toLng,
+  }) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/places/route',
+        queryParameters: {
+          'fromLat': fromLat,
+          'fromLng': fromLng,
+          'toLat': toLat,
+          'toLng': toLng,
+        },
+      );
+      final poly = res.data?['polyline'] as String?;
+      return (poly != null && poly.isNotEmpty) ? poly : null;
+    } catch (_) {
+      return null;
     }
   }
 

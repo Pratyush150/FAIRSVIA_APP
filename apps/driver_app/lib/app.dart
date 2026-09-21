@@ -23,7 +23,8 @@ class _DriverAppState extends State<DriverApp> {
     _authBloc = sl<AuthBloc>()..add(const AuthStarted());
     _router = createAppRouter(
       authBloc: _authBloc,
-      appTitle: 'UberNav Driver',
+      appTitle: 'FairsVia Driver',
+      nameSetupSubtitle: NameSetupPage.driverSubtitle,
       homeBuilder: (_) => const DriverHomePage(),
     );
   }
@@ -39,7 +40,7 @@ class _DriverAppState extends State<DriverApp> {
     return BlocProvider.value(
       value: _authBloc,
       child: MaterialApp.router(
-        title: 'UberNav Driver',
+        title: 'FairsVia Driver',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,

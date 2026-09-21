@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { AuthService } from './auth.service';
 
@@ -29,9 +29,13 @@ describe('AuthService', () => {
         ratingCount: 0,
       })),
       findUniqueOrThrow: jest.fn(),
+      findUnique: jest.fn(),
     },
     refreshToken: {
       create: jest.fn(async () => ({ id: 'rt-1' })),
+      deleteMany: jest.fn(async () => ({ count: 0 })),
+      findFirst: jest.fn(),
+      updateMany: jest.fn(async () => ({ count: 1 })),
     },
   };
 
@@ -52,6 +56,7 @@ describe('AuthService', () => {
 
   const jwt = {
     signAsync: jest.fn(async (payload: object) => `signed:${JSON.stringify(payload)}`),
+    verifyAsync: jest.fn(),
   };
 
   const config = {
@@ -141,6 +146,113 @@ describe('AuthService', () => {
       await expect(service.verifyOtp('+10000000000', '1234')).rejects.toThrow(
         /expired or not requested/i,
       );
+    });
+  });
+
+  describe('refresh', () => {
+    const future = new Date(Date.now() + 60_000);
+    const activeUser = { id: 'user-1', role: 'rider', isActive: true };
+
+    beforeEach(() => {
+      jwt.verifyAsync.mockResolvedValue({ sub: 'user-1', jti: 'j1' });
+      prisma.user.findUnique.mockResolvedValue(activeUser);
+      prisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    it('rotates a valid token: conditional revoke, then a new pair', async () => {
+      prisma.refreshToken.findFirst.mockResolvedValue({
+        id: 'rt-old', revoked: false, expiresAt: future,
+      });
+      const tokens = await service.refresh('old');
+      expect(tokens.accessToken).toContain('signed:');
+      // The revoke is conditional on revoked:false so a concurrent refresh can't
+      // also succeed.
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { id: 'rt-old', revoked: false },
+        data: { revoked: true },
+      });
+      expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
+      // Expired rows for this user are pruned opportunistically.
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', expiresAt: { lt: expect.any(Date) } },
+      });
+    });
+
+    it('replaying a revoked token revokes ALL of the user\'s tokens (reuse detection)', async () => {
+      prisma.refreshToken.findFirst.mockResolvedValue({
+        id: 'rt-old', revoked: true, expiresAt: future,
+      });
+      await expect(service.refresh('replayed')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', revoked: false },
+        data: { revoked: true },
+      });
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('losing the concurrent-claim race is treated as reuse', async () => {
+      prisma.refreshToken.findFirst.mockResolvedValue({
+        id: 'rt-old', revoked: false, expiresAt: future,
+      });
+      // First updateMany = the conditional claim → someone else got there.
+      prisma.refreshToken.updateMany
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ count: 2 });
+      await expect(service.refresh('raced')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(prisma.refreshToken.updateMany).toHaveBeenNthCalledWith(2, {
+        where: { userId: 'user-1', revoked: false },
+        data: { revoked: true },
+      });
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an expired token without issuing', async () => {
+      prisma.refreshToken.findFirst.mockResolvedValue({
+        id: 'rt-old', revoked: false, expiresAt: new Date(Date.now() - 1000),
+      });
+      await expect(service.refresh('expired')).rejects.toThrow(/expired or revoked/i);
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a deactivated user even with a valid token', async () => {
+      prisma.refreshToken.findFirst.mockResolvedValue({
+        id: 'rt-old', revoked: false, expiresAt: future,
+      });
+      prisma.user.findUnique.mockResolvedValue({ ...activeUser, isActive: false });
+      await expect(service.refresh('ok')).rejects.toThrow(/not active/i);
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a token whose signature does not verify', async () => {
+      jwt.verifyAsync.mockRejectedValue(new Error('bad sig'));
+      await expect(service.refresh('garbage')).rejects.toThrow(/invalid refresh token/i);
+      expect(prisma.refreshToken.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logout', () => {
+    it('revokes only the presented token when one is given', async () => {
+      prisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+      const res = await service.logout('user-1', 'the-token');
+      expect(res).toEqual({ ok: true, revoked: 1 });
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', tokenHash: sha256('the-token'), revoked: false },
+        data: { revoked: true },
+      });
+    });
+
+    it('revokes every token (all devices) when no token is given', async () => {
+      prisma.refreshToken.updateMany.mockResolvedValue({ count: 3 });
+      const res = await service.logout('user-1');
+      expect(res.revoked).toBe(3);
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', revoked: false },
+        data: { revoked: true },
+      });
     });
   });
 });

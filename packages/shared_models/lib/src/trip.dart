@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'geo_point.dart';
+import 'trip_passenger.dart';
 import 'trip_stop.dart';
 
 enum TripStatus {
@@ -81,6 +82,8 @@ class Trip extends Equatable {
     required this.tier,
     required this.pickup,
     required this.dropoff,
+    this.pickupNote,
+    this.passenger,
     this.routePolyline,
     this.stops = const [],
     this.distanceM,
@@ -95,6 +98,7 @@ class Trip extends Equatable {
     this.scheduledAt,
     this.requestedAt,
     this.completedAt,
+    this.cancellationFee,
   });
 
   final String id;
@@ -102,6 +106,13 @@ class Trip extends Equatable {
   final String tier;
   final TripEndpoint pickup;
   final TripEndpoint dropoff;
+
+  /// A short pickup note from the rider to the driver, if any.
+  final String? pickupNote;
+
+  /// Set when this ride was booked for somebody else — see [TripPassenger].
+  /// Null on an ordinary ride, where the booker is the passenger.
+  final TripPassenger? passenger;
 
   /// Ordered intermediate stops (empty for a direct trip).
   final List<TripStop> stops;
@@ -131,6 +142,10 @@ class Trip extends Equatable {
   /// When the trip reached a terminal completed state, if it did.
   final DateTime? completedAt;
 
+  /// What a late cancel (after the free window) costs. Null on older
+  /// backends, in which case the UI keeps its generic wording.
+  final double? cancellationFee;
+
   /// The fare to display: final if settled, else the estimate.
   double? get fareDisplay => fareFinal ?? fareEstimate;
 
@@ -140,6 +155,8 @@ class Trip extends Equatable {
         tier: json['tier'] as String? ?? 'economy',
         pickup: TripEndpoint.fromJson(json['pickup'] as Map<String, dynamic>),
         dropoff: TripEndpoint.fromJson(json['dropoff'] as Map<String, dynamic>),
+        pickupNote: json['pickupNote'] as String?,
+        passenger: TripPassenger.fromJson(json['passenger']),
         stops: (json['stops'] as List<dynamic>? ?? const [])
             .map((s) => TripStop.fromJson(s as Map<String, dynamic>))
             .toList(),
@@ -156,6 +173,7 @@ class Trip extends Equatable {
         scheduledAt: _parseDate(json['scheduledAt']),
         requestedAt: _parseDate(json['requestedAt']),
         completedAt: _parseDate(json['completedAt']),
+        cancellationFee: (json['cancellationFee'] as num?)?.toDouble(),
       );
 
   static DateTime? _parseDate(dynamic v) =>
@@ -168,6 +186,8 @@ class Trip extends Equatable {
         tier,
         pickup,
         dropoff,
+        pickupNote,
+        passenger,
         stops,
         routePolyline,
         distanceM,
@@ -182,5 +202,6 @@ class Trip extends Equatable {
         scheduledAt,
         requestedAt,
         completedAt,
+        cancellationFee,
       ];
 }

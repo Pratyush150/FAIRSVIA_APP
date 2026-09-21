@@ -53,6 +53,9 @@ export interface AppConfig {
   stripeApiBaseUrl: string;
   platformFeePercent: number;
   cancellationFee: number;
+  /** A driver may mark "arrived" only within this many metres of the pickup
+   *  (checked against their last fresh GPS fix). */
+  arrivalRadiusM: number;
   fcmServerKey: string;
   /** Google service-account JSON for FCM HTTP v1 push (real provider when set). */
   fcmServiceAccountJson: string;
@@ -61,6 +64,14 @@ export interface AppConfig {
    *  When false, drivers onboard as pending and an admin must verify them
    *  before they can go online. */
   driverAutoVerify: boolean;
+  /** AWS region + IAM credentials shared by SNS (SMS) and SES (email). Empty
+   *  keys select the mock providers. */
+  aws: { region: string; accessKeyId: string; secretAccessKey: string };
+  /** Transactional email provider: `ses` (real, when AWS creds + SES_FROM set)
+   *  or `mock`. */
+  emailProvider: string;
+  /** Verified SES sender address used as the From on outgoing email. */
+  sesFrom: string;
 }
 
 // Dev-only fallbacks. These MUST never be used in production — the guard below
@@ -80,6 +91,12 @@ export default (): AppConfig => {
   // The OTP is only ever echoed back to the caller with the mock provider in a
   // non-production env — a real provider (or production) never reveals codes.
   const otpDevEcho = !isProd && smsProvider === 'mock';
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY ?? '';
+  const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? '';
+  // Dev default: auto-verify drivers (no admin in the loop). Production must
+  // set it to "false" explicitly — the guard below refuses to boot otherwise.
+  const driverAutoVerify =
+    (process.env.DRIVER_AUTO_VERIFY ?? (isProd ? 'false' : 'true')) !== 'false';
 
   if (isProd) {
     const problems: string[] = [];
@@ -107,6 +124,21 @@ export default (): AppConfig => {
     // provider factory, so reject those too.
     if (!smsProvider || smsProvider === 'mock') {
       problems.push('SMS_PROVIDER must be a real provider (not empty or "mock")');
+    }
+    // An empty STRIPE_SECRET_KEY silently selects the MockPaymentProvider in
+    // payments.module.ts — every ride would "succeed" without charging anyone.
+    // The webhook secret is required too, or Stripe's payment_failed /
+    // account.updated events are rejected and payment state silently drifts.
+    if (!stripeSecretKey) {
+      problems.push('STRIPE_SECRET_KEY is unset (would fall back to the mock payment provider)');
+    }
+    if (!stripeWebhookSecret) {
+      problems.push('STRIPE_WEBHOOK_SECRET is unset (Stripe webhooks would be rejected)');
+    }
+    // Auto-verify lets anyone self-onboard as a verified driver with no admin
+    // document review. It is a dev-only convenience.
+    if (driverAutoVerify) {
+      problems.push('DRIVER_AUTO_VERIFY must be "false" (drivers would self-verify)');
     }
     if (problems.length > 0) {
       throw new Error(
@@ -151,16 +183,17 @@ export default (): AppConfig => {
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
   osrmBaseUrl: process.env.OSRM_BASE_URL ?? '',
   nominatimBaseUrl: process.env.NOMINATIM_BASE_URL ?? '',
-  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
+  stripeSecretKey,
   stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? '',
-  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+  stripeWebhookSecret,
   stripeConnectReturnUrl:
-    process.env.STRIPE_CONNECT_RETURN_URL ?? 'ubernav://connect/return',
+    process.env.STRIPE_CONNECT_RETURN_URL ?? 'fairsvia-driver://connect/return',
   stripeConnectRefreshUrl:
-    process.env.STRIPE_CONNECT_REFRESH_URL ?? 'ubernav://connect/refresh',
+    process.env.STRIPE_CONNECT_REFRESH_URL ?? 'fairsvia-driver://connect/refresh',
   stripeApiBaseUrl: process.env.STRIPE_API_BASE_URL ?? 'https://api.stripe.com/v1',
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '0.20'),
   cancellationFee: parseFloat(process.env.CANCELLATION_FEE ?? '5'),
+  arrivalRadiusM: parseFloat(process.env.ARRIVAL_RADIUS_M ?? '150'),
   fcmServerKey: process.env.FCM_SERVER_KEY ?? '',
   fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON ?? '',
   // Comma-separated phone numbers that are promoted to the admin role on login,
@@ -169,6 +202,13 @@ export default (): AppConfig => {
     .split(',')
     .map((p) => p.trim())
     .filter((p) => p.length > 0),
-  driverAutoVerify: (process.env.DRIVER_AUTO_VERIFY ?? 'true') !== 'false',
+  driverAutoVerify,
+  aws: {
+    region: process.env.AWS_REGION ?? 'us-east-1',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
+  },
+  emailProvider: process.env.EMAIL_PROVIDER ?? 'mock',
+  sesFrom: process.env.SES_FROM ?? 'noreply@rideapp.example.com',
   };
 };

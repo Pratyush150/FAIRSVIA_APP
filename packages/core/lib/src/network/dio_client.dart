@@ -19,10 +19,17 @@ class DioClient {
     );
 
     refreshDio = Dio(baseOptions);
-    authenticatedDio = Dio(baseOptions)
-      ..interceptors.add(AuthInterceptor(storage, refreshDio));
+    _auth = AuthInterceptor(storage, refreshDio);
+    authenticatedDio = Dio(baseOptions)..interceptors.add(_auth);
   }
 
   late final Dio refreshDio;
   late final Dio authenticatedDio;
+  late final AuthInterceptor _auth;
+
+  /// See [AuthInterceptor.sessionExpired].
+  Stream<void> get sessionExpired => _auth.sessionExpired;
+
+  /// See [AuthInterceptor.freshAccessToken] — token provider for the socket.
+  Future<String?> freshAccessToken() => _auth.freshAccessToken();
 }
