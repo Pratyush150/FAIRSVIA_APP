@@ -2,7 +2,38 @@
 
 Everything outstanding, in execution order. Compiled 2026-09-18 from a live
 audit of the running stack plus the existing `UBER_GAP_ANALYSIS.md` and
-`ios-audit-report-2026-09-14.md`.
+`ios-audit-report-2026-09-14.md`. **Updated 2026-09-22.**
+
+## What is done since this was written
+
+| | |
+|---|---|
+| Stage 1 — latent production bugs (1.1, 1.2, 1.3) | **Done.** Shutdown hooks armed; `/health` split into liveness/readiness with a real 503; `audit_log` + a global interceptor keyed on `@Roles(admin)`. |
+| Observability (`monitoring-and-actions-plan.md` Phase 2) | **Done.** Prometheus + Grafana + Alertmanager + Loki in `infra/monitoring/`, three provisioned dashboards, 11 alert rules, business metrics in the registry. |
+| Ops actions (Phase 3) | **Done.** Four audited kill switches with a console tab. |
+| Live-map / ride-UI work | **Done and validated on Android** (7 end-to-end rides on the emulator). |
+
+## What is actually left
+
+Everything below is **external** — it needs an account, a key, a certificate or
+a Mac, not more code:
+
+| Priority | Item | Blocked on |
+|---|---|---|
+| 🔴 | **OTP SMS is mocked — nobody can really log in** | You. AWS creds already present; flip `SMS_PROVIDER` off `mock` |
+| 🔴 | **TLS/HTTPS is off** | A certificate. nginx block is written and commented out. Unblocks the next two |
+| 🔴 | **Stripe webhooks rejected** (`STRIPE_WEBHOOK_SECRET` absent) | You, after TLS |
+| 🔴 | **Background checks mocked** — likely a legal requirement to carry paying passengers | External vendor. **Longest lead time of anything here** |
+| 🟠 | **Push notifications mocked** | Mixed (FCM/APNs keys) |
+| 🟠 | **iOS not rebuilt since 2026-09-14, never on a physical iPhone** | A Mac. See `handoff-for-mac.md` |
+| 🟡 | **Alertmanager has no delivery wired** — deliberately, so it cannot look armed while pointing nowhere | 10 min: fill in Slack or SES |
+| 🟡 | **Passenger-side tracking link** for "book for someone else" — the booker tracks fine, the passenger has no account and only gets SMS | ~1 day of code |
+| 🟡 | **Android launcher icon still shows the old "F" mark** | An icon asset |
+| 🟡 | **Disk at 98%** on the build box; `DiskSpaceLow` is firing for real | `docker system prune` (~40 GB reclaimable) |
+
+Field verification is tracked separately in
+[field-testing-plan.md](field-testing-plan.md) — 23 cases, 13 of which must be
+run in a moving vehicle.
 
 Storage/disk capacity is **owned by the project owner** and deliberately not
 tracked here.
@@ -85,7 +116,7 @@ configured vendor read-only.
 | # | Gap | Blocked by |
 | --- | --- | --- |
 | 4.1 | **Production profile never benchmarked.** Every capacity number we hold was measured on the dev stack running `npm run start:dev` (TypeScript watch mode, single replica). Production uses a compiled build with two replicas, so real capacity is likely 2–4× higher and currently unknown | Needs `infra/.env` with two passwords (copy `infra/.env.example`) |
-| 4.2 | **Nothing on iOS has ever been compiled or run.** Code is kept iOS-ready per the standing rule, but no build has happened | Needs a Mac with Xcode |
+| 4.2 | ~~Nothing on iOS has ever been compiled or run.~~ **Wrong when written.** iOS was compiled and run on a Mac on 2026-09-10/11 and again on 09-14 (Xcode 26.6, iPhone 17 + 16 Pro **simulators**) — see `changelog-ios-validation-2026-09-10.md` and `ios-audit-report-2026-09-14.md`. What is actually outstanding: **never run on a physical iPhone**, and **not rebuilt since 2026-09-14**. Changes since then are Dart/backend only; the sole `ios/` edits are brand strings in the two Info.plists. | Needs a Mac with Xcode |
 | 4.3 | **Test data in the dev database** — grew from 12 MB to 50+ MB during load testing; 43 trips remain stuck in `accepted`/`in_progress` from a run that predates the harness fixes. The fixed runs leave none | Nothing; needs a cleanup decision |
 
 4.1 is worth doing before any capacity or cost planning, because it is the
