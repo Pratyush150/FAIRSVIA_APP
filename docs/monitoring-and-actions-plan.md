@@ -1,5 +1,7 @@
 # Monitoring & Ops-Actions Plan
 
+> **New session?** Start with [session-handoff.md](session-handoff.md).
+
 Status: **Phases 1–3 implemented, 2026-09-21.** Phase 4 (Kubernetes) remains a
 deliberate "not yet" — see the recommendation at the bottom, which has not
 changed.

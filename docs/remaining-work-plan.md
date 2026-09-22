@@ -1,5 +1,10 @@
 # Remaining Work Plan
 
+> **New session picking this up?** Read
+> [session-handoff.md](session-handoff.md) first — it carries the environment
+> traps, what is verified vs assumed, and the corrections made to this repo's
+> own (previously wrong) documentation.
+
 Everything outstanding, in execution order. Compiled 2026-09-18 from a live
 audit of the running stack plus the existing `UBER_GAP_ANALYSIS.md` and
 `ios-audit-report-2026-09-14.md`. **Updated 2026-09-22.**
@@ -11,7 +16,9 @@ audit of the running stack plus the existing `UBER_GAP_ANALYSIS.md` and
 | Stage 1 — latent production bugs (1.1, 1.2, 1.3) | **Done.** Shutdown hooks armed; `/health` split into liveness/readiness with a real 503; `audit_log` + a global interceptor keyed on `@Roles(admin)`. |
 | Observability (`monitoring-and-actions-plan.md` Phase 2) | **Done.** Prometheus + Grafana + Alertmanager + Loki in `infra/monitoring/`, three provisioned dashboards, 11 alert rules, business metrics in the registry. |
 | Ops actions (Phase 3) | **Done.** Four audited kill switches with a console tab. |
-| Live-map / ride-UI work | **Done and validated on Android** (7 end-to-end rides on the emulator). |
+| Live-map / ride-UI work | **Done and validated on Android.** Many end-to-end rides on the emulator. |
+| Rider UI/UX brief (items 1–22) | **Done.** Splash, ride-state micro-copy, live-map camera (look-ahead, gesture handling, Recenter pill), "book for someone else" camera rule, tip terminal-state fix, home-page split into sheets + a map layer. Item 23+ of the brief was never received — it was truncated mid-sentence. |
+| Camera gesture rules | **Done and verified by hand.** Pan **or** zoom suspends following and raises the Recenter pill; tapping it restores the car, the zoom, and automatic tracking. A true two-finger pinch is still unverified (adb cannot drive multitouch). |
 
 ## What is actually left
 
@@ -29,7 +36,7 @@ a Mac, not more code:
 | 🟡 | **Alertmanager has no delivery wired** — deliberately, so it cannot look armed while pointing nowhere | 10 min: fill in Slack or SES |
 | 🟡 | **Passenger-side tracking link** for "book for someone else" — the booker tracks fine, the passenger has no account and only gets SMS | ~1 day of code |
 | 🟡 | **Android launcher icon still shows the old "F" mark** | An icon asset |
-| 🟡 | **Disk at 98%** on the build box; `DiskSpaceLow` is firing for real | `docker system prune` (~40 GB reclaimable) |
+| 🟡 | **Disk at 96%** on the build box; `DiskSpaceLow` fires for real | 13 GB of Flutter build caches already reclaimed. The remaining ~52 GB of unused Docker images are the owner's robotics work (`hailo8_ai_sw_suite`, `opendronemap/odm`, `colmap`) — **do not blanket-prune**. `infra/osm-data` is live OSRM data, not junk |
 
 Field verification is tracked separately in
 [field-testing-plan.md](field-testing-plan.md) — 23 cases, 13 of which must be

@@ -50,6 +50,15 @@ override default behavior. Established by the project owner (Sai Kishore).
 - The production profile is a separate, opt-in stack that must never touch the
   running dev stack. The real `backend/.env.prod` stays gitignored, never committed.
 
+## Picking this up fresh
+- **Read `docs/session-handoff.md` first.** It carries the current state, the
+  environment traps that fail in misleading ways (the `NODE_ENV` test-gate trap,
+  the separate per-phone OTP limit, the moving LAN IP), what is verified vs
+  assumed, and the corrections made to this repo's own documentation — two docs
+  here were confidently wrong and were believed before being checked.
+- Then `docs/remaining-work-plan.md` for what is left, and
+  `docs/field-testing-plan.md` for on-road verification.
+
 ## Environment quick-reference
 - Flutter: `/home/nova-robotics/flutter/bin`. Backend runs in Docker
   (`docker exec ubernav_backend ...`). Backend API: `<LAN_IP>:3000/api/v1` —
