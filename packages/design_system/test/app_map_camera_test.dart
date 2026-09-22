@@ -96,6 +96,34 @@ void main() {
     });
   });
 
+  group('isUserGesture', () {
+    test('a deliberate drag takes the camera', () {
+      expect(AppMap.isUserGesture(200, false), isTrue);
+    });
+
+    test('a deliberate zoom takes the camera too', () {
+      // The spec is "if the user pans, drags OR zooms, pause following".
+      // Measuring only the drag made the outcome depend on HOW the user
+      // zoomed: a centred pinch barely moves the centre and survived, while an
+      // off-centre double-tap shifted it and suspended following. Same intent,
+      // two different results — worse than either rule applied consistently.
+      expect(AppMap.isUserGesture(0, true), isTrue);
+    });
+
+    test('a nudge that is neither leaves the camera following', () {
+      // Sub-threshold drift during an animation must not look like the rider
+      // grabbing the map.
+      expect(AppMap.isUserGesture(5, false), isFalse);
+      expect(AppMap.isUserGesture(AppMap.panThresholdMeters, false), isFalse);
+    });
+
+    test('an unmeasurable gesture is treated as the user taking over', () {
+      // No end position to compare against: yielding the camera is the safe
+      // failure, because the alternative is fighting a rider who did move it.
+      expect(AppMap.isUserGesture(double.infinity, false), isTrue);
+    });
+  });
+
   group('glideFor', () {
     test('stretches the glide to match the gap between fixes', () {
       expect(

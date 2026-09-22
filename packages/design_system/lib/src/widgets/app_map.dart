@@ -182,6 +182,27 @@ class AppMap extends StatefulWidget {
     return LatLng(target.latitude + dLat, target.longitude + dLng);
   }
 
+  /// How far the camera centre must travel during one gesture before it counts
+  /// as a deliberate pan.
+  static const double panThresholdMeters = 40.0;
+
+  /// How much the zoom level must change during one gesture before it counts
+  /// as a deliberate zoom. A fifth of a level is well below anything a person
+  /// does on purpose and well above animation jitter.
+  static const double zoomThreshold = 0.2;
+
+  /// Whether a settled gesture was the user taking over the camera.
+  ///
+  /// True for a deliberate drag OR a deliberate zoom. Both count, because the
+  /// spec is "if the user pans, drags or zooms, pause automatic following" —
+  /// and because measuring only the drag made the outcome depend on *how* the
+  /// user zoomed: a centred pinch survived, an off-centre double-tap did not.
+  ///
+  /// Pure so the rule can be tested without a live map controller.
+  @visibleForTesting
+  static bool isUserGesture(double movedMeters, bool zoomed) =>
+      zoomed || movedMeters > panThresholdMeters;
+
   /// How long the driver marker should glide for, given the gap between the
   /// last two fixes. Stretching the glide over the real interval keeps the car
   /// moving until the next fix lands, instead of darting ahead in a fixed
@@ -240,10 +261,18 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   DateTime? _programmaticUntil;
   /// Longest a programmatic camera animation is assumed to take.
   static const Duration _programmaticWindow = Duration(milliseconds: 1200);
-  // Camera target when the current gesture began. A pinch barely moves the
-  // centre while a drag moves it a long way, which is how we tell them apart:
-  // zooming must NOT stop the map following the car, but panning must.
+  // Camera target and zoom when the current gesture began, so a gesture can be
+  // measured rather than guessed at.
+  //
+  // Measuring only the centre was not enough: a pinch centred on the screen
+  // barely moves it and survived, while a double-tap zoom shifts the centre
+  // toward the tap and suspended following. Same intent from the user, two
+  // different outcomes — which is worse than either rule applied consistently.
+  // Both are now treated as deliberate interaction, per the spec: any pan,
+  // drag or zoom pauses automatic following and raises the recenter control.
   gmaps.LatLng? _gestureStartTarget;
+  double? _gestureStartZoom;
+  double? _lastCameraZoom;
 
   // Cached route polylines. Recomputing the route split (an O(route) scan) plus
   // copying the whole line on every animation frame janks on mid-range phones,
@@ -428,11 +457,6 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     );
   }
 
-  /// How far the camera centre must travel during one gesture before it counts
-  /// as a deliberate pan. A pinch-zoom holds the centre roughly still, so this
-  /// keeps follow mode alive through zooming while still yielding the camera
-  /// the moment the user drags the map somewhere else.
-  static const double _panThresholdMeters = 40.0;
 
   /// Rider live-tracking camera: pan only when the car nears the edge of what
   /// is on screen, and never change zoom (a pinch the rider made must stick).
@@ -927,12 +951,18 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           // classified too — it used to be missed (null start), leaving the
           // camera fighting the user until they panned a second time.
           _gestureStartTarget = _lastCameraTarget;
+          _gestureStartZoom = _lastCameraZoom;
         }
       },
-      onCameraMove: (pos) => _lastCameraTarget = pos.target,
+      onCameraMove: (pos) {
+        _lastCameraTarget = pos.target;
+        _lastCameraZoom = pos.zoom;
+      },
       onCameraIdle: () {
         final start = _gestureStartTarget;
+        final startZoom = _gestureStartZoom;
         _gestureStartTarget = null;
+        _gestureStartZoom = null;
         if (start != null && !_isProgrammatic) {
           final end = _lastCameraTarget;
           // No end position to compare against: treat it as a pan rather than
@@ -943,9 +973,10 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
                   LatLng(start.latitude, start.longitude),
                   LatLng(end.latitude, end.longitude),
                 );
-          // A pinch holds the centre roughly still, so it stays under the
-          // threshold and following survives the zoom (see [_panThresholdMeters]).
-          if (moved > _panThresholdMeters) _setFollowing(false);
+          final zoomed = startZoom != null &&
+              _lastCameraZoom != null &&
+              (_lastCameraZoom! - startZoom).abs() > AppMap.zoomThreshold;
+          if (AppMap.isUserGesture(moved, zoomed)) _setFollowing(false);
         }
         _programmaticUntil = null;
         final t = _lastCameraTarget;

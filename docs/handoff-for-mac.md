@@ -75,16 +75,33 @@ the last successful build used.
 The field checklist is `docs/field-testing-plan.md` — 23 cases, ordered, with a
 pass/fail column. Section 1 blocks launch.
 
-Two things to watch specifically, because they are **fixed but never verified
-on iOS**:
+### The camera rules, and what has actually been proven
 
-- **Pinch-to-zoom during a live ride.** Zooming must not stop the map following
-  the car; panning must, and must raise a "Recenter" pill. Verified on Android;
-  the gesture classifier is shared Dart, but iOS reports camera events on
-  slightly different timing.
-- **Background the app mid-ride, then reopen.** The camera and the trip state
-  should both resync to the live driver position. iOS suspends the WebSocket
-  more aggressively than Android, so this is the iOS-specific risk.
+The intended behaviour: **any** deliberate pan, drag or zoom pauses automatic
+following and raises a "◎ Recenter" pill. Tapping it returns the camera to the
+live driver position, restores street-level zoom, and resumes following.
+
+Verified on Android, by hand, against a live crawling ride
+(`tools/fake-driver-simulator/slow-ride.mjs`):
+
+| Step | Result |
+|---|---|
+| Baseline | car tracked, route ahead drawn, no pill |
+| Drag the map away | following suspended, pill raised, car off-screen |
+| Tap Recenter | camera back on the car, pill gone |
+| Zoom (double-tap) | following suspended, pill raised |
+| Tap Recenter | camera back on the car **and** zoom restored |
+| Wait 45 s untouched | car moved, stayed framed, no pill — following genuinely active |
+
+**Not verified anywhere:** a true two-finger **pinch**. `adb` cannot drive
+multitouch, so the pinch path is covered only by the unit test on
+`AppMap.isUserGesture`. On iOS, check it by hand — pinch during a live ride
+should raise the pill exactly as the double-tap does.
+
+**The iOS-specific risk: background the app mid-ride, then reopen.** The camera
+and the trip state should both resync to the live driver position. iOS suspends
+the WebSocket far more aggressively than Android, so this is the one most
+likely to behave differently.
 
 ## Known, deliberate
 
