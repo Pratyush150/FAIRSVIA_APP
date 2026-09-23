@@ -89,9 +89,24 @@ and the name stays RideVela.
 | 1 | Design tokens: monochrome palette (white / black / Uber-style greys, black primary actions, blue links), Inter type scale, 8 px radii, 56 px black buttons, light/dark map styles, black route line | ✅ ink follows light/dark; greyscale maps; black pickup ring + drop-off square; borderless cards; grey secondary buttons |
 | 2 | Rider screens: home "Where to?" pill + "Later", search, ride options list (selected = outlined), arriving, in-trip, completed/rating | 🟡 home, search, ride list, route framing, arriving sheet done and seen on the emulator (light + dark); completed/rating and account pages next |
 | — | **Brand palette: "Samarkand Turquoise"** (owner's choice 2026-09-23) — teal-navy / turquoise ink, turquoise route + selection, more legible map with turquoise water | ✅ default since v1.3.0; `THEME=mono` keeps the black-and-white variant |
-| 3 | Driver screens: online/offline, offer card, en-route, trip, earnings | ⏳ |
-| 4 | Shared: sign-in/OTP, account/menu, receipts; admin console palette | ⏳ |
+| 3 | Driver screens: online/offline, offer card, en-route, trip, earnings | 🟡 new palette, font, buttons and map apply (seen on the Moto); layout polish of the offer card and trip sheet still to do |
+| 4 | Shared: sign-in/OTP, account/menu, receipts; admin console palette | 🟡 new palette, font and buttons apply everywhere; layout polish still to do |
 | 5 | Verify: goldens updated, analyzer + tests, screenshots of every screen light + dark on the emulator, APKs to the pilot phones; iPhone check added to `mac-ios-pilot-handoff.md` | ⏳ |
+
+---
+
+## 0b. Clean analytics data (owner: "when it's needed")
+
+Grafana's pipelines are live (Prometheus scrape every 15 s, SQL on the live
+DB, daily-activity tracking), but the dev database it reads holds ~8,000 test
+users and ~15,500 test rides (load sweeps since 2026-07-28, e2e runs, pilot
+testing). Before the numbers are shown as real:
+
+| # | Step | Notes |
+|---|---|---|
+| 1 | e2e suites use their own database (`ubernav_test`) | Config only (`DATABASE_URL` in `test/setup-env.ts` + a `migrate deploy` on it). Stops every test run adding fake users/rides and inflating DAU |
+| 2 | Archive and remove test/load-test data from the live DB | `make backup-db` first; remove by the test phone prefixes and the load-test date range; **owner go-ahead required** before any delete |
+| 3 | Re-check the dashboard | DAU/MAU, completion rate and revenue should then reflect only pilot use |
 
 ---
 
