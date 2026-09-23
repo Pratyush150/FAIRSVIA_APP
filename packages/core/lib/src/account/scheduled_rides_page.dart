@@ -67,6 +67,9 @@ class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Depend on the theme: the ink colours below must follow a light/dark
+    // switch made while the app is open.
+    Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Scheduled rides')),
       body: AsyncContent<List<Trip>>(

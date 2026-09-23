@@ -32,6 +32,9 @@ class _AdminScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Depend on the theme: the ink colours below must follow a light/dark
+    // switch made while the app is open.
+    Theme.of(context);
     final phone = context.select((AuthBloc b) => b.state.user?.phone);
     return BlocBuilder<AdminCubit, AdminState>(
       builder: (context, state) {

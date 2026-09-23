@@ -30,6 +30,9 @@ class AppAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Depend on the theme: the ink colours below must follow a light/dark
+    // switch made while the app is open.
+    Theme.of(context);
     final initials = _initials;
     return Container(
       width: size,

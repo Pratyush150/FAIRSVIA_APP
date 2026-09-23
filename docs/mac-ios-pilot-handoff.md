@@ -13,7 +13,7 @@ detail; where they disagree with this file, **this file wins**.
 
 | | State |
 |---|---|
-| **Android** | Pilot APKs **v1.2.0 (build 5002)** — the Uber-style UI — on two real phones (Realme RMX3381, Moto G34) and verified on the emulator **through the public link, placed in Pune**, light and dark mode. |
+| **Android** | Pilot APKs **v1.3.0 (build 5005)** — the final **"Samarkand Turquoise"** UI — on the pilot phones and verified on the emulator **through the public link, placed in Pune**, light and dark mode (including switching mode while the app is open). |
 | **iOS** | **Not built since 2026-09-14.** Cannot be built on the Linux server. Last run was on simulators only — **never on a physical iPhone**. Everything below is what needs proving. |
 | **Backend** | Runs in Docker on the Linux box (office). Reached by phones through a **public HTTPS link** (Cloudflare tunnel). |
 | **Market** | Pilot is **Pune, India**: rupees (₹), kilometres, +91 phone numbers, Pune fares. (Uzbekistan launch later uses the same switches with `uz`.) |
@@ -103,7 +103,7 @@ for app in rider_app driver_app; do
     --dart-define=API_BASE_URL=$URL \
     --dart-define=MARKET=in \
     --dart-define=ALLOW_SERVER_OVERRIDE=true \
-    --build-name=1.2.0 --build-number=5002
+    --build-name=1.3.0 --build-number=5005
   cd ../..
 done
 ```
@@ -168,17 +168,24 @@ anything different in §9 of `remaining-work-plan.md` with a screenshot.
 7. **Background:** lock the phone while online on a trip for a minute → the
    rider still sees the car move (driver declares background location).
 
-**UI (v1.2.0, Uber-style) — must match Android, light AND dark mode**
+**UI (v1.3.0, "Samarkand Turquoise") — must match Android, light AND dark mode**
+
+Turquoise is the default palette; no extra build flag is needed
+(`--dart-define=THEME=mono` would build the old black-and-white variant — don't).
 1. Font is **Inter** everywhere (not the iOS system font). If you see San
    Francisco, the font asset didn't load — check `packages/design_system/fonts/Inter-*.ttf`.
-2. Main buttons are **black with white text in light mode, white with black
-   text in dark mode** (Settings → Display → Dark to test). Nothing black-on-black.
-3. Map is **greyscale** (no blue river / yellow road shields), dark in dark mode;
-   route line black (white in dark); pickup = black ring, drop-off = black square.
+2. Main buttons are **deep teal-navy (#0B3C49) with white text in light mode,
+   bright turquoise (#2EC4C6) with near-black text in dark mode** (Settings →
+   Display → Dark to test — also switch it **while the app is open**: the
+   buttons must change colour immediately). Nothing dark-on-dark.
+3. Map: light grey land, white roads with grey edges and readable names,
+   soft-green parks, **turquoise-tinted water**, no yellow road shields; the
+   dark map is charcoal with lighter roads and deep-teal water. Route line
+   **turquoise**; pickup = black ring, drop-off = black square.
 4. Home: one rounded **"Where to?"** bar with a **"Later"** chip inside.
-5. Ride list: no boxes around rows; the selected ride has a **2 px black outline**;
+5. Ride list: no boxes around rows; the selected ride has a **2 px turquoise outline**;
    "Economy 👤4 · 8:02 PM · 4 min away · ₹93.11 · Details".
-6. Arriving sheet: headline, driver row, **PIN as one black badge**, grey
+6. Arriving sheet: headline, driver row, **PIN as one teal badge** (turquoise in dark), grey
    **Message** button, grey "Add a stop" / "Pre-book" tiles.
 7. The whole route is visible **above** the ride list (not hidden behind it).
 

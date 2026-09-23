@@ -51,6 +51,9 @@ class _PrimaryButtonState extends State<PrimaryButton> {
 
   @override
   Widget build(BuildContext context) {
+    // Depend on the theme: the ink colours below must follow a light/dark
+    // switch made while the app is open.
+    Theme.of(context);
     final w = widget;
     final enabled = w.onPressed != null && !w.loading;
     // accentInk (not accent) so the white label clears WCAG AA (5.2:1);

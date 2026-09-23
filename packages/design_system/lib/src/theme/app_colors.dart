@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// RideVela palette — monochrome, in the style of the best ride-hailing apps:
-/// pure white / pure black canvases, a tight neutral grey ramp, and the
-/// primary action in the "ink" colour (black on light, white on dark).
+/// RideVela palette — "Samarkand Turquoise": the calm white / black canvases
+/// and tight grey ramp of the best ride-hailing apps, with the primary action
+/// in the brand "ink" (deep teal-navy on light, turquoise on dark) and
+/// turquoise highlights for the route and selection.
 /// Colour is reserved for meaning: green = done/good, red = danger,
 /// blue = links/info, amber = caution.
 ///
 /// The ink tokens ([accent], [accentInk], [onAccent], [accentSoft]…) follow the
-/// app's current brightness: black in light mode, white in dark mode. Each app
+/// app's current brightness: teal-navy in light mode, turquoise in dark mode. Each app
 /// calls [syncBrightness] from its MaterialApp builder, so every screen that
 /// uses them flips with the theme instead of drawing black-on-black.
 class AppColors {
@@ -15,10 +16,10 @@ class AppColors {
 
   static bool _dark = false;
 
-  /// Brand palette, chosen at build time: `--dart-define=THEME=turquoise`
-  /// for "Samarkand Turquoise"; anything else is the monochrome default.
-  static const bool turquoise =
-      String.fromEnvironment('THEME') == 'turquoise';
+  /// Brand palette: "Samarkand Turquoise" — the RideVela look (owner's
+  /// choice, 2026-09-23). `--dart-define=THEME=mono` builds the plain
+  /// black-and-white variant instead.
+  static const bool turquoise = String.fromEnvironment('THEME') != 'mono';
 
   // Samarkand Turquoise: deep teal-navy ink on light, bright turquoise ink on
   // dark; turquoise highlights (route, selection) in both.

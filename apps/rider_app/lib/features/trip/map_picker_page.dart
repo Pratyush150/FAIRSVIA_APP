@@ -235,6 +235,9 @@ class _CenterPin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Depend on the theme: the ink colours below must follow a light/dark
+    // switch made while the app is open.
+    Theme.of(context);
     return Transform.translate(
       offset: const Offset(0, -20),
       child: Icon(Icons.location_on, size: 44, color: AppColors.accent),

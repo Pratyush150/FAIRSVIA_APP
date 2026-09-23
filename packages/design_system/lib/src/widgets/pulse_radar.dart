@@ -40,6 +40,9 @@ class _PulseRadarState extends State<PulseRadar>
 
   @override
   Widget build(BuildContext context) {
+    // Depend on the theme: the ink colours below must follow a light/dark
+    // switch made while the app is open.
+    Theme.of(context);
     final color = widget.color ?? AppColors.accent;
     return SizedBox(
       width: widget.size,
