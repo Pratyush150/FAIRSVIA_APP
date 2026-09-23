@@ -14,7 +14,7 @@ particularly rule 1 (absolute honesty) and rule 2 (never quietly reduce a goal).
 | Area | State |
 |---|---|
 | **Backend** | 436 unit tests / 42 suites, 48 e2e. All green. |
-| **Flutter** | 415 tests, analyzer clean across all six packages. |
+| **Flutter** | 417 tests, analyzer clean across all six packages. |
 | **Android** | Continuously validated on the headless emulator (`pixel_uber`). Many end-to-end rides driven this session. |
 | **iOS** | Builds and ran on a Mac (Xcode 26.6, simulators) on 2026-09-10/14. **Never on a physical iPhone. Not rebuilt since 09-14.** See `handoff-for-mac.md`. |
 | **Monitoring** | Prometheus + Grafana + Alertmanager + Loki live in `infra/monitoring/`. Grafana :3001, Prometheus :9099. |
@@ -22,15 +22,20 @@ particularly rule 1 (absolute honesty) and rule 2 (never quietly reduce a goal).
 
 ### What is genuinely left
 
-All external — needs an account, a key, a certificate or a Mac, not more code.
-The authoritative list with detail is **`remaining-work-plan.md`**; the short
-version:
+**Updated 2026-09-23.** The authoritative list is **`remaining-work-plan.md`**
+— rewritten that day. Key changes since this handoff was first written:
 
-🔴 OTP SMS mocked (nobody can really log in) · TLS off · Stripe webhook secret
-absent · background checks mocked
-🟠 Push notifications mocked · iOS not rebuilt
-🟡 Alertmanager delivery unwired (deliberately) · passenger-side tracking link ·
-Android launcher icon still shows the old "F" · disk at 96%
+- **Launch market is Uzbekistan / Central Asia, not Florida.** Map data,
+  currency (UZS), phone format (+998), language and in-country data storage
+  are now tracked work. The loaded routing data covers part of India, not
+  either market.
+- **Done and verified:** Sentry error tracking (backend + all 3 apps, off until
+  a DSN is set), nightly Postgres backups with a restore drill and staleness
+  alert, TLS automation in the prod stack, a privacy-policy draft.
+- **Deferred by the owner:** anything needing the company's GST registration or
+  company mobile number (SMS sender, payment/KYC vendors).
+- **Store blocker found:** no in-app account deletion (Apple + Google require it).
+- The real TLS certificate needs only a DNS record from the owner.
 
 Field verification is tracked in **`field-testing-plan.md`** (23 cases, 13 of
 them in a moving vehicle).

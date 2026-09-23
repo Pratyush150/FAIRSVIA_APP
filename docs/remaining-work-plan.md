@@ -1,214 +1,190 @@
 # Remaining Work Plan
 
 > **New session picking this up?** Read
-> [session-handoff.md](session-handoff.md) first — it carries the environment
-> traps, what is verified vs assumed, and the corrections made to this repo's
-> own (previously wrong) documentation.
+> [session-handoff.md](session-handoff.md) first — environment traps, what is
+> verified vs assumed, and corrections to this repo's own documentation.
 
-Everything outstanding, in execution order. Compiled 2026-09-18 from a live
-audit of the running stack plus the existing `UBER_GAP_ANALYSIS.md` and
-`ios-audit-report-2026-09-14.md`. **Updated 2026-09-22.**
+The single authoritative list of what is left. **Rewritten 2026-09-23** after
+the owner's decisions below and a fresh audit that checked older documents
+(`architecture-explained.md`, `codebase-audit.md`, both 2026-09-10) against the
+live code instead of trusting them.
 
-## What is done since this was written
+---
 
-| | |
+## Owner decisions — 2026-09-23
+
+| Decision | Effect on this plan |
 |---|---|
-| Stage 1 — latent production bugs (1.1, 1.2, 1.3) | **Done.** Shutdown hooks armed; `/health` split into liveness/readiness with a real 503; `audit_log` + a global interceptor keyed on `@Roles(admin)`. |
-| Observability (`monitoring-and-actions-plan.md` Phase 2) | **Done.** Prometheus + Grafana + Alertmanager + Loki in `infra/monitoring/`, three provisioned dashboards, 11 alert rules, business metrics in the registry. |
-| Ops actions (Phase 3) | **Done.** Four audited kill switches with a console tab. |
-| Live-map / ride-UI work | **Done and validated on Android.** Many end-to-end rides on the emulator. |
-| Rider UI/UX brief (items 1–22) | **Done.** Splash, ride-state micro-copy, live-map camera (look-ahead, gesture handling, Recenter pill), "book for someone else" camera rule, tip terminal-state fix, home-page split into sheets + a map layer. Item 23+ of the brief was never received — it was truncated mid-sentence. |
-| Camera gesture rules | **Done and verified by hand.** Pan **or** zoom suspends following and raises the Recenter pill; tapping it restores the car, the zoom, and automatic tracking. A true two-finger pinch is still unverified (adb cannot drive multitouch). |
+| **Launch market is Central Asia — Uzbekistan first — not Florida** | Florida-specific items (F.S. 627.748 insurance) are dropped. New market work added: routing data, currency, phone format, language, data residency — see §3 |
+| **Business APIs that need the company's GST registration and company mobile number are deferred** until those exist | SMS sender, and any vendor account needing company KYC, stay mocked. **Do not spend time on them now** — polish what we own instead |
+| **Referral program stays on the roadmap** | Kept in §7, Tier 3. Not started |
+| **Grafana is the analytics + monitoring + alerting surface** — no separate reporting dashboard in the admin app for now | Checklist gap analysis in §5 |
+| **Post-booking / driver-arriving screen brief** to be built for Android and iOS | Gap analysis in §6 |
+| TLS, error tracking, Postgres backups, a privacy policy: **do them ourselves, now** | Done — see below |
 
-## What is actually left
+---
 
-Everything below is **external** — it needs an account, a key, a certificate or
-a Mac, not more code:
+## Done 2026-09-23 (verified, not assumed)
 
-| Priority | Item | Blocked on |
+| Item | What exists | How it was verified |
 |---|---|---|
-| 🔴 | **OTP SMS is mocked — nobody can really log in** | You. AWS creds already present; flip `SMS_PROVIDER` off `mock` |
-| 🔴 | **TLS/HTTPS is off** | A certificate. nginx block is written and commented out. Unblocks the next two |
-| 🔴 | **Stripe webhooks rejected** (`STRIPE_WEBHOOK_SECRET` absent) | You, after TLS |
-| 🔴 | **Background checks mocked** — likely a legal requirement to carry paying passengers | External vendor. **Longest lead time of anything here** |
-| 🟠 | **Push notifications mocked** | Mixed (FCM/APNs keys) |
-| 🟠 | **iOS not rebuilt since 2026-09-14, never on a physical iPhone** | A Mac. See `handoff-for-mac.md` |
-| 🟡 | **Alertmanager has no delivery wired** — deliberately, so it cannot look armed while pointing nowhere | 10 min: fill in Slack or SES |
-| 🟡 | **Passenger-side tracking link** for "book for someone else" — the booker tracks fine, the passenger has no account and only gets SMS | ~1 day of code |
-| 🟡 | **Android launcher icon still shows the old "F" mark** | An icon asset |
-| 🟡 | **Disk at 96%** on the build box; `DiskSpaceLow` fires for real | 13 GB of Flutter build caches already reclaimed. The remaining ~52 GB of unused Docker images are the owner's robotics work (`hailo8_ai_sw_suite`, `opendronemap/odm`, `colmap`) — **do not blanket-prune**. `infra/osm-data` is live OSRM data, not junk |
+| **Error tracking — backend** | `@sentry/nestjs`: `src/instrument.ts` (first import in `main.ts`), `SentryModule` + `SentryGlobalFilter`. Off until `SENTRY_DSN` is set — same mock/real pattern as every provider | tsc clean; 436 unit + 48 e2e green; dev backend restarted and healthy; a real exception was delivered as a Sentry envelope to a local fake endpoint |
+| **Error tracking — all three Flutter apps** | `sentry_flutter` 9.x in `packages/core`, wired into the shared `runGuarded`/`reportError`, so rider, driver and admin all report through one path. Off until built with `--dart-define=SENTRY_DSN=...` | 2 new tests (error forwarded; socket noise filtered); analyzer clean in all 6 packages; rider + driver debug APKs build. `sentry_flutter` 8.x **broke the Android build** (Kotlin 1.6 language level) — found by building, fixed by moving to 9.x |
+| **Postgres backups** | `infra/backup/`: nightly verified `pg_dump`, 7 daily / 4 weekly / 6 monthly rotation, hourly retry on failure, `pg_backup` service in the prod stack, `make backup-db` / `make restore-db`, `PgBackupStale` alert via node_exporter | **Restore drill:** identical row counts in all 24 tables (230,381 rows). Alert loaded, inactive on a fresh backup, went pending when the timestamp was aged 2 days |
+| **TLS / HTTPS automation** | `infra/tls/`: nginx on 443 (TLS 1.2/1.3, HSTS), HTTP → HTTPS redirect, certbot issue + 12-hourly renewal, self-signed placeholder so the stack always boots | Drill on the real compose definitions: HTTPS 200 over HTTP/2, redirect, ACME path, **server refuses TLS 1.1**, each security header exactly once, `/metrics` blocked, renewal hand-off served a new cert with no restart. Also fixed a latent bug: single-file bind mount meant nginx config edits were silently ignored on reload |
+| **Privacy policy** | `docs/legal/privacy-policy.md` — **draft**, written from the actual data model | Each claim checked against the code. One draft claim was false ("phone numbers are never shown") and was corrected — book-for-someone-else shows the passenger's phone to the driver |
 
-Field verification is tracked separately in
-[field-testing-plan.md](field-testing-plan.md) — 23 cases, 13 of which must be
-run in a moving vehicle.
+---
 
-Storage/disk capacity is **owned by the project owner** and deliberately not
-tracked here.
+## 1. Blocked on the owner only (not code)
+
+| Priority | Item | Exactly what is needed |
+|---|---|---|
+| 🔴 | **Real TLS certificate** | A DNS **A record** for the API hostname (e.g. `api.ridevela.com`) → the production server's public IP, in the Cloudflare account, "DNS only". Then one command — `infra/tls/README.md`. Today neither `api.ridevela.com` nor `api.fairsvia.com` exists in DNS |
+| 🔴 | **Production server location** | Uzbekistan's personal-data law requires citizens' data to be stored on servers inside Uzbekistan — confirm with counsel. Decides where the DB, backups and off-site copies may live |
+| 🔴 | **Regulatory / licensing for ride-hailing in Uzbekistan** (and each later country) | Taxi/TNC licensing, mandatory passenger insurance, driver requirements. No code can resolve this; it may add product requirements (e.g. licence documents, fiscal receipts) |
+| 🔴 | **Background-check provider for Uzbekistan** | Checkr is US-only. Integration layer exists (mock by default); needs a local vendor or a manual document-review process |
+| 🟠 | **Privacy policy completion** | Company legal name, address, contacts (pending registration), retention periods, counsel review, Uzbek + Russian translations, a public URL |
+| ⏸ | **Deferred by decision:** SMS sender, Stripe webhook secret, push keys, any company-KYC vendor | Waiting on GST registration + company mobile number. Also: **Stripe is, to our knowledge, not available to Uzbekistan-registered merchants** (confirm on Stripe's country list) — a local processor (e.g. Payme, Click) will be needed; the payment layer is provider-abstracted, so this is a new provider, not a rewrite |
+| 🟡 | Alertmanager delivery | 10 min once a Slack webhook or email is chosen |
+| 🟡 | Android launcher icon (old "F") | An icon asset |
+| 🟡 | iOS rebuild + physical-iPhone run | A Mac (last built 2026-09-14) |
+| 🟡 | Sentry project | Create one, set `SENTRY_DSN` — two minutes, then error tracking is live |
+| 🟡 | Off-site backup destination | A bucket or second server, **in-country** if the residency rule is confirmed |
+
+---
+
+## 2. App-store blockers we can build ourselves
+
+| # | Item | Why |
+|---|---|---|
+| 2.1 | **In-app account deletion** — rider and driver | **Required by Apple (since 2022) and Google Play (since 2024)** for any app with sign-up. Verified 2026-09-23: no delete-account endpoint or screen exists. Needs: endpoint, anonymisation that keeps legally-required trip/payment records, confirmation UI, and a web deletion link for Play |
+| 2.2 | **Privacy policy + terms links in the apps** | Both stores require them reachable in-app. Blocked only on the public URL |
+| 2.3 | **ATS `NSAllowsArbitraryLoads` removal** (iOS) | Apple rejects it; TLS now exists to replace it. Needs a Mac to verify |
+
+---
+
+## 3. Launch-market work: Uzbekistan (new)
+
+Verified 2026-09-23 against the running stack:
+
+| # | Item | Current state | Work |
+|---|---|---|---|
+| 3.1 | **Routing + geocoding map data** | The loaded OSRM data (`bhukum`) covers a region of **Maharashtra, India** — not Florida, not Uzbekistan. Tashkent snaps to a road **2,540 km away** | Load the Geofabrik Uzbekistan extract into OSRM + Nominatim. ~1 day incl. processing; check disk first (96% used) |
+| 3.2 | **Currency** | `USD` is the DB default on trips and payments; 116 Dart strings format money with `$` | UZS end-to-end: fare config, formatting (UZS has no minor unit in practice), receipts. One money-formatting helper in `design_system` instead of 116 inline `$` |
+| 3.3 | **Phone numbers** | Validation is generic (`IsPhoneNumber`) | Default country +998, local-format input mask, OTP copy |
+| 3.4 | **Language** | No i18n at all | Uzbek (Latin) + Russian + English; extract strings to ARB files. Largest item in this section |
+| 3.5 | **Time zone** | Business dashboard "today" uses server time | Tashkent (UTC+5) for day boundaries |
+
+---
+
+## 4. Money-path and safety correctness (from the 2026-09-10 audit, re-checked)
+
+| ID | Issue | Status 2026-09-23 |
+|---|---|---|
+| C2 | Driver withdrawal double-spend race | ✅ **Fixed** — serializable transaction (`ledger.service.ts`) |
+| H1 | Refund over-refund race | ✅ **Fixed** — reserve-then-call-provider, idempotency key, reversal on failure |
+| C1 | Capture vs driver earning not atomic | 🟠 **Partly fixed.** Capture is capped at the authorised hold. The payment-status update and the ledger credit are still two statements (`payments.service.ts` ~257–267) — a crash between them leaves a captured fare with no driver credit. Put both in one transaction |
+| H2 | Per-user promo limit bypass under concurrency | 🔴 **Open** — `PromoRedemption` has no `@@unique([promoId, userId])` |
+| M13 | Money stored as `Float` | 🟡 **Open** — `FareConfig` / competitor tables (`baseFare`, `bookingFee`, `minFare`, `observedFare`). Trip/Payment are correctly `Decimal`. Fix together with 3.2 |
+| — | **SOS notifies no one** | 🔴 **Open.** Writes an alert for the admin view only — no SMS, call or emergency contact. Must not be labelled an emergency feature until it alerts someone (local emergency number 102/103 in Uzbekistan, trusted contacts, ops on-call) |
+| — | Driver document upload | Open — onboarding is typed text; verification is a manual admin toggle |
+
+---
+
+## 5. Grafana analytics checklist — gap analysis
+
+Against the owner's "Grafana Dashboard — Core List". Grafana already has a
+**Postgres datasource**, so most business panels are SQL over existing tables.
+
+| Section | Already there | Missing → how |
+|---|---|---|
+| App overview | Rides completed (today), completed/cancelled by outcome + reason, completion rate, gross revenue (today, per hour) | Total users, new users (SQL on `users`) · total rides all-time · average fare (SQL) · **DAU / MAU** — needs a throttled `last_active_at` on users; trip counts would under-count riders who open the app and don't book |
+| Live operations | Active trips, drivers online (+ by tier), dispatch backlog (= unassigned), match latency | Available vs busy split (online minus drivers on a trip) · **average pickup ETA** — actual accepted→arrived from `trip_events` · **driver acceptance / decline / expiry rate** — needs a new `dispatch_offers_total{outcome}` counter |
+| Users & drivers | — | User growth, driver growth, active users/drivers, driver utilisation (time on trip ÷ time online), rides per driver — SQL, utilisation needs online-time tracking |
+| Revenue & payments | Gross revenue, platform fee (= commission) | Net revenue (fee − refunds) · driver payouts (ledger) · payment success rate (SQL + `payment_failures_total`) · refunds (`payment_refunds`) |
+| System health | CPU, RAM, disk, load, req/s, latency percentiles, 5xx rate, Postgres connections/transactions, Redis, event-loop lag, logs | **WebSocket connections** — new gauge · uptime panel (`process_start_time_seconds` already exported) · slow-query view |
+| Alerts (12 rules) | Backend down, high error rate, disk low, match latency, dispatch backlog, active trips near ceiling, no drivers online, vendor errors, payment failures, Postgres connections, Redis memory, backup stale | **Database down** (`pg_up == 0`) · **high API latency** (p95 on HTTP, distinct from match latency) · **host CPU / memory overload** · ride anomalies (cancellation-rate spike) |
+
+Effort: ~2 days. Three new backend metrics (offer outcomes, WebSocket gauge,
+last-active), ~20 SQL panels, 4 alert rules. All alerts need Alertmanager
+delivery (§1) before they reach a person.
+
+---
+
+## 6. Post-booking / driver-arriving screen — gap analysis (Android + iOS)
+
+Against the owner's brief, checked in `rider_app/lib/features/trip/`:
+
+| Brief item | State |
+|---|---|
+| Live map with safety button | ✅ Built (live car, SOS button) |
+| Prominent "SAURAV is arriving now" banner | 🟠 Status copy exists but is generic ("Your driver is on the way / has arrived"). Needs the driver's name and banner styling |
+| 4-digit ride PIN | ✅ Built — 4-digit start code shown to the rider only |
+| Pickup spot + ride category + payment method | ❌ Not shown on this sheet |
+| Driver photo, name, rating | 🟠 Name + rating yes; **photo no** (initials) — needs photo upload + storage (shared with §4 document upload) |
+| Car image, registration number, model | 🟠 Plate + make/model yes; **car image no** |
+| "I'm on my way" CTA (rider tells the driver they are coming) | ❌ Not built — needs a socket event + driver-app notice |
+| Overflow menu (•••) for ride options | ❌ Not built — should hold cancel, share trip, contact support |
+| Promotional content below ride details | ❌ Not built — needs a content source (admin-managed) |
+| "Add trip" and "Pre-book" quick-action cards | ❌ Not built. Scheduled rides exist server-side, so Pre-book is mostly UI. "Add stop" mid-trip (§7 Tier 2) is a prerequisite for "Add trip" if it means adding a stop |
+
+Being Flutter, one implementation serves both platforms; iOS still needs a Mac
+build to verify. ~3–4 days, excluding photo storage.
+
+---
+
+## 7. Feature gaps (unchanged, value-ordered)
+
+**Tier 1:** editable pickup · in-app masked calling · driver + vehicle photos
+· wait timer / no-show UI.
+**Tier 2:** rebook a past trip · add stop / change destination mid-trip ·
+resend OTP with countdown · name + email at signup · set-default / delete card.
+**Tier 3:** local wallets (Payme / Click — replaces Apple/Google Pay as the
+priority for Uzbekistan) · settings screens (i18n moved to §3.4) ·
+**referral program (kept by owner decision)** · pool rides and add-ons.
+
+Also: 26 iOS backlog items (iOS audit) · 4 cosmetic backend issues (S6–S9).
+
+---
+
+## 8. Verification gaps
+
+| # | Gap |
+|---|---|
+| 8.1 | Production profile never benchmarked — every capacity number is from the dev stack. Needs `infra/.env` |
+| 8.2 | iOS never on a physical iPhone; not rebuilt since 2026-09-14 |
+| 8.3 | ~43 stale trips stuck in `accepted`/`in_progress` in the dev DB from an old load-test run |
+| 8.4 | The architecture docs say "Postgres + PostGIS", but **PostGIS is not installed in the running database** and no code uses it (geo is Redis GEO + OSRM). Harmless; the docs should stop claiming it |
+
+---
+
+## Kubernetes
+
+Assessed and deliberately **not** planned: measured capacity ~25–50k
+registered users on one box vs a 10k target. Revisit only after 8.1 gives real
+production numbers. The in-country hosting requirement (§1) also favours a
+simple single-server deployment at launch.
+
+---
+
+## Suggested order
+
+| When | What |
+|---|---|
+| **Now (owner)** | DNS record for the API host · pick the production server (in-country) · start licensing/insurance and background-check vendor conversations · create a Sentry project |
+| **Next (us)** | §2.1 account deletion · §4 C1 + H2 + SOS · §3.1 map data · §6 arriving screen |
+| **Then** | §3.2–3.5 currency, phone, language, time zone · §5 Grafana panels · §8.1 benchmark |
+| **Ongoing** | §7 by tier |
+| **Needs a Mac** | §2.3, §8.2 |
 
 ## Companion documents
 
 | Document | Covers |
-| --- | --- |
-| [external-connectors.md](external-connectors.md) | All six third-party integrations and how to switch each on |
+|---|---|
+| [external-connectors.md](external-connectors.md) | Third-party integrations and how to switch each on |
 | [monitoring-and-actions-plan.md](monitoring-and-actions-plan.md) | Observability stack, ops actions, Kubernetes assessment |
 | [frontend-maintainability-plan.md](frontend-maintainability-plan.md) | God files, model contract, admin_app tests |
-
-This document sequences those three plus the work not covered by any of them.
-
----
-
-## Stage 0 — Repo hygiene (do first, ~1 hour)
-
-The branch `feat/map-eta-and-audit-fixes` is **107 commits ahead of `main`**
-with uncommitted work on top.
-
-1. Commit the load-test fixes — `ride-load.mjs` and `spike-load.mjs` carry real
-   bug fixes (rider leak, arrival geofence) and `README.md` carries the
-   corrected measured numbers. These are currently unsaved.
-2. Commit the four planning documents.
-3. **Merge to `main`.** 107 commits is a large unmerged surface; every extra day
-   raises the cost of the eventual merge.
-
----
-
-## Stage 1 — Latent production bugs (~0.5 day)
-
-Three defects that are invisible today and bite under production conditions.
-Detail in [monitoring-and-actions-plan.md](monitoring-and-actions-plan.md)
-Phase 1.
-
-| # | Defect | Consequence |
-| --- | --- | --- |
-| 1.1 | `app.enableShutdownHooks()` never called in `main.ts`, though Prisma, Redis and all four queue processors implement `onModuleDestroy` | SIGTERM is ignored; any restart or rolling deploy hard-kills in-flight dispatch jobs and WebSockets with no drain |
-| 1.2 | `/health` returns HTTP **200** while reporting `status: "degraded"` | A backend with a dead database stays in the load balancer serving traffic. Needs liveness/readiness split with a real 503 |
-| 1.3 | No audit log — 22 models, none recording admin actions | Refunds, surge changes, fare edits, driver verification and user deactivation are all unrecorded. Authorization is correct; accountability is missing |
-
-**Do these before anything else technical.** 1.1 and 1.2 are prerequisites for
-any orchestrator, and 1.3 must land before the dashboard grows action buttons.
-
----
-
-## Stage 2 — Release blockers (~1 day of work + external lead time)
-
-Cannot ship to either app store without these.
-
-| # | Blocker | Owner | Notes |
-| --- | --- | --- | --- |
-| 2.1 | **TLS / HTTPS is off** | us | Backend serves plain HTTP. iOS ATS requires TLS 1.2+; Android blocks cleartext. The nginx config block is written and commented out — needs a certificate and uncommenting. Also unblocks Stripe webhooks |
-| 2.2 | **ATS `NSAllowsArbitraryLoads`** still set in both `Info.plist`s | needs Mac | Apple rejects at review. Device builds must pass `--dart-define=API_BASE_URL` (iOS audit P0 #4) |
-| 2.3 | **Push notifications don't work** | mixed | Mock provider on both platforms. See connectors doc §3 |
-| 2.4 | **OTP SMS is not delivered** | us | `SMS_PROVIDER=mock`. Users cannot actually log in. Connectors doc §4 |
-| 2.5 | **Background checks are mocked** | external | Likely a legal requirement to carry paying passengers. Longest lead time of anything here — **start the commercial process immediately**. Connectors doc §6 |
-| 2.6 | **Stripe webhooks rejected** | us | `STRIPE_WEBHOOK_SECRET` absent, handler fails closed. Payments capture but never reach final state. Connectors doc §1 |
-
-**Start 2.5 and the SES production-access request today** — both wait on other
-organisations and everything else is faster than they are.
-
----
-
-## Stage 3 — Connectors go-live
-
-Fully specified in [external-connectors.md](external-connectors.md). Summary:
-six vendors, two live, one half-wired, three mocked. Cheapest real win is
-flipping `SMS_PROVIDER` and `EMAIL_PROVIDER` off `mock` — the AWS credentials
-are already present.
-
-Verify every change with `GET /api/v1/admin/diagnostics/probe`, which pings each
-configured vendor read-only.
-
----
-
-## Stage 4 — Close the verification gaps
-
-| # | Gap | Blocked by |
-| --- | --- | --- |
-| 4.1 | **Production profile never benchmarked.** Every capacity number we hold was measured on the dev stack running `npm run start:dev` (TypeScript watch mode, single replica). Production uses a compiled build with two replicas, so real capacity is likely 2–4× higher and currently unknown | Needs `infra/.env` with two passwords (copy `infra/.env.example`) |
-| 4.2 | ~~Nothing on iOS has ever been compiled or run.~~ **Wrong when written.** iOS was compiled and run on a Mac on 2026-09-10/11 and again on 09-14 (Xcode 26.6, iPhone 17 + 16 Pro **simulators**) — see `changelog-ios-validation-2026-09-10.md` and `ios-audit-report-2026-09-14.md`. What is actually outstanding: **never run on a physical iPhone**, and **not rebuilt since 2026-09-14**. Changes since then are Dart/backend only; the sole `ios/` edits are brand strings in the two Info.plists. | Needs a Mac with Xcode |
-| 4.3 | **Test data in the dev database** — grew from 12 MB to 50+ MB during load testing; 43 trips remain stuck in `accepted`/`in_progress` from a run that predates the harness fixes. The fixed runs leave none | Nothing; needs a cleanup decision |
-
-4.1 is worth doing before any capacity or cost planning, because it is the
-number that determines how long a single box lasts.
-
----
-
-## Stage 5 — Observability and ops actions (~1 week)
-
-See [monitoring-and-actions-plan.md](monitoring-and-actions-plan.md).
-Phase 1 is Stage 1 above. Phases 2 and 3 are the monitoring stack and the
-action console. Phase 4 (Kubernetes) is assessed as **not yet needed** —
-measured capacity is roughly 25–50k registered users on one box, against a 10k
-target.
-
-Highest-value single metric to add: **`dispatch_queue_depth`**, with an alert.
-It is the number that moved first in every load test before riders felt anything.
-
----
-
-## Stage 6 — Maintainability (~3 days)
-
-See [frontend-maintainability-plan.md](frontend-maintainability-plan.md).
-Split the 3,370-line `rider_app/home_page.dart` (35 widget classes in one file),
-add contract tests between the backend DTOs and the hand-written
-`shared_models`, and give `admin_app` its first tests.
-
-None of this blocks feature work, and the design-system foundation is already
-sound (~93% token discipline, zero arbitrary hex colours).
-
----
-
-## Stage 7 — Feature gaps
-
-From `UBER_GAP_ANALYSIS.md`, ordered by value rather than effort. The first
-three are the ones a rider would notice immediately.
-
-### Tier 1 — most visible
-
-1. **Editable pickup.** Pickup is always the current location and cannot be
-   changed. Flagged in the gap analysis as the high-value gap, and it blocks
-   several others (map pin, venue pickup points, pickup notes).
-2. **In-app masked calling.** Rider and driver cannot talk. Standard safety
-   expectation.
-3. **Driver and vehicle photos.** Initials only — affects trust at pickup.
-4. **Wait timer and no-show flow.** The 150 m arrival geofence exists
-   server-side (verified during load testing) but neither app has the UI
-   (iOS audit P1 #13).
-
-### Tier 2 — retention and completeness
-
-5. Rebook a past trip — history is view-only.
-6. Add a stop or change destination mid-trip.
-7. Resend OTP with countdown.
-8. Name and email at signup; profile photo.
-9. Set-default and delete card.
-
-### Tier 3 — growth and reach
-
-10. Apple Pay / Google Pay.
-11. Settings screens and internationalisation — there is no i18n at all today.
-12. Referral codes.
-13. Pool / shared rides; ride add-ons (pet, car seat, WAV, assist).
-
-### Also outstanding
-
-- **26 iOS backlog items** (6 P0, 14 P1, 6 P2) in the iOS audit.
-- **4 cosmetic backend issues** (S6–S9): `/places/details` returns 502 rather
-  than 400 on a bad placeId; multi-stop estimate polyline draws straight
-  segments; the 429 body omits the `error` field other errors carry; a bad
-  promo at create is silently dropped by design.
-
----
-
-## Suggested sequencing
-
-| When | What |
-| --- | --- |
-| **Today** | Stage 0 (commit + merge). Start Checkr onboarding and the SES production-access request — both wait on other people |
-| **This week** | Stage 1 (latent bugs), Stage 3 quick wins (SMS/email switches, FCM Android, Stripe webhook secret) |
-| **Next** | Stage 2 TLS, Stage 4.1 production benchmark |
-| **Then** | Stage 5 observability, Stage 6 maintainability |
-| **Ongoing** | Stage 7 features, highest tier first |
-| **Needs a Mac** | Stage 2.2, Stage 4.2, iOS half of push |
-
-The critical path to launch runs through the **external** items — background
-checks and SES production access — not through engineering work. Start those
-first; everything else is faster than they are.
+| [field-testing-plan.md](field-testing-plan.md) | On-road verification (23 cases) |
+| [legal/privacy-policy.md](legal/privacy-policy.md) | Privacy policy draft |
+| `infra/tls/README.md`, `infra/backup/README.md` | TLS and backup runbooks |
