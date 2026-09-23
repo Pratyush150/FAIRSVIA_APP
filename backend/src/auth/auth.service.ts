@@ -94,9 +94,15 @@ export class AuthService {
     // Echo the code back only when explicitly allowed (mock provider + non-prod)
     // so tests can log in without reading logs; never in production.
     // Over the public edge, only the pilot's demo accounts get it.
+    // "*" in the list = every number except the admin's (pilot testers use
+    // their own phones; nobody can read the admin's code from the internet).
+    const allowed = otpCfg.publicEchoPhones ?? [];
+    const admins = this.config.get<string[]>('adminPhones') ?? [];
     const echo =
       otpCfg.devEcho &&
-      (!viaPublicEdge || (otpCfg.publicEchoPhones ?? []).includes(phone));
+      (!viaPublicEdge ||
+        allowed.includes(phone) ||
+        (allowed.includes('*') && !admins.includes(phone)));
     return echo ? { requestId, devCode: code } : { requestId };
   }
 

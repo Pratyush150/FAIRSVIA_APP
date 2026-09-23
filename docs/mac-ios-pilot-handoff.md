@@ -117,17 +117,17 @@ needs higher shows it in the error, raise both to match.
 
 ---
 
-## 6. Demo accounts (no SMS provider yet)
+## 6. Logging in (no SMS provider yet)
 
-Over the public link, a login code is shown on screen **only** for these
-numbers (any other number, including the admin's, gets no code — on purpose):
+Over the public link the login code is shown **on screen for any number**
+(orange "Dev code" pill under the input) — except the admin's, on purpose.
+Testers can use their own phone numbers. Demo accounts also exist:
 
 | Riders | Drivers |
 |---|---|
 | 9000000001, 9000000002, 9000000003 | 9000000011, 9000000012, 9000000013 |
 
-Type them as shown (the app adds +91). The code appears in an orange
-"Dev code" pill under the input.
+Type numbers without +91; the app adds it.
 
 ---
 

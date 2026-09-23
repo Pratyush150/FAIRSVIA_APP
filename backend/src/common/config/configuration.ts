@@ -19,8 +19,10 @@ export interface AppConfig {
     /** Requests arriving through the public edge (Cloudflare tunnel / CDN)
      *  get the echoed code only for these phones — the pilot's demo
      *  accounts. Without it, anyone holding the public URL could read the
-     *  login code for any number, the admin's included. Empty = no echo over
-     *  the public edge at all. On-network requests are unaffected. */
+     *  login code for any number, the admin's included. `*` = every number
+     *  except the ADMIN_PHONES (pilot testing with testers' own phones, no SMS
+     *  provider yet). Empty = no echo over the public edge at all.
+     *  On-network requests are unaffected. */
     publicEchoPhones: string[];
   };
   smsProvider: string;

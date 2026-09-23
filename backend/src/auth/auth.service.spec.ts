@@ -111,6 +111,32 @@ describe('AuthService', () => {
       expect(store.get('otp:+19876543210')).toBe(sha256(sentOtp!.code));
     });
 
+    describe('over the public edge', () => {
+      const get = config.get as jest.Mock;
+      const original = get.getMockImplementation();
+      afterEach(() => get.mockImplementation(original));
+      const withEcho = (phones: string[]) =>
+        get.mockImplementation((key: string) => {
+          if (key === 'otp') {
+            return { ttlSeconds: 300, length: 6, maxAttempts: 5, devEcho: true, publicEchoPhones: phones };
+          }
+          if (key === 'adminPhones') return ['+19900000001'];
+          return undefined;
+        });
+
+      it('shows the code only for listed numbers', async () => {
+        withEcho(['+919000000001']);
+        expect((await service.requestOtp('+919000000001', true)).devCode).toMatch(/^\d{6}$/);
+        expect((await service.requestOtp('+919812345678', true)).devCode).toBeUndefined();
+      });
+
+      it('"*" shows it for any number — except the admin\'s', async () => {
+        withEcho(['*']);
+        expect((await service.requestOtp('+919812345678', true)).devCode).toMatch(/^\d{6}$/);
+        expect((await service.requestOtp('+19900000001', true)).devCode).toBeUndefined();
+      });
+    });
+
     it('rate-limits after 5 requests in the window', async () => {
       for (let i = 0; i < 5; i++) {
         await service.requestOtp('+11111111111');
