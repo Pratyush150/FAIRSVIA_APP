@@ -3,6 +3,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { QUEUE_SCHEDULED } from '../common/queue/queue.constants';
 import { ScheduledService } from './scheduled.service';
+import { drainAndClose } from '../common/queue/drain';
 
 /**
  * Fires a delayed job at each scheduled ride's time to promote it to a live
@@ -22,6 +23,6 @@ export class ScheduledProcessor extends WorkerHost {
   }
 
   onModuleDestroy(): Promise<void> {
-    return this.worker?.close() ?? Promise.resolve();
+    return drainAndClose(this.worker);
   }
 }

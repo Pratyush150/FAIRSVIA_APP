@@ -10,6 +10,7 @@ import { TripStateMachine } from '../trips/trip-state-machine';
 import { MetricsService } from '../common/metrics/metrics.service';
 import { PaymentsService } from './payments.service';
 import { CaptureJobData, QUEUE_PAYMENTS } from './payments.queue';
+import { drainAndClose } from '../common/queue/drain';
 
 /**
  * Durable retry of a fare capture that failed at trip completion. The trip is
@@ -110,6 +111,6 @@ export class PaymentsProcessor extends WorkerHost {
   }
 
   onModuleDestroy(): Promise<void> {
-    return this.worker?.close() ?? Promise.resolve();
+    return drainAndClose(this.worker);
   }
 }

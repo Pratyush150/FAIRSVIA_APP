@@ -11,6 +11,26 @@ import { ConfigService } from '@nestjs/config';
  * survives a backend restart: an in-flight job is retried/resumed instead of
  * lost, and it can be processed by any replica (multi-node safe).
  */
+/**
+ * BullMQ connection options from a redis:// URL. Credentials and db index
+ * must be carried over: the production Redis requires a password
+ * (docker-compose.prod `--requirepass`), and dropping it made every queue
+ * fail NOAUTH.
+ */
+export function bullConnectionFromUrl(url: string) {
+  const parsed = new URL(url);
+  const db = Number(parsed.pathname.replace('/', '') || 0);
+  return {
+    host: parsed.hostname,
+    port: Number(parsed.port || 6379),
+    username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
+    password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+    db: Number.isFinite(db) ? db : 0,
+    // BullMQ requires this to be null for its blocking commands.
+    maxRetriesPerRequest: null,
+  };
+}
+
 @Global()
 @Module({
   imports: [
@@ -18,14 +38,11 @@ import { ConfigService } from '@nestjs/config';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const url = config.get<string>('redisUrl') ?? 'redis://localhost:6379';
-        const parsed = new URL(url);
         return {
-          connection: {
-            host: parsed.hostname,
-            port: Number(parsed.port || 6379),
-            // BullMQ requires this to be null for its blocking commands.
-            maxRetriesPerRequest: null,
-          },
+          // Namespaced so a test run never consumes (or is slowed by) the
+          // jobs of a dev server sharing the same Redis. Default = BullMQ's.
+          prefix: process.env.QUEUE_PREFIX || 'bull',
+          connection: bullConnectionFromUrl(url),
         };
       },
     }),

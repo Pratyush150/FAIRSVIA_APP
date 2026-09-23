@@ -3,6 +3,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { DispatchService } from './dispatch.service';
 import { QUEUE_DISPATCH } from '../common/queue/queue.constants';
+import { drainAndClose } from '../common/queue/drain';
 
 /**
  * Runs the dispatch offer-loop as a durable job. If this process dies mid-match,
@@ -27,7 +28,6 @@ export class DispatchProcessor extends WorkerHost {
   }
 
   onModuleDestroy(): Promise<void> {
-    // WorkerHost registers a worker; close it cleanly on shutdown.
-    return this.worker?.close() ?? Promise.resolve();
+    return drainAndClose(this.worker);
   }
 }
