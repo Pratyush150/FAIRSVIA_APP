@@ -941,4 +941,53 @@ void main() {
       await cubit.close();
     });
   });
+
+  group('stops on a ride', () {
+    Trip onTrip({List<TripStop> stops = const []}) => Trip(
+          id: 'trip-1',
+          status: TripStatus.inProgress,
+          tier: 'economy',
+          pickup: const TripEndpoint(point: GeoPoint(41.30, 69.24), address: 'A'),
+          dropoff: const TripEndpoint(point: GeoPoint(41.35, 69.28), address: 'B'),
+          stops: stops,
+        );
+    const s1 = TripStop(point: GeoPoint(41.31, 69.25), address: 'Chorsu');
+    const s2 = TripStop(point: GeoPoint(41.33, 69.26), address: 'Amir Temur');
+
+    test('a stop the rider adds refreshes the trip and is announced', () async {
+      var calls = 0;
+      when(() => remote.getActiveTrip()).thenAnswer((_) async =>
+          ++calls == 1 ? onTrip() : onTrip(stops: const [s1]));
+      final cubit = make();
+      await cubit.init('token');
+      await tick();
+      expect(cubit.state.trip?.stops, isEmpty);
+
+      realtime.push('trip:stops_updated', {'tripId': 'trip-1'});
+      await tick();
+      expect(cubit.state.trip?.stops, [s1]);
+      expect(cubit.state.stopsChangedAt, isNotNull);
+      expect(cubit.state.stopsAhead, [s1]);
+      await cubit.close();
+    });
+
+    test('stops are passed in order as the car reaches each one', () async {
+      when(() => remote.getActiveTrip())
+          .thenAnswer((_) async => onTrip(stops: const [s1, s2]));
+      final cubit = make();
+      await cubit.init('token');
+      await tick();
+      expect(cubit.state.phase, DriverPhase.onTrip);
+
+      cubit.sendLocation(41.305, 69.245); // far from both
+      expect(cubit.state.stopsAhead, [s1, s2]);
+      cubit.sendLocation(41.3102, 69.2502); // ~27 m from Chorsu
+      expect(cubit.state.stopsAhead, [s2]);
+      cubit.sendLocation(41.3102, 69.2502); // still there: no double count
+      expect(cubit.state.stopsAhead, [s2]);
+      cubit.sendLocation(41.3301, 69.2601);
+      expect(cubit.state.stopsAhead, isEmpty);
+      await cubit.close();
+    });
+  });
 }

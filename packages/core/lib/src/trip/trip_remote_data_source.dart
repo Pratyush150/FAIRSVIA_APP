@@ -171,6 +171,32 @@ class TripRemoteDataSource {
     }
   }
 
+  /// The ride's price with one more stop, before the rider commits to it.
+  Future<StopQuote> quoteStop(String id, TripStop stop) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/trips/$id/stops/quote',
+        data: stop.toJson(),
+      );
+      return StopQuote.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
+  /// Adds [stop] (before the destination) at the confirmed [quotedFare]. A
+  /// 409 `PRICE_CHANGED` means the price moved — quote again.
+  Future<void> addStop(String id, TripStop stop, {double? quotedFare}) async {
+    try {
+      await _dio.post<Map<String, dynamic>>(
+        '/trips/$id/stops',
+        data: {...stop.toJson(), 'quotedFare': ?quotedFare},
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// Rider → driver: "I'm on my way out". True when the driver was pinged,
   /// false for a repeat tap inside the server's debounce window.
   Future<bool> onMyWay(String id) async {
@@ -195,4 +221,31 @@ class TripRemoteDataSource {
       throw ApiException.fromDio(e);
     }
   }
+}
+
+/// What adding one more stop would do to the ride.
+class StopQuote {
+  const StopQuote({
+    required this.fareEstimate,
+    required this.previousFare,
+    required this.distanceM,
+    required this.durationS,
+    required this.currency,
+  });
+
+  factory StopQuote.fromJson(Map<String, dynamic> j) => StopQuote(
+        fareEstimate: (j['fareEstimate'] as num).toDouble(),
+        previousFare: (j['previousFare'] as num?)?.toDouble() ?? 0,
+        distanceM: (j['distanceM'] as num?)?.toInt() ?? 0,
+        durationS: (j['durationS'] as num?)?.toInt() ?? 0,
+        currency: j['currency'] as String? ?? 'USD',
+      );
+
+  final double fareEstimate;
+  final double previousFare;
+  final int distanceM;
+  final int durationS;
+  final String currency;
+
+  double get difference => fareEstimate - previousFare;
 }

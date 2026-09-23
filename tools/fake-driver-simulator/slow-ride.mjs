@@ -79,6 +79,7 @@ const ping = setInterval(
 );
 
 sock.on('trip:rider_coming', (e) => console.log(`🚶 RIDER IS ON THE WAY OUT (trip ${e.tripId})`));
+sock.on('trip:stops_updated', (e) => console.log(`📍 RIDER ADDED A STOP — now ${e.stops.length} stop(s), fare ${e.fareEstimate}: ${e.stops.map((x) => x.addr).join(' → ')}`));
 
 sock.on('trip:offer', async (offer) => {
   clearInterval(ping);

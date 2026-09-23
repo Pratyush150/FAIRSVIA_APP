@@ -119,6 +119,7 @@ class TripCubit extends Cubit<TripState> {
       ..add(_realtime.on('trip:driver_stopped').listen(_onDriverStopped))
       ..add(_realtime.on('trip:driver_moving').listen(_onAllClear))
       ..add(_realtime.on('trip:route_updated').listen(_onRouteUpdated))
+      ..add(_realtime.on('trip:stops_updated').listen(_onStopsUpdated))
       // Reconnection resilience: the server replies to `trip:sync` with the
       // authoritative trip so we can rehydrate after a dropped socket.
       ..add(_realtime.on('trip:sync').listen(_onSync))
@@ -369,6 +370,18 @@ class TripCubit extends Cubit<TripState> {
   /// The server re-routed the current leg from where the driver actually is.
   /// Taking its line means the drawn route and the server's ETA agree, and the
   /// app doesn't pay for a second routing call to work the same thing out.
+  /// A stop was added to this ride (here or on another of the rider's
+  /// devices): draw the new route and re-read the trip for its stops and
+  /// re-priced estimate.
+  void _onStopsUpdated(Map<String, dynamic> data) {
+    if (!_isThisTrip(data)) return;
+    final polyline = data['routePolyline'] as String?;
+    if (polyline != null && polyline.isNotEmpty) {
+      emit(state.copyWith(liveRoutePolyline: polyline, liveRouteLeg: 'trip'));
+    }
+    unawaited(_refreshTripOverRest());
+  }
+
   void _onRouteUpdated(Map<String, dynamic> data) {
     if (!_isThisTrip(data)) return;
     final polyline = data['polyline'] as String?;
@@ -906,6 +919,30 @@ class TripCubit extends Cubit<TripState> {
     if (when == null) return null;
     final floor = DateTime.now().add(const Duration(minutes: 6));
     return when.isBefore(floor) ? floor : when;
+  }
+
+  /// Max stops on a ride (mirrors the backend's MAX_STOPS).
+  static const int maxRideStops = 3;
+
+  /// Whether a stop can be added to the ride in [s] (pure, so widgets and
+  /// tests can ask without a live cubit).
+  static bool canAddStopTo(TripState s) =>
+      s.trip != null &&
+      s.trip!.stops.length < maxRideStops &&
+      (s.phase == TripPhase.driverEnRoute ||
+          s.phase == TripPhase.driverArrived ||
+          s.phase == TripPhase.onTrip);
+
+  /// What adding [stop] to the ride under way would cost.
+  Future<StopQuote> quoteRideStop(TripStop stop) =>
+      _repository.quoteStop(state.trip!.id, stop);
+
+  /// Add [stop] at the fare the rider confirmed. Throws [ApiException] (409
+  /// PRICE_CHANGED when the price has since moved).
+  Future<void> addRideStop(TripStop stop, double quotedFare) async {
+    final id = state.trip!.id;
+    await _repository.addStop(id, stop, quotedFare: quotedFare);
+    await _refreshTripOverRest();
   }
 
   /// Tell the driver waiting at the pickup that the rider is coming out.

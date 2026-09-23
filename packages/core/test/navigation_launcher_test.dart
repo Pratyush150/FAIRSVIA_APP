@@ -36,4 +36,29 @@ void main() {
     // Never reaches the web fallback when a native app accepted the URL.
     expect(tried, isNot(contains('https')));
   });
+
+  group('with stops on the way', () {
+    const via = [(lat: 41.32, lng: 69.25), (lat: 41.33, lng: 69.26)];
+
+    test('Android opens Google Maps directions with the stops as waypoints', () {
+      final c = navigationCandidates(
+          lat: 41.35, lng: 69.28, via: via, platform: TargetPlatform.android);
+      expect(c.first.host, 'www.google.com');
+      expect(c.first.queryParameters['waypoints'], '41.32,69.25|41.33,69.26');
+      expect(c.first.queryParameters['destination'], '41.35,69.28');
+      // No bare navigation intent: it would skip the stops.
+      expect(c.any((u) => u.scheme == 'google.navigation'), isFalse);
+    });
+
+    test('iOS Google Maps gets every stop; Waze and Apple Maps the next one', () {
+      final c = navigationCandidates(
+          lat: 41.35, lng: 69.28, via: via, platform: TargetPlatform.iOS);
+      expect(c.first.toString(),
+          contains('daddr=41.32,69.25+to:41.33,69.26+to:41.35,69.28'));
+      final waze = c.firstWhere((u) => u.scheme == 'waze');
+      final apple = c.firstWhere((u) => u.scheme == 'maps');
+      expect(waze.toString(), contains('ll=41.32,69.25'));
+      expect(apple.toString(), contains('daddr=41.32,69.25'));
+    });
+  });
 }

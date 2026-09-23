@@ -10,6 +10,7 @@ import {
   projectOntoPolyline,
   remainingAlongPolyline,
 } from '../geo/geo.util';
+import { routeThrough } from '../trips/route-through';
 
 /** A single GPS segment longer than this (meters) is treated as a fix jump /
  *  reconnect gap and skipped, so the odometer isn't inflated by teleports. */
@@ -44,6 +45,8 @@ export const FALLBACK_ETA_MPS = 8;
 
 /** Perpendicular distance off the drawn route that counts as a deviation. */
 export const OFF_ROUTE_M = Number(process.env.OFF_ROUTE_M ?? 120);
+/** Within this distance of the next stop, the car has reached it. */
+export const STOP_REACHED_M = 80;
 /** Back within this of the route counts as back on track. The gap between the
  *  two thresholds is hysteresis: a driver straddling one line would otherwise
  *  alert, clear and re-alert every few seconds. */
@@ -125,6 +128,8 @@ export interface NavContext {
   target: LatLng;
   /** Encoded route for the leg; empty when unknown. */
   polyline: string;
+  /** Intermediate stops still ahead on this leg, in order (none if unset). */
+  waypoints?: LatLng[];
   /** Routed average pace for the leg (m/s); undefined when unknown. */
   avgSpeedMps?: number;
 }
@@ -211,6 +216,7 @@ export class LocationService {
           this.redis.client.get(RedisKeys.driverActiveRider(driverId)),
           this.readNav(tripId),
         ]);
+        if (nav) await this.passReachedStop(tripId, { lat, lng }, nav);
         if (riderId) {
           const eta = nav ? LocationService.estimate({ lat, lng }, nav) : undefined;
           this.realtime.emitToUser(riderId, 'trip:driver_location', {
@@ -239,6 +245,22 @@ export class LocationService {
     }
   }
 
+  /**
+   * Drop the next stop from the leg's waypoints once the car reaches it, so
+   * later re-routes (and the stops still shown as ahead) skip it. Mutates
+   * [nav] to match what it stores.
+   */
+  private async passReachedStop(tripId: string, pos: LatLng, nav: NavContext) {
+    const next = nav.waypoints?.[0];
+    if (!next || haversineMeters(pos, next) > STOP_REACHED_M) return;
+    nav.waypoints = (nav.waypoints ?? []).slice(1);
+    await this.redis.client.hset(
+      RedisKeys.tripNav(tripId),
+      'waypoints',
+      JSON.stringify(nav.waypoints),
+    );
+  }
+
   /** Load the leg's navigation context; null when none is stored. */
   private async readNav(tripId: string): Promise<NavContext | null> {
     const h = await this.redis.client.hgetall(RedisKeys.tripNav(tripId));
@@ -247,10 +269,22 @@ export class LocationService {
     const lng = Number(h.targetLng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
     const speed = Number(h.avgSpeedMps);
+    let waypoints: LatLng[] = [];
+    try {
+      const parsed = JSON.parse(h.waypoints ?? '[]');
+      if (Array.isArray(parsed)) {
+        waypoints = parsed.filter(
+          (p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng),
+        );
+      }
+    } catch {
+      waypoints = [];
+    }
     return {
       phase: h.phase === 'trip' ? 'trip' : 'approach',
       target: { lat, lng },
       polyline: h.polyline ?? '',
+      waypoints,
       avgSpeedMps: Number.isFinite(speed) && speed > 0 ? speed : undefined,
     };
   }
@@ -383,7 +417,9 @@ export class LocationService {
     const last = Number(w.rerouteTs ?? 0);
     if (Number.isFinite(last) && now - last < REROUTE_MIN_GAP_S * 1000) return;
     try {
-      const route = await this.geo.route(pos, nav.target);
+      // Through the stops still ahead — routing straight to the destination
+      // erased them from the rider's map at the first re-route.
+      const route = await routeThrough(this.geo, [pos, ...(nav.waypoints ?? []), nav.target]);
       if (!route?.polyline) return;
       await this.redis.client.hset(RedisKeys.tripNav(tripId), {
         polyline: route.polyline,

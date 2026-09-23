@@ -28,6 +28,8 @@ class DriverState extends Equatable {
     this.riderName,
     this.unreadMessages = 0,
     this.riderComingAt,
+    this.stopsReached = 0,
+    this.stopsChangedAt,
   });
 
   final DriverPhase phase;
@@ -64,6 +66,18 @@ class DriverState extends Equatable {
   /// When the rider tapped "I'm on my way" for the current pickup, or null.
   final DateTime? riderComingAt;
 
+  /// How many of the trip's stops the car has already reached (in order).
+  final int stopsReached;
+
+  /// When the rider last added a stop to this trip, or null.
+  final DateTime? stopsChangedAt;
+
+  /// The trip's stops still ahead.
+  List<TripStop> get stopsAhead {
+    final all = trip?.stops ?? const <TripStop>[];
+    return stopsReached >= all.length ? const [] : all.sublist(stopsReached);
+  }
+
   /// Why the last "go online" was refused for lack of location access (null
   /// when it wasn't). Lets the UI offer the right fix — open app settings for a
   /// permanent denial, the location-services page when GPS is switched off.
@@ -90,6 +104,8 @@ class DriverState extends Equatable {
     int? unreadMessages,
     Object? locationIssue = _s,
     Object? riderComingAt = _s,
+    int? stopsReached,
+    Object? stopsChangedAt = _s,
   }) {
     return DriverState(
       phase: phase ?? this.phase,
@@ -112,6 +128,10 @@ class DriverState extends Equatable {
       riderComingAt: riderComingAt == _s
           ? this.riderComingAt
           : riderComingAt as DateTime?,
+      stopsReached: stopsReached ?? this.stopsReached,
+      stopsChangedAt: stopsChangedAt == _s
+          ? this.stopsChangedAt
+          : stopsChangedAt as DateTime?,
       locationIssue: locationIssue == _s
           ? this.locationIssue
           : locationIssue as LocationAccess?,
@@ -136,5 +156,7 @@ class DriverState extends Equatable {
         unreadMessages,
         locationIssue,
         riderComingAt,
+        stopsReached,
+        stopsChangedAt,
       ];
 }

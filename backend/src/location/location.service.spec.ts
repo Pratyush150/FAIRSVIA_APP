@@ -321,6 +321,40 @@ describe('LocationService rider watchdogs', () => {
       );
     });
 
+    it('re-routes through the stops still ahead, not straight to the destination', async () => {
+      const stop = { lat: 25.78, lng: -80.17 };
+      const nav = { ...tripNav(), waypoints: JSON.stringify([stop]) };
+      const { svc, realtime, geo } = build({ nav });
+      geo.route.mockImplementation(async (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => ({
+        distanceM: 1000,
+        durationS: 100,
+        polyline: encodePolyline([a, b]),
+      }));
+
+      for (let i = 0; i < OFF_ROUTE_PINGS; i++) {
+        await svc.ingest('d1', { ...wayOff, accuracy: 5 });
+      }
+      expect(geo.route).toHaveBeenCalledWith(
+        { lat: wayOff.lat, lng: wayOff.lng },
+        stop,
+      );
+      expect(geo.route).toHaveBeenCalledWith(stop, {
+        lat: routeEnd.lat,
+        lng: routeEnd.lng,
+      });
+      expect(eventsOf(realtime, 'trip:route_updated')).toHaveLength(1);
+    });
+
+    it('drops a stop from the leg once the car reaches it', async () => {
+      const stop = { lat: 25.77, lng: -80.19 };
+      const later = { lat: 25.78, lng: -80.19 };
+      const nav = { ...tripNav(), waypoints: JSON.stringify([stop, later]) };
+      const { svc, hashes } = build({ nav });
+
+      await svc.ingest('d1', { lat: 25.7702, lng: -80.19, accuracy: 5 }); // ~22 m away
+      expect(JSON.parse(hashes['trip:t1:nav'].waypoints)).toEqual([later]);
+    });
+
     it('a routing failure still alerts the rider and leaves the old line alone', async () => {
       const { svc, realtime, geo, hashes } = build({ nav: tripNav() });
       const original = hashes['trip:t1:nav'].polyline;

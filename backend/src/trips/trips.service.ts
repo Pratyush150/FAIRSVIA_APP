@@ -23,7 +23,7 @@ import {
   SMS_PROVIDER,
   SmsProvider,
 } from '../auth/sms/sms-provider.interface';
-import { encodePolyline, haversineMeters } from '../geo/geo.util';
+import { haversineMeters } from '../geo/geo.util';
 import { StopDto } from './dto/stop.dto';
 import { CURRENCY } from '../pricing/fare-config';
 import { FareBreakdown, PricingService } from '../pricing/pricing.service';
@@ -44,6 +44,7 @@ import { CreateTripDto } from './dto/create-trip.dto';
 import { EstimateDto } from './dto/estimate.dto';
 import { TripStateMachine } from './trip-state-machine';
 import { BRAND_NAME } from '../common/brand';
+import { routeThrough } from './route-through';
 
 const CANCELLABLE: TripStatus[] = [
   TripStatus.scheduled,
@@ -186,27 +187,16 @@ export class TripsService {
    * every waypoint (distance/duration are the totals; the polyline is a
    * multi-segment line through the waypoints).
    */
-  private async routeFor(
+  private routeFor(
     pickup: LatLng,
     dropoff: LatLng,
     stops?: StopDto[],
   ): Promise<RouteResult> {
-    if (!stops || stops.length === 0) {
-      return this.geo.route(pickup, dropoff);
-    }
-    const points: LatLng[] = [
+    return routeThrough(this.geo, [
       pickup,
-      ...stops.map((s) => ({ lat: s.lat, lng: s.lng })),
+      ...(stops ?? []).map((s) => ({ lat: s.lat, lng: s.lng })),
       dropoff,
-    ];
-    let distanceM = 0;
-    let durationS = 0;
-    for (let i = 0; i < points.length - 1; i++) {
-      const leg = await this.geo.route(points[i], points[i + 1]);
-      distanceM += leg.distanceM;
-      durationS += leg.durationS;
-    }
-    return { distanceM, durationS, polyline: encodePolyline(points) };
+    ]);
   }
 
   /**
@@ -530,6 +520,14 @@ export class TripsService {
       phase: 'trip',
       targetLat: trip.dropoffLat,
       targetLng: trip.dropoffLng,
+      // Stops still ahead, in order: re-routes go through them and each is
+      // dropped once the car reaches it (LocationService).
+      waypoints: JSON.stringify(
+        ((trip.stops as unknown as StopDto[] | null) ?? []).map((s) => ({
+          lat: s.lat,
+          lng: s.lng,
+        })),
+      ),
       polyline: trip.routePolyline ?? '',
       avgSpeedMps:
         trip.distanceM && trip.durationS && trip.durationS > 0

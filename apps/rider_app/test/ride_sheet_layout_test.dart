@@ -23,7 +23,20 @@ void main() {
     phone: '+998901110002',
     etaSec: 240,
   );
-  const trip = TripState(
+  final trip = TripState(
+    trip: Trip(
+      id: 't1',
+      status: TripStatus.accepted,
+      tier: 'economy',
+      startOtp: '4827',
+      pickup: const TripEndpoint(point: GeoPoint(41.31, 69.24)),
+      dropoff: const TripEndpoint(point: GeoPoint(41.33, 69.28)),
+      stops: const [
+        TripStop(point: GeoPoint(41.32, 69.25), address: 'Chorsu Bazaar, Shayxontohur district, Tashkent'),
+        TripStop(point: GeoPoint(41.32, 69.26), address: 'Amir Temur Square, Tashkent'),
+        TripStop(point: GeoPoint(41.32, 69.27), address: 'Tashkent City Mall'),
+      ],
+    ),
     driver: driver,
     dropoffAddr: '301 Biscayne Blvd, Miami, FL 33132, USA',
     pickupAddr: '1 E Flagler St, Miami, FL 33132, USA',

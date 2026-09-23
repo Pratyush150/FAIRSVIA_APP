@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:bloc/bloc.dart';
 import 'package:core/core.dart';
@@ -76,6 +77,7 @@ class DriverCubit extends Cubit<DriverState> {
       ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
       ..add(_realtime.on('trip:tip_added').listen(_onTipAdded))
       ..add(_realtime.on('trip:rider_coming').listen(_onRiderComing))
+      ..add(_realtime.on('trip:stops_updated').listen(_onStopsUpdated))
       ..add(_realtime.on('trip:message').listen(_onMessage))
       // The server's view of our presence: sent on every connect and whenever
       // it takes us offline itself (socket drop, stale GPS, presence lost).
@@ -179,7 +181,7 @@ class DriverCubit extends Cubit<DriverState> {
       // If the rider cancelled while we were offline, drop back to online.
       if (fresh.status == TripStatus.cancelled ||
           fresh.status == TripStatus.completed) {
-        emit(state.copyWith(phase: DriverPhase.online, trip: null, riderName: null, riderComingAt: null));
+        emit(state.copyWith(phase: DriverPhase.online, trip: null, riderName: null, riderComingAt: null, stopsReached: 0, stopsChangedAt: null));
       } else {
         emit(state.copyWith(trip: fresh));
       }
@@ -312,6 +314,7 @@ class DriverCubit extends Cubit<DriverState> {
     DateTime? at,
   }) {
     if (state.phase == DriverPhase.offline) return;
+    _trackStops(lat, lng);
     // Geolocator reports heading/speed as -1 (or NaN) when unavailable — which
     // is the NORMAL case for a stationary driver (no bearing/speed). The server
     // validates heading 0..360 and speed 0..400, so an out-of-range value gets
@@ -446,6 +449,8 @@ class DriverCubit extends Cubit<DriverState> {
       phase: DriverPhase.completed,
       trip: null,
       riderComingAt: null,
+      stopsReached: 0,
+      stopsChangedAt: null,
       riderName: null,
       unreadMessages: 0,
       busy: false,
@@ -523,6 +528,8 @@ class DriverCubit extends Cubit<DriverState> {
         phase: DriverPhase.enRoute,
         trip: trip,
         riderComingAt: null,
+      stopsReached: 0,
+      stopsChangedAt: null,
         offer: null,
         busy: false,
         approachPolyline: approachPolyline,
@@ -552,6 +559,44 @@ class DriverCubit extends Cubit<DriverState> {
       return;
     }
     emit(state.copyWith(riderComingAt: DateTime.now()));
+  }
+
+  /// The rider added a stop: re-read the trip for its stops.
+  Future<void> _onStopsUpdated(Map<String, dynamic> data) async {
+    final tripId = data['tripId'] as String?;
+    if (tripId == null || tripId != state.trip?.id) return;
+    try {
+      final fresh = await _remote.getActiveTrip();
+      if (isClosed || fresh == null || fresh.id != tripId) return;
+      emit(state.copyWith(trip: fresh, stopsChangedAt: DateTime.now()));
+    } catch (_) {
+      // The next trip refresh picks the stop up.
+    }
+  }
+
+  /// Within this distance of the next stop, the car has reached it (the
+  /// server uses the same rule for its own navigation).
+  static const double stopReachedM = 80;
+
+  void _trackStops(double lat, double lng) {
+    if (state.phase != DriverPhase.onTrip) return;
+    final ahead = state.stopsAhead;
+    if (ahead.isEmpty) return;
+    final next = ahead.first.point;
+    if (_metersBetween(lat, lng, next.lat, next.lng) <= stopReachedM) {
+      emit(state.copyWith(stopsReached: state.stopsReached + 1));
+    }
+  }
+
+  static double _metersBetween(double aLat, double aLng, double bLat, double bLng) {
+    const r = 6371000.0;
+    final dLat = (bLat - aLat) * math.pi / 180;
+    final dLng = (bLng - aLng) * math.pi / 180;
+    final h = math.pow(math.sin(dLat / 2), 2) +
+        math.cos(aLat * math.pi / 180) *
+            math.cos(bLat * math.pi / 180) *
+            math.pow(math.sin(dLng / 2), 2);
+    return 2 * r * math.asin(math.sqrt(h));
   }
 
   void _onTipAdded(Map<String, dynamic> data) {
@@ -647,6 +692,8 @@ class DriverCubit extends Cubit<DriverState> {
       phase: DriverPhase.online,
       trip: null,
       riderComingAt: null,
+      stopsReached: 0,
+      stopsChangedAt: null,
       riderName: null,
       unreadMessages: 0,
       offer: null,

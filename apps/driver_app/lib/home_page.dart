@@ -808,6 +808,9 @@ class _BottomSheet extends StatelessWidget {
           distanceLabel: _distanceLabel(myLocation, pickup, 'pickup', route),
           note: state.trip?.pickupNote,
           passenger: state.trip?.passenger,
+          stopsAhead: state.trip?.stops ?? const [],
+          stopsInfoOnly: true,
+          stopAdded: _recently(state.stopsChangedAt),
         );
       case DriverPhase.arrived:
         child = _StartTripSheet(
@@ -829,6 +832,8 @@ class _BottomSheet extends StatelessWidget {
           tripId: state.trip?.id,
           navigateTo: dropoff,
           distanceLabel: _distanceLabel(myLocation, dropoff, 'dropoff', route),
+          stopsAhead: state.stopsAhead,
+          stopAdded: _recently(state.stopsChangedAt),
         );
       case DriverPhase.completed:
         child = _CompletedSheet(state: state, cubit: cubit);
@@ -972,6 +977,10 @@ class _CompletedSheet extends StatelessWidget {
   }
 }
 
+/// A rider-added stop is announced for a minute after it happens.
+bool _recently(DateTime? at) =>
+    at != null && DateTime.now().difference(at) < const Duration(minutes: 1);
+
 class _LifecycleSheet extends StatelessWidget {
   const _LifecycleSheet({
     required this.title,
@@ -984,6 +993,9 @@ class _LifecycleSheet extends StatelessWidget {
     this.distanceLabel,
     this.note,
     this.passenger,
+    this.stopsAhead = const [],
+    this.stopsInfoOnly = false,
+    this.stopAdded = false,
   });
 
   final String title;
@@ -1006,6 +1018,15 @@ class _LifecycleSheet extends StatelessWidget {
   /// is collecting them, not the booker, so their name and number are what
   /// matters at the kerb.
   final TripPassenger? passenger;
+
+  /// Stops still ahead on this leg, in order.
+  final List<TripStop> stopsAhead;
+
+  /// Heading to the pickup: the stops come later, so only mention them.
+  final bool stopsInfoOnly;
+
+  /// The rider added a stop a moment ago.
+  final bool stopAdded;
 
   @override
   Widget build(BuildContext context) {
@@ -1047,6 +1068,62 @@ class _LifecycleSheet extends StatelessWidget {
             ],
           ),
         ],
+        if (stopAdded) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppSpacing.radius),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.add_location_alt_rounded,
+                    color: AppColors.warning),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text('The rider added a stop',
+                      style: theme.textTheme.titleSmall),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (stopsAhead.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          if (stopsInfoOnly)
+            Text(
+              stopsAhead.length == 1
+                  ? '1 stop on this ride'
+                  : '${stopsAhead.length} stops on this ride',
+              style: theme.textTheme.bodySmall,
+            )
+          else
+            for (var i = 0; i < stopsAhead.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.flag_circle_rounded,
+                        size: 18,
+                        color: i == 0 ? AppColors.warning : AppColors.textTertiaryLight),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        '${i == 0 ? 'Next stop' : 'Then'} · '
+                        '${stopsAhead[i].address ?? 'Pinned location'}',
+                        style: i == 0
+                            ? theme.textTheme.titleSmall
+                            : theme.textTheme.bodyMedium,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+        ],
         if (passenger != null) ...[
           const SizedBox(height: AppSpacing.sm),
           _PassengerBanner(passenger: passenger!),
@@ -1085,7 +1162,14 @@ class _LifecycleSheet extends StatelessWidget {
   }
 
   Future<void> _navigate(BuildContext context, LatLng to) async {
-    final ok = await openTurnByTurn(lat: to.latitude, lng: to.longitude);
+    final ok = await openTurnByTurn(
+      lat: to.latitude,
+      lng: to.longitude,
+      // Through the stops still ahead — never straight past them.
+      via: stopsInfoOnly
+          ? const []
+          : [for (final s in stopsAhead) (lat: s.point.lat, lng: s.point.lng)],
+    );
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No navigation app could be opened')),

@@ -21,6 +21,9 @@ import { CancelTripDto } from './dto/cancel-trip.dto';
 import { DriverCancelTripDto } from './dto/driver-cancel-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
 import { RiderComingService } from './rider-coming.service';
+import { TripStopsService } from './trip-stops.service';
+import { AddStopDto } from './dto/add-stop.dto';
+import { StopDto } from './dto/stop.dto';
 
 @Controller('trips')
 @UseGuards(JwtAuthGuard)
@@ -29,6 +32,7 @@ export class TripsController {
     private readonly trips: TripsService,
     private readonly dispatch: DispatchService,
     private readonly riderComing: RiderComingService,
+    private readonly stops: TripStopsService,
   ) {}
 
   @Post('estimate')
@@ -90,6 +94,28 @@ export class TripsController {
   async decline(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     await this.dispatch.respondToOffer(user.userId, id, false);
     return { ok: true };
+  }
+
+  /** Price of the ride with one more stop, before the rider commits. */
+  @Post(':id/stops/quote')
+  @HttpCode(HttpStatus.OK)
+  quoteStop(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: StopDto,
+  ) {
+    return this.stops.quote(user.userId, id, dto);
+  }
+
+  /** Add a stop (before the destination) to a ride under way. */
+  @Post(':id/stops')
+  addStop(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddStopDto,
+  ) {
+    const { quotedFare, ...stop } = dto;
+    return this.stops.add(user.userId, id, stop, quotedFare);
   }
 
   /** Rider → driver: "I'm on my way out". */

@@ -102,6 +102,12 @@ class TripRepository {
   /// Cancels the trip; returns the cancellation fee charged (0 when none).
   Future<bool> onMyWay(String id) => _trips.onMyWay(id);
 
+  Future<StopQuote> quoteStop(String id, TripStop stop) =>
+      _trips.quoteStop(id, stop);
+
+  Future<void> addStop(String id, TripStop stop, {double? quotedFare}) =>
+      _trips.addStop(id, stop, quotedFare: quotedFare);
+
   Future<double> cancelTrip(String id, {String? reason}) =>
       _trips.cancel(id, reason: reason);
 }

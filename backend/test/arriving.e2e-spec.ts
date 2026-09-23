@@ -102,4 +102,96 @@ describe('Arriving screen (e2e)', () => {
       await request(server).post(`/api/v1/trips/${waiting.id}/on-my-way`).set(rider.auth).expect(403);
     });
   });
+
+  describe('adding a stop to a ride under way', () => {
+    const ride = async (status: string, stops: object[] = []) => {
+      const rider = await login();
+      const driver = await login();
+      const trip = await prisma.trip.create({
+        data: {
+          riderId: rider.id,
+          driverId: driver.id,
+          status: status as never,
+          tier: 'economy',
+          pickupLat: 25.7743,
+          pickupLng: -80.1937,
+          dropoffLat: 25.7753,
+          dropoffLng: -80.1863,
+          fareEstimate: 7.33,
+          surgeMultiplier: 1,
+          stops,
+        },
+      });
+      return { rider, driver, trip };
+    };
+    const stop = { lat: 25.7907, lng: -80.13, addr: 'South Beach' };
+
+    it('quotes, then adds at the confirmed price and tells both sides', async () => {
+      const { rider, driver, trip } = await ride('in_progress');
+      const quote = await request(server)
+        .post(`/api/v1/trips/${trip.id}/stops/quote`)
+        .set(rider.auth)
+        .send(stop)
+        .expect(200);
+      expect(quote.body.previousFare).toBe(7.33);
+      // A detour across the bay costs more than the original short hop.
+      expect(quote.body.fareEstimate).toBeGreaterThan(7.33);
+
+      emit.mockClear();
+      const added = await request(server)
+        .post(`/api/v1/trips/${trip.id}/stops`)
+        .set(rider.auth)
+        .send({ ...stop, quotedFare: quote.body.fareEstimate })
+        .expect(201);
+      expect(added.body.stops).toEqual([stop]);
+      expect(added.body.fareEstimate).toBe(quote.body.fareEstimate);
+
+      const row = await prisma.trip.findUniqueOrThrow({ where: { id: trip.id } });
+      expect(row.stops).toEqual([stop]);
+      expect(Number(row.fareEstimate)).toBe(quote.body.fareEstimate);
+      expect(row.distanceM).toBe(quote.body.distanceM);
+      for (const who of [rider.id, driver.id]) {
+        expect(emit).toHaveBeenCalledWith(
+          who,
+          'trip:stops_updated',
+          expect.objectContaining({ tripId: trip.id, stops: [stop] }),
+        );
+      }
+    });
+
+    it('refuses a quote the server no longer honours', async () => {
+      const { rider, trip } = await ride('arrived');
+      const res = await request(server)
+        .post(`/api/v1/trips/${trip.id}/stops`)
+        .set(rider.auth)
+        .send({ ...stop, quotedFare: 1 })
+        .expect(409);
+      expect(res.body.code).toBe('PRICE_CHANGED');
+      const row = await prisma.trip.findUniqueOrThrow({ where: { id: trip.id } });
+      expect(row.stops).toEqual([]);
+    });
+
+    it('enforces the stop limit, the ride state and ownership', async () => {
+      const full = await ride('in_progress', [stop, stop, stop]);
+      await request(server)
+        .post(`/api/v1/trips/${full.trip.id}/stops/quote`)
+        .set(full.rider.auth)
+        .send(stop)
+        .expect(400);
+
+      const searching = await ride('matching');
+      await request(server)
+        .post(`/api/v1/trips/${searching.trip.id}/stops/quote`)
+        .set(searching.rider.auth)
+        .send(stop)
+        .expect(400);
+
+      const other = await ride('in_progress');
+      await request(server)
+        .post(`/api/v1/trips/${other.trip.id}/stops/quote`)
+        .set(full.rider.auth)
+        .send(stop)
+        .expect(403);
+    });
+  });
 });

@@ -377,9 +377,31 @@ describe('TripsService', () => {
         phase: 'trip',
         targetLat: dropoff.lat,
         targetLng: dropoff.lng,
+        waypoints: '[]',
         polyline: 'poly',
         avgSpeedMps: 10,
       });
+    });
+
+    it('carries booked stops into the nav hash, in order', async () => {
+      const { svc, prisma, redis, store } = make();
+      prisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1', riderId: 'rider-1', driverId: 'driver-1', status: TripStatus.arrived,
+        startOtp: '1234', dropoffLat: dropoff.lat, dropoffLng: dropoff.lng,
+        routePolyline: 'poly', distanceM: 5000, durationS: 500,
+        stops: [{ lat: 1, lng: 2, addr: 'A' }, { lat: 3, lng: 4 }],
+      });
+      store[RedisKeys.driverLoc('driver-1')] = { lat: '25.77', lng: '-80.19' };
+      (svc as unknown as { payments: unknown }).payments = {
+        authorizeForTrip: jest.fn().mockResolvedValue(undefined),
+      };
+      await svc.startTrip('driver-1', 'trip-1', '1234');
+      expect(redis.client.hset).toHaveBeenCalledWith(
+        RedisKeys.tripNav('trip-1'),
+        expect.objectContaining({
+          waypoints: JSON.stringify([{ lat: 1, lng: 2 }, { lat: 3, lng: 4 }]),
+        }),
+      );
     });
   });
   // Booking a ride for somebody else. The booker stays the account that pays

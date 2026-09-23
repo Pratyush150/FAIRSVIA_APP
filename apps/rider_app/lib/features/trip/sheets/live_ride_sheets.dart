@@ -269,6 +269,8 @@ class DriverInfoSheet extends StatelessWidget {
         ],
         const SizedBox(height: AppSpacing.md),
         _PickupSummary(state: state),
+        if (state.trip?.stops.isNotEmpty ?? false)
+          _RideStops(stops: state.trip!.stops),
         const SizedBox(height: AppSpacing.md),
         _DriverVehicleCard(driver: driver),
         if (_showOnMyWay) ...[
@@ -304,6 +306,8 @@ class DriverInfoSheet extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         // The fare and the car, reachable while the rider waits.
         RideDetailsButton(state: state),
+        const SizedBox(height: AppSpacing.md),
+        _RideQuickActions(state: state),
       ],
     );
   }
@@ -789,10 +793,344 @@ class _OnTripSheet extends StatelessWidget {
             ],
           ),
         ],
+        if (state.trip?.stops.isNotEmpty ?? false) ...[
+          const SizedBox(height: AppSpacing.xs),
+          _RideStops(stops: state.trip!.stops),
+        ],
         const SizedBox(height: AppSpacing.md),
         // Mid-ride, this is the only way to see the fare and the car's details.
         RideDetailsButton(state: state),
+        const SizedBox(height: AppSpacing.md),
+        _RideQuickActions(state: state),
       ],
+    );
+  }
+}
+
+/// The ride's stops, in order, once any exist.
+class _RideStops extends StatelessWidget {
+  const _RideStops({required this.stops});
+
+  final List<TripStop> stops;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < stops.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Icon(Icons.flag_circle_rounded,
+                      size: 18, color: AppColors.warning),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    '${stops.length > 1 ? 'Stop ${i + 1}' : 'Stop'} · '
+                    '${stops[i].address ?? 'Pinned location'}',
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Quick actions under the ride: "Add a stop" (the brief's "Add trip").
+class _RideQuickActions extends StatelessWidget {
+  const _RideQuickActions({required this.state});
+
+  final TripState state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!TripCubit.canAddStopTo(state)) return const SizedBox.shrink();
+    return _QuickActionCard(
+      icon: Icons.add_location_alt_rounded,
+      title: 'Add a stop',
+      subtitle: 'See the new price before you confirm',
+      onTap: () => _addStopToRide(context, state),
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    return AppCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: dark ? AppColors.accentSoftDark : AppColors.accentSoft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppColors.accentInk, size: 22),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleSmall),
+                Text(subtitle,
+                    style: theme.textTheme.bodySmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pick a place, show what it does to the fare, add it on confirm.
+Future<void> _addStopToRide(BuildContext context, TripState state) async {
+  final cubit = context.read<TripCubit>();
+  final messenger = ScaffoldMessenger.of(context);
+  final place = await Navigator.of(context).push<PlaceDetails>(
+    MaterialPageRoute(
+      builder: (_) => DestinationSearchPage(
+        singleDestination: true,
+        initialPickup: state.driverLocation ?? state.pickup,
+      ),
+    ),
+  );
+  if (place == null || !context.mounted) return;
+  final stop = TripStop(point: place.location, address: place.address);
+  final added = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => AddStopConfirmSheet(
+      stop: stop,
+      quote: () => cubit.quoteRideStop(stop),
+      add: (fare) => cubit.addRideStop(stop, fare),
+      driverName: RideStatus.driverName(state),
+    ),
+  );
+  if (added == true) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Stop added to your ride.')));
+  }
+}
+
+/// Confirms a new stop: the new fare against the current one, then adds it.
+/// A price that moved while the sheet was open is re-quoted and shown, never
+/// silently accepted. Public for widget tests.
+class AddStopConfirmSheet extends StatefulWidget {
+  const AddStopConfirmSheet({
+    super.key,
+    required this.stop,
+    required this.quote,
+    required this.add,
+    required this.driverName,
+  });
+
+  final TripStop stop;
+  final Future<StopQuote> Function() quote;
+  final Future<void> Function(double quotedFare) add;
+  final String driverName;
+
+  @override
+  State<AddStopConfirmSheet> createState() => _AddStopConfirmSheetState();
+}
+
+class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
+  StopQuote? _quote;
+  String? _error;
+  String? _notice;
+  bool _adding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _error = null;
+      _quote = null;
+    });
+    try {
+      final q = await widget.quote();
+      if (mounted) setState(() => _quote = q);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = "Couldn't price this stop. Try again.");
+      }
+    }
+  }
+
+  Future<void> _confirm() async {
+    final q = _quote;
+    if (q == null) return;
+    setState(() {
+      _adding = true;
+      _notice = null;
+    });
+    try {
+      await widget.add(q.fareEstimate);
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.code == TripCubit.priceChangedCode) {
+        setState(() {
+          _adding = false;
+          _notice = 'The price changed while you were deciding. '
+              'Here is the new one.';
+        });
+        await _load();
+      } else {
+        setState(() {
+          _adding = false;
+          _error = e.message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _adding = false;
+          _error = "Couldn't add the stop. Try again.";
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final q = _quote;
+    final who = widget.driverName == 'Your driver'
+        ? 'your driver'
+        : widget.driverName;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg,
+          AppSpacing.lg + MediaQuery.viewPaddingOf(context).bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Add a stop', style: theme.textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.flag_circle_rounded, color: AppColors.warning),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(widget.stop.address ?? 'Pinned location',
+                    style: theme.textTheme.bodyLarge),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          if (_error != null)
+            Text(_error!,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: AppColors.error))
+          else if (q == null)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(AppSpacing.md),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else ...[
+            if (_notice != null) ...[
+              Text(_notice!,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: AppColors.warning)),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            AppCard(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('New fare', style: theme.textTheme.labelMedium),
+                        Text(Fmt.money(q.fareEstimate, q.currency),
+                            style: theme.textTheme.headlineSmall),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        q.difference >= 0.005
+                            ? '+${Fmt.money(q.difference, q.currency)}'
+                            : 'No change',
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      Text('was ${Fmt.money(q.previousFare, q.currency)}',
+                          style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'We’ll let $who know. You can add up to '
+              '${TripCubit.maxRideStops} stops.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+          PrimaryButton(
+            label: _error != null && q == null ? 'Try again' : 'Add stop',
+            loading: _adding,
+            onPressed: _adding
+                ? null
+                : (_error != null && q == null)
+                    ? _load
+                    : (q == null ? null : _confirm),
+          ),
+          TextButton(
+            onPressed: _adding ? null : () => Navigator.of(context).pop(false),
+            child: const Text('Not now'),
+          ),
+        ],
+      ),
     );
   }
 }
