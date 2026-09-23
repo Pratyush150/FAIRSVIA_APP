@@ -26,6 +26,61 @@ groups:
         annotations:
           summary: '5xx rate above 1% for 5 minutes'
 
+      - alert: DatabaseDown
+        # postgres_exporter reports pg_up 0 when it cannot reach Postgres. Every
+        # booking, payment and login needs the database, so this is an outage.
+        expr: pg_up == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Postgres is unreachable'
+          description: >-
+            No trip can be booked or paid. Check `docker ps` for ubernav_postgres
+            and `docker logs ubernav_postgres`; disk full is the usual cause here.
+
+      - alert: RedisDown
+        # Redis holds live driver positions, dispatch offers and the queues.
+        # Without it matching stops, even though the API may still answer.
+        expr: redis_up == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Redis is unreachable'
+          description: >-
+            Dispatch, live locations and background jobs are down. Check
+            `docker logs ubernav_redis`.
+
+      - alert: HighApiLatency
+        # p95 across our own routes above 600 ms — the load-test SLO
+        # (P95_SLO_MS default). /places/* is excluded: it waits on Google/OSM
+        # and has its own VendorErrorRate alert. Needs real traffic (>0.1 req/s)
+        # so a single slow request on an idle night does not page anyone.
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket{route!~"/api/v1/places.*"}[5m])) by (le)
+          ) > 0.6
+          and on() sum(rate(http_requests_total[5m])) > 0.1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'API p95 latency above 600 ms for 10 minutes'
+          description: >-
+            Riders feel this as slow screens. Check the HTTP latency panel for
+            which route, then Postgres connections and event-loop lag.
+
+      - alert: BackendRestarting
+        # More than two restarts in 15 minutes is a crash loop, which /metrics
+        # can hide: each restart answers again within seconds, so BackendDown
+        # never holds for its 1 minute.
+        expr: changes(process_start_time_seconds{job="backend"}[15m]) > 2
+        labels: { severity: warning }
+        annotations:
+          summary: 'Backend restarted more than twice in 15 minutes'
+          description: >-
+            Crash loop. `docker logs --tail 200 ubernav_backend` shows the
+            error before each restart; Sentry has the stack once SENTRY_DSN is set.
+
   - name: ridevela-safety
     rules:
       - alert: SosRaised
@@ -87,6 +142,39 @@ groups:
         annotations:
           summary: 'No drivers online anywhere for 10 minutes'
 
+      - alert: CancellationSpike
+        # Ride anomaly: over 40% of searches started in the last 30 min ended
+        # in a cancellation. Guarded on at least 10 searches so a single
+        # cancelled test ride at night is not a "spike". `or vector(0)`: the
+        # cancelled series only exists after the first cancel since boot.
+        expr: >-
+          (sum(increase(trips_total{status="cancelled"}[30m])) or vector(0))
+          / sum(increase(trips_total{status="matching"}[30m])) > 0.4
+          and on() sum(increase(trips_total{status="matching"}[30m])) >= 10
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Over 40% of rides cancelled in the last 30 minutes'
+          description: >-
+            Usually long waits (check match latency and drivers online) or a
+            pricing/ETA problem. The Business dashboard lists cancel reasons.
+
+      - alert: DriverAcceptanceLow
+        # Driver anomaly: under 30% of ride offers accepted in 30 min (with at
+        # least 20 offers). Drivers ignoring or refusing offers shows up here
+        # before riders start seeing "no drivers".
+        expr: >-
+          sum(increase(dispatch_offers_total{outcome="accepted"}[30m]))
+          / sum(increase(dispatch_offers_total[30m])) < 0.3
+          and on() sum(increase(dispatch_offers_total[30m])) >= 20
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Drivers accepted under 30% of offers in 30 minutes'
+          description: >-
+            Check fares against local rates, pickup distances on offers, and
+            whether some drivers are online but not responding (expired).
+
   - name: ridevela-vendors
     rules:
       - alert: VendorErrorRate
@@ -147,6 +235,32 @@ groups:
             build/ and .dart_tool/ dirs. Do NOT run `docker system prune -a`:
             this host also carries unrelated robotics images and the live OSRM
             map data (docs/session-handoff.md, "Disk").
+
+      - alert: HostCpuHigh
+        # Whole-host CPU above 90% for 10 min: the backend, Postgres, OSRM and
+        # everything else on this box share it.
+        expr: >-
+          1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) > 0.9
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Host CPU above 90% for 10 minutes'
+          description: >-
+            Check which container with `docker stats --no-stream`. OSRM
+            processing and Flutter builds are the usual non-app culprits.
+
+      - alert: HostMemoryHigh
+        # Under 10% of RAM available for 10 min — next comes swapping or the
+        # OOM killer taking out Postgres or the backend.
+        expr: >-
+          1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes > 0.9
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Host memory above 90% for 10 minutes'
+          description: >-
+            `docker stats --no-stream` for the largest container. Stop
+            emulators/builds first; never the database.
 
       - alert: PostgresConnectionsHigh
         expr: >-

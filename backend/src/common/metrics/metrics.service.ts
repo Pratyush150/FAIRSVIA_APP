@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { TripStatus } from '@prisma/client';
 import {
   Registry,
   collectDefaultMetrics,
@@ -105,6 +106,9 @@ export class MetricsService {
       labelNames: ['status'],
       registers: [this.registry],
     });
+    // Every status from 0, so the first cancellation after a restart shows
+    // in increase()/rate() (CancellationSpike) instead of being invisible.
+    for (const status of Object.values(TripStatus)) this.tripsTotal.inc({ status }, 0);
     this.matchDuration = new Histogram({
       name: 'trip_match_duration_seconds',
       help: 'Seconds from trip requested to driver accepted',

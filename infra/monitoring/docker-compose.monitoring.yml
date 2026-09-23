@@ -12,8 +12,9 @@
 #
 # DISK: the host sits near capacity. Prometheus is capped by BOTH time and
 # size below, and Loki by time, so this stack cannot quietly fill the disk.
-# Run `docker system prune` first if space is tight — the plan measured ~40 GB
-# reclaimable in unused images.
+# If space is tight, clear Flutter build/ and .dart_tool/ dirs. Do NOT run
+# `docker system prune` (with or without -a): this host also carries the owner's
+# robotics images and the live OSRM/OSM map data.
 
 name: ridevela-monitoring
 
