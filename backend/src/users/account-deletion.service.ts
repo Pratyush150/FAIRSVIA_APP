@@ -3,6 +3,8 @@ import { TripStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { DriversService } from '../drivers/drivers.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { formatMoney } from '../common/money';
+import { CURRENCY } from '../pricing/fare-config';
 
 const IN_FLIGHT: TripStatus[] = [
   TripStatus.requested,
@@ -53,7 +55,7 @@ export class AccountDeletionService {
       const balance = await this.ledger.balance(userId);
       if (balance > 0) {
         throw new ConflictException(
-          `You still have ${balance.toFixed(2)} in earnings. Withdraw them first, then delete your account.`,
+          `You still have ${formatMoney(balance, CURRENCY)} in earnings. Withdraw them first, then delete your account.`,
         );
       }
       if (balance < 0) {

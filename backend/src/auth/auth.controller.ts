@@ -1,4 +1,6 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
+import { cameViaPublicEdge } from '../common/public-edge';
 import { AuthService } from './auth.service';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -14,8 +16,8 @@ export class AuthController {
 
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
-  requestOtp(@Body() dto: RequestOtpDto) {
-    return this.auth.requestOtp(dto.phone);
+  requestOtp(@Body() dto: RequestOtpDto, @Req() req: Request) {
+    return this.auth.requestOtp(dto.phone, cameViaPublicEdge(req));
   }
 
   @Post('otp/verify')

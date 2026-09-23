@@ -1,3 +1,5 @@
+import 'package:shared_models/shared_models.dart';
+
 /// Lightweight formatting helpers for account screens (no intl dependency).
 class Fmt {
   Fmt._();
@@ -20,29 +22,18 @@ class Fmt {
   static String dateShort(DateTime? d) =>
       d == null ? '—' : '${d.day} ${_months[d.month - 1]}';
 
-  /// Currency amount, e.g. "\$240" (USD shown as $, else "<code> 240").
-  /// Negatives carry the sign before the symbol: "-\$1.30", not "\$-1.30".
-  static String money(double amount, [String currency = 'USD']) {
-    final abs = amount.abs();
-    final n = abs.toStringAsFixed(abs.truncateToDouble() == abs ? 0 : 2);
-    final sign = amount < 0 ? '-' : '';
-    return currency == 'USD' ? '$sign\$$n' : '$sign$currency $n';
-  }
+  /// Currency amount as the market writes it: "₹240", "\$12.30",
+  /// "18 500 so'm". [currency] defaults to the build's market (see [Market]).
+  /// Negatives carry the sign before the symbol: "-₹4", not "₹-4".
+  static String money(double amount, [String? currency]) =>
+      Money.format(amount, currency: currency);
 
   /// Multiplier line such as "1.2×" (one decimal, `×` not `x`).
   static String surge(double multiplier) => '${multiplier.toStringAsFixed(1)}×';
 
-  /// Imperial distance for the US market: "350 ft" under a tenth of a mile
-  /// (rounded to 10 ft), else "0.4 mi" / "12.3 mi" (one decimal).
-  static String distance(int metres) {
-    if (metres < 0) metres = 0;
-    const metresPerMile = 1609.34;
-    if (metres < metresPerMile / 10) {
-      final ft = (metres * 3.28084 / 10).round() * 10;
-      return '$ft ft';
-    }
-    return '${(metres / metresPerMile).toStringAsFixed(1)} mi';
-  }
+  /// Distance in the market's units: "850 m" / "12.3 km", or "350 ft" /
+  /// "0.4 mi" in the US.
+  static String distance(int metres) => Market.current.distance(metres);
 
   /// Human status label from the trip status enum name.
   static String status(String raw) {

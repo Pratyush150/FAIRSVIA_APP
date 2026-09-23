@@ -16,6 +16,12 @@ export interface AppConfig {
     /** When true, the plaintext OTP is echoed in the request response (dev
      *  convenience with the mock SMS provider). Never true in production. */
     devEcho: boolean;
+    /** Requests arriving through the public edge (Cloudflare tunnel / CDN)
+     *  get the echoed code only for these phones — the pilot's demo
+     *  accounts. Without it, anyone holding the public URL could read the
+     *  login code for any number, the admin's included. Empty = no echo over
+     *  the public edge at all. On-network requests are unaffected. */
+    publicEchoPhones: string[];
   };
   smsProvider: string;
   /** Twilio SMS credentials + endpoint. `baseUrl` defaults to the real Twilio
@@ -191,6 +197,10 @@ export default (): AppConfig => {
     length: parseInt(process.env.OTP_LENGTH ?? '6', 10),
     maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS ?? '5', 10),
     devEcho: otpDevEcho,
+    publicEchoPhones: (process.env.OTP_PUBLIC_ECHO_PHONES ?? '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean),
   },
   smsProvider,
   twilio: {

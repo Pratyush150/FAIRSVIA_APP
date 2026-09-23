@@ -69,19 +69,19 @@ Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) as
       SnackBar(
         content: Text(
           fee > 0
-              ? 'Ride cancelled. A \$${fee.toStringAsFixed(2)} cancellation '
-                  'fee was charged.'
+              ? 'Ride cancelled. A ${Fmt.money(fee, cubit.state.trip?.currency)} '
+                  'cancellation fee was charged.'
               : 'Ride cancelled.',
         ),
       ),
     );
 }
 
-/// "$5.00" from the trip's configured cancellation fee, or a generic word
+/// "₹50" from the trip's configured cancellation fee, or a generic word
 /// when an older backend didn't send one.
 String _feeLabel(TripCubit cubit) {
   final fee = cubit.state.trip?.cancellationFee;
-  return fee == null ? '' : '\$${fee.toStringAsFixed(2)}';
+  return fee == null ? '' : Fmt.money(fee, cubit.state.trip?.currency);
 }
 
 /// The cancellation reasons a rider can pick from (Uber-style), captured for

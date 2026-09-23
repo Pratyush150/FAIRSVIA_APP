@@ -79,7 +79,9 @@ class RideDetailsContent extends StatelessWidget {
                       style: theme.textTheme.titleMedium,
                     ),
                     Text(
-                      fare == null ? unknownFare : '\$${_money(fare)}',
+                      fare == null
+                          ? unknownFare
+                          : Fmt.money(fare, trip?.currency),
                       style: theme.textTheme.titleMedium?.tabular(),
                     ),
                   ],
@@ -99,7 +101,7 @@ class RideDetailsContent extends StatelessWidget {
                   Divider(height: AppSpacing.lg, color: theme.dividerColor),
                   FareBreakdownRows(
                     breakdown: breakdown,
-                    currency: state.receipt?.currency ?? trip?.currency ?? 'USD',
+                    currency: state.receipt?.currency ?? trip?.currency ?? Market.current.currency,
                     showTip: false,
                     style: theme.textTheme.bodyMedium,
                   ),

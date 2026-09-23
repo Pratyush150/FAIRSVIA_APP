@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 
 import 'trip_cubit.dart';
+import 'package:shared_models/shared_models.dart';
 
 /// How urgent a ride state is, so the sheet can tint its status chip without
 /// each sheet re-deciding what "arrived" looks like.
@@ -120,7 +121,7 @@ class RideStatus {
           title: 'Ride completed',
           subtitle: fare == null
               ? null
-              : Fmt.money(fare, state.receipt?.currency ?? 'USD'),
+              : Fmt.money(fare, state.receipt?.currency ?? Market.current.currency),
           tone: RideStatusTone.success,
         );
 

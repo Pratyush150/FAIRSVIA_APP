@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../network/api_exception.dart';
 import 'safety_remote_data_source.dart';
+import 'package:shared_models/shared_models.dart';
 
 /// Up to three people who get a text — with the location, car and plate —
 /// when the user presses SOS during a ride.
@@ -199,7 +200,7 @@ class _AddContactSheetState extends State<_AddContactSheet> {
     try {
       final c = await widget.safety.addContact(
         _name.text.trim(),
-        _phone.text.replaceAll(RegExp(r'[\s()-]'), ''),
+        Market.current.toE164(_phone.text)!,
       );
       if (mounted) Navigator.of(context).pop(c);
     } on ApiException catch (e) {
@@ -238,17 +239,13 @@ class _AddContactSheetState extends State<_AddContactSheet> {
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.done,
               onFieldSubmitted: (_) => _save(),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Mobile number',
-                helperText: 'With country code, e.g. +998 90 123 45 67',
+                helperText: 'e.g. ${Market.current.examplePhone}',
               ),
-              validator: (v) {
-                final digits = (v ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-                if (!(v ?? '').trim().startsWith('+') || digits.length < 8) {
-                  return 'Enter the full number, starting with +';
-                }
-                return null;
-              },
+              validator: (v) => Market.current.toE164(v ?? '') == null
+                  ? 'Enter a mobile number'
+                  : null,
             ),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.md),

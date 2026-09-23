@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { isSerializationFailure } from '../common/prisma/serialization';
+import { formatMoney } from '../common/money';
+import { CURRENCY } from '../pricing/fare-config';
 
 export type LedgerType =
   | 'earning'
@@ -62,7 +64,7 @@ export class LedgerService {
     ]);
     return {
       balance,
-      currency: 'USD',
+      currency: CURRENCY,
       entries: entries.map((e) => ({
         id: e.id,
         type: e.type,
@@ -103,7 +105,7 @@ export class LedgerService {
           const balance = round2(Number(agg._sum.amount ?? 0));
           if (requested > balance) {
             throw new BadRequestException(
-              `You can withdraw up to $${balance.toFixed(2)}.`,
+              `You can withdraw up to ${formatMoney(balance, CURRENCY)}.`,
             );
           }
           const entry = await tx.ledgerEntry.create({

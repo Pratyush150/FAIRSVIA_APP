@@ -4,6 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../bloc/auth_bloc.dart';
+import 'package:shared_models/shared_models.dart';
+import '../../config/app_config.dart';
+import '../../config/server_address_page.dart';
+import '../../di/injector.dart';
+import '../../network/token_storage.dart';
 
 /// Phone number entry — step 1 of the OTP login flow. Shared across apps.
 class PhoneEntryPage extends StatefulWidget {
@@ -26,7 +31,8 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
   }
 
   void _submit(BuildContext context) {
-    final phone = _controller.text.replaceAll(' ', '').trim();
+    final phone = Market.current.toE164(_controller.text);
+    if (phone == null) return;
     context.read<AuthBloc>().add(AuthOtpRequested(phone));
   }
 
@@ -57,17 +63,29 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: AppSpacing.huge),
-                  Container(
-                    height: 64,
-                    width: 64,
-                    decoration: BoxDecoration(
-                      color: AppColors.accentSoft,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-                    ),
-                    child: const Icon(
-                      Icons.navigation_rounded,
-                      color: AppColors.accent,
-                      size: 30,
+                  GestureDetector(
+                    // Pilot builds: long-press the logo to change the server
+                    // address (see ServerAddressPage). Nothing in store builds.
+                    onLongPress: AppConfig.allowServerOverride
+                        ? () => Navigator.of(context).push(MaterialPageRoute<void>(
+                              builder: (_) => ServerAddressPage(
+                                store: sl<KeyValueStore>(),
+                                current: sl<AppConfig>().apiBaseUrl,
+                              ),
+                            ))
+                        : null,
+                    child: Container(
+                      height: 64,
+                      width: 64,
+                      decoration: BoxDecoration(
+                        color: AppColors.accentSoft,
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                      ),
+                      child: const Icon(
+                        Icons.navigation_rounded,
+                        color: AppColors.accent,
+                        size: 30,
+                      ),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
@@ -92,22 +110,21 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
                     ],
-                    decoration: const InputDecoration(
-                      hintText: '+1 305 555 0137',
-                      prefixIcon: Icon(Icons.phone_rounded),
+                    decoration: InputDecoration(
+                      hintText: Market.current.examplePhone,
+                      prefixIcon: const Icon(Icons.phone_rounded),
                     ),
                     onChanged: (v) => setState(
-                      // Country code is mandatory: without the '+' a local
-                      // number would be sent as-is and never match E.164.
-                      () => _valid = RegExp(r'^\+[1-9]\d{7,14}$')
-                          .hasMatch(v.replaceAll(' ', '').trim()),
+                      // A local number gets the market's country code; one
+                      // typed with '+' is taken as international.
+                      () => _valid = Market.current.toE164(v) != null,
                     ),
                     onSubmitted: _valid ? (_) => _submit(context) : null,
                   ),
                   if (_controller.text.trim().isNotEmpty && !_valid) ...[
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Include your country code, e.g. +1 305 555 0137.',
+                      'Enter a mobile number, e.g. ${Market.current.examplePhone}.',
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: AppColors.error),
                     ),

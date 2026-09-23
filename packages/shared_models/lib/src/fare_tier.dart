@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'fare_breakdown.dart';
+import 'market.dart';
 
 /// A ride tier with its estimated fare for a specific trip.
 class FareTier extends Equatable {
@@ -34,7 +35,7 @@ class FareTier extends Equatable {
         label: json['label'] as String,
         capacity: (json['capacity'] as num).toInt(),
         fare: (json['fare'] as num).toDouble(),
-        currency: json['currency'] as String? ?? 'USD',
+        currency: json['currency'] as String? ?? Market.current.currency,
         etaSeconds: (json['etaSeconds'] as num?)?.toInt(),
         breakdown: FareBreakdown.fromJsonOrNull(json['breakdown']),
       );

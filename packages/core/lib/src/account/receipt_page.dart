@@ -127,13 +127,15 @@ class FareBreakdownRows extends StatelessWidget {
   const FareBreakdownRows({
     super.key,
     required this.breakdown,
-    this.currency = 'USD',
+    this.currency,
     this.showTip = true,
     this.style,
   });
 
   final FareBreakdown breakdown;
-  final String currency;
+
+  /// The trip's currency; the build's market currency when unknown.
+  final String? currency;
 
   /// Off when the caller already renders a tip line of its own.
   final bool showTip;

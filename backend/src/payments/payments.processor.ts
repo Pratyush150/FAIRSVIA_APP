@@ -62,7 +62,7 @@ export class PaymentsProcessor extends WorkerHost {
         where: { id: trip.riderId },
         select: { email: true },
       });
-      await this.email.sendReceipt(rider?.email, tripId, split.fareFinal);
+      await this.email.sendReceipt(rider?.email, tripId, split.fareFinal, trip.currency);
       this.logger.log(
         `captured trip ${tripId} on attempt ${job.attemptsMade + 1}: ${split.fareFinal}`,
       );

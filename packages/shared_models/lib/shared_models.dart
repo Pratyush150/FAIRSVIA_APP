@@ -21,3 +21,4 @@ export 'src/favorite_driver.dart';
 export 'src/inbox_notification.dart';
 export 'src/support_ticket.dart';
 export 'src/fare_breakdown.dart';
+export 'src/market.dart';

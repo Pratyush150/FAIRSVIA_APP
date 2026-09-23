@@ -160,9 +160,14 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
   Future<void> _select(PlacePrediction prediction) async {
     setState(() => _resolving = true);
     try {
-      final details = await _repo.placeDetails(prediction.placeId);
+      final raw = await _repo.placeDetails(prediction.placeId);
       if (!mounted) return;
-      // Single-location mode (add-a-stop): return the raw place.
+      final details = PlaceDetails(
+        placeId: raw.placeId,
+        address: placeLabel(prediction, raw.address),
+        location: raw.location,
+      );
+      // Single-location mode (add-a-stop, pre-book): return the place.
       if (widget.singleDestination) {
         Navigator.of(context).pop(details);
         return;
@@ -597,4 +602,21 @@ class _FieldBox extends StatelessWidget {
       onChanged: onChanged,
     );
   }
+}
+
+/// A Google Plus Code ("GVHF+GQF"): a grid reference nobody recognises.
+final _plusCode = RegExp(r'^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{0,3}\b');
+
+/// What the trip calls a place the rider picked from search: the name they
+/// chose ("Pune station, Agarkar Nagar, Pune…"), not the geocoder's formatted
+/// address — which for landmarks is often a Plus Code ("GVHF+GQF, …") that
+/// the driver and the receipt would otherwise show.
+String placeLabel(PlacePrediction prediction, String address) {
+  final chosen = prediction.description.trim().isNotEmpty
+      ? prediction.description.trim()
+      : [prediction.primaryText, prediction.secondaryText]
+          .where((s) => s.trim().isNotEmpty)
+          .join(', ');
+  if (chosen.isNotEmpty) return chosen;
+  return address.replaceFirst(_plusCode, '').replaceFirst(RegExp(r'^[,\s]+'), '');
 }

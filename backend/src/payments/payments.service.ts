@@ -36,6 +36,8 @@ import {
   QUEUE_PAYMENTS,
 } from './payments.queue';
 import { isSerializationFailure } from '../common/prisma/serialization';
+import { formatMoney } from '../common/money';
+import { CURRENCY } from '../pricing/fare-config';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -456,7 +458,7 @@ export class PaymentsService {
           const refund = amount != null ? round2(amount) : remaining;
           if (refund <= 0 || refund > remaining) {
             throw new BadRequestException(
-              `Refund must be between 0 and $${remaining.toFixed(2)}`,
+              `Refund must be between 0 and ${formatMoney(remaining, payment.currency)}`,
             );
           }
 
@@ -919,7 +921,7 @@ export class PaymentsService {
         transferId = await this.provider.createTransfer({
           accountId: profile.stripeAccountId,
           amount: reserved.withdrawn,
-          currency: 'USD',
+          currency: CURRENCY,
           idempotencyKey: `payout-${reserved.entryId}`,
         });
       } catch (e) {

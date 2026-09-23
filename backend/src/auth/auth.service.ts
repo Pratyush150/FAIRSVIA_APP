@@ -64,11 +64,15 @@ export class AuthService {
   }
 
   /** Step 1: generate + "send" an OTP. Rate-limited per phone. */
-  async requestOtp(phone: string): Promise<{ requestId: string; devCode?: string }> {
+  async requestOtp(
+    phone: string,
+    viaPublicEdge = false,
+  ): Promise<{ requestId: string; devCode?: string }> {
     const otpCfg = this.config.get<{
       ttlSeconds: number;
       length: number;
       devEcho: boolean;
+      publicEchoPhones?: string[];
     }>('otp')!;
 
     // Rate limit: at most 5 requests per OTP TTL window per phone.
@@ -89,7 +93,11 @@ export class AuthService {
     const requestId = randomUUID();
     // Echo the code back only when explicitly allowed (mock provider + non-prod)
     // so tests can log in without reading logs; never in production.
-    return otpCfg.devEcho ? { requestId, devCode: code } : { requestId };
+    // Over the public edge, only the pilot's demo accounts get it.
+    const echo =
+      otpCfg.devEcho &&
+      (!viaPublicEdge || (otpCfg.publicEchoPhones ?? []).includes(phone));
+    return echo ? { requestId, devCode: code } : { requestId };
   }
 
   private generateNumericCode(length: number): string {

@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:shared_models/shared_models.dart';
 
 /// A live driver position (`GET /admin/live`).
 class LiveDriver {
@@ -151,7 +152,7 @@ class AdminTrip {
         status: j['status'] as String,
         tier: j['tier'] as String? ?? '',
         fare: (j['fare'] as num?)?.toDouble() ?? 0,
-        currency: j['currency'] as String? ?? 'USD',
+        currency: j['currency'] as String? ?? Market.current.currency,
         rider: AdminParty.fromJson(j['rider'] as Map<String, dynamic>?),
         driver: AdminParty.fromJson(j['driver'] as Map<String, dynamic>?),
         pickup: j['pickup'] as String?,
@@ -449,7 +450,7 @@ class AdminPromo {
   /// Human label for the discount, e.g. "20% (max $8)" or "$5 off".
   String get label => kind == 'percent'
       ? '${value.toStringAsFixed(0)}% off'
-      : '\$${value.toStringAsFixed(2)} off';
+      : '${Money.format(value)} off';
 
   // Prisma serialises Decimal columns (value, minSubtotal) as JSON *strings*,
   // so parse defensively rather than casting to num.

@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PricingService } from '../pricing/pricing.service';
 import { CURRENCY, METERS_PER_MILE } from '../pricing/fare-config';
+
+/** The competitor rate cards (Uber/Lyft/Empower, Miami) are priced in this. */
+export const COMPETITOR_MODELS_CURRENCY = 'USD';
 import { COMPETITOR_MODELS, ProviderFareModel } from './competitor-config';
 import { CalibrationService } from './calibration.service';
 import { BRAND_NAME } from '../common/brand';

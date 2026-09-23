@@ -9,3 +9,14 @@ process.env.QUEUE_PREFIX = 'e2e';
 // ride to Stripe's API — network-dependent, slow, and not what CI checks.
 // Suites that need processor behaviour override PAYMENT_PROVIDER themselves.
 process.env.STRIPE_SECRET_KEY = '';
+
+// Market defaults, whatever the dev container's .env says (it may be set up
+// for a pilot market): suites assert on dollar amounts and the default fee,
+// exactly as CI runs them.
+process.env.MARKET_CURRENCY = 'USD';
+process.env.CANCELLATION_FEE = '5';
+process.env.BUSINESS_TZ = 'Asia/Tashkent';
+
+// The one demo number public-edge.e2e expects to be allowed a login code
+// over the public edge.
+process.env.OTP_PUBLIC_ECHO_PHONES = '+15550000001';

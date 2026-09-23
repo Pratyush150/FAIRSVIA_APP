@@ -154,17 +154,23 @@ class _CompletedSheetState extends State<CompletedSheet> {
             ),
             child: Column(
               children: [
-                _ReceiptRow(label: 'Fare', value: fare),
-                if (tip > 0) _ReceiptRow(label: 'Tip', value: tip),
+                _ReceiptRow(label: 'Fare', value: fare, currency: state.receipt?.currency),
+                if (tip > 0)
+                  _ReceiptRow(label: 'Tip', value: tip, currency: state.receipt?.currency),
                 Divider(height: AppSpacing.lg, color: theme.dividerColor),
-                _ReceiptRow(label: 'Total', value: fare + tip, bold: true),
+                _ReceiptRow(
+                  label: 'Total',
+                  value: fare + tip,
+                  currency: state.receipt?.currency,
+                  bold: true,
+                ),
                 // Itemised lines (base / distance / time / booking fee /
                 // surge / promo) when the backend recorded them; older
                 // trips keep the two-line total above.
                 if (state.fareBreakdown != null)
                   _FareDetails(
                     breakdown: state.fareBreakdown!,
-                    currency: state.receipt?.currency ?? 'USD',
+                    currency: state.receipt?.currency ?? Market.current.currency,
                   ),
               ],
             ),
@@ -178,7 +184,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
                       size: 16, color: AppColors.warning),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Pay \$${_money(fare + tip)} in cash to your driver',
+                    'Pay ${Fmt.money(fare + tip, state.receipt?.currency)} in cash to your driver',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: AppColors.warning),
                   ),
@@ -228,7 +234,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              for (final amt in const [2.0, 3.0, 5.0])
+              for (final amt in Market.current.tipPresets)
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(right: AppSpacing.sm),
@@ -278,7 +284,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
           if (sentTip != null)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: Text('Tip of \$${_money(sentTip)} added.',
+              child: Text('Tip of ${Fmt.money(sentTip, state.receipt?.currency)} added.',
                   style: theme.textTheme.bodySmall),
             )
           else if (_pendingTip != null) ...[
@@ -286,7 +292,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
             PrimaryButton(
               label: state.tipping
                   ? 'Adding tip…'
-                  : 'Add \$${_money(_pendingTip!)} tip',
+                  : 'Add ${Fmt.money(_pendingTip!, state.receipt?.currency)} tip',
               onPressed: state.tipping
                   ? null
                   : () => cubit.tipDriver(_pendingTip!),
@@ -369,9 +375,17 @@ class _FareDetailsState extends State<_FareDetails> {
 }
 
 class _ReceiptRow extends StatelessWidget {
-  const _ReceiptRow({required this.label, required this.value, this.bold = false});
+  const _ReceiptRow({
+    required this.label,
+    required this.value,
+    this.currency,
+    this.bold = false,
+  });
   final String label;
   final double value;
+
+  /// The receipt's currency; the market's when the receipt has none yet.
+  final String? currency;
   final bool bold;
 
   @override
@@ -386,9 +400,7 @@ class _ReceiptRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: style),
-          // Show cents so a custom tip like $7.50 sums correctly (whole amounts
-          // still read cleanly as $7.00).
-          Text('\$${value.toStringAsFixed(2)}', style: style?.tabular()),
+          Text(Fmt.money(value, currency), style: style?.tabular()),
         ],
       ),
     );
@@ -431,7 +443,7 @@ class _TipChip extends StatelessWidget {
             height: 48,
             alignment: Alignment.center,
             child: Text(
-              '\$${amount.toStringAsFixed(0)}',
+              Money.format(amount, wholeOnly: true),
               style: theme.textTheme.titleMedium?.copyWith(
                 color: selected
                     ? AppColors.accent
@@ -512,7 +524,7 @@ Future<double?> _askCustomTip(BuildContext context) async {
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
             ],
             decoration: InputDecoration(
-              prefixText: '\$ ',
+              prefixText: '${Money.symbol()} ',
               hintText: '0.00',
               errorText: error,
             ),
@@ -529,8 +541,9 @@ Future<double?> _askCustomTip(BuildContext context) async {
                   setLocal(() => error = 'Enter an amount');
                   return;
                 }
-                if (v > 500) {
-                  setLocal(() => error = 'Max \$500');
+                if (v > Market.current.maxTip) {
+                  setLocal(() => error =
+                      'Max ${Money.format(Market.current.maxTip, wholeOnly: true)}');
                   return;
                 }
                 Navigator.pop(dialogCtx, v);

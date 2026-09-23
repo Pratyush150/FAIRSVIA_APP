@@ -30,17 +30,17 @@ final GetIt sl = GetIt.instance;
 /// Registers the core dependencies shared by all three apps. Call once from
 /// each app's `main()` before `runApp`.
 Future<void> configureCoreDependencies({AppConfig? config}) async {
-  final cfg = config ?? AppConfig.fromEnvironment();
+  // Web can't use flutter_secure_storage on insecure origins (crypto.subtle
+  // is unavailable behind plain-HTTP/IP), and shared_preferences' web method
+  // channel throws MissingPluginException here — so talk to window.localStorage
+  // directly on web (see kv_local_web.dart).
+  final KeyValueStore store =
+      kIsWeb ? createLocalStore() : SecureKeyValueStore();
+  final cfg = config ?? await _pilotOverride(store) ?? AppConfig.fromEnvironment();
 
   sl
     ..registerSingleton<AppConfig>(cfg)
-    // Web can't use flutter_secure_storage on insecure origins (crypto.subtle
-    // is unavailable behind plain-HTTP/IP), and shared_preferences' web method
-    // channel throws MissingPluginException here — so talk to window.localStorage
-    // directly on web (see kv_local_web.dart).
-    ..registerSingleton<KeyValueStore>(
-      kIsWeb ? createLocalStore() : SecureKeyValueStore(),
-    )
+    ..registerSingleton<KeyValueStore>(store)
     ..registerSingleton<TokenStorage>(TokenStorage(sl<KeyValueStore>()))
     ..registerSingleton<DioClient>(
       DioClient(config: cfg, storage: sl<TokenStorage>()),
@@ -109,4 +109,17 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
     ..registerSingleton<ContentRemoteDataSource>(
       ContentRemoteDataSource(sl<DioClient>().authenticatedDio),
     );
+}
+
+/// The server address a pilot tester saved on the sign-in screen, if this
+/// build allows one (see [AppConfig.allowServerOverride]) and it is valid.
+Future<AppConfig?> _pilotOverride(KeyValueStore store) async {
+  if (!AppConfig.allowServerOverride) return null;
+  try {
+    final saved = await store.read(AppConfig.serverOverrideKey);
+    if (saved == null || !AppConfig.isValidOverride(saved)) return null;
+    return AppConfig(apiBaseUrl: saved.trim());
+  } catch (_) {
+    return null; // unreadable storage must never stop the app starting
+  }
 }

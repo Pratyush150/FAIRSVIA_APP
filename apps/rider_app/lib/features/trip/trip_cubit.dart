@@ -51,7 +51,7 @@ class TripCubit extends Cubit<TripState> {
 
   /// The re-confirm prompt after a price change; [amount] is the new fare.
   static String priceChangedMessage(double amount) =>
-      'Price updated to \$${amount.toStringAsFixed(2)} — tap Confirm to accept';
+      'Price updated to ${Fmt.money(amount)} — tap Confirm to accept';
 
   /// Subscribe to trip lifecycle events, then connect the socket.
   AccessTokenProvider? _tokenProvider;

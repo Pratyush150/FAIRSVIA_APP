@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_models/shared_models.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'cubit/admin_cubit.dart';
@@ -767,11 +768,11 @@ class _OverviewView extends StatelessWidget {
                 icon: Icons.check_circle),
             _StatCard(
                 label: 'Gross revenue',
-                value: '\$${s.grossRevenue.toStringAsFixed(0)}',
+                value: Money.format(s.grossRevenue, wholeOnly: true),
                 icon: Icons.payments),
             _StatCard(
                 label: 'Platform fees',
-                value: '\$${s.platformRevenue.toStringAsFixed(0)}',
+                value: Money.format(s.platformRevenue, wholeOnly: true),
                 icon: Icons.account_balance,
                 color: AppColors.accent),
           ],
@@ -879,8 +880,8 @@ class _TripTile extends StatelessWidget {
               controller: controller,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                prefixText: '\$ ',
-                helperText: 'Fare \$${trip.fare.toStringAsFixed(2)}',
+                prefixText: '${Money.symbol(trip.currency)} ',
+                helperText: 'Fare ${Money.format(trip.fare, currency: trip.currency)}',
               ),
             ),
             TextField(
@@ -911,7 +912,9 @@ class _TripTile extends StatelessWidget {
         reason: reason.text.trim().isEmpty ? null : reason.text.trim(),
       );
       messenger.showSnackBar(
-        SnackBar(content: Text('Refunded \$${amount.toStringAsFixed(0)}')),
+        SnackBar(
+            content: Text(
+                'Refunded ${Money.format(amount, currency: trip.currency)}')),
       );
     } catch (_) {
       messenger.showSnackBar(const SnackBar(content: Text('Refund failed')));
@@ -940,7 +943,7 @@ class _TripTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '${trip.currency == 'USD' ? '\$' : ''}${trip.fare.toStringAsFixed(0)}',
+              Money.format(trip.fare, currency: trip.currency, wholeOnly: true),
               style: theme.textTheme.titleMedium,
             ),
             if (_refundable)
@@ -1214,7 +1217,7 @@ class _PromosView extends StatelessWidget {
                       child: ListTile(
                         title: Text(p.code, style: theme.textTheme.titleSmall),
                         subtitle: Text(
-                          '${p.label}  •  min \$${p.minSubtotal.toStringAsFixed(0)}  •  $usage',
+                          '${p.label}  •  min ${Money.format(p.minSubtotal, wholeOnly: true)}  •  $usage',
                           style: theme.textTheme.bodySmall,
                         ),
                         trailing: Row(
@@ -1268,9 +1271,10 @@ Future<void> _showCreatePromo(BuildContext context, AdminCubit cubit) async {
                     child: DropdownButtonFormField<String>(
                       initialValue: kind,
                       decoration: const InputDecoration(labelText: 'Type'),
-                      items: const [
-                        DropdownMenuItem(value: 'flat', child: Text('\$ off')),
+                      items: [
                         DropdownMenuItem(
+                            value: 'flat', child: Text('${Money.symbol()} off')),
+                        const DropdownMenuItem(
                             value: 'percent', child: Text('% off')),
                       ],
                       onChanged: (v) => setLocal(() => kind = v ?? 'flat'),
@@ -1407,11 +1411,11 @@ class _PricingView extends StatelessWidget {
             child: ListTile(
               title: Text(f.label, style: theme.textTheme.titleSmall),
               subtitle: Text(
-                'base \$${f.baseFare.toStringAsFixed(2)} · '
-                '\$${f.perMile.toStringAsFixed(2)}/mi · '
-                '\$${f.perMin.toStringAsFixed(2)}/min · '
-                'min \$${f.minFare.toStringAsFixed(2)} · '
-                'booking \$${f.bookingFee.toStringAsFixed(2)}',
+                'base ${Money.format(f.baseFare)} · '
+                '${Money.format(_perUnitDistance(f.perMile))}/${Market.current.distanceUnit} · '
+                '${Money.format(f.perMin)}/min · '
+                'min ${Money.format(f.minFare)} · '
+                'booking ${Money.format(f.bookingFee)}',
                 style: theme.textTheme.bodySmall,
               ),
               trailing: TextButton(
@@ -1425,10 +1429,22 @@ class _PricingView extends StatelessWidget {
   }
 }
 
+const _metresPerMile = 1609.344;
+
+/// A per-mile rate as the market prices it: per km when metric.
+double _perUnitDistance(double perMile) =>
+    Market.current.metric ? perMile * 1000 / _metresPerMile : perMile;
+
+/// Back to the stored per-mile rate from what the admin typed.
+double _perMileFromUnit(double perUnit) =>
+    Market.current.metric ? perUnit * _metresPerMile / 1000 : perUnit;
+
 Future<void> _showEditFare(
     BuildContext context, AdminCubit cubit, AdminFare f) async {
   final base = TextEditingController(text: f.baseFare.toStringAsFixed(2));
-  final perMile = TextEditingController(text: f.perMile.toStringAsFixed(2));
+  // Edited per km in metric markets; stored per mile (the pricing unit).
+  final perMile = TextEditingController(
+      text: _perUnitDistance(f.perMile).toStringAsFixed(2));
   final perMin = TextEditingController(text: f.perMin.toStringAsFixed(2));
   final minFare = TextEditingController(text: f.minFare.toStringAsFixed(2));
   final booking = TextEditingController(text: f.bookingFee.toStringAsFixed(2));
@@ -1439,7 +1455,8 @@ Future<void> _showEditFare(
         child: TextField(
           controller: c,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: label, prefixText: '\$ '),
+          decoration:
+              InputDecoration(labelText: label, prefixText: '${Money.symbol()} '),
         ),
       );
 
@@ -1454,7 +1471,7 @@ Future<void> _showEditFare(
             mainAxisSize: MainAxisSize.min,
             children: [
               field('Base fare', base),
-              field('Per mile', perMile),
+              field('Per ${Market.current.metric ? 'km' : 'mile'}', perMile),
               field('Per minute', perMin),
               field('Minimum fare', minFare),
               field('Booking fee', booking),
@@ -1484,7 +1501,7 @@ Future<void> _showEditFare(
               try {
                 await cubit.updateFare(f.tier, {
                   'baseFare': b,
-                  'perMile': pmi,
+                  'perMile': _perMileFromUnit(pmi!),
                   'perMin': pmn,
                   'minFare': mf,
                   'bookingFee': bf,
@@ -1584,11 +1601,12 @@ class _ComparisonView extends StatelessWidget {
                 ],
               ),
               subtitle: Text(
+                // Competitor rate cards are US fares (USD, per mile).
                 'base \$${m.baseFare.toStringAsFixed(2)} · '
                 '\$${m.perMile.toStringAsFixed(2)}/mi · '
                 '\$${m.perMin.toStringAsFixed(2)}/min · '
                 'min \$${m.minFare.toStringAsFixed(2)} · '
-                'booking \$${m.bookingFee.toStringAsFixed(2)}',
+                'booking \$${m.bookingFee.toStringAsFixed(2)} (USD)',
                 style: theme.textTheme.bodySmall,
               ),
             ),
@@ -1676,7 +1694,7 @@ Future<void> _showRecordSample(
               const SizedBox(height: AppSpacing.sm),
               field('Trip distance (miles)', miles),
               field('Trip duration (minutes)', minutes),
-              field('Observed fare', fare, prefix: '\$ '),
+              field('Observed fare (USD)', fare, prefix: '\$ '),
               field('Surge at the time (1.0 = none)', surge, prefix: '× '),
               if (error != null)
                 Text(error!,

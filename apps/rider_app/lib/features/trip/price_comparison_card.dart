@@ -10,7 +10,7 @@ class PriceComparisonCard extends StatelessWidget {
 
   final PriceComparison comparison;
 
-  String _money(double v) => '\$${v.toStringAsFixed(2)}';
+  String _money(double v) => Money.format(v, currency: comparison.currency);
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +160,8 @@ class _QuoteRow extends StatelessWidget {
                     !quote.hasRange ||
                     quote.priceLow.round() == quote.priceHigh.round()
                 ? money(quote.price)
-                : '\$${quote.priceLow.round()}–\$${quote.priceHigh.round()}',
+                : '${Money.format(quote.priceLow, currency: quote.currency, wholeOnly: true)}–'
+                    '${Money.format(quote.priceHigh, currency: quote.currency, wholeOnly: true)}',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: isOurs ? FontWeight.w700 : FontWeight.w500,
               color: isOurs ? AppColors.accent : null,

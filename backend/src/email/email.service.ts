@@ -5,6 +5,7 @@ import {
   EmailProvider,
 } from './email-provider.interface';
 import { BRAND_NAME } from '../common/brand';
+import { formatMoney } from '../common/money';
 
 /**
  * Application-facing email API. Wraps the configured provider (SES or mock) and
@@ -30,9 +31,10 @@ export class EmailService {
     to: string | null | undefined,
     tripId: string,
     amount: number,
+    currency: string,
   ): Promise<void> {
     if (!to) return;
-    const money = `$${amount.toFixed(2)}`;
+    const money = formatMoney(amount, currency);
     await this.send({
       to,
       subject: `Your ${BRAND_NAME} receipt — ${money}`,

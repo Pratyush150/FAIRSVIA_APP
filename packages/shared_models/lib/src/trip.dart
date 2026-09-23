@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 import 'geo_point.dart';
 import 'trip_passenger.dart';
 import 'trip_stop.dart';
+import 'market.dart';
 
 enum TripStatus {
   scheduled,
@@ -165,7 +166,7 @@ class Trip extends Equatable {
         durationS: (json['durationS'] as num?)?.toInt(),
         fareEstimate: (json['fareEstimate'] as num?)?.toDouble(),
         fareFinal: (json['fareFinal'] as num?)?.toDouble(),
-        currency: json['currency'] as String? ?? 'USD',
+        currency: json['currency'] as String? ?? Market.current.currency,
         startOtp: json['startOtp'] as String?,
         promoCode: json['promoCode'] as String?,
         promoDiscount: (json['promoDiscount'] as num?)?.toDouble() ?? 0,

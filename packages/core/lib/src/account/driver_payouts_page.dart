@@ -6,6 +6,7 @@ import '../driver/driver_remote_data_source.dart';
 import '../network/api_exception.dart';
 import 'format.dart';
 import 'widgets/async_content.dart';
+import 'package:shared_models/shared_models.dart';
 
 /// Driver payout balance + ledger, with a withdrawal action
 /// (`GET/POST /drivers/balance`).
@@ -22,7 +23,7 @@ class DriverPayoutsPage extends StatefulWidget {
     if (amount <= 0) return 'Enter an amount greater than zero.';
     // Compare at cent precision so "12.60" against 12.6 never trips.
     if ((amount * 100).round() > (max * 100).round()) {
-      return 'You can withdraw up to \$${max.toStringAsFixed(2)}.';
+      return 'You can withdraw up to ${Fmt.money(max)}.';
     }
     return null;
   }
@@ -50,8 +51,8 @@ class _DriverPayoutsPageState extends State<DriverPayoutsPage> {
             keyboardType:
                 const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              prefixText: '\$ ',
-              helperText: 'Available: \$${max.toStringAsFixed(2)}',
+              prefixText: '${Money.symbol()} ',
+              helperText: 'Available: ${Fmt.money(max)}',
               errorText: error,
             ),
             onChanged: (_) {
@@ -84,7 +85,7 @@ class _DriverPayoutsPageState extends State<DriverPayoutsPage> {
     try {
       await widget.driver.withdraw(amount);
       messenger.showSnackBar(
-        SnackBar(content: Text('Withdrew \$${amount.toStringAsFixed(2)}')),
+        SnackBar(content: Text('Withdrew ${Fmt.money(amount)}')),
       );
       if (mounted) setState(() => _reloadKey++);
     } on ApiException catch (e) {
@@ -302,7 +303,7 @@ class _LedgerTile extends StatelessWidget {
           ? Text(Fmt.dateTime(entry.createdAt!))
           : null,
       trailing: Text(
-        '${credit ? '+' : '−'}\$${entry.amount.abs().toStringAsFixed(2)}',
+        '${credit ? '+' : '−'}${Fmt.money(entry.amount.abs())}',
         style: theme.textTheme.titleMedium?.copyWith(
           color: credit ? AppColors.success : AppColors.error,
         ),

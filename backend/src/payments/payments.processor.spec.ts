@@ -73,7 +73,7 @@ describe('PaymentsProcessor', () => {
     });
     expect(realtime.emitToUser).toHaveBeenCalledWith('r1', 'trip:payment_settled', settled);
     expect(realtime.emitToUser).toHaveBeenCalledWith('d1', 'trip:payment_settled', settled);
-    expect(email.sendReceipt).toHaveBeenCalledWith('r@x.com', 't1', 50);
+    expect(email.sendReceipt).toHaveBeenCalledWith('r@x.com', 't1', 50, 'USD');
   });
 
   it('rethrows a failed capture so BullMQ retries, without flagging the trip early', async () => {

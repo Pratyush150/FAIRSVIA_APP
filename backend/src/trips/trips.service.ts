@@ -28,7 +28,10 @@ import { StopDto } from './dto/stop.dto';
 import { CURRENCY } from '../pricing/fare-config';
 import { FareBreakdown, PricingService } from '../pricing/pricing.service';
 import { SurgeService } from '../surge/surge.service';
-import { ComparisonService } from '../comparison/comparison.service';
+import {
+  COMPETITOR_MODELS_CURRENCY,
+  ComparisonService,
+} from '../comparison/comparison.service';
 import { PromoService } from '../promo/promo.service';
 import {
   MAX_LEAD_MS,
@@ -171,13 +174,14 @@ export class TripsService {
       ),
       // How our economy fare stacks up against modeled Uber/Lyft/Empower prices
       // for this exact trip, with the cheapest provider flagged. Reuses the
-      // already-routed distance/time — no extra routing call.
-      comparison: this.comparison.compare(
-        route.distanceM,
-        route.durationS,
-        surge,
-        'economy',
-      ),
+      // already-routed distance/time — no extra routing call. Only where the
+      // competitor rate cards were calibrated: they are US dollar fares, and
+      // compared against rupees or som they would claim savings that are not
+      // real. Null elsewhere — the app then shows no comparison card.
+      comparison:
+        CURRENCY === COMPETITOR_MODELS_CURRENCY
+          ? this.comparison.compare(route.distanceM, route.durationS, surge, 'economy')
+          : null,
     };
   }
 
@@ -701,7 +705,7 @@ export class TripsService {
           where: { id: trip.riderId },
           select: { email: true },
         });
-        await this.email.sendReceipt(rider?.email, tripId, split.fareFinal);
+        await this.email.sendReceipt(rider?.email, tripId, split.fareFinal, trip.currency);
       })();
     }
     return receipt;

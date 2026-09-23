@@ -136,12 +136,7 @@ String? _tripEtaLine(TripState state) {
   final clock =
       '$h:${arrival.minute.toString().padLeft(2, '0')} ${arrival.hour < 12 ? 'AM' : 'PM'}';
   final mins = (secs / 60).ceil().clamp(1, 999);
-  final miles = metres == null ? null : (metres / 1609.344);
-  final dist = miles == null
-      ? ''
-      : miles < 0.1
-          ? ' · ${(metres! * 3.28084).round()} ft to go'
-          : ' · ${miles.toStringAsFixed(1)} mi to go';
+  final dist = metres == null ? '' : ' · ${Fmt.distance(metres)} to go';
   return 'Arriving $clock · $mins min$dist';
 }
 
@@ -208,11 +203,6 @@ void _openTripChat(BuildContext context, TripState state) {
       ),
     ),
   ).then((_) => cubit.setChatOpen(false)));}
-
-/// Format a dollar amount without trailing `.00` (so `$4` not `$4.00`, but
-/// `$4.50` keeps its cents).
-String _money(double v) =>
-    v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
 class _InfoCard extends StatelessWidget {
   const _InfoCard({required this.child});

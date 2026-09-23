@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:equatable/equatable.dart';
 
+import 'market.dart';
+
 import 'trip.dart';
 
 /// A dispatch offer pushed to a driver over the socket (`trip:offer`).
@@ -67,17 +69,11 @@ class RideOffer extends Equatable {
   String? get surgeLabel =>
       hasSurge ? '${surge.toStringAsFixed(1)}× surge' : null;
 
-  static const _metresPerMile = 1609.344;
-  static const _metresPerFoot = 0.3048;
-
-  /// "X.X mi" ("~X.X mi" when [approx]), or "< 500 ft" when practically
-  /// there. Imperial to match the trip-distance line on the same offer card
-  /// (US market) — a km figure next to a miles figure read wrong.
-  static String _milesText(int m, {required bool approx}) {
-    if (m < 500 * _metresPerFoot) return '< 500 ft';
-    final miles = (m / _metresPerMile).toStringAsFixed(1);
-    return approx ? '~$miles mi' : '$miles mi';
-  }
+  /// The market's distance ("~3.2 km" / "~2.0 mi"), so the approach and the
+  /// trip leg on the same offer card always use the same unit.
+  static String _distanceText(int m, {required bool approx}) =>
+      Market.current.nearLabel(m) ??
+      Market.current.legDistance(m, approx: approx);
 
   /// Whole minutes for a readout, never "0 min" for a short hop.
   static int _minutes(int seconds) => math.max(1, (seconds / 60).round());
@@ -88,7 +84,7 @@ class RideOffer extends Equatable {
   String? get approachLabel {
     final m = approachDistanceM;
     if (m == null || m < 0) return null;
-    return '${_milesText(m, approx: true)} to pickup';
+    return '${_distanceText(m, approx: true)} to pickup';
   }
 
   /// Uber-style "N min · X.X mi to pickup" when the server sent an approach
@@ -98,16 +94,16 @@ class RideOffer extends Equatable {
     final m = approachDistanceM;
     final eta = approachEtaS;
     if (m == null || m < 0 || eta == null || eta < 0) return approachLabel;
-    final miles = _milesText(m, approx: approachSource != 'road');
-    return '${_minutes(eta)} min · $miles to pickup';
+    final dist = _distanceText(m, approx: approachSource != 'road');
+    return '${_minutes(eta)} min · $dist to pickup';
   }
 
   /// The trip leg as "X.X mi · N min" (distance only when the payload carried
   /// no duration).
   String get tripLabel {
-    final miles = (distanceM / _metresPerMile).toStringAsFixed(1);
-    if (durationS <= 0) return '$miles mi';
-    return '$miles mi · ${_minutes(durationS)} min';
+    final dist = Market.current.legDistance(distanceM);
+    if (durationS <= 0) return dist;
+    return '$dist · ${_minutes(durationS)} min';
   }
 
   factory RideOffer.fromJson(Map<String, dynamic> json) {

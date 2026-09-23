@@ -1,4 +1,7 @@
-export const CURRENCY = 'USD';
+import { marketCurrency } from '../common/money';
+
+/** The market's currency (MARKET_CURRENCY), for every new trip and estimate. */
+export const CURRENCY = marketCurrency();
 
 /** Meters in one statute mile. US fares are priced per mile, but the geo layer
  *  reports distances in meters, so this is the single conversion constant used

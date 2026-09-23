@@ -22,7 +22,12 @@ const MINUTES = Number(process.argv[2] || 6);
 //   APPROACH_S=60 WAIT_AT_PICKUP_S=120 node slow-ride.mjs 6
 const APPROACH_S = Number(process.env.APPROACH_S || 5.6);
 const WAIT_AT_PICKUP_S = Number(process.env.WAIT_AT_PICKUP_S || 1.2);
-const START = { lat: 25.766, lng: -80.1955 };
+// Where the driver waits. Defaults to Miami; for the Pune pilot:
+//   START_LAT=18.5300 START_LNG=73.8475 node slow-ride.mjs
+const START = {
+  lat: Number(process.env.START_LAT ?? 25.766),
+  lng: Number(process.env.START_LNG ?? -80.1955),
+};
 
 function readStartOtp(tripId) {
   return execSync(

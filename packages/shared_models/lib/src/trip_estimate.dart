@@ -5,6 +5,7 @@ import 'fare_tier.dart';
 import 'geo_point.dart';
 import 'price_comparison.dart';
 import 'trip_stop.dart';
+import 'market.dart';
 
 /// The response to POST /trips/estimate: route + a fare option per tier.
 class TripEstimate extends Equatable {
@@ -83,7 +84,7 @@ class TripEstimate extends Equatable {
         durationS: (json['durationS'] as num).toInt(),
         polyline: json['polyline'] as String? ?? '',
         surge: (json['surge'] as num?)?.toDouble() ?? 1.0,
-        currency: json['currency'] as String? ?? 'USD',
+        currency: json['currency'] as String? ?? Market.current.currency,
         pickup: GeoPoint.fromJson(json['pickup'] as Map<String, dynamic>),
         dropoff: GeoPoint.fromJson(json['dropoff'] as Map<String, dynamic>),
         tiers: (json['tiers'] as List<dynamic>)

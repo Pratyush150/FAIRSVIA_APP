@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_models/shared_models.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockSafety extends Mock implements SafetyRemoteDataSource {}
@@ -39,19 +40,38 @@ void main() {
     expect(find.text('1 of 3 added'), findsOneWidget);
   });
 
-  testWidgets('rejects a number without a country code before calling the server', (tester) async {
+  testWidgets('rejects a number too short to dial before calling the server', (tester) async {
     when(() => safety.contacts()).thenAnswer((_) async => const []);
     await pump(tester);
     await tester.tap(find.text('Add a contact'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextFormField, 'Name'), 'Mum');
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Mobile number'), '901234567');
+        find.widgetWithText(TextFormField, 'Mobile number'), '12345');
     await tester.tap(find.widgetWithText(PrimaryButton, 'Save contact'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Enter the full number, starting with +'), findsOneWidget);
+    expect(find.text('Enter a mobile number'), findsOneWidget);
     verifyNever(() => safety.addContact(any(), any()));
+  });
+
+  testWidgets('a local number is saved with the market country code', (tester) async {
+    Market.current = Market.india;
+    addTearDown(() => Market.current = Market.unitedStates);
+    when(() => safety.contacts()).thenAnswer((_) async => const []);
+    when(() => safety.addContact(any(), any())).thenAnswer(
+        (_) async => const EmergencyContact(id: 'n', name: 'Mum', phone: '+919876543210'));
+    await pump(tester);
+    await tester.tap(find.text('Add a contact'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Name'), 'Mum');
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Mobile number'), '098765 43210');
+    await tester.tap(find.widgetWithText(PrimaryButton, 'Save contact'));
+    await tester.pumpAndSettle();
+
+    // Texted during an SOS, so it must be the full international number.
+    verify(() => safety.addContact('Mum', '+919876543210')).called(1);
   });
 
   testWidgets('at the limit it stops offering to add and says why', (tester) async {

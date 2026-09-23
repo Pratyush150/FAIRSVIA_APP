@@ -238,7 +238,7 @@ class StopQuote {
         previousFare: (j['previousFare'] as num?)?.toDouble() ?? 0,
         distanceM: (j['distanceM'] as num?)?.toInt() ?? 0,
         durationS: (j['durationS'] as num?)?.toInt() ?? 0,
-        currency: j['currency'] as String? ?? 'USD',
+        currency: j['currency'] as String? ?? Market.current.currency,
       );
 
   final double fareEstimate;

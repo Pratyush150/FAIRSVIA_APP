@@ -26,7 +26,7 @@ class _RideOptions extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(
-              '${estimate.distanceMi.toStringAsFixed(1)} mi · '
+              '${Market.current.legDistance(estimate.distanceM)} · '
               '${_minutes(estimate.durationS)} min',
               style: theme.textTheme.bodyMedium,
             ),
@@ -201,7 +201,7 @@ Future<TripPassenger?> _askPassenger(
                 keyboardType: TextInputType.phone,
                 decoration: InputDecoration(
                   labelText: 'Their mobile number',
-                  hintText: '+1 305 555 0123',
+                  hintText: Market.current.examplePhone,
                   errorText: error,
                 ),
               ),
@@ -220,8 +220,10 @@ Future<TripPassenger?> _askPassenger(
             ),
             FilledButton(
               onPressed: () {
-                final phone = phoneCtrl.text.trim();
-                if (phone.replaceAll(RegExp(r'[^0-9]'), '').length < 6) {
+                // Texted the start code, so it must be a dialable number;
+                // a local number gets this market's country code.
+                final phone = Market.current.toE164(phoneCtrl.text);
+                if (phone == null) {
                   setLocal(() => error = 'Enter their mobile number');
                   return;
                 }
@@ -346,7 +348,7 @@ String _confirmLabel(TripState state) {
       ? net
       : fare.fare;
   final verb = state.scheduledAt != null ? 'Schedule' : 'Confirm';
-  return '$verb ${fare.label} · \$${_money(amount)}';
+  return '$verb ${fare.label} · ${Fmt.money(amount, fare.currency)}';
 }
 
 String _formatSchedule(DateTime when) {
@@ -796,7 +798,7 @@ class _PromoFieldState extends State<_PromoField> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                '${promo.code} applied · −\$${promo.discount.toStringAsFixed(0)}',
+                '${promo.code} applied · −${Money.format(promo.discount, wholeOnly: true)}',
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: AppColors.success),
               ),
@@ -940,7 +942,7 @@ class _RideTierTile extends StatelessWidget {
                 Text(
                   // Same rule as the confirm footer (Fmt.money): whole dollars
                   // stay whole, otherwise cents — so the list and the CTA agree.
-                  '\$${_money(tier.fare)}',
+                  Fmt.money(tier.fare, tier.currency),
                   style: theme.textTheme.titleLarge?.tabular(),
                 ),
                 // What that number is made of. Only offered when the backend
@@ -1008,7 +1010,7 @@ Future<void> showFareDetailsSheet(BuildContext context, FareTier tier) {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Estimated total', style: theme.textTheme.titleMedium),
-                  Text('\$${tier.fare.toStringAsFixed(2)}',
+                  Text(Fmt.money(tier.fare, tier.currency),
                       style: theme.textTheme.titleMedium?.tabular()),
                 ],
               ),

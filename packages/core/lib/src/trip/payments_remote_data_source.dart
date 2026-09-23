@@ -73,7 +73,7 @@ class Receipt {
       cardLabel: (cardLabel == null || cardLabel.isEmpty) ? null : cardLabel,
       tripId: j['tripId'] as String,
       fare: (j['fare'] as num?)?.toDouble() ?? 0,
-      currency: j['currency'] as String? ?? 'USD',
+      currency: j['currency'] as String? ?? Market.current.currency,
       status: p?['status'] as String?,
       tip: (p?['tip'] as num?)?.toDouble() ?? 0,
       platformFee: (p?['platformFee'] as num?)?.toDouble(),

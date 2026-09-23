@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:rider_app/features/trip/trip_cubit.dart';
 import 'package:rider_app/home_page.dart';
 import 'package:core/core.dart';
+import 'package:shared_models/shared_models.dart';
 
 class MockTripCubit extends MockCubit<TripState> implements TripCubit {}
 
@@ -184,5 +185,32 @@ void main() {
     );
     expect(find.text('\$3'), findsOneWidget);
     verifyNever(() => cubit.tipDriver(any()));
+  });
+
+  group('in the Indian market (Pune pilot)', () {
+    setUp(() => Market.current = Market.india);
+    tearDown(() => Market.current = Market.unitedStates);
+
+    testWidgets('fares, tips and totals read in rupees, with rupee-sized tips',
+        (tester) async {
+      await pump(
+        tester,
+        const TripState(
+          phase: TripPhase.completed,
+          fareFinal: 184,
+          receipt: Receipt(tripId: 't1', fare: 184, currency: 'INR', tip: 0),
+        ),
+      );
+      // A dollar sign anywhere on this sheet would be a bug in India.
+      expect(find.textContaining('\$'), findsNothing);
+      for (final chip in ['₹20', '₹50', '₹100']) {
+        expect(find.text(chip), findsOneWidget);
+      }
+      await tester.tap(find.text('₹50'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add ₹50 tip'));
+      await tester.pumpAndSettle();
+      verify(() => cubit.tipDriver(50.0)).called(1);
+    });
   });
 }

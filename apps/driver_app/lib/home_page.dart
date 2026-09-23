@@ -1178,7 +1178,7 @@ class _LifecycleSheet extends StatelessWidget {
   }
 }
 
-/// "45 m to pickup" / "0.3 mi to dropoff" from the driver's own fix — along
+/// "45 m to pickup" / "2.4 km to dropoff" from the driver's own fix — along
 /// the road when the leg's polyline is known, straight-line otherwise.
 String? _distanceLabel(
   LatLng? from,
@@ -1190,8 +1190,10 @@ String? _distanceLabel(
   final m = route.length >= 2
       ? routeRemainingMeters(route, from)
       : distanceMeters(from, to);
+  // Metres up close in every market (a driver reads "45 m" at a glance);
+  // beyond that the market's unit.
   if (m < 200) return '${m.round()} m to $what';
-  return '${(m / 1609.344).toStringAsFixed(1)} mi to $what';
+  return '${Market.current.legDistance(m.round())} to $what';
 }
 
 /// Who to collect, when the booker is not the one travelling. Carries a call
@@ -1559,7 +1561,7 @@ class _OfferOverlayState extends State<OfferOverlay> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text('\$${offer.fare.toStringAsFixed(2)}',
+                    Text(Fmt.money(offer.fare),
                         style: theme.textTheme.displaySmall),
                     // Surge premium is baked into the fare; call it out so
                     // the driver knows why this one pays more.

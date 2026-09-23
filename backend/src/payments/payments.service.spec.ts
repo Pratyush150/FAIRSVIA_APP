@@ -755,11 +755,12 @@ describe('PaymentsService', () => {
       status: 'captured',
       amount: 100,
       refundedAmount: 80,
+      currency: 'INR',
       externalIntentId: 'mock_pi_x',
     });
     const svc = makeService(prisma);
-    // Only 20 remains refundable.
-    await expect(svc.refundTrip('t1', 50)).rejects.toThrow(/between 0 and/);
+    // Only 20 remains refundable — said in the payment's own currency.
+    await expect(svc.refundTrip('t1', 50)).rejects.toThrow('Refund must be between 0 and ₹20');
   });
 
   it('creates a Stripe customer on first setup-intent and returns sheet secrets', async () => {

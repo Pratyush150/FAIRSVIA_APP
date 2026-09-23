@@ -18,6 +18,21 @@ class AppConfig {
     return withoutApi.isEmpty ? apiBaseUrl : withoutApi;
   }
 
+  /// Pilot builds only (`--dart-define=ALLOW_SERVER_OVERRIDE=true`): testers
+  /// can point the app at a new server address from the sign-in screen, so a
+  /// changed tunnel URL doesn't mean reinstalling every phone. Off in store
+  /// builds — a production app never talks to a user-typed server.
+  static const bool allowServerOverride =
+      bool.fromEnvironment('ALLOW_SERVER_OVERRIDE');
+
+  /// Storage key for that override.
+  static const String serverOverrideKey = 'pilot.server_override';
+
+  /// A usable override: an https URL ending in `/api/vN`. Anything else is
+  /// ignored, so a typo can't brick the app.
+  static bool isValidOverride(String url) =>
+      RegExp(r'^https://[^\s/]+(:\d+)?/api/v\d+$').hasMatch(url.trim());
+
   static const String _defaultBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://localhost:3000/api/v1',
