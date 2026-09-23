@@ -1,9 +1,12 @@
-import { ConflictException } from '@nestjs/common';
+import { BadGatewayException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, TripStatus } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { MockPaymentProvider } from './mock-payment.provider';
-import { PaymentProvider } from './payment-provider.interface';
+import {
+  PaymentProvider,
+  ProviderRejectedException,
+} from './payment-provider.interface';
 import { signStripePayload } from './stripe-webhook.util';
 
 /**
@@ -165,8 +168,13 @@ describe('PaymentsService', () => {
     // Third arg is the capture idempotency key (undefined here — no key on the
     // existing hold in this fixture).
     expect(capture).toHaveBeenCalledWith('mock_pi_x', 100, undefined);
-    expect((prisma as any).payment.update).toHaveBeenCalledWith({
-      where: { tripId: 't1' },
+    // Settled through the status-guarded update, in the same transaction as
+    // the driver's ledger credit.
+    expect((prisma as any).payment.updateMany).toHaveBeenCalledWith({
+      where: {
+        tripId: 't1',
+        status: { notIn: ['captured', 'collected', 'refunded', 'partial'] },
+      },
       data: {
         status: 'captured',
         amount: 100,
@@ -174,6 +182,27 @@ describe('PaymentsService', () => {
         driverPayout: 80,
       },
     });
+  });
+
+  it('a capture that loses the settle race books nothing and returns the stored split', async () => {
+    ledger.record.mockClear();
+    const prisma = makePrisma();
+    (prisma as any).trip.findUnique.mockResolvedValue({
+      id: 't1', riderId: 'r1', driverId: 'd1', fareFinal: 100, fareEstimate: 100,
+      currency: 'USD', paymentMode: 'card',
+    });
+    (prisma as any).payment.findUnique
+      .mockResolvedValueOnce({ tripId: 't1', status: 'authorized', amount: 100, externalIntentId: 'pi_1' })
+      .mockResolvedValueOnce({ tripId: 't1', status: 'captured', amount: 100, platformFee: 20, driverPayout: 80 });
+    (prisma as any).payment.updateMany.mockResolvedValueOnce({ count: 0 });
+    const svc = makeService(prisma, makeProvider({
+      capture: jest.fn().mockResolvedValue({ intentId: 'pi_1', status: 'captured' }),
+    }));
+
+    const split = await svc.captureForTrip('t1');
+
+    expect(ledger.record).not.toHaveBeenCalled();
+    expect(split).toEqual({ fareFinal: 100, platformFee: 20, driverPayout: 80 });
   });
 
   it('rounds the split to two decimals', async () => {
@@ -299,7 +328,7 @@ describe('PaymentsService', () => {
       where: { tripId: 't1', tip: 0 },
       data: { tip: { increment: 15 }, driverPayout: { increment: 15 } },
     });
-    expect(ledger.record).toHaveBeenCalledWith('d1', 'tip', 15, expect.anything());
+    expect(ledger.record).toHaveBeenCalledWith('d1', 'tip', 15, expect.anything(), expect.anything());
   });
 
   it('records a card-ride tip without a charge when the rider has no saved card', async () => {
@@ -318,7 +347,7 @@ describe('PaymentsService', () => {
     const res = await makeService(prisma, provider).addTip('r1', 't1', 5);
     expect(res).toEqual({ tip: 5, driverPayout: 85, paymentMode: 'card' });
     expect(provider.charge).not.toHaveBeenCalled();
-    expect(ledger.record).toHaveBeenCalledWith('d1', 'tip', 5, expect.anything());
+    expect(ledger.record).toHaveBeenCalledWith('d1', 'tip', 5, expect.anything(), expect.anything());
   });
 
   it('a cash-ride tip is recorded to the driver with no card charge', async () => {
@@ -933,48 +962,88 @@ describe('PaymentsService', () => {
     });
   });
 
-  it('pays out via a Connect transfer when payouts are enabled', async () => {
-    ledger.record.mockClear();
-    const prisma = makePrisma();
+  function connectPrisma() {
+    const prisma = makePrisma({
+      ledgerEntry: {
+        create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    });
     (prisma as any).driverProfile.findUnique.mockResolvedValue({
       userId: 'd1',
       stripeAccountId: 'acct_1',
       payoutsEnabled: true,
     });
-    ledger.balance.mockResolvedValueOnce(50);
-    const createTransfer = jest.fn().mockResolvedValue('tr_1');
-    const provider = {
-      authorize: jest.fn(),
-      capture: jest.fn(),
-      charge: jest.fn(),
-      refund: jest.fn(),
-      createCustomer: jest.fn(),
-      createSetupIntent: jest.fn(),
-      listCards: jest.fn(),
-      createConnectAccount: jest.fn(),
-      createAccountLink: jest.fn(),
-      getAccount: jest.fn(),
-      createTransfer,
-    } as PaymentProvider;
+    return prisma;
+  }
 
-    const svc = makeService(prisma, provider);
+  function reverseMock() {
+    return ((ledger as any).reverseWithdrawal = jest.fn().mockResolvedValue(null));
+  }
+
+  it('pays out via a Connect transfer: reserve first, transfer keyed on the reservation', async () => {
+    const prisma = connectPrisma();
+    const order: string[] = [];
+    ledger.withdraw.mockImplementationOnce(async () => {
+      order.push('reserve');
+      return { withdrawn: 20, balance: 30, entryId: 'le_1' };
+    });
+    const createTransfer = jest.fn(async () => {
+      order.push('transfer');
+      return 'tr_1';
+    });
+    const svc = makeService(prisma, makeProvider({ createTransfer }));
     const res = await svc.payout('d1', 20);
 
+    // The balance check + debit happen BEFORE money moves, so two concurrent
+    // payouts cannot both pass it.
+    expect(order).toEqual(['reserve', 'transfer']);
+    expect(ledger.withdraw).toHaveBeenCalledWith('d1', 20, 'Payout to bank');
     expect(createTransfer).toHaveBeenCalledWith(
-      expect.objectContaining({ accountId: 'acct_1', amount: 20, currency: 'USD' }),
+      expect.objectContaining({
+        accountId: 'acct_1',
+        amount: 20,
+        currency: 'USD',
+        idempotencyKey: 'payout-le_1',
+      }),
     );
-    // Records the withdrawal referencing the transfer id.
-    expect(ledger.record).toHaveBeenCalledWith(
-      'd1',
-      'withdrawal',
-      -20,
-      expect.objectContaining({ note: expect.stringContaining('tr_1') }),
-    );
-    expect(res).toEqual({
-      withdrawn: 20,
-      balance: 30,
-      transferId: 'tr_1',
-      mode: 'stripe',
+    expect((prisma as any).ledgerEntry.update).toHaveBeenCalledWith({
+      where: { id: 'le_1' },
+      data: { note: 'Payout to bank (tr_1)' },
+    });
+    expect(res).toEqual({ withdrawn: 20, balance: 30, transferId: 'tr_1', mode: 'stripe' });
+  });
+
+  it('a definitively rejected transfer gives the reserved balance back', async () => {
+    const prisma = connectPrisma();
+    const reverse = reverseMock();
+    ledger.withdraw.mockResolvedValueOnce({ withdrawn: 20, balance: 30, entryId: 'le_2' });
+    const svc = makeService(prisma, makeProvider({
+      createTransfer: jest.fn().mockRejectedValue(
+        new ProviderRejectedException('Insufficient funds in platform balance'),
+      ),
+    }));
+
+    await expect(svc.payout('d1', 20)).rejects.toThrow(ProviderRejectedException);
+    expect(reverse).toHaveBeenCalledWith('d1', 20, 'Insufficient funds in platform balance');
+  });
+
+  it('a transfer with an unknown outcome keeps the balance reserved and flags it', async () => {
+    const prisma = connectPrisma();
+    const reverse = reverseMock();
+    ledger.withdraw.mockResolvedValueOnce({ withdrawn: 20, balance: 30, entryId: 'le_3' });
+    const svc = makeService(prisma, makeProvider({
+      createTransfer: jest.fn().mockRejectedValue(
+        new BadGatewayException('Stripe unreachable: socket hang up'),
+      ),
+    }));
+
+    await expect(svc.payout('d1', 20)).rejects.toThrow(BadGatewayException);
+    // Reversing here could pay the driver twice if the transfer actually went.
+    expect(reverse).not.toHaveBeenCalled();
+    expect((prisma as any).ledgerEntry.update).toHaveBeenCalledWith({
+      where: { id: 'le_3' },
+      data: { note: 'Payout to bank — PENDING RECONCILIATION' },
     });
   });
 

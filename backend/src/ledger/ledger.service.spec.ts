@@ -3,7 +3,7 @@ import { LedgerService } from './ledger.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 function makeService(sum: number) {
-  const create = jest.fn().mockResolvedValue({});
+  const create = jest.fn().mockResolvedValue({ id: 'le_1' });
   const prisma: any = {
     ledgerEntry: {
       create,
@@ -39,7 +39,7 @@ describe('LedgerService', () => {
   it('withdraws up to the balance and debits it', async () => {
     const { svc, create } = makeService(500);
     const res = await svc.withdraw('d1', 200);
-    expect(res).toEqual({ withdrawn: 200, balance: 300 });
+    expect(res).toEqual({ withdrawn: 200, balance: 300, entryId: 'le_1' });
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ type: 'withdrawal', amount: -200 }),
@@ -51,5 +51,27 @@ describe('LedgerService', () => {
     const { svc } = makeService(50);
     await expect(svc.withdraw('d1', 100)).rejects.toThrow(BadRequestException);
     await expect(svc.withdraw('d1', 0)).rejects.toThrow(BadRequestException);
+  });
+
+  it('records into the caller\'s transaction when one is passed', async () => {
+    const { svc, create } = makeService(0);
+    const txCreate = jest.fn().mockResolvedValue({});
+    await svc.record('d1', 'earning', 10, {}, { ledgerEntry: { create: txCreate } } as never);
+    expect(txCreate).toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('reverses a failed payout with a positive adjustment', async () => {
+    const { svc, create } = makeService(0);
+    await svc.reverseWithdrawal('d1', 20, 'account closed');
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: 'adjustment',
+          amount: 20,
+          note: 'Payout reversed: account closed',
+        }),
+      }),
+    );
   });
 });

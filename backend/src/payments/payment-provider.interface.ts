@@ -1,3 +1,13 @@
+import { BadGatewayException } from '@nestjs/common';
+
+/**
+ * The provider answered and definitively refused (declined card, invalid
+ * account, insufficient platform balance): nothing moved. Distinct from a
+ * plain BadGatewayException, which means the outcome is UNKNOWN (timeout,
+ * 5xx) — callers must not treat that as "failed" when money may have moved.
+ */
+export class ProviderRejectedException extends BadGatewayException {}
+
 export const PAYMENT_PROVIDER = 'PAYMENT_PROVIDER';
 
 export interface AuthorizeParams {

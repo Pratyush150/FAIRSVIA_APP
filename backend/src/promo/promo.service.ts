@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreatePromoDto } from './dto/create-promo.dto';
 import { UpdatePromoDto } from './dto/update-promo.dto';
+import { isSerializationFailure } from '../common/prisma/serialization';
 
 /** Outcome of pricing a promo code against a fare subtotal. */
 export interface PromoQuote {
@@ -123,8 +124,7 @@ export class PromoService {
       );
     } catch (e) {
       if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2034'
+        isSerializationFailure(e)
       ) {
         return 0; // lost a serialization race — no discount, ride proceeds
       }

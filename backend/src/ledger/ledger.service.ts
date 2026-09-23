@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { isSerializationFailure } from '../common/prisma/serialization';
 
 export type LedgerType =
   | 'earning'
@@ -19,15 +20,17 @@ export class LedgerService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Append a signed movement to a driver's ledger. */
+  /** Append a signed movement to a driver's ledger. Pass `tx` to make it part
+   *  of the caller's transaction (money state and ledger commit together). */
   async record(
     driverId: string,
     type: LedgerType,
     amount: number,
     opts: { tripId?: string; note?: string } = {},
+    tx?: Prisma.TransactionClient,
   ) {
     if (!Number.isFinite(amount) || amount === 0) return null;
-    return this.prisma.ledgerEntry.create({
+    return (tx ?? this.prisma).ledgerEntry.create({
       data: {
         driverId,
         type,
@@ -72,10 +75,17 @@ export class LedgerService {
   }
 
   /**
-   * Withdraw available balance to the driver's (mock) payout account. Guards
-   * against over-withdrawal and records a negative `withdrawal` movement.
+   * Debit available balance for a withdrawal. Guards against over-withdrawal
+   * and records a negative `withdrawal` movement. For a real bank transfer the
+   * caller does this FIRST (reserve), keys the transfer on the returned entry
+   * id, and calls `reverseWithdrawal` if the transfer fails — so two
+   * concurrent payouts can never both pass the balance check.
    */
-  async withdraw(driverId: string, amount: number) {
+  async withdraw(
+    driverId: string,
+    amount: number,
+    note = 'Withdrawal to bank (mock)',
+  ): Promise<{ withdrawn: number; balance: number; entryId: string }> {
     const requested = round2(amount);
     if (requested <= 0) {
       throw new BadRequestException('Enter an amount greater than zero.');
@@ -96,15 +106,19 @@ export class LedgerService {
               `You can withdraw up to $${balance.toFixed(2)}.`,
             );
           }
-          await tx.ledgerEntry.create({
+          const entry = await tx.ledgerEntry.create({
             data: {
               driverId,
               type: 'withdrawal',
               amount: round2(-requested),
-              note: 'Withdrawal to bank (mock)',
+              note,
             },
           });
-          return { withdrawn: requested, balance: round2(balance - requested) };
+          return {
+            withdrawn: requested,
+            balance: round2(balance - requested),
+            entryId: entry.id,
+          };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
@@ -113,10 +127,17 @@ export class LedgerService {
     } catch (e) {
       if (e instanceof BadRequestException) throw e;
       // Serialization conflict — a concurrent withdrawal won the race.
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
+      if (isSerializationFailure(e)) {
         throw new BadRequestException('Please try again.');
       }
       throw e;
     }
+  }
+
+  /** Give back a reserved withdrawal whose bank transfer failed. */
+  async reverseWithdrawal(driverId: string, amount: number, reason: string) {
+    return this.record(driverId, 'adjustment', round2(amount), {
+      note: `Payout reversed: ${reason}`.slice(0, 250),
+    });
   }
 }

@@ -7,6 +7,7 @@ import {
   CustomerParams,
   PaymentIntentResult,
   PaymentProvider,
+  ProviderRejectedException,
   SetupIntentResult,
   TransferParams,
 } from './payment-provider.interface';
@@ -228,7 +229,15 @@ export class StripePaymentProvider implements PaymentProvider {
     const data = await res.json();
     if (!res.ok) {
       this.logger.error(`Stripe error: ${JSON.stringify(data.error ?? data)}`);
-      throw new BadGatewayException(data.error?.message ?? 'Stripe error');
+      const message = data.error?.message ?? 'Stripe error';
+      // 4xx: Stripe answered and refused — nothing happened. 5xx or no answer
+      // (see post/get): the outcome is unknown and must not be assumed failed.
+      // 409 is excluded: it means the same idempotent request is still in
+      // flight elsewhere, not that it was refused.
+      if (res.status >= 400 && res.status < 500 && res.status !== 409) {
+        throw new ProviderRejectedException(message);
+      }
+      throw new BadGatewayException(message);
     }
     return data;
   }

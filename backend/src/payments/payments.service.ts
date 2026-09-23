@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -17,6 +18,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import {
   PAYMENT_PROVIDER,
   PaymentProvider,
+  ProviderRejectedException,
 } from './payment-provider.interface';
 import { AddMethodDto } from './dto/add-method.dto';
 import { LedgerService } from '../ledger/ledger.service';
@@ -33,6 +35,7 @@ import {
   CaptureJobData,
   QUEUE_PAYMENTS,
 } from './payments.queue';
+import { isSerializationFailure } from '../common/prisma/serialization';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -184,28 +187,26 @@ export class PaymentsService {
           tripId,
           amount: final,
           currency: trip.currency,
-          status: 'collected',
+          status: 'pending',
           kind: 'ride',
           method: 'cash',
-          platformFee,
-          driverPayout,
         },
-        update: {
-          status: 'collected',
-          method: 'cash',
-          amount: final,
-          platformFee,
-          driverPayout,
-        },
+        update: { method: 'cash' },
       });
       // Cash in the driver's hand — they owe the platform its commission.
-      if (trip.driverId) {
-        await this.ledger.record(trip.driverId, 'commission', -platformFee, {
-          tripId,
+      const won = await this.settleRide(
+        tripId,
+        { status: 'collected', amount: final, platformFee, driverPayout },
+        trip.driverId && {
+          driverId: trip.driverId,
+          type: 'commission',
+          amount: -platformFee,
           note: 'Commission owed on cash ride',
-        });
-      }
-      return { fareFinal: final, platformFee, driverPayout };
+        },
+      );
+      return won
+        ? { fareFinal: final, platformFee, driverPayout }
+        : this.storedSplit(tripId, final);
     }
 
     // Card: capture the hold if present, else charge directly. Never capture
@@ -236,13 +237,16 @@ export class PaymentsService {
         description: `Ride ${tripId}`,
         idempotencyKey,
       });
+      // Recorded as `pending` until settleRide below: a crash between here and
+      // there retries through this branch with the same idempotency key, so
+      // the provider dedupes the charge and the driver is credited once.
       await this.prisma.payment.upsert({
         where: { tripId },
         create: {
           tripId,
           amount: final,
           currency: trip.currency,
-          status: 'captured',
+          status: 'pending',
           kind: 'ride',
           externalIntentId: intent.intentId,
           idempotencyKey,
@@ -254,18 +258,70 @@ export class PaymentsService {
     // Split on what we actually collected, so the driver is never credited more
     // than was captured.
     const { platformFee, driverPayout } = this.splitFor(trip, collected);
-    await this.prisma.payment.update({
-      where: { tripId },
-      data: { status: 'captured', amount: collected, platformFee, driverPayout },
-    });
-    // Card ride captured by the platform — credit the driver their net payout.
-    if (trip.driverId) {
-      await this.ledger.record(trip.driverId, 'earning', driverPayout, {
-        tripId,
+    const won = await this.settleRide(
+      tripId,
+      { status: 'captured', amount: collected, platformFee, driverPayout },
+      trip.driverId && {
+        driverId: trip.driverId,
+        type: 'earning',
+        amount: driverPayout,
         note: 'Ride earning',
+      },
+    );
+    return won
+      ? { fareFinal: collected, platformFee, driverPayout }
+      : this.storedSplit(tripId, collected);
+  }
+
+  /**
+   * Moves a ride payment to its settled state and books the driver's side of
+   * it in ONE transaction. The status guard means only the first of two
+   * concurrent settles (completion + a retry job) applies; the other returns
+   * false and books nothing, so the driver is never credited twice and never
+   * left uncredited by a crash between the two writes.
+   */
+  private async settleRide(
+    tripId: string,
+    data: {
+      status: 'captured' | 'collected';
+      amount: number;
+      platformFee: number;
+      driverPayout: number;
+    },
+    entry:
+      | { driverId: string; type: 'earning' | 'commission'; amount: number; note: string }
+      | null
+      | '',
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const res = await tx.payment.updateMany({
+        where: {
+          tripId,
+          status: { notIn: ['captured', 'collected', 'refunded', 'partial'] },
+        },
+        data,
       });
-    }
-    return { fareFinal: collected, platformFee, driverPayout };
+      if (res.count === 0) return false;
+      if (entry) {
+        await this.ledger.record(
+          entry.driverId,
+          entry.type,
+          entry.amount,
+          { tripId, note: entry.note },
+          tx,
+        );
+      }
+      return true;
+    });
+  }
+
+  private async storedSplit(tripId: string, fallback: number) {
+    const p = await this.prisma.payment.findUnique({ where: { tripId } });
+    return {
+      fareFinal: Number(p?.amount ?? fallback),
+      platformFee: Number(p?.platformFee ?? 0),
+      driverPayout: Number(p?.driverPayout ?? 0),
+    };
   }
 
   /**
@@ -318,36 +374,42 @@ export class PaymentsService {
       // Stable per trip: a retried cancel can never charge the fee twice.
       idempotencyKey: `cancel-fee-${tripId}`,
     });
-    await this.prisma.payment.upsert({
-      where: { tripId },
-      create: {
-        tripId,
-        amount,
-        currency: trip.currency,
-        status: 'captured',
-        kind: 'cancellation',
-        externalIntentId: intent.intentId,
-        platformFee,
-        driverPayout: round2(amount - platformFee),
+    // Payment row and the driver's compensation commit together; a second
+    // concurrent call finds the fee already captured and books nothing, or
+    // loses the serializable race — either way the winner booked it once.
+    // (The provider charge above is deduped by its per-trip idempotency key.)
+    await this.prisma.$transaction(
+      async (tx) => {
+        const prev = await tx.payment.findUnique({ where: { tripId } });
+        if (prev?.kind === 'cancellation' && prev.status === 'captured') return;
+        const fields = {
+          status: 'captured',
+          kind: 'cancellation',
+          amount,
+          platformFee,
+          driverPayout: round2(amount - platformFee),
+          externalIntentId: intent.intentId,
+        };
+        await tx.payment.upsert({
+          where: { tripId },
+          create: { tripId, currency: trip.currency, ...fields },
+          update: fields,
+        });
+        // Compensate the driver for the wasted trip-to-pickup (their fee share).
+        if (trip.driverId) {
+          await this.ledger.record(
+            trip.driverId,
+            'earning',
+            round2(amount - platformFee),
+            { tripId, note: 'Cancellation compensation' },
+            tx,
+          );
+        }
       },
-      update: {
-        status: 'captured',
-        kind: 'cancellation',
-        amount,
-        platformFee,
-        driverPayout: round2(amount - platformFee),
-        externalIntentId: intent.intentId,
-      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    ).catch((e) => {
+      if (!isSerializationFailure(e)) throw e;
     });
-    // Compensate the driver for the wasted trip-to-pickup (their fee share).
-    if (trip.driverId) {
-      await this.ledger.record(
-        trip.driverId,
-        'earning',
-        round2(amount - platformFee),
-        { tripId, note: 'Cancellation compensation' },
-      );
-    }
     return amount;
   }
 
@@ -448,8 +510,7 @@ export class PaymentsService {
       );
     } catch (e) {
       if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2034'
+        isSerializationFailure(e)
       ) {
         throw new BadRequestException('Please try again.');
       }
@@ -587,20 +648,28 @@ export class PaymentsService {
 
     // Guarded increment: only the first writer (tip still 0) applies. A race
     // that slipped past the read above lands here as count 0 → 409.
-    const applied = await this.prisma.payment.updateMany({
-      where: { tripId, tip: 0 },
-      data: { tip: { increment: tip }, driverPayout: { increment: tip } },
-    });
-    if (applied.count === 0) {
-      throw new ConflictException('A tip was already added to this trip');
-    }
-    // A card tip is collected by the platform and paid in full to the driver.
-    // A cash tip is already in the driver's hand — nothing to credit.
-    if (trip.driverId && trip.paymentMode !== 'cash') {
-      await this.ledger.record(trip.driverId, 'tip', tip, {
-        tripId,
-        note: 'Tip',
+    // The tip and the driver's credit commit together.
+    const applied = await this.prisma.$transaction(async (tx) => {
+      const res = await tx.payment.updateMany({
+        where: { tripId, tip: 0 },
+        data: { tip: { increment: tip }, driverPayout: { increment: tip } },
       });
+      if (res.count === 0) return false;
+      // A card tip is collected by the platform and paid in full to the
+      // driver. A cash tip is already in the driver's hand — nothing to credit.
+      if (trip.driverId && trip.paymentMode !== 'cash') {
+        await this.ledger.record(
+          trip.driverId,
+          'tip',
+          tip,
+          { tripId, note: 'Tip' },
+          tx,
+        );
+      }
+      return true;
+    });
+    if (!applied) {
+      throw new ConflictException('A tip was already added to this trip');
     }
     const result = {
       tip: round2(Number(payment.tip) + tip),
@@ -832,34 +901,56 @@ export class PaymentsService {
       where: { userId },
     });
     if (profile?.stripeAccountId && profile.payoutsEnabled) {
-      const requested = round2(amount);
-      if (requested <= 0) {
-        throw new BadRequestException('Enter an amount greater than zero.');
-      }
-      const balance = await this.ledger.balance(userId);
-      if (requested > balance) {
-        throw new BadRequestException(
-          `You can withdraw up to $${balance.toFixed(2)}.`,
+      // Reserve first: the balance check and the debit are one serializable
+      // transaction, so two concurrent payouts cannot both pass it. Only the
+      // winner reaches the bank transfer, keyed on its own ledger entry so a
+      // retry of THIS payout can't send the money twice. A failed transfer
+      // gives the reservation back.
+      const reserved = await this.ledger.withdraw(userId, amount, 'Payout to bank');
+      let transferId: string;
+      try {
+        transferId = await this.provider.createTransfer({
+          accountId: profile.stripeAccountId,
+          amount: reserved.withdrawn,
+          currency: 'USD',
+          idempotencyKey: `payout-${reserved.entryId}`,
+        });
+      } catch (e) {
+        if (e instanceof ProviderRejectedException) {
+          // Definitely refused — no money moved, give the balance back.
+          await this.ledger.reverseWithdrawal(userId, reserved.withdrawn, e.message);
+          throw e;
+        }
+        // Timeout / 5xx: the transfer MAY have gone through. Keep the balance
+        // reserved (reversing could pay the driver twice) and flag the entry
+        // for reconciliation against Stripe with its idempotency key.
+        this.logger.error(
+          `payout ${reserved.entryId} outcome unknown for driver ${userId}: ${
+            e instanceof Error ? e.message : e
+          } — reconcile with Stripe (key payout-${reserved.entryId})`,
+        );
+        await this.prisma.ledgerEntry.update({
+          where: { id: reserved.entryId },
+          data: { note: 'Payout to bank — PENDING RECONCILIATION' },
+        });
+        throw new BadGatewayException(
+          'Your payout is being processed. If it does not arrive, contact support — ' +
+            'your balance is safe.',
         );
       }
-      const transferId = await this.provider.createTransfer({
-        accountId: profile.stripeAccountId,
-        amount: requested,
-        currency: 'USD',
-        idempotencyKey: randomUUID(),
-      });
-      await this.ledger.record(userId, 'withdrawal', -requested, {
-        note: `Payout to bank (${transferId})`,
+      await this.prisma.ledgerEntry.update({
+        where: { id: reserved.entryId },
+        data: { note: `Payout to bank (${transferId})` },
       });
       return {
-        withdrawn: requested,
-        balance: round2(balance - requested),
+        withdrawn: reserved.withdrawn,
+        balance: reserved.balance,
         transferId,
         mode: 'stripe' as const,
       };
     }
     // No Connect payouts yet — simulated withdrawal.
-    const res = await this.ledger.withdraw(userId, amount);
+    const { entryId: _entryId, ...res } = await this.ledger.withdraw(userId, amount);
     return { ...res, transferId: null, mode: 'mock' as const };
   }
 

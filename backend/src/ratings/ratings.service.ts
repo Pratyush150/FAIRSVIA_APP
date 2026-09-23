@@ -7,6 +7,7 @@ import {
 import { Prisma, TripStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateRatingDto } from './dto/create-rating.dto';
+import { isSerializationFailure } from '../common/prisma/serialization';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -92,8 +93,7 @@ export class RatingsService {
       return await runTxn();
     } catch (e) {
       if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2034'
+        isSerializationFailure(e)
       ) {
         return runTxn();
       }
