@@ -1,5 +1,9 @@
 # Handoff — building RideVela on a Mac
 
+> **2026-09-23: start with [mac-ios-pilot-handoff.md](mac-ios-pilot-handoff.md)** —
+> the Pune pilot build, the exact iPhone checklist, and what changed. Where
+> the two disagree, that file wins.
+
 For whoever opens this repo on a Mac to build and run the iOS apps.
 
 > **Corrected 2026-09-22.** An earlier version of this file said iOS had never

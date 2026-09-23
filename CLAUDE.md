@@ -56,6 +56,7 @@ override default behavior. Established by the project owner (Sai Kishore).
   the separate per-phone OTP limit, the moving LAN IP), what is verified vs
   assumed, and the corrections made to this repo's own documentation — two docs
   here were confidently wrong and were believed before being checked.
+- **On a Mac (iOS):** `docs/mac-ios-pilot-handoff.md` — build + iPhone checklist.
 - Then `docs/remaining-work-plan.md` for what is left, and
   `docs/field-testing-plan.md` for on-road verification.
 
