@@ -69,13 +69,16 @@ describe('Money races (real Postgres)', () => {
     promo = app.get(PromoService);
   });
 
+  // app.close() drains in-flight BullMQ jobs (graceful shutdown). A dispatch
+  // job can be mid-offer when the suite ends, so the default 5 s hook limit
+  // intermittently failed the suite with every test green.
   afterAll(async () => {
     await prisma.ledgerEntry.deleteMany({ where: { driverId: { in: created.users } } });
     await prisma.promoCode.deleteMany({ where: { id: { in: created.promos } } });
     await prisma.trip.deleteMany({ where: { riderId: { in: created.users } } });
     await prisma.user.deleteMany({ where: { id: { in: created.users } } });
     await app.close();
-  });
+  }, 60_000);
 
   it(`card capture fired ${N}x at once credits the driver exactly once`, async () => {
     const { trip, driverId } = await completedTrip('card');

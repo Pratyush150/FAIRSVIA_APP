@@ -68,9 +68,12 @@ describe('Ride App API (e2e)', () => {
     redis = app.get(RedisService);
   });
 
+  // app.close() drains in-flight BullMQ jobs (graceful shutdown). A dispatch
+  // job can be mid-offer when the suite ends, so the default 5 s hook limit
+  // intermittently failed the suite with every test green.
   afterAll(async () => {
     await app.close();
-  });
+  }, 60_000);
 
   it('GET /health -> ok', async () => {
     const res = await request(server).get('/api/v1/health');
