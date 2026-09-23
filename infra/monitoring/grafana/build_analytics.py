@@ -109,6 +109,18 @@ def down(h):
 TODAY = "(now() AT TIME ZONE '${tz}')::date"
 MONEY = "currency = '${currency}'"
 
+# ------------------------------------------------------------- How to read it
+panels.append({
+    "type": "text", "title": "", "id": nid(), "gridPos": {"h": 3, "w": 24, "x": 0, "y": _y},
+    "options": {"mode": "markdown", "content":
+        "**How to use this page** — pick the period at the top right (default: *today*). "
+        "Every number has an **ⓘ** that says exactly what it counts. "
+        "**Green** = healthy, **orange** = keep an eye on it, **red** = act now. "
+        "Money is in the **Currency** chosen at the top left; \"today\" follows the **Business time zone**. "
+        "Click a row title (📊 🚕 👥 💰 🖥️ 🚨) to fold a section away. "
+        "Anything in **🚨 Alerts → Firing now** needs someone."}})
+down(3)
+
 # ---------------------------------------------------------------- App overview
 row("📊 App overview")
 stat("Total users", PG,
