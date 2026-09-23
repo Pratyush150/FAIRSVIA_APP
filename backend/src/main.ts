@@ -1,3 +1,5 @@
+import './instrument'; // must be first: Sentry needs to be live before anything else runs
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';

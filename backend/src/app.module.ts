@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { SentryModule } from '@sentry/nestjs/setup';
+import { SentryGlobalFilter } from '@sentry/nestjs/setup';
 import configuration from './common/config/configuration';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
@@ -40,6 +43,7 @@ import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
+    SentryModule.forRoot(), // must be the first import — wires the request/error interceptors
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
@@ -81,5 +85,10 @@ import { HealthController } from './health/health.controller';
     BackgroundModule,
   ],
   controllers: [HealthController],
+  providers: [
+    // Uncaught exceptions reach Sentry before Nest's default handling. A no-op
+    // when SENTRY_DSN is unset (see instrument.ts).
+    { provide: APP_FILTER, useClass: SentryGlobalFilter },
+  ],
 })
 export class AppModule {}
