@@ -268,3 +268,69 @@ in-process, needs no synthetic touch injection, and can run in CI.
 `flutter analyze` clean. 491 Flutter tests pass across all six packages
 (design_system 73, core 130, shared_models 52, rider 177 + 1 skipped golden,
 driver 51, admin 8). Backend untouched this run.
+
+---
+
+# v1.3.1 (5007) — turquoise palette + ride-list car illustrations
+
+Third run. Pulled to `44ae864`, rebuilt with the §5 flags at `1.3.1 / 5007`,
+installed on the cabled iPhone 14. No `THEME` flag: Samarkand Turquoise is the
+default palette as of `24ab3da` (`THEME=mono` would build the old black-and-
+white variant — not used).
+
+## Builds and install
+
+| | |
+|---|---|
+| rider_app | `✓ Built` 75.2 MB, 131 s |
+| driver_app | `✓ Built` 44.5 MB, 18 s |
+| **iPhone 14 (cabled)** | **Both installed — 1.3.1 (5007)**, confirmed by `devicectl device info apps` |
+| iPhone 16 Pro | **Not installed** — `error 12040: The developer disk image could not be mounted`. It is still attached wirelessly; the DDI needs the phone cabled and unlocked |
+
+## UI (v1.2.0 checklist, re-run against v1.3.1) — light and dark
+
+| # | Check | Status |
+|---|---|---|
+| 1 | Inter everywhere | **PASS** |
+| 2 | Ink flips with the theme, nothing ink-on-ink | **PASS (seen, both modes)** — deep teal-navy CTA with white text on light; bright turquoise CTA with dark text on dark. The `5bca66b` fix holds under the new palette |
+| 3 | Map legible, route in the brand highlight, black square drop-off | **PASS (seen)** — route turquoise in both modes, water teal-tinted (the "clearer map" change in `24ab3da`), drop-off a square |
+| 4 | "Where to?" bar with "Later" chip | **PASS (seen)** |
+| 5 | Ride list: no boxes, selected row outlined | **PASS (seen)** — selected row carries a turquoise outline |
+| 6 | Arriving sheet | Not re-driven this run; passed at v1.2.0 and nothing in `44ae864` touches it |
+| 7 | Whole route visible above the ride list | **PASS (seen)** — and the null-island regression from `4e43bb0` did not return |
+
+## New: ride-list car illustrations (`44ae864`, `vehicle_glyph.dart`)
+
+**PASS (seen, both modes).** Each tier draws its own side-view vehicle, and the
+three are clearly distinguishable at a glance:
+
+| Tier | Illustration |
+|---|---|
+| Economy | teal hatchback |
+| Comfort | dark teal sedan |
+| XL | grey van, visibly longer and taller |
+
+They read correctly on the dark sheet as well as the light one — the bodies
+carry their own colour rather than inheriting ink, so none of them disappears
+into the background in either mode.
+
+## Fares and market (unchanged, re-confirmed)
+
+"2.6 km · 12 min" header; Economy ₹93.11, Comfort ₹126.72, XL ₹175.65. No "$",
+no "mi", no comparison card.
+
+## Regression state
+
+`flutter analyze` clean. **484 Flutter tests pass** (design_system 74, core 130,
+shared_models 52, rider 177 + 1 skipped golden, driver 51).
+
+## Still outstanding (unchanged from the v1.2.0 run)
+
+Cancel-dialog wording, the server-address long-press, driver background
+location, the Navigate hand-off, call/share, the two-step "Always" prompt, and
+keyboard-over-buttons — all still blocked on `idb ui tap` being unreliable
+against Xcode 26.6 rather than on the app.
+
+**Owner action, unchanged and still blocking launch on the phone:** the
+developer profile must be trusted on the iPhone by hand — Settings → General →
+VPN & Device Management. Until then the installed apps will not start.
