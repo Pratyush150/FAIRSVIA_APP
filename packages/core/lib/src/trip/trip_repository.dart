@@ -100,6 +100,8 @@ class TripRepository {
   Future<Trip> getTrip(String id) => _trips.getById(id);
 
   /// Cancels the trip; returns the cancellation fee charged (0 when none).
+  Future<bool> onMyWay(String id) => _trips.onMyWay(id);
+
   Future<double> cancelTrip(String id, {String? reason}) =>
       _trips.cancel(id, reason: reason);
 }

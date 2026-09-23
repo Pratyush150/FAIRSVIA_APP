@@ -77,7 +77,23 @@ void main() {
     );
     expect(find.text('Call'), findsNothing);
     expect(find.text('Message'), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
+  });
+
+  testWidgets('cancel lives in the ••• menu, with share, safety and help', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const TripState(phase: TripPhase.driverEnRoute, driver: driverWithPhone),
+    );
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    expect(find.text('Share trip status'), findsOneWidget);
+    expect(find.text('Safety'), findsOneWidget);
+    expect(find.text('Help'), findsOneWidget);
+    await tester.tap(find.text('Cancel ride'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancel this ride?'), findsOneWidget);
   });
 
   testWidgets('a dialler failure is surfaced, not swallowed', (tester) async {
@@ -107,6 +123,34 @@ void main() {
     expect(find.text(DriverInfoSheet.waitingForLocation), findsOneWidget);
   });
 
+  testWidgets('no waiting line once the driver has arrived and parked', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const TripState(
+        phase: TripPhase.driverArrived,
+        driver: driverWithPhone,
+        driverStale: true,
+      ),
+      arrived: true,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(DriverInfoSheet.waitingForLocation), findsNothing);
+  });
+
+  testWidgets('an unnamed driver gets an icon, not "YD" initials', (tester) async {
+    await pump(
+      tester,
+      const TripState(
+        phase: TripPhase.driverEnRoute,
+        driver: AssignedDriver(name: 'Your driver', rating: 5),
+      ),
+    );
+    expect(find.text('YD'), findsNothing);
+    expect(find.byIcon(Icons.person_rounded), findsOneWidget);
+  });
+
   testWidgets('fresh pings hide the waiting line', (tester) async {
     await pump(
       tester,
@@ -133,7 +177,9 @@ void main() {
       expect(find.text(TripCubit.cancelFailedMessage), findsOneWidget);
       // The ride is still live: the ETA headline is intact, not an error screen.
       expect(find.text('Arriving in 4 min'), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel ride'));
       await tester.pumpAndSettle();
       expect(find.text('Cancel this ride?'), findsOneWidget);
     },
@@ -151,7 +197,77 @@ void main() {
       ),
       arrived: true,
     );
-    expect(find.text('Your driver has arrived'), findsOneWidget);
+    expect(find.text('Ava has arrived'), findsOneWidget);
     expect(find.text(TripCubit.otpLockedMessage), findsOneWidget);
+  });
+
+  testWidgets('shows the ride PIN, pickup, ride type and payment', (tester) async {
+    await pump(
+      tester,
+      TripState(
+        phase: TripPhase.driverArrived,
+        driver: driverWithPhone,
+        pickupAddr: '1 Amir Temur Ave, Tashkent',
+        paymentMode: 'cash',
+        trip: Trip(
+          id: 't1',
+          status: TripStatus.arrived,
+          tier: 'comfort',
+          startOtp: '4827',
+          paymentMode: 'cash',
+          pickup: const TripEndpoint(
+              point: GeoPoint(41.31, 69.24), address: '1 Amir Temur Ave, Tashkent'),
+          dropoff: const TripEndpoint(point: GeoPoint(41.33, 69.28)),
+        ),
+      ),
+      arrived: true,
+    );
+    expect(find.text('Ride PIN'), findsOneWidget);
+    for (final d in ['4', '8', '2', '7']) {
+      expect(find.text(d), findsOneWidget);
+    }
+    expect(find.text('Tell Ava when you get in'), findsOneWidget);
+    expect(find.text('1 Amir Temur Ave, Tashkent'), findsOneWidget);
+    expect(find.text('Comfort'), findsOneWidget);
+    expect(find.text('Cash'), findsOneWidget);
+    expect(find.text('ABC123'), findsOneWidget);
+  });
+
+  testWidgets("I'm on my way appears once the driver has arrived, and confirms", (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const TripState(phase: TripPhase.driverArrived, driver: driverWithPhone),
+      arrived: true,
+    );
+    expect(find.text("I'm on my way"), findsOneWidget);
+
+    await pump(
+      tester,
+      const TripState(
+        phase: TripPhase.driverArrived,
+        driver: driverWithPhone,
+        riderComingSent: true,
+      ),
+      arrived: true,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text("I'm on my way"), findsNothing);
+    expect(find.text("Ava knows you're on your way"), findsOneWidget);
+  });
+
+  testWidgets("I'm on my way is not offered while the driver is still far", (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const TripState(
+        phase: TripPhase.driverEnRoute,
+        driver: driverWithPhone,
+        liveEtaSec: 600,
+      ),
+    );
+    expect(find.text("I'm on my way"), findsNothing);
   });
 }

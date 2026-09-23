@@ -33,6 +33,25 @@ Future<bool> dialPhone(
   }
 }
 
+/// Opens the messaging app with [text] pre-filled (the user picks who to send
+/// it to), falling back to the clipboard when no SMS app can be opened.
+Future<void> shareTripText(BuildContext context, String text) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final sms = Uri(scheme: 'sms', queryParameters: {'body': text});
+    if (await canLaunchUrl(sms)) {
+      await launchUrl(sms, mode: LaunchMode.externalApplication);
+      return;
+    }
+  } catch (_) {
+    // fall through to the clipboard fallback
+  }
+  await Clipboard.setData(ClipboardData(text: text));
+  messenger.showSnackBar(
+    const SnackBar(content: Text('Trip details copied — paste to share')),
+  );
+}
+
 /// Where the person is right now, best effort. Null when unknown.
 typedef SafetyLocator = Future<({double lat, double lng})?> Function();
 
@@ -170,22 +189,7 @@ class _SafetySheetState extends State<SafetySheet> {
     );
   }
 
-  Future<void> _shareTrip() async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final sms = Uri(scheme: 'sms', queryParameters: {'body': widget.shareText});
-      if (await canLaunchUrl(sms)) {
-        await launchUrl(sms, mode: LaunchMode.externalApplication);
-        return;
-      }
-    } catch (_) {
-      // fall through to the clipboard fallback
-    }
-    await Clipboard.setData(ClipboardData(text: widget.shareText));
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Trip details copied — paste to share')),
-    );
-  }
+  Future<void> _shareTrip() => shareTripText(context, widget.shareText);
 
   Future<void> _manageContacts() async {
     await Navigator.of(context).push(MaterialPageRoute(

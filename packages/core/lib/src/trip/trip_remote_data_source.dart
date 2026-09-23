@@ -171,6 +171,17 @@ class TripRemoteDataSource {
     }
   }
 
+  /// Rider → driver: "I'm on my way out". True when the driver was pinged,
+  /// false for a repeat tap inside the server's debounce window.
+  Future<bool> onMyWay(String id) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>('/trips/$id/on-my-way');
+      return res.data?['driverNotified'] as bool? ?? false;
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// Cancels the trip and returns the cancellation fee charged (0 when none —
   /// a fee only applies once a driver has committed).
   Future<double> cancel(String id, {String? reason}) async {

@@ -24,7 +24,7 @@ void main() {
       expect(RideStatus.of(enRoute(eta: 240)).title,
           'Your driver is on the way');
       expect(RideStatus.of(enRoute(eta: 120)).title,
-          'Your driver is almost here');
+          'Your driver is arriving now');
       expect(RideStatus.of(enRoute(eta: 120)).subtitle, 'Arriving in 2 min');
     });
 
@@ -52,8 +52,28 @@ void main() {
     const state = TripState(phase: TripPhase.driverArrived);
     final s = RideStatus.of(state);
     expect(s.title, 'Your driver has arrived');
-    expect(s.subtitle, 'Please meet your driver');
+    expect(s.subtitle, 'Meet them at the pickup');
     expect(s.tone, RideStatusTone.success);
+  });
+
+  group("uses the driver's first name once it is known", () {
+    const bekzod = AssignedDriver(name: 'Bekzod Karimov', rating: 4.9);
+    test('on the way / arriving now', () {
+      expect(RideStatus.of(enRoute(eta: 240, driver: bekzod)).title,
+          'Bekzod is on the way');
+      expect(RideStatus.of(enRoute(eta: 60, driver: bekzod)).title,
+          'Bekzod is arriving now');
+    });
+    test('arrived', () {
+      const state =
+          TripState(phase: TripPhase.driverArrived, driver: bekzod);
+      expect(RideStatus.of(state).title, 'Bekzod has arrived');
+    });
+    test('never shows a placeholder as a name', () {
+      const placeholder = AssignedDriver(name: 'Your driver', rating: 5);
+      expect(RideStatus.of(enRoute(eta: 240, driver: placeholder)).title,
+          'Your driver is on the way');
+    });
   });
 
   test('searching says what the system is doing', () {

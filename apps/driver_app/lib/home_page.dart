@@ -833,7 +833,60 @@ class _BottomSheet extends StatelessWidget {
       case DriverPhase.completed:
         child = _CompletedSheet(state: state, cubit: cubit);
     }
-    return AppSheet(child: child);
+    final coming = state.riderComingAt != null &&
+        (state.phase == DriverPhase.enRoute ||
+            state.phase == DriverPhase.arrived);
+    return AppSheet(
+      child: coming
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _RiderComingBanner(name: state.riderName),
+                const SizedBox(height: AppSpacing.md),
+                child,
+              ],
+            )
+          : child,
+    );
+  }
+}
+
+/// The rider tapped "I'm on my way": they are coming out — no need to call.
+class _RiderComingBanner extends StatelessWidget {
+  const _RiderComingBanner({this.name});
+
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final who = (name == null || name!.trim().isEmpty)
+        ? 'Your rider'
+        : name!.trim().split(RegExp(r'\s+')).first;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.directions_walk_rounded, color: AppColors.accentInk),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                '$who is on the way out',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(color: AppColors.accentInk),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: AppMotion.normal).slideY(begin: -0.2);
   }
 }
 

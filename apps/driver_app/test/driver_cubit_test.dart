@@ -906,4 +906,39 @@ void main() {
 
     await cubit.close();
   });
+
+  group("rider's I'm on my way", () {
+    final arrivedTrip = Trip(
+      id: 'trip-1',
+      status: TripStatus.arrived,
+      tier: 'economy',
+      pickup: const TripEndpoint(point: GeoPoint(12.96, 77.63), address: 'A'),
+      dropoff: const TripEndpoint(point: GeoPoint(12.97, 77.59), address: 'B'),
+    );
+
+    test('shows for the pickup the driver is waiting at', () async {
+      when(() => remote.getActiveTrip()).thenAnswer((_) async => arrivedTrip);
+      final cubit = make();
+      await cubit.init('token');
+      await tick();
+      expect(cubit.state.phase, DriverPhase.arrived);
+
+      realtime.push('trip:rider_coming', {'tripId': 'trip-1'});
+      await tick();
+      expect(cubit.state.riderComingAt, isNotNull);
+      await cubit.close();
+    });
+
+    test('is ignored for any other trip', () async {
+      when(() => remote.getActiveTrip()).thenAnswer((_) async => arrivedTrip);
+      final cubit = make();
+      await cubit.init('token');
+      await tick();
+
+      realtime.push('trip:rider_coming', {'tripId': 'some-other-trip'});
+      await tick();
+      expect(cubit.state.riderComingAt, isNull);
+      await cubit.close();
+    });
+  });
 }

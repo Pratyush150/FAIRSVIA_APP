@@ -20,6 +20,7 @@ import { CreateTripDto } from './dto/create-trip.dto';
 import { CancelTripDto } from './dto/cancel-trip.dto';
 import { DriverCancelTripDto } from './dto/driver-cancel-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
+import { RiderComingService } from './rider-coming.service';
 
 @Controller('trips')
 @UseGuards(JwtAuthGuard)
@@ -27,6 +28,7 @@ export class TripsController {
   constructor(
     private readonly trips: TripsService,
     private readonly dispatch: DispatchService,
+    private readonly riderComing: RiderComingService,
   ) {}
 
   @Post('estimate')
@@ -88,6 +90,13 @@ export class TripsController {
   async decline(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     await this.dispatch.respondToOffer(user.userId, id, false);
     return { ok: true };
+  }
+
+  /** Rider → driver: "I'm on my way out". */
+  @Post(':id/on-my-way')
+  @HttpCode(HttpStatus.OK)
+  onMyWay(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.riderComing.notify(user.userId, id);
   }
 
   @Post(':id/arrived')

@@ -46,6 +46,14 @@ class RideStatus {
     return '$m min';
   }
 
+  /// "Bekzod" from "Bekzod Karimov"; the generic phrase when the payload has
+  /// no real name (restored trip, older backend).
+  static String driverName(TripState state) {
+    final n = state.driver?.name.trim() ?? '';
+    if (n.isEmpty || n == 'Your driver') return 'Your driver';
+    return n.split(RegExp(r'\s+')).first;
+  }
+
   /// The copy for [state]'s current moment.
   ///
   /// [currency] formats the completed-ride total; it defaults to the receipt's
@@ -68,26 +76,25 @@ class RideStatus {
         // Neither is known (or a stale stream): promise a time we cannot back
         // up and the rider watches a countdown that never moves. Say what we
         // actually know instead.
+        final who = driverName(state);
         if (eta == null || eta <= 0) {
-          return const RideStatus(
-            title: 'Your driver is on the way',
+          return RideStatus(
+            title: '$who is on the way',
             subtitle: null,
             tone: RideStatusTone.accent,
           );
         }
         final almost = eta <= almostHereSec;
         return RideStatus(
-          title: almost
-              ? 'Your driver is almost here'
-              : 'Your driver is on the way',
+          title: almost ? '$who is arriving now' : '$who is on the way',
           subtitle: 'Arriving in ${minuteLabel(eta)}',
           tone: almost ? RideStatusTone.success : RideStatusTone.accent,
         );
 
       case TripPhase.driverArrived:
-        return const RideStatus(
-          title: 'Your driver has arrived',
-          subtitle: 'Please meet your driver',
+        return RideStatus(
+          title: '${driverName(state)} has arrived',
+          subtitle: 'Meet them at the pickup',
           tone: RideStatusTone.success,
         );
 

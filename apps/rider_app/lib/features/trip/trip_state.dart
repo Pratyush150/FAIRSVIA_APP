@@ -56,6 +56,7 @@ class TripState extends Equatable {
     this.liveEtaSec,
     this.liveRemainingM,
     this.unreadMessages = 0,
+    this.riderComingSent = false,
     this.driverRoutePolyline,
     this.fareFinal,
     this.breakdown,
@@ -116,6 +117,9 @@ class TripState extends Equatable {
 
   /// Driver messages received while the chat page was not open.
   final int unreadMessages;
+
+  /// The rider told the driver "I'm on my way" for this pickup.
+  final bool riderComingSent;
 
   /// Encoded polyline of the driver's route TO the pickup, shown on the map
   /// while the driver is en route/arriving (the "approach" leg). Null falls back
@@ -251,6 +255,7 @@ class TripState extends Equatable {
     Object? liveEtaSec = _s,
     Object? liveRemainingM = _s,
     int? unreadMessages,
+    bool? riderComingSent,
     Object? driverRoutePolyline = _s,
     Object? fareFinal = _s,
     Object? breakdown = _s,
@@ -301,6 +306,7 @@ class TripState extends Equatable {
       liveRemainingM:
           liveRemainingM == _s ? this.liveRemainingM : liveRemainingM as int?,
       unreadMessages: unreadMessages ?? this.unreadMessages,
+      riderComingSent: riderComingSent ?? this.riderComingSent,
       driverRoutePolyline: driverRoutePolyline == _s
           ? this.driverRoutePolyline
           : driverRoutePolyline as String?,
@@ -357,6 +363,7 @@ class TripState extends Equatable {
         liveEtaSec,
         liveRemainingM,
         unreadMessages,
+        riderComingSent,
         driverRoutePolyline,
         fareFinal,
         breakdown,

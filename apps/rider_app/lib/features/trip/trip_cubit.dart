@@ -908,6 +908,20 @@ class TripCubit extends Cubit<TripState> {
     return when.isBefore(floor) ? floor : when;
   }
 
+  /// Tell the driver waiting at the pickup that the rider is coming out.
+  /// Returns false (and leaves the button available) when it failed.
+  Future<bool> imOnMyWay() async {
+    final trip = state.trip;
+    if (trip == null) return false;
+    try {
+      await _repository.onMyWay(trip.id);
+      emit(state.copyWith(riderComingSent: true));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// [reason] is the rider's chosen cancellation reason (for ops/analytics);
   /// defaults to a generic label when none was given.
   Future<double> cancelTrip({String? reason}) async {

@@ -75,6 +75,7 @@ class DriverCubit extends Cubit<DriverState> {
           )))
       ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
       ..add(_realtime.on('trip:tip_added').listen(_onTipAdded))
+      ..add(_realtime.on('trip:rider_coming').listen(_onRiderComing))
       ..add(_realtime.on('trip:message').listen(_onMessage))
       // The server's view of our presence: sent on every connect and whenever
       // it takes us offline itself (socket drop, stale GPS, presence lost).
@@ -178,7 +179,7 @@ class DriverCubit extends Cubit<DriverState> {
       // If the rider cancelled while we were offline, drop back to online.
       if (fresh.status == TripStatus.cancelled ||
           fresh.status == TripStatus.completed) {
-        emit(state.copyWith(phase: DriverPhase.online, trip: null, riderName: null));
+        emit(state.copyWith(phase: DriverPhase.online, trip: null, riderName: null, riderComingAt: null));
       } else {
         emit(state.copyWith(trip: fresh));
       }
@@ -444,6 +445,7 @@ class DriverCubit extends Cubit<DriverState> {
     emit(state.copyWith(
       phase: DriverPhase.completed,
       trip: null,
+      riderComingAt: null,
       riderName: null,
       unreadMessages: 0,
       busy: false,
@@ -520,6 +522,7 @@ class DriverCubit extends Cubit<DriverState> {
       emit(state.copyWith(
         phase: DriverPhase.enRoute,
         trip: trip,
+        riderComingAt: null,
         offer: null,
         busy: false,
         approachPolyline: approachPolyline,
@@ -540,6 +543,17 @@ class DriverCubit extends Cubit<DriverState> {
   /// sat waiting for offers that could never come.
   /// The rider tipped after completion: a cash tip is more to collect, a card
   /// tip is more earned. Only the trip on the completion sheet counts.
+  /// The rider tapped "I'm on my way" — only meaningful for the pickup we are
+  /// heading to or waiting at.
+  void _onRiderComing(Map<String, dynamic> data) {
+    final tripId = data['tripId'] as String?;
+    if (tripId == null || tripId != state.trip?.id) return;
+    if (state.phase != DriverPhase.enRoute && state.phase != DriverPhase.arrived) {
+      return;
+    }
+    emit(state.copyWith(riderComingAt: DateTime.now()));
+  }
+
   void _onTipAdded(Map<String, dynamic> data) {
     final tripId = data['tripId'] as String?;
     final added = (data['added'] as num?)?.toDouble();
@@ -632,6 +646,7 @@ class DriverCubit extends Cubit<DriverState> {
     emit(state.copyWith(
       phase: DriverPhase.online,
       trip: null,
+      riderComingAt: null,
       riderName: null,
       unreadMessages: 0,
       offer: null,

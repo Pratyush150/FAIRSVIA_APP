@@ -18,6 +18,10 @@ import { execSync } from 'node:child_process';
 import { api, connect, login, onboardDriver, phone, wait } from './lib.mjs';
 
 const MINUTES = Number(process.argv[2] || 6);
+// Hold the arriving screens long enough to work them by hand:
+//   APPROACH_S=60 WAIT_AT_PICKUP_S=120 node slow-ride.mjs 6
+const APPROACH_S = Number(process.env.APPROACH_S || 5.6);
+const WAIT_AT_PICKUP_S = Number(process.env.WAIT_AT_PICKUP_S || 1.2);
 const START = { lat: 25.766, lng: -80.1955 };
 
 function readStartOtp(tripId) {
@@ -74,6 +78,8 @@ const ping = setInterval(
   4000,
 );
 
+sock.on('trip:rider_coming', (e) => console.log(`🚶 RIDER IS ON THE WAY OUT (trip ${e.tripId})`));
+
 sock.on('trip:offer', async (offer) => {
   clearInterval(ping);
   console.log(`🚕 OFFER ${offer.tripId} — $${offer.fare}. Accepting…`);
@@ -86,11 +92,12 @@ sock.on('trip:offer', async (offer) => {
 
   await wait(600);
   console.log('→ driving to pickup');
-  await drive(sock, START, pickup, { steps: 8, gap: 700, label: 'to pickup' });
+  const approachSteps = Math.max(8, Math.round(APPROACH_S / 0.7));
+  await drive(sock, START, pickup, { steps: approachSteps, gap: 700, label: 'to pickup' });
 
   await api(`/trips/${offer.tripId}/arrived`, { method: 'POST', token });
-  console.log('📍 ARRIVED');
-  await wait(1200);
+  console.log(`📍 ARRIVED — waiting ${WAIT_AT_PICKUP_S}s at the pickup`);
+  await wait(WAIT_AT_PICKUP_S * 1000);
 
   const otp = readStartOtp(offer.tripId);
   await api(`/trips/${offer.tripId}/start`, {

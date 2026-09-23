@@ -27,6 +27,7 @@ class DriverState extends Equatable {
     this.locationIssue,
     this.riderName,
     this.unreadMessages = 0,
+    this.riderComingAt,
   });
 
   final DriverPhase phase;
@@ -60,6 +61,9 @@ class DriverState extends Equatable {
   /// Rider messages received while the chat page was not open.
   final int unreadMessages;
 
+  /// When the rider tapped "I'm on my way" for the current pickup, or null.
+  final DateTime? riderComingAt;
+
   /// Why the last "go online" was refused for lack of location access (null
   /// when it wasn't). Lets the UI offer the right fix — open app settings for a
   /// permanent denial, the location-services page when GPS is switched off.
@@ -85,6 +89,7 @@ class DriverState extends Equatable {
     Object? riderName = _s,
     int? unreadMessages,
     Object? locationIssue = _s,
+    Object? riderComingAt = _s,
   }) {
     return DriverState(
       phase: phase ?? this.phase,
@@ -104,6 +109,9 @@ class DriverState extends Equatable {
           : approachPolyline as String?,
       riderName: riderName == _s ? this.riderName : riderName as String?,
       unreadMessages: unreadMessages ?? this.unreadMessages,
+      riderComingAt: riderComingAt == _s
+          ? this.riderComingAt
+          : riderComingAt as DateTime?,
       locationIssue: locationIssue == _s
           ? this.locationIssue
           : locationIssue as LocationAccess?,
@@ -127,5 +135,6 @@ class DriverState extends Equatable {
         riderName,
         unreadMessages,
         locationIssue,
+        riderComingAt,
       ];
 }
