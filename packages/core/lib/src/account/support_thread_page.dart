@@ -133,7 +133,7 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
 
   Widget _body(SupportTicket? t) {
     if (_loading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation(AppColors.accent),
         ),

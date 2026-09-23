@@ -26,15 +26,18 @@ class AppTheme {
     final background =
         isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
     final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+    // The theme is built for a given brightness, not the app's current one, so
+    // it takes the ink explicitly rather than from AppColors.accent.
+    final ink = AppColors.inkFor(isDark);
+    final onInk = AppColors.onInkFor(isDark);
+    final soft = AppColors.softFor(isDark);
 
     final colorScheme = ColorScheme(
       brightness: brightness,
-      primary: AppColors.accent,
-      onPrimary: AppColors.onAccent,
-      primaryContainer: isDark ? AppColors.accentSoftDark : AppColors.accentSoft,
-      // Emerald text on the light container fails AA; use the darker ink on
-      // light, keep bright emerald on the dark container (already 6.6:1).
-      onPrimaryContainer: isDark ? AppColors.accent : AppColors.accentInk,
+      primary: ink,
+      onPrimary: onInk,
+      primaryContainer: soft,
+      onPrimaryContainer: ink,
       secondary: textPrimary,
       onSecondary: surface,
       surface: surface,
@@ -63,7 +66,8 @@ class AppTheme {
       scaffoldBackgroundColor: background,
       colorScheme: colorScheme,
       textTheme: text,
-      splashFactory: InkSparkle.splashFactory,
+      // Quiet press feedback: a flat highlight, not a sparkle.
+      splashFactory: InkRipple.splashFactory,
       dividerColor: border,
       iconTheme: IconThemeData(color: textPrimary, size: 22),
 
@@ -101,19 +105,19 @@ class AppTheme {
         ),
         border: inputBorder(Colors.transparent),
         enabledBorder: inputBorder(Colors.transparent),
-        focusedBorder: inputBorder(AppColors.accent, 1.6),
+        focusedBorder: inputBorder(ink, 1.6),
         errorBorder: inputBorder(AppColors.error),
         focusedErrorBorder: inputBorder(AppColors.error, 1.6),
       ),
 
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.accentInk,
-          foregroundColor: AppColors.onAccent,
-          disabledBackgroundColor: AppColors.accentInk.withValues(alpha: 0.4),
-          minimumSize: const Size(0, 52),
+          backgroundColor: ink,
+          foregroundColor: onInk,
+          disabledBackgroundColor: ink.withValues(alpha: 0.3),
+          minimumSize: const Size(0, 56),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-          textStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          textStyle: text.labelLarge?.copyWith(fontSize: 16, fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radius),
           ),
@@ -123,7 +127,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: textPrimary,
-          minimumSize: const Size(0, 52),
+          minimumSize: const Size(0, 56),
           side: BorderSide(color: border, width: 1.4),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           textStyle: text.labelLarge,
@@ -135,8 +139,7 @@ class AppTheme {
 
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          // Emerald text on light fails AA; use the darker ink on light.
-          foregroundColor: isDark ? AppColors.accent : AppColors.accentInk,
+          foregroundColor: ink,
           textStyle: text.labelLarge,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
@@ -169,11 +172,11 @@ class AppTheme {
 
       chipTheme: ChipThemeData(
         backgroundColor: surfaceMuted,
-        selectedColor: isDark ? AppColors.accentSoftDark : AppColors.accentSoft,
+        selectedColor: soft,
         side: BorderSide(color: border),
         labelStyle: text.labelMedium,
         secondaryLabelStyle: text.labelMedium
-            ?.copyWith(color: isDark ? AppColors.accent : AppColors.accentInk),
+            ?.copyWith(color: ink),
         shape: const StadiumBorder(),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
@@ -199,11 +202,11 @@ class AppTheme {
 
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? Colors.white : surface,
+          (s) => s.contains(WidgetState.selected) ? onInk : surface,
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? AppColors.accent
+              ? ink
               : (isDark ? AppColors.surfaceMutedDark : AppColors.borderLight),
         ),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
@@ -211,7 +214,7 @@ class AppTheme {
 
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.primary,
+        backgroundColor: isDark ? AppColors.surfaceMutedDark : AppColors.primary,
         contentTextStyle: text.bodyMedium?.copyWith(color: Colors.white),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radius),
@@ -221,18 +224,18 @@ class AppTheme {
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: surface,
         selectedIconTheme: IconThemeData(
-            color: isDark ? AppColors.accent : AppColors.accentInk),
+            color: ink),
         unselectedIconTheme: IconThemeData(color: textSecondary),
         selectedLabelTextStyle: text.labelMedium
-            ?.copyWith(color: isDark ? AppColors.accent : AppColors.accentInk),
+            ?.copyWith(color: ink),
         unselectedLabelTextStyle: text.labelMedium,
-        indicatorColor: isDark ? AppColors.accentSoftDark : AppColors.accentSoft,
+        indicatorColor: soft,
         useIndicator: true,
       ),
 
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: AppColors.accentInk,
-        foregroundColor: AppColors.onAccent,
+        backgroundColor: ink,
+        foregroundColor: onInk,
         elevation: 2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radius),

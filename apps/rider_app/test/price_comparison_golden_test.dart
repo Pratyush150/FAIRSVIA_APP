@@ -43,12 +43,12 @@ Future<void> _loadAllFonts() async {
   ]);
   // The app's real UI face, under the exact package-qualified family the theme
   // asks for.
-  await _loadFont('packages/design_system/PlusJakartaSans', [
-    '$_dsFonts/PlusJakartaSans-Regular.ttf',
-    '$_dsFonts/PlusJakartaSans-Medium.ttf',
-    '$_dsFonts/PlusJakartaSans-SemiBold.ttf',
-    '$_dsFonts/PlusJakartaSans-Bold.ttf',
-    '$_dsFonts/PlusJakartaSans-ExtraBold.ttf',
+  await _loadFont('packages/design_system/Inter', [
+    '$_dsFonts/Inter-Regular.ttf',
+    '$_dsFonts/Inter-Medium.ttf',
+    '$_dsFonts/Inter-SemiBold.ttf',
+    '$_dsFonts/Inter-Bold.ttf',
+    '$_dsFonts/Inter-ExtraBold.ttf',
   ]);
 }
 

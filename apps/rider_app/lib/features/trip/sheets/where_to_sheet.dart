@@ -10,9 +10,13 @@ class _WhereToCard extends StatelessWidget {
     required this.onPickSaved,
     this.locationIssue,
     this.onFixLocation,
+    this.onSchedule,
   });
 
   final VoidCallback onTap;
+
+  /// Opens pre-booking; null hides the "Later" chip.
+  final VoidCallback? onSchedule;
   final List<SavedPlace> savedPlaces;
   final ValueChanged<SavedPlace> onPickSaved;
   final LocationIssue? locationIssue;
@@ -33,42 +37,42 @@ class _WhereToCard extends StatelessWidget {
     if (issue != null) {
       return _LocationRequiredGate(issue: issue, onFix: onFixLocation);
     }
+    final muted = isDark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Where to?', style: theme.textTheme.headlineMedium),
-        const SizedBox(height: AppSpacing.lg),
-        // Search pill.
-        Material(
-          color: Colors.transparent,
-          child: Ink(
-            decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.surfaceMutedDark
-                  : AppColors.surfaceMutedLight,
-              borderRadius: BorderRadius.circular(AppSpacing.radius),
-              border: Border.all(
-                color: isDark ? AppColors.borderDark : AppColors.borderLight,
-              ),
-            ),
+        // One big pill is the whole call to action: "Where to?" on the left,
+        // a "Later" chip on the right to book ahead.
+        Semantics(
+          button: true,
+          label: 'Where to?',
+          child: Material(
+            color: muted,
+            shape: const StadiumBorder(),
+            clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: onTap,
-              borderRadius: BorderRadius.circular(AppSpacing.radius),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.lg,
-                ),
+              child: SizedBox(
+                height: 56,
                 child: Row(
                   children: [
-                    const Icon(Icons.search_rounded,
-                        color: AppColors.accent, size: 22),
+                    const SizedBox(width: AppSpacing.lg),
+                    Icon(Icons.search_rounded,
+                        color: theme.colorScheme.onSurface, size: 24),
                     const SizedBox(width: AppSpacing.md),
-                    Text('Enter your destination',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: theme.colorScheme.onSurface,
-                        )),
+                    Expanded(
+                      child: Text('Where to?',
+                          style: theme.textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w600)),
+                    ),
+                    if (onSchedule != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: AppSpacing.sm),
+                        child: _LaterChip(onTap: onSchedule!),
+                      )
+                    else
+                      const SizedBox(width: AppSpacing.lg),
                   ],
                 ),
               ),
@@ -76,7 +80,7 @@ class _WhereToCard extends StatelessWidget {
           ),
         ),
         if (savedPlaces.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.sm),
           for (final place in savedPlaces) ...[
             _QuickDestination(
               icon: _iconFor(place.label),
@@ -85,10 +89,48 @@ class _WhereToCard extends StatelessWidget {
               onTap: () => onPickSaved(place),
             ),
             if (place != savedPlaces.last)
-              Divider(height: 1, color: theme.dividerColor),
+              Padding(
+                padding: const EdgeInsets.only(left: 56),
+                child: Divider(height: 1, color: theme.dividerColor),
+              ),
           ],
         ],
       ],
+    );
+  }
+}
+
+/// "Later" — book a ride ahead, from inside the Where-to pill.
+class _LaterChip extends StatelessWidget {
+  const _LaterChip({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      shape: const StadiumBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.schedule_rounded,
+                  size: 18, color: theme.colorScheme.onSurface),
+              const SizedBox(width: 6),
+              Text('Later', style: theme.textTheme.labelMedium),
+              Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 18, color: theme.colorScheme.onSurface),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -171,9 +213,8 @@ class _QuickDestination extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
           children: [
             Container(
@@ -187,24 +228,22 @@ class _QuickDestination extends StatelessWidget {
               ),
               child: Icon(icon, size: 20, color: theme.colorScheme.onSurface),
             ),
-            const SizedBox(width: AppSpacing.md),
+            const SizedBox(width: AppSpacing.lg),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: theme.textTheme.titleSmall),
+                  Text(label, style: theme.textTheme.titleMedium),
                   if (subtitle != null)
                     Text(
                       subtitle!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall,
+                      style: theme.textTheme.bodyMedium,
                     ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
-                color: theme.colorScheme.onSurfaceVariant),
           ],
         ),
       ),

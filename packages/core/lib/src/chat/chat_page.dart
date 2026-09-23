@@ -160,7 +160,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _body(BuildContext context) {
     if (_loading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation(AppColors.accent),
         ),

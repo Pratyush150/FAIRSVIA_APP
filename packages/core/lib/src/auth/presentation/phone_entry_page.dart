@@ -81,7 +81,7 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                         color: AppColors.accentSoft,
                         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.navigation_rounded,
                         color: AppColors.accent,
                         size: 30,

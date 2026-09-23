@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// Type scale built on Plus Jakarta Sans (bundled in this package) — a
-/// geometric-humanist sans in the spirit of premium product UIs. Large headings
-/// use bold weights with tight negative tracking; body stays comfortable.
+/// Type scale on Inter (bundled in this package): a neutral grotesk. Big,
+/// bold, tightly-tracked headings; calm 16 px body; medium-weight labels —
+/// the hierarchy comes from size and weight, not colour.
 class AppTypography {
   AppTypography._();
 
   /// Package-qualified family name so apps pick it up without re-declaring.
-  static const String fontFamily = 'packages/design_system/PlusJakartaSans';
+  static const String fontFamily = 'packages/design_system/Inter';
 
   /// Tabular (monospaced) figures — every digit takes the same width so
   /// live-updating fares, ETAs, countdowns, and ratings don't jitter as digits
@@ -34,19 +34,19 @@ class AppTypography {
         );
 
     return TextTheme(
-      displaySmall: s(32, FontWeight.w800, height: 1.08, spacing: -0.6),
-      headlineLarge: s(28, FontWeight.w800, height: 1.12, spacing: -0.5),
-      headlineMedium: s(24, FontWeight.w700, height: 1.16, spacing: -0.4),
-      headlineSmall: s(20, FontWeight.w700, height: 1.2, spacing: -0.2),
-      titleLarge: s(18, FontWeight.w700, height: 1.25, spacing: -0.2),
-      titleMedium: s(16, FontWeight.w600, height: 1.3),
+      displaySmall: s(32, FontWeight.w700, height: 1.1, spacing: -0.8),
+      headlineLarge: s(28, FontWeight.w700, height: 1.14, spacing: -0.6),
+      headlineMedium: s(24, FontWeight.w700, height: 1.18, spacing: -0.4),
+      headlineSmall: s(20, FontWeight.w700, height: 1.22, spacing: -0.3),
+      titleLarge: s(18, FontWeight.w600, height: 1.25, spacing: -0.2),
+      titleMedium: s(16, FontWeight.w600, height: 1.3, spacing: -0.1),
       titleSmall: s(14, FontWeight.w600, height: 1.3),
       bodyLarge: s(16, FontWeight.w400, height: 1.45),
       bodyMedium: s(14, FontWeight.w400, color: secondary, height: 1.45),
-      bodySmall: s(13, FontWeight.w400, color: secondary, height: 1.4),
-      labelLarge: s(15, FontWeight.w600, height: 1.2),
-      labelMedium: s(13, FontWeight.w600, height: 1.2),
-      labelSmall: s(11, FontWeight.w700, height: 1.2, spacing: 0.4),
+      bodySmall: s(12, FontWeight.w400, color: secondary, height: 1.4),
+      labelLarge: s(16, FontWeight.w500, height: 1.2),
+      labelMedium: s(14, FontWeight.w500, height: 1.2),
+      labelSmall: s(12, FontWeight.w500, height: 1.2, spacing: 0.1),
     );
   }
 }

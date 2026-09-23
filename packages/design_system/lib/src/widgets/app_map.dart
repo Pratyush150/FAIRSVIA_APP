@@ -250,6 +250,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   double _driverBearingFrom = 0;
   gmaps.BitmapDescriptor? _driverIcon; // custom car puck, generated once
   gmaps.BitmapDescriptor? _meIcon; // rider's blue "you are here" dot
+  gmaps.BitmapDescriptor? _pickupIcon; // black ring, white centre
+  gmaps.BitmapDescriptor? _dropoffIcon; // black square, white centre
   // Follow mode: suspended once the user pans until the next recenter.
   bool _userPanned = false;
   // Camera moves WE started, which must not be mistaken for the user taking
@@ -301,6 +303,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     _driverTo = initialDriver;
     _makeDriverIcon();
     _makeMeIcon();
+    _makeStopIcons();
   }
 
   @override
@@ -346,7 +349,24 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(AppMap old) {
     super.didUpdateWidget(old);
-    if (!_sameBounds(old.fitBounds, widget.fitBounds)) {
+    final paddingMoved =
+        (old.boundsPadding.bottom - widget.boundsPadding.bottom).abs() > 24 ||
+            (old.boundsPadding.top - widget.boundsPadding.top).abs() > 24;
+    if (paddingMoved) {
+      // The sheet grew or shrank (e.g. the ride list replaced "finding the
+      // best route…"). Re-frame so the route sits above the new sheet edge —
+      // but only after this frame: the new map padding reaches the native
+      // map with this build, and a camera move issued before it is framed
+      // against the old padding (the route ended up behind the sheet).
+      _lastFittedBounds = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future<void>.delayed(const Duration(milliseconds: 120), () {
+          if (!mounted) return;
+          _lastFittedBounds = null;
+          _fit();
+        });
+      });
+    } else if (!_sameBounds(old.fitBounds, widget.fitBounds)) {
       _fit();
     }
     if (AppMap.recenterChanged(old, widget)) {
@@ -643,15 +663,20 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           ? _driverIcon!
           : isMe && _meIcon != null
               ? _meIcon!
-              : _iconFor(m.kind);
+              : m.kind == MapMarkerKind.pickup && _pickupIcon != null
+                  ? _pickupIcon!
+                  : m.kind == MapMarkerKind.dropoff && _dropoffIcon != null
+                      ? _dropoffIcon!
+                      : _iconFor(m.kind);
+      final centred = isDriver ||
+          isMe ||
+          m.kind == MapMarkerKind.pickup ||
+          (m.kind == MapMarkerKind.dropoff && _dropoffIcon != null);
       out.add(gmaps.Marker(
         markerId: gmaps.MarkerId('${m.kind.name}_${i++}'),
         position: _g(point),
         icon: icon,
-        anchor:
-            (isDriver || isMe || m.kind == MapMarkerKind.pickup)
-                ? const Offset(0.5, 0.5)
-                : const Offset(0.5, 1.0),
+        anchor: centred ? const Offset(0.5, 0.5) : const Offset(0.5, 1.0),
         zIndexInt: isDriver ? 3 : (isMe ? 2 : 1),
         rotation: isDriver ? _currentDriverBearing() : (m.heading ?? 0),
         // A position we know is out of date is drawn faded: the rider can see
@@ -863,6 +888,51 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       if (mounted) setState(() => _driverIcon = icon);
     } catch (_) {
       // Keep the default azure marker if custom rendering fails on a device.
+    }
+  }
+
+  /// Ride-hailing stop pins: pickup = a black ring with a white centre,
+  /// drop-off = a black square with a white centre. White outer edge so both
+  /// read on the light and the dark basemap.
+  Future<void> _makeStopIcons() async {
+    Future<gmaps.BitmapDescriptor?> draw(bool square) async {
+      const dim = 64.0;
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      const c = Offset(dim / 2, dim / 2);
+      final white = Paint()..color = Colors.white;
+      final black = Paint()..color = Colors.black;
+      final shadow = Paint()
+        ..color = const Color(0x40000000)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      if (square) {
+        canvas.drawRect(Rect.fromCenter(center: c + const Offset(0, 1.5), width: 40, height: 40), shadow);
+        canvas.drawRect(Rect.fromCenter(center: c, width: 40, height: 40), white);
+        canvas.drawRect(Rect.fromCenter(center: c, width: 32, height: 32), black);
+        canvas.drawRect(Rect.fromCenter(center: c, width: 11, height: 11), white);
+      } else {
+        canvas.drawCircle(c + const Offset(0, 1.5), 20, shadow);
+        canvas.drawCircle(c, 20, white);
+        canvas.drawCircle(c, 16, black);
+        canvas.drawCircle(c, 6, white);
+      }
+      final img = await recorder.endRecording().toImage(dim.toInt(), dim.toInt());
+      final data = await img.toByteData(format: ui.ImageByteFormat.png);
+      if (data == null) return null;
+      return gmaps.BitmapDescriptor.bytes(data.buffer.asUint8List(), width: 22);
+    }
+
+    try {
+      final pickup = await draw(false);
+      final dropoff = await draw(true);
+      if (mounted) {
+        setState(() {
+          _pickupIcon = pickup;
+          _dropoffIcon = dropoff;
+        });
+      }
+    } catch (_) {
+      // Fall back to the default markers.
     }
   }
 

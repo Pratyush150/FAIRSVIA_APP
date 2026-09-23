@@ -14,9 +14,9 @@ class AppSpacing {
   static const double huge = 48;
 
   // Corner radii. Generous, consistent rounding reads as premium.
-  static const double radiusSm = 10;
-  static const double radius = 16;
-  static const double radiusLg = 20;
-  static const double radiusXl = 28;
+  static const double radiusSm = 6;
+  static const double radius = 8;
+  static const double radiusLg = 12;
+  static const double radiusXl = 16;
   static const double pill = 999;
 }

@@ -187,7 +187,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.location_on_rounded,
+                          Icon(Icons.location_on_rounded,
                               size: 20, color: AppColors.accent),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
@@ -237,7 +237,7 @@ class _CenterPin extends StatelessWidget {
   Widget build(BuildContext context) {
     return Transform.translate(
       offset: const Offset(0, -20),
-      child: const Icon(Icons.location_on, size: 44, color: AppColors.accent),
+      child: Icon(Icons.location_on, size: 44, color: AppColors.accent),
     );
   }
 }

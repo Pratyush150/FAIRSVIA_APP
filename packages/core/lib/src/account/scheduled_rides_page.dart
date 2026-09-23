@@ -85,7 +85,7 @@ class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
             return ListTile(
               leading: CircleAvatar(
                 backgroundColor: AppColors.accent.withValues(alpha: 0.15),
-                child: const Icon(Icons.schedule, color: AppColors.accent),
+                child: Icon(Icons.schedule, color: AppColors.accent),
               ),
               title: Text(
                 trip.dropoff.address ?? 'Destination',

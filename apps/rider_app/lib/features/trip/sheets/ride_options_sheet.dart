@@ -137,7 +137,7 @@ class _BookForSomeoneElseRow extends StatelessWidget {
 
     return Row(
       children: [
-        const Icon(Icons.person_pin_circle_outlined,
+        Icon(Icons.person_pin_circle_outlined,
             size: 18, color: AppColors.accent),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
@@ -521,7 +521,7 @@ class _ScheduledConfirmation extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.event_available, color: AppColors.accent, size: 48),
+        Icon(Icons.event_available, color: AppColors.accent, size: 48),
         const SizedBox(height: AppSpacing.sm),
         Center(
           child: Text('Ride scheduled', style: theme.textTheme.headlineSmall),
@@ -654,7 +654,7 @@ class _PaymentModeToggle extends StatelessWidget {
                   leading: const Icon(Icons.credit_card),
                   title: Text(_cardLabel(c)),
                   trailing: c['id'] == activeId
-                      ? const Icon(Icons.check, color: AppColors.accent)
+                      ? Icon(Icons.check, color: AppColors.accent)
                       : null,
                   onTap: () {
                     AppHaptics.selection();
@@ -873,11 +873,11 @@ class _RideTierTile extends StatelessWidget {
   IconData get _icon {
     switch (tier.tier) {
       case 'comfort':
-        return Icons.local_taxi_rounded;
+        return Icons.directions_car_filled_rounded;
       case 'xl':
         return Icons.airport_shuttle_rounded;
       case 'premium':
-        return Icons.auto_awesome_rounded;
+        return Icons.local_taxi_rounded;
       default:
         return Icons.directions_car_rounded;
     }
@@ -886,92 +886,107 @@ class _RideTierTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: AppCard(
-        selected: selected,
-        onTap: onTap,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.md,
-        ),
-        // Theme-aware selected fill: a light mint in light mode, a dark-green
-        // tint in dark mode — otherwise the (light) on-surface text would sit on
-        // a light mint fill in dark mode and wash out. Mirrors _PayChip.
-        color: selected
-            ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
-            : null,
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: selected
-                    ? AppColors.accent.withValues(alpha: 0.16)
-                    : theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-              ),
-              child: Icon(_icon,
-                  size: 26,
-                  color: selected
-                      ? AppColors.accent
-                      : theme.colorScheme.onSurface),
+    final eta = tier.etaSeconds;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Material(
+          color: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.radius),
+            // The selected ride is outlined in ink; the rest have no box at all.
+            side: BorderSide(
+              color: selected ? AppColors.accent : Colors.transparent,
+              width: 2,
             ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.sm, AppSpacing.md, AppSpacing.md, AppSpacing.md),
+              child: Row(
                 children: [
-                  Text(tier.label, style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 1),
-                  Text(
-                    tier.etaSeconds == null
-                        ? '${tier.capacity} seats · no cars nearby'
-                        : '${tier.capacity} seats · '
-                            '${_minutes(tier.etaSeconds!)} min away',
-                    style: theme.textTheme.bodySmall,
+                  SizedBox(
+                    width: 64,
+                    child: Icon(_icon, size: 40, color: theme.colorScheme.onSurface),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(tier.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700)),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(Icons.person_rounded,
+                                size: 14, color: theme.colorScheme.onSurface),
+                            Text('${tier.capacity}',
+                                style: theme.textTheme.labelMedium),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          eta == null
+                              ? 'No cars nearby'
+                              : '${_arrivalClock(eta)} · ${_minutes(eta)} min away',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        // Same rule as the confirm footer (Fmt.money), so the
+                        // list and the button always agree.
+                        Fmt.money(tier.fare, tier.currency),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)
+                            .tabular(),
+                      ),
+                      // What the number is made of — only when the backend
+                      // itemised it; an empty "Details" is worse than none.
+                      if (tier.breakdown != null)
+                        GestureDetector(
+                          onTap: () => showFareDetailsSheet(context, tier),
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text('Details',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  decoration: TextDecoration.underline,
+                                )),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  // Same rule as the confirm footer (Fmt.money): whole dollars
-                  // stay whole, otherwise cents — so the list and the CTA agree.
-                  Fmt.money(tier.fare, tier.currency),
-                  style: theme.textTheme.titleLarge?.tabular(),
-                ),
-                // What that number is made of. Only offered when the backend
-                // itemised the estimate — a "Details" button that opens an
-                // empty sheet is worse than no button.
-                if (tier.breakdown != null)
-                  GestureDetector(
-                    onTap: () => showFareDetailsSheet(context, tier),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Details',
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.accent)),
-                          const Icon(Icons.keyboard_arrow_right_rounded,
-                              size: 16, color: AppColors.accent),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  /// "5:42 PM" — when the car would reach the pickup.
+  static String _arrivalClock(int etaSeconds) {
+    final t = DateTime.now().add(Duration(seconds: etaSeconds));
+    final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    return '$h:${t.minute.toString().padLeft(2, '0')} ${t.hour < 12 ? 'AM' : 'PM'}';
   }
 }
 

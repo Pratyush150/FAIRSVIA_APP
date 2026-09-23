@@ -342,7 +342,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                       color: AppColors.accentSoft,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.map_rounded,
+                    child: Icon(Icons.map_rounded,
                         size: 20, color: AppColors.accent),
                   ),
                   const SizedBox(width: AppSpacing.md),
@@ -531,7 +531,7 @@ class _RouteFields extends StatelessWidget {
                 // Origin dot → rail → destination square.
                 Column(
                   children: [
-                    const Icon(Icons.trip_origin,
+                    Icon(Icons.trip_origin,
                         size: 14, color: AppColors.accent),
                     Container(
                       width: 2,
@@ -539,7 +539,7 @@ class _RouteFields extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       color: theme.dividerColor,
                     ),
-                    const Icon(Icons.square, size: 12, color: AppColors.error),
+                    Icon(Icons.square, size: 12, color: AppColors.accent),
                   ],
                 ),
                 const SizedBox(width: AppSpacing.md),

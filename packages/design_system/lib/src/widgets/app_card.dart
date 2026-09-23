@@ -4,9 +4,10 @@ import '../theme/app_colors.dart';
 import '../theme/app_elevation.dart';
 import '../theme/app_spacing.dart';
 
-/// A rounded surface panel. `elevated` swaps the hairline border for a soft
-/// shadow (use for cards floating over a busy background). `selected` applies
-/// the brand ring — handy for pickable options (ride tiers, payment modes).
+/// A rounded surface panel. Borderless by default — content is grouped by
+/// space, not boxes. `outlined` adds a hairline (use where a panel must read
+/// as separate from the page), `elevated` a soft shadow (panels over a busy
+/// background), `selected` the ink ring for pickable options.
 class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
@@ -15,6 +16,7 @@ class AppCard extends StatelessWidget {
     this.onTap,
     this.selected = false,
     this.elevated = false,
+    this.outlined = false,
     this.color,
   });
 
@@ -23,6 +25,7 @@ class AppCard extends StatelessWidget {
   final VoidCallback? onTap;
   final bool selected;
   final bool elevated;
+  final bool outlined;
   final Color? color;
 
   @override
@@ -35,8 +38,10 @@ class AppCard extends StatelessWidget {
       color: color ?? Theme.of(context).colorScheme.surface,
       borderRadius: radius,
       border: Border.all(
-        color: selected ? AppColors.accent : border,
-        width: selected ? 1.8 : 1,
+        color: selected
+            ? AppColors.accent
+            : (outlined ? border : Colors.transparent),
+        width: selected ? 2 : 1,
       ),
       boxShadow: elevated && !selected ? AppElevation.sm : null,
     );

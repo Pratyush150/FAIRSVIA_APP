@@ -186,8 +186,8 @@ class _PreBookPageState extends State<PreBookPage> {
                         ),
                         const Divider(height: 1, indent: 52),
                         _PreBookRow(
-                          icon: Icons.location_on_rounded,
-                          iconColor: AppColors.error,
+                          icon: Icons.square_rounded,
+                          iconColor: AppColors.accent,
                           label: 'Destination',
                           value: _dropoffAddr ?? 'Where to?',
                           placeholder: _dropoff == null,

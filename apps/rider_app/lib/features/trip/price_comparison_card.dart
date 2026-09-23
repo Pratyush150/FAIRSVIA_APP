@@ -27,7 +27,7 @@ class PriceComparisonCard extends StatelessWidget {
         text: 'Cheapest option — save up to ${_money(c.maxSavings)} vs others',
       );
     } else if (c.ourIsCheapest) {
-      headline = const _Headline(
+      headline = _Headline(
         icon: Icons.verified_rounded,
         color: AppColors.accent,
         text: 'Cheapest option for this trip',
@@ -133,7 +133,7 @@ class _QuoteRow extends StatelessWidget {
       child: Row(
         children: [
           if (isOurs)
-            const Icon(Icons.local_taxi_rounded,
+            Icon(Icons.local_taxi_rounded,
                 size: 16, color: AppColors.accent)
           else
             Icon(Icons.circle_outlined,

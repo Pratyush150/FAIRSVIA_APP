@@ -89,7 +89,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
           child: AnimatedSwitcher(
             duration: AppMotion.fast,
             child: w.loading
-                ? const SizedBox(
+                ? SizedBox(
                     key: ValueKey('loading'),
                     height: 22,
                     width: 22,

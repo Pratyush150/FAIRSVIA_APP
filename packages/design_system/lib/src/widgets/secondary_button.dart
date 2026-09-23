@@ -26,16 +26,18 @@ class SecondaryButton extends StatelessWidget {
     final fg = danger
         ? AppColors.error
         : (isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight);
-    final side = danger
-        ? AppColors.error.withValues(alpha: 0.4)
-        : (isDark ? AppColors.borderDark : AppColors.borderLight);
+    // Uber-style secondary action: a quiet grey fill, no outline.
+    final fill = danger
+        ? (isDark ? AppColors.errorSoftDark : AppColors.errorSoft)
+        : (isDark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight);
     return SizedBox(
       width: double.infinity,
       height: 56,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
+      child: TextButton(
+        style: TextButton.styleFrom(
           foregroundColor: fg,
-          side: BorderSide(color: side, width: 1.4),
+          backgroundColor: fill,
+          disabledForegroundColor: fg.withValues(alpha: 0.4),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radius),
           ),

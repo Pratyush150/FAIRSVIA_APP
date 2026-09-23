@@ -1,71 +1,86 @@
 import 'package:flutter/material.dart';
 
-/// RideVela palette. Warm, premium neutrals (stone-tinted, not cold grey) with a
-/// single confident emerald brand — restraint over decoration. Legacy token
-/// names are preserved so existing screens keep compiling while values sharpen.
+/// RideVela palette — monochrome, in the style of the best ride-hailing apps:
+/// pure white / pure black canvases, a tight neutral grey ramp, and the
+/// primary action in the "ink" colour (black on light, white on dark).
+/// Colour is reserved for meaning: green = done/good, red = danger,
+/// blue = links/info, amber = caution.
+///
+/// The ink tokens ([accent], [accentInk], [onAccent], [accentSoft]…) follow the
+/// app's current brightness: black in light mode, white in dark mode. Each app
+/// calls [syncBrightness] from its MaterialApp builder, so every screen that
+/// uses them flips with the theme instead of drawing black-on-black.
 class AppColors {
   AppColors._();
 
-  // --- Brand (emerald) -------------------------------------------------------
-  /// Primary brand colour — the emerald identity. Use for large fills, the
-  /// switch track, dark-mode accent, decorative brand moments. NOTE: white text
-  /// on this only reaches 2.62:1 (fails WCAG AA) — for text-bearing surfaces
-  /// (filled CTA with a white label, emerald text/icon on light) use
-  /// [accentInk] instead.
-  static const Color accent = Color(0xFF12B76A);
-  static const Color accentPressed = Color(0xFF0E9E5B);
+  static bool _dark = false;
 
-  /// Accessible emerald for text-bearing surfaces: white label on this = 5.20:1
-  /// (passes AA), and it's legible as emerald text/icons on light backgrounds.
-  static const Color accentInk = Color(0xFF0A7D48);
-  static const Color accentInkPressed = Color(0xFF086A3D);
+  /// Called once per build from each app's `MaterialApp.builder`.
+  static void syncBrightness(Brightness brightness) =>
+      _dark = brightness == Brightness.dark;
 
-  /// Tinted brand wash for selected states, chips, highlights (light mode).
-  static const Color accentSoft = Color(0xFFE7F6EF);
-  static const Color accentSoftDark = Color(0xFF10241B);
-  static const Color onAccent = Color(0xFFFFFFFF);
+  // --- Ink (the primary action colour) ---------------------------------------
+  static const Color black = Color(0xFF000000);
+  static const Color white = Color(0xFFFFFFFF);
 
-  /// Near-black brand ink (buttons on light surfaces, dark chrome).
-  static const Color primary = Color(0xFF1C1917);
-  static const Color primaryElevated = Color(0xFF2A2724);
+  /// Primary action / selection / emphasis: black on light, white on dark.
+  static Color get accent => inkFor(_dark);
+  static Color get accentPressed => _dark ? const Color(0xFFE2E2E2) : const Color(0xFF333333);
 
-  // --- Surfaces & canvas (warm) ----------------------------------------------
+  /// Same ink for text-bearing surfaces (kept as its own name for clarity).
+  static Color get accentInk => inkFor(_dark);
+  static Color get accentInkPressed => accentPressed;
+
+  /// Quiet fill for selected rows, chips, highlights.
+  static Color get accentSoft => _dark ? accentSoftDark : const Color(0xFFF3F3F3);
+  static const Color accentSoftDark = Color(0xFF282828);
+
+  /// Text/icons drawn on an [accent] fill.
+  static Color get onAccent => _dark ? black : white;
+
+  static Color inkFor(bool dark) => dark ? white : black;
+  static Color onInkFor(bool dark) => dark ? black : white;
+  static Color softFor(bool dark) => dark ? accentSoftDark : const Color(0xFFF3F3F3);
+
+  /// Near-black chrome (dark buttons on light surfaces).
+  static const Color primary = Color(0xFF000000);
+  static const Color primaryElevated = Color(0xFF1F1F1F);
+
+  // --- Surfaces & canvas -----------------------------------------------------
   static const Color surfaceLight = Color(0xFFFFFFFF);
-  /// Muted fill for inset cards, inputs, chips on light.
-  static const Color surfaceMutedLight = Color(0xFFF5F3F0);
-  static const Color backgroundLight = Color(0xFFFAF9F7);
+  /// Inputs, chips, inset rows on light.
+  static const Color surfaceMutedLight = Color(0xFFF3F3F3);
+  static const Color backgroundLight = Color(0xFFFFFFFF);
 
-  static const Color surfaceDark = Color(0xFF1C1A19);
-  static const Color surfaceMutedDark = Color(0xFF262220);
-  static const Color backgroundDark = Color(0xFF121110);
+  static const Color surfaceDark = Color(0xFF141414);
+  static const Color surfaceMutedDark = Color(0xFF282828);
+  static const Color backgroundDark = Color(0xFF000000);
 
   // --- Text ------------------------------------------------------------------
-  static const Color textPrimaryLight = Color(0xFF1C1917);
-  static const Color textSecondaryLight = Color(0xFF57534E);
-  // Darkened from #8A837D (3.4:1, failed AA) to ~4.6:1 on light surfaces.
-  static const Color textTertiaryLight = Color(0xFF6F6862);
-  static const Color textPrimaryDark = Color(0xFFFAF9F7);
-  static const Color textSecondaryDark = Color(0xFFA8A29E);
-  // Lightened from #78716C (3.9:1, failed AA) to ~4.7:1 on dark surfaces.
-  static const Color textTertiaryDark = Color(0xFF8A837D);
+  static const Color textPrimaryLight = Color(0xFF000000);
+  static const Color textSecondaryLight = Color(0xFF545454);
+  /// 4.6:1 on white — the lightest grey that still passes WCAG AA.
+  static const Color textTertiaryLight = Color(0xFF757575);
+  static const Color textPrimaryDark = Color(0xFFFFFFFF);
+  static const Color textSecondaryDark = Color(0xFFAFAFAF);
+  static const Color textTertiaryDark = Color(0xFF8E8E8E);
 
   // --- Lines -----------------------------------------------------------------
-  static const Color borderLight = Color(0xFFE7E3DE);
-  static const Color borderDark = Color(0xFF34302C);
+  static const Color borderLight = Color(0xFFE8E8E8);
+  static const Color borderDark = Color(0xFF333333);
 
   // --- Semantic --------------------------------------------------------------
-  static const Color success = Color(0xFF17B26A);
-  static const Color warning = Color(0xFFF79009);
-  static const Color error = Color(0xFFF04438);
-  /// Darker red for filled destructive buttons: white text on it is 6.6:1
-  /// (WCAG AA), where [error] is only 3.8:1.
-  static const Color errorInk = Color(0xFFB42318);
-  static const Color errorSoft = Color(0xFFFEF3F2);
-  static const Color errorSoftDark = Color(0xFF2B1614);
-  static const Color info = Color(0xFF2E90FA);
-  /// Rating stars / premium accents.
-  static const Color star = Color(0xFFFBBF24);
+  static const Color success = Color(0xFF05944F);
+  static const Color warning = Color(0xFFC67C00);
+  static const Color error = Color(0xFFE11900);
+  /// Filled destructive buttons: white text on it passes AA.
+  static const Color errorInk = Color(0xFFB21400);
+  static const Color errorSoft = Color(0xFFFFEFED);
+  static const Color errorSoftDark = Color(0xFF3A1510);
+  static const Color info = Color(0xFF276EF1);
+  /// Rating stars.
+  static const Color star = Color(0xFFFFC043);
 
   /// Modal scrim behind sheets/dialogs.
-  static const Color scrim = Color(0x66000000);
+  static const Color scrim = Color(0x80000000);
 }

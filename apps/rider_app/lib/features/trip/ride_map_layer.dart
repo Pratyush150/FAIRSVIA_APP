@@ -203,7 +203,12 @@ class RideMapLayer {
     } else if (approaching && approachPts.length >= 2) {
       bounds = [approachPts.first, approachPts.last];
     } else {
-      bounds = [pickupLL, MapUtils.toLatLng(dropoff)];
+      // The whole route, not just its ends: a road that bends outside the
+      // pickup–dropoff box would otherwise run off the visible map.
+      final r = route;
+      bounds = r.length >= 2
+          ? [pickupLL, MapUtils.toLatLng(dropoff), ...r]
+          : [pickupLL, MapUtils.toLatLng(dropoff)];
     }
     if (MapUtils.spanMeters(bounds) < minFitSpanM) {
       bounds = MapUtils.boxAround(pickupLL, arrivalBoxHalfSpanM);

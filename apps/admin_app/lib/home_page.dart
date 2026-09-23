@@ -44,7 +44,7 @@ class _AdminScaffold extends StatelessWidget {
                 onDestinationSelected: (i) =>
                     cubit.selectTab(AdminTab.values[i]),
                 labelType: NavigationRailLabelType.all,
-                leading: const Padding(
+                leading: Padding(
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
                   child: Icon(Icons.local_taxi, color: AppColors.accent),
                 ),
@@ -602,7 +602,7 @@ class _LiveView extends StatelessWidget {
               const SizedBox(width: AppSpacing.xl),
               _LiveStat(label: 'Active trips', value: '${live.trips.length}'),
               const Spacer(),
-              Row(children: const [
+              Row(children: [
                 _Legend(color: AppColors.success, label: 'Idle'),
                 SizedBox(width: AppSpacing.md),
                 _Legend(color: AppColors.warning, label: 'On trip'),

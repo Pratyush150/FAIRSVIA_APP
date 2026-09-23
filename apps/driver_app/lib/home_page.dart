@@ -759,11 +759,11 @@ class _BottomSheet extends StatelessWidget {
                 Container(
                   height: 46,
                   width: 46,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.accentSoft,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.wifi_tethering_rounded,
+                  child: Icon(Icons.wifi_tethering_rounded,
                       color: AppColors.accent, size: 24),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -879,7 +879,7 @@ class _RiderComingBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.directions_walk_rounded, color: AppColors.accentInk),
+            Icon(Icons.directions_walk_rounded, color: AppColors.accentInk),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -911,11 +911,11 @@ class _CompletedSheet extends StatelessWidget {
           child: Container(
             width: 60,
             height: 60,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.accentSoft,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check_rounded,
+            child: Icon(Icons.check_rounded,
                 color: AppColors.accent, size: 34),
           ),
         ),
@@ -1061,7 +1061,7 @@ class _LifecycleSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Row(
             children: [
-              const Icon(Icons.near_me_rounded,
+              Icon(Icons.near_me_rounded,
                   size: 16, color: AppColors.accent),
               const SizedBox(width: AppSpacing.xs),
               Text(distanceLabel!, style: theme.textTheme.titleSmall),
@@ -1215,7 +1215,7 @@ class _PassengerBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.person_pin_circle_outlined,
+          Icon(Icons.person_pin_circle_outlined,
               size: 18, color: AppColors.accent),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -1235,7 +1235,7 @@ class _PassengerBanner extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Call passenger',
-            icon: const Icon(Icons.call_outlined, color: AppColors.accent),
+            icon: Icon(Icons.call_outlined, color: AppColors.accent),
             onPressed: () async {
               final ok = await dialPhone(passenger.phone);
               if (!ok && context.mounted) {
@@ -1270,7 +1270,7 @@ class _PickupNoteBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.sticky_note_2_outlined,
+          Icon(Icons.sticky_note_2_outlined,
               size: 18, color: AppColors.accent),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -1623,11 +1623,11 @@ class _OfferOverlayState extends State<OfferOverlay> {
                       Container(
                         height: 36,
                         width: 36,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: AppColors.accentSoft,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.trip_origin_rounded,
+                        child: Icon(Icons.trip_origin_rounded,
                             size: 18, color: AppColors.accent),
                       ),
                       const SizedBox(width: AppSpacing.md),

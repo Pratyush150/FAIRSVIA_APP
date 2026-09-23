@@ -10,13 +10,14 @@ class AppAvatar extends StatelessWidget {
     this.name,
     this.icon,
     this.size = 44,
-    this.color = AppColors.accent,
+    this.color,
   });
 
   final String? name;
   final IconData? icon;
   final double size;
-  final Color color;
+  /// Defaults to the theme's ink colour.
+  final Color? color;
 
   String get _initials {
     final parts =
@@ -35,19 +36,19 @@ class AppAvatar extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
+        color: (color ?? AppColors.accent).withValues(alpha: 0.14),
         shape: BoxShape.circle,
       ),
       child: initials.isNotEmpty
           ? Text(
               initials,
               style: TextStyle(
-                color: color,
+                color: color ?? AppColors.accent,
                 fontSize: size * 0.38,
                 fontWeight: FontWeight.w700,
               ),
             )
-          : Icon(icon ?? Icons.person_rounded, color: color, size: size * 0.5),
+          : Icon(icon ?? Icons.person_rounded, color: color ?? AppColors.accent, size: size * 0.5),
     );
   }
 }

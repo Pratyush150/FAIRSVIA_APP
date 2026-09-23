@@ -120,11 +120,11 @@ class _CompletedSheetState extends State<CompletedSheet> {
             child: Container(
               width: 64,
               height: 64,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.accentSoft,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_rounded,
+              child: Icon(Icons.check_rounded,
                   color: AppColors.accent, size: 36),
             ),
           ),

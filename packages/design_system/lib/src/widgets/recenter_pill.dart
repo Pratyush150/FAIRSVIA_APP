@@ -62,7 +62,7 @@ class RecenterPill extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.gps_fixed_rounded,
+                        Icon(Icons.gps_fixed_rounded,
                             size: 17, color: AppColors.accentInk),
                         const SizedBox(width: AppSpacing.sm),
                         Text(

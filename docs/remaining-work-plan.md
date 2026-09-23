@@ -72,6 +72,28 @@ live code instead of trusting them.
 
 ---
 
+## 0. Uber-parity UI (owner request 2026-09-23) — in progress
+
+Goal: using RideVela next to Uber, the apps should look and feel the same —
+colours, type, spacing, buttons, sheets, map, ride list, flows — on Android
+and iOS (one Flutter codebase, so both change together).
+
+**Boundary (legal):** Uber's own brand assets are not copied — its logo,
+the licensed "Uber Move" font, its car illustrations and icon set. Copying
+those is trade-dress infringement. We match the *style*: free equivalents of
+the same visual weight (Inter for type, Material icons, our own car glyphs),
+and the name stays RideVela.
+
+| Phase | What | State |
+|---|---|---|
+| 1 | Design tokens: monochrome palette (white / black / Uber-style greys, black primary actions, blue links), Inter type scale, 8 px radii, 56 px black buttons, light/dark map styles, black route line | ✅ ink follows light/dark; greyscale maps; black pickup ring + drop-off square; borderless cards; grey secondary buttons |
+| 2 | Rider screens: home "Where to?" pill + "Later", search, ride options list (selected = black outline), arriving, in-trip, completed/rating | 🟡 home, search, ride list, route framing, arriving sheet done and seen on the emulator (light + dark); completed/rating and account pages next |
+| 3 | Driver screens: online/offline, offer card, en-route, trip, earnings | ⏳ |
+| 4 | Shared: sign-in/OTP, account/menu, receipts; admin console palette | ⏳ |
+| 5 | Verify: goldens updated, analyzer + tests, screenshots of every screen light + dark on the emulator, APKs to the pilot phones; iPhone check added to `mac-ios-pilot-handoff.md` | ⏳ |
+
+---
+
 ## 1. Blocked on the owner only (not code)
 
 | Priority | Item | Exactly what is needed |

@@ -18,7 +18,7 @@ class _FindingDriver extends StatelessWidget {
           children: [
             // Animated radar sweeping for a nearby driver — reads as the system
             // actively looking, not a generic spinner.
-            const PulseRadar(
+            PulseRadar(
               size: 56,
               child: Icon(Icons.local_taxi_rounded,
                   size: 20, color: AppColors.accent),
@@ -219,14 +219,6 @@ class DriverInfoSheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppStatusChip(
-                    label: arrived ? 'Arrived' : 'On the way',
-                    tone: arrived ? StatusTone.success : StatusTone.accent,
-                    icon: arrived
-                        ? Icons.check_circle_rounded
-                        : Icons.directions_car_rounded,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
                   // Headline ("Bekzod is arriving now") + ETA come from
                   // RideStatus, so every sheet words a moment the same way.
                   RideStatusHeader(status: RideStatus.of(state)),
@@ -263,16 +255,12 @@ class DriverInfoSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           _SheetWarning(message: state.error!),
         ],
-        if (otp != null) ...[
-          const SizedBox(height: AppSpacing.lg),
-          _RidePin(pin: otp, driverName: RideStatus.driverName(state)),
-        ],
-        const SizedBox(height: AppSpacing.md),
-        _PickupSummary(state: state),
-        if (state.trip?.stops.isNotEmpty ?? false)
-          _RideStops(stops: state.trip!.stops),
         const SizedBox(height: AppSpacing.md),
         _DriverVehicleCard(driver: driver),
+        if (otp != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          _RidePin(pin: otp, driverName: RideStatus.driverName(state)),
+        ],
         if (_showOnMyWay) ...[
           const SizedBox(height: AppSpacing.lg),
           _OnMyWayButton(state: state),
@@ -303,7 +291,13 @@ class DriverInfoSheet extends StatelessWidget {
             ],
           ],
         ),
-        const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: AppSpacing.lg),
+        Divider(height: 1, color: theme.dividerColor),
+        const SizedBox(height: AppSpacing.md),
+        _PickupSummary(state: state),
+        if (state.trip?.stops.isNotEmpty ?? false)
+          _RideStops(stops: state.trip!.stops),
+        const SizedBox(height: AppSpacing.md),
         // The fare and the car, reachable while the rider waits.
         RideDetailsButton(state: state),
         const RideCardsSection(),
@@ -324,50 +318,46 @@ class _RidePin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
     final who = driverName == 'Your driver' ? 'your driver' : driverName;
     return Semantics(
       label: 'Ride PIN ${pin.split('').join(' ')}. Tell $who when you get in.',
       excludeSemantics: true,
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: dark ? AppColors.accentSoftDark : AppColors.accentSoft,
-          borderRadius: BorderRadius.circular(AppSpacing.radius),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text('Ride PIN',
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(color: AppColors.accentInk)),
-                ),
-                for (final d in pin.split('')) ...[
-                  Container(
-                    width: 36,
-                    height: 44,
-                    margin: const EdgeInsets.only(left: 6),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                    ),
-                    child: Text(d,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.accentInk)),
-                  ),
-                ],
+                Text('Ride PIN', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 2),
+                Text('Tell $who when you get in',
+                    style: theme.textTheme.bodySmall),
               ],
             ),
-            const SizedBox(height: AppSpacing.xs),
-            Text('Tell $who when you get in',
-                style: theme.textTheme.bodySmall),
-          ],
-        ),
+          ),
+          // The PIN as one ink badge, readable through a car window.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.accent,
+              borderRadius: BorderRadius.circular(AppSpacing.radius),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final d in pin.split(''))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Text(d,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.onAccent,
+                            letterSpacing: 0)),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -413,7 +403,7 @@ class _PickupSummary extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(top: 2),
           child: Icon(Icons.trip_origin_rounded, size: 18, color: AppColors.accent),
         ),
@@ -783,7 +773,7 @@ class _OnTripSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              const Icon(Icons.schedule_rounded,
+              Icon(Icons.schedule_rounded,
                   size: 18, color: AppColors.accent),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
@@ -921,15 +911,17 @@ class _QuickActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
+    // A grey tile, like the shortcut tiles at the bottom of Uber's sheets.
     return AppCard(
       onTap: onTap,
+      color: dark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight,
       child: Row(
         children: [
           Container(
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: dark ? AppColors.accentSoftDark : AppColors.accentSoft,
+              color: theme.colorScheme.surface,
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: AppColors.accentInk, size: 22),
@@ -1241,7 +1233,7 @@ class _RideCardsSectionState extends State<RideCardsSection> {
                 gradient: LinearGradient(
                   colors: dark
                       ? const [AppColors.accentSoftDark, AppColors.surfaceMutedDark]
-                      : const [AppColors.accentSoft, AppColors.surfaceMutedLight],
+                      : [AppColors.accentSoft, AppColors.surfaceMutedLight],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -1249,7 +1241,7 @@ class _RideCardsSectionState extends State<RideCardsSection> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.local_offer_rounded, color: AppColors.accentInk),
+                  Icon(Icons.local_offer_rounded, color: AppColors.accentInk),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(

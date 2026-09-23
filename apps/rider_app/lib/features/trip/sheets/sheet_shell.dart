@@ -38,6 +38,7 @@ class RideSheetForPhase extends StatelessWidget {
           onFixLocation: onFixLocation,
           savedPlaces: savedPlaces,
           onPickSaved: onPickSaved,
+          onSchedule: () => _openPreBook(context, state),
         ),
       TripPhase.loadingEstimate =>
         const _InfoCard(child: _Busy(label: 'Finding the best route…')),
@@ -268,3 +269,26 @@ class _ChatIcon extends StatelessWidget {
 
 /// Whole minutes for a duration, never showing "0 min" for a short hop.
 int _minutes(num seconds) => (seconds / 60).ceil().clamp(1, 9999).toInt();
+
+/// "Later" on the home sheet: pre-book from where the rider is now.
+Future<void> _openPreBook(BuildContext context, TripState state) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final trip = await Navigator.of(context).push<Trip>(MaterialPageRoute(
+    builder: (_) => PreBookPage(
+      repository: sl<TripRepository>(),
+      pickup: state.pickup,
+      pickupAddr: state.pickupAddr,
+      paymentMode: state.paymentMode,
+    ),
+  ));
+  if (trip == null) return;
+  final when = trip.scheduledAt;
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(
+      content: Text(when == null
+          ? 'Ride scheduled. Find it in Account › Scheduled rides.'
+          : 'Ride scheduled for ${_formatSchedule(when)}. '
+              'Find it in Account › Scheduled rides.'),
+    ));
+}

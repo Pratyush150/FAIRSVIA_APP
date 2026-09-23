@@ -49,9 +49,13 @@ class _RiderAppState extends State<RiderApp> {
         // home, or a ride restored from a cold start — so no screen has to
         // know it exists. It hands over on a fixed timer, not on a load
         // event: it is a signature, not a loading screen.
-        builder: (context, child) => BrandSplashGate(
-          child: ErrorOverlay(child: child ?? const SizedBox.shrink()),
-        ),
+        builder: (context, child) {
+          // Ink colours (black on light, white on dark) follow the theme.
+          AppColors.syncBrightness(Theme.of(context).brightness);
+          return BrandSplashGate(
+            child: ErrorOverlay(child: child ?? const SizedBox.shrink()),
+          );
+        },
       ),
     );
   }
