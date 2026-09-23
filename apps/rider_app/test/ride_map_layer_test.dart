@@ -134,6 +134,35 @@ void main() {
           greaterThan(RideMapLayer.minFitSpanM));
     });
 
+    /// Regression: a malformed approach polyline decodes to points at (0, 0)
+    /// — "null island", in the Gulf of Guinea. The camera framed everything
+    /// from there to Pune, so a rider watching their driver approach saw a map
+    /// of the whole world. There was a guard for a too-small span but none for
+    /// a too-large one.
+    test('throws away a camera box that spans the planet', () {
+      // Decodes to [(0, 0), (18.5204, 73.8567)] — null island to the Pune
+      // pickup. That is ~7,700 km across: the old code framed all of it,
+      // because the only guard was for a span that was too *small*.
+      const nullIsland = '??og`pBkcxaM';
+      const state = TripState(
+        phase: TripPhase.driverEnRoute,
+        pickup: pickup,
+        dropoff: dropoff,
+        driverRoutePolyline: nullIsland,
+      );
+      final b = layer(state).fitBounds!;
+      final span = MapUtils.spanMeters(b);
+      expect(span, lessThan(RideMapLayer.maxFitSpanM),
+          reason: 'must not frame null island to the pickup');
+      expect(span, greaterThan(RideMapLayer.minFitSpanM));
+      // It falls back to a box around the pickup, so the rider still sees
+      // where they are standing.
+      for (final p in b) {
+        expect(MapUtils.spanMeters([p, MapUtils.toLatLng(pickup)]),
+            lessThan(RideMapLayer.maxFitSpanM));
+      }
+    });
+
     test('stops re-fitting once the phase has been framed, so follow can run',
         () {
       const state = TripState(

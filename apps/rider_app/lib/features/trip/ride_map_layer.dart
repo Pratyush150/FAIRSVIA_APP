@@ -51,6 +51,11 @@ class RideMapLayer {
   static const double minFitSpanM = 60;
   static const double arrivalBoxHalfSpanM = 125; // ~250 m box
 
+  /// Upper bound on a believable camera fit. City rides are a few kilometres;
+  /// even a long airport run is tens. A span past this is not a long ride, it
+  /// is a corrupt coordinate that has to be thrown away.
+  static const double maxFitSpanM = 300000; // 300 km
+
   /// The active leg for re-routing: 'approach' (driver→pickup) while the
   /// driver is on the way, 'trip' (→destination) once moving, else null.
   String? get legKey {
@@ -210,7 +215,18 @@ class RideMapLayer {
           ? [pickupLL, MapUtils.toLatLng(dropoff), ...r]
           : [pickupLL, MapUtils.toLatLng(dropoff)];
     }
-    if (MapUtils.spanMeters(bounds) < minFitSpanM) {
+    final span = MapUtils.spanMeters(bounds);
+    // Too small (car sitting on the pickup) — the SDK would zoom to its
+    // maximum, so frame a fixed box instead.
+    //
+    // Too large is the more damaging case and used to have no guard at all. A
+    // malformed approach polyline decodes to points at (0, 0) — "null island",
+    // in the Gulf of Guinea — and the camera dutifully framed everything from
+    // there to Pune: the rider watched their driver approach on a map of the
+    // whole world. No real leg of a ride is hundreds of kilometres across, so
+    // anything that big means a bad point got in, and the pickup box is a far
+    // better answer than the planet.
+    if (span < minFitSpanM || span > maxFitSpanM) {
       bounds = MapUtils.boxAround(pickupLL, arrivalBoxHalfSpanM);
     }
     return bounds;
