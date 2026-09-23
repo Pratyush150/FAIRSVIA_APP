@@ -898,7 +898,7 @@ class _RideTierTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppSpacing.radius),
             // The selected ride is outlined in ink; the rest have no box at all.
             side: BorderSide(
-              color: selected ? AppColors.accent : Colors.transparent,
+              color: selected ? AppColors.highlight : Colors.transparent,
               width: 2,
             ),
           ),

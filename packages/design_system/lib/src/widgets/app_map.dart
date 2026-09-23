@@ -750,7 +750,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         gmaps.Polyline(
           polylineId: const gmaps.PolylineId('route'),
           points: [for (final p in route) _g(p)],
-          color: AppColors.accent,
+          color: AppColors.highlight,
           width: 6,
           startCap: _roundCap,
           endCap: _roundCap,
@@ -780,7 +780,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       out.add(gmaps.Polyline(
         polylineId: const gmaps.PolylineId('route'),
         points: [for (final p in split.remaining) _g(p)],
-        color: AppColors.accent,
+        color: AppColors.highlight,
         width: 6,
         startCap: _roundCap,
         endCap: _roundCap,
