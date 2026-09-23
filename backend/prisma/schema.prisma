@@ -583,3 +583,24 @@ model SafetyIncident {
   @@index([tripId])
   @@map("safety_incidents")
 }
+
+/// Promotional / recommendation cards shown under the ride details while a
+/// rider waits (admin-managed; the brief's "promotional content").
+model RideCard {
+  id        String    @id @default(uuid()) @db.Uuid
+  title     String    @db.VarChar(80)
+  body      String    @db.VarChar(240)
+  /// none | promo_code | url
+  ctaType   String    @default("none") @map("cta_type") @db.VarChar(12)
+  ctaLabel  String?   @map("cta_label") @db.VarChar(40)
+  ctaValue  String?   @map("cta_value") @db.VarChar(500)
+  active    Boolean   @default(true)
+  startsAt  DateTime? @map("starts_at") @db.Timestamptz(6)
+  endsAt    DateTime? @map("ends_at") @db.Timestamptz(6)
+  sortOrder Int       @default(0) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([active, sortOrder])
+  @@map("ride_cards")
+}

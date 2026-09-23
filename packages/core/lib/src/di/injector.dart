@@ -21,6 +21,7 @@ import '../account/inbox_remote_data_source.dart';
 import '../account/support_remote_data_source.dart';
 import '../account/users_remote_data_source.dart';
 import '../chat/chat_remote_data_source.dart';
+import '../content/content_remote_data_source.dart';
 import '../safety/safety_remote_data_source.dart';
 
 /// Shared service locator.
@@ -103,5 +104,9 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
     // Safety toolkit (SOS).
     ..registerSingleton<SafetyRemoteDataSource>(
       SafetyRemoteDataSource(sl<DioClient>().authenticatedDio),
+    )
+    // Admin-managed content (promo cards under the ride).
+    ..registerSingleton<ContentRemoteDataSource>(
+      ContentRemoteDataSource(sl<DioClient>().authenticatedDio),
     );
 }

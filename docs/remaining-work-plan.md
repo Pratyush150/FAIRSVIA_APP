@@ -49,6 +49,8 @@ live code instead of trusting them.
 
 | Finding | Status |
 |---|---|
+| **e2e SOS tests left open alerts in the dev database**: 15 open incidents from test phones showed in the admin console's SOS banner and would fire `SosRaised` in dev monitoring | Fixed: the suite deletes its incident in `afterAll`; the 15 test incidents were closed with a note. After a full e2e run, 0 open |
+| **Ending a ride early after adding a stop can still charge most of the stop fare**: a ride ended 256 m in was charged $26.46, because of the 0.8× floor on the quote, and that quote included a stop the car never reached | Tracked, needs a decision: should the floor apply only when the whole quoted route was driven? |
 | **Production queues would never connect**: BullMQ dropped the Redis password, and the prod Redis requires one — dispatch, payments and notifications would all fail | Fixed + proven against a password-protected Redis (old options time out, new ones process the job). Uncommitted at time of writing |
 | e2e workers consumed the dev server's live jobs (shared Redis), slowing teardown past 60 s | Fix ready (`QUEUE_PREFIX=e2e` for tests); being verified |
 | e2e teardown failed green suites (5 s hook limit) | Fixed (60 s) |

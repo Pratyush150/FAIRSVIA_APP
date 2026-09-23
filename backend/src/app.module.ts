@@ -39,6 +39,7 @@ import { BackgroundModule } from './background/background.module';
 import { EmailModule } from './email/email.module';
 import { AuditModule } from './common/audit/audit.module';
 import { OpsModule } from './ops/ops.module';
+import { ContentModule } from './content/content.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -83,6 +84,7 @@ import { HealthController } from './health/health.controller';
     FavoritesModule,
     SupportModule,
     BackgroundModule,
+    ContentModule,
   ],
   controllers: [HealthController],
   providers: [

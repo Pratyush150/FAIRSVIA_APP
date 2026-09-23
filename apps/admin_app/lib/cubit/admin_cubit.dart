@@ -21,6 +21,7 @@ enum AdminTab {
   live,
   support,
   promos,
+  content,
   pricing,
   comparison,
   controls
@@ -46,6 +47,7 @@ class AdminState extends Equatable {
     this.comparisonModels = const [],
     this.opsFlags = const [],
     this.incidents = const [],
+    this.rideCards = const [],
     this.openIncidents = 0,
   });
 
@@ -72,6 +74,7 @@ class AdminState extends Equatable {
   final AdminSurge surge;
   final List<AdminComparisonModel> comparisonModels;
   final List<AdminSafetyIncident> incidents;
+  final List<AdminRideCard> rideCards;
 
   /// Unresolved-and-unacknowledged SOS count. Refreshed on every tick, on
   /// every tab, so ops see a new SOS wherever they are.
@@ -97,6 +100,7 @@ class AdminState extends Equatable {
     AdminSurge? surge,
     List<AdminComparisonModel>? comparisonModels,
     List<AdminSafetyIncident>? incidents,
+    List<AdminRideCard>? rideCards,
     int? openIncidents,
   }) {
     return AdminState(
@@ -118,6 +122,7 @@ class AdminState extends Equatable {
       surge: surge ?? this.surge,
       comparisonModels: comparisonModels ?? this.comparisonModels,
       incidents: incidents ?? this.incidents,
+      rideCards: rideCards ?? this.rideCards,
       openIncidents: openIncidents ?? this.openIncidents,
     );
   }
@@ -143,6 +148,7 @@ class AdminState extends Equatable {
         comparisonModels,
         incidents,
         openIncidents,
+        rideCards,
       ];
 }
 
@@ -204,6 +210,8 @@ class AdminCubit extends Cubit<AdminState> {
           emit(state.copyWith(loading: false, tickets: tickets));
         case AdminTab.promos:
           emit(state.copyWith(loading: false, promos: await _api.promos()));
+        case AdminTab.content:
+          emit(state.copyWith(loading: false, rideCards: await _api.rideCards()));
         case AdminTab.pricing:
           final fares = await _api.fares();
           final surge = await _api.surge();
@@ -241,6 +249,7 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.drivers:
         case AdminTab.support:
         case AdminTab.promos:
+        case AdminTab.content:
         case AdminTab.pricing:
         case AdminTab.comparison:
         case AdminTab.controls:
@@ -273,6 +282,21 @@ class AdminCubit extends Cubit<AdminState> {
     } on ApiException catch (e) {
       emit(state.copyWith(error: e.message));
       rethrow;
+    }
+  }
+
+  /// Create ([id] null) or update a promo card, then reload the list.
+  Future<void> saveRideCard(Map<String, dynamic> body, {String? id}) async {
+    await _api.saveRideCard(body, id: id);
+    emit(state.copyWith(rideCards: await _api.rideCards()));
+  }
+
+  Future<void> deleteRideCard(String id) async {
+    try {
+      await _api.deleteRideCard(id);
+      emit(state.copyWith(rideCards: await _api.rideCards()));
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
     }
   }
 

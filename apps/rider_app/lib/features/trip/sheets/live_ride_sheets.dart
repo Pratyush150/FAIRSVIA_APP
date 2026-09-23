@@ -306,6 +306,7 @@ class DriverInfoSheet extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         // The fare and the car, reachable while the rider waits.
         RideDetailsButton(state: state),
+        const RideCardsSection(),
         const SizedBox(height: AppSpacing.md),
         _RideQuickActions(state: state),
       ],
@@ -1166,6 +1167,115 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
             onPressed: _adding ? null : () => Navigator.of(context).pop(false),
             child: const Text('Not now'),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Admin-managed promo / recommendation cards under the ride details. Purely
+/// additive: if they cannot be loaded, the section is simply absent.
+class RideCardsSection extends StatefulWidget {
+  const RideCardsSection({super.key, this.load, this.openUrl});
+
+  /// Injectable for tests; defaults to the content API.
+  final Future<List<RideCard>> Function()? load;
+  final Future<bool> Function(String url)? openUrl;
+
+  @override
+  State<RideCardsSection> createState() => _RideCardsSectionState();
+}
+
+class _RideCardsSectionState extends State<RideCardsSection> {
+  List<RideCard> _cards = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final cards =
+          await (widget.load ?? () => sl<ContentRemoteDataSource>().rideCards())();
+      if (mounted) setState(() => _cards = cards);
+    } catch (_) {
+      // Promotions must never get in the way of the ride.
+    }
+  }
+
+  Future<void> _act(RideCard c) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final value = c.ctaValue!;
+    if (c.ctaType == 'promo_code') {
+      await Clipboard.setData(ClipboardData(text: value));
+      AppHaptics.selection();
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+            content: Text('Code $value copied — add it when you book your next ride.')));
+      return;
+    }
+    final ok = await (widget.openUrl ?? openExternalUrl)(value);
+    if (!ok) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text("Couldn't open that link.")));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_cards.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final c in _cards) ...[
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: dark
+                      ? const [AppColors.accentSoftDark, AppColors.surfaceMutedDark]
+                      : const [AppColors.accentSoft, AppColors.surfaceMutedLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(AppSpacing.radius),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.local_offer_rounded, color: AppColors.accentInk),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(c.title, style: theme.textTheme.titleSmall),
+                        const SizedBox(height: 2),
+                        Text(c.body,
+                            style: theme.textTheme.bodySmall,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  if (c.hasAction) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    TextButton(
+                      onPressed: () => _act(c),
+                      child: Text(c.ctaLabel!),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
         ],
       ),
     );

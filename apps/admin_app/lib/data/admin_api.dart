@@ -324,6 +324,52 @@ class AdminSafetyIncident {
       : 'https://maps.google.com/?q=${lat!.toStringAsFixed(5)},${lng!.toStringAsFixed(5)}';
 }
 
+/// A promo / recommendation card shown under the ride (admin view).
+class AdminRideCard {
+  const AdminRideCard({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.ctaType,
+    required this.active,
+    required this.sortOrder,
+    this.ctaLabel,
+    this.ctaValue,
+    this.startsAt,
+    this.endsAt,
+  });
+
+  factory AdminRideCard.fromJson(Map<String, dynamic> j) => AdminRideCard(
+        id: j['id'] as String,
+        title: j['title'] as String,
+        body: j['body'] as String,
+        ctaType: j['ctaType'] as String? ?? 'none',
+        ctaLabel: j['ctaLabel'] as String?,
+        ctaValue: j['ctaValue'] as String?,
+        active: j['active'] as bool? ?? false,
+        sortOrder: (j['sortOrder'] as num?)?.toInt() ?? 0,
+        startsAt: j['startsAt'] == null ? null : DateTime.parse(j['startsAt'] as String).toLocal(),
+        endsAt: j['endsAt'] == null ? null : DateTime.parse(j['endsAt'] as String).toLocal(),
+      );
+
+  final String id;
+  final String title;
+  final String body;
+  final String ctaType;
+  final String? ctaLabel;
+  final String? ctaValue;
+  final bool active;
+  final int sortOrder;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+
+  /// Active and inside its window right now — what riders actually see.
+  bool isLiveAt(DateTime now) =>
+      active &&
+      (startsAt == null || !startsAt!.isAfter(now)) &&
+      (endsAt == null || endsAt!.isAfter(now));
+}
+
 /// A support ticket in the admin queue. [messages] is populated only when a
 /// single thread is fetched.
 class AdminSupportMessage {
@@ -703,6 +749,23 @@ class AdminApi {
   Future<void> updateIncident(String id, String status, {String? note}) =>
       _guard(() => _dio.patch('/admin/safety/$id',
           data: {'status': status, 'note': ?note}));
+
+  /// Promo cards under the ride (`/admin/content/ride-cards`).
+  Future<List<AdminRideCard>> rideCards() async {
+    final res = await _guard(() => _dio.get<List<dynamic>>('/admin/content/ride-cards'));
+    return res.data!
+        .map((e) => AdminRideCard.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> saveRideCard(Map<String, dynamic> body, {String? id}) => _guard(
+        () => id == null
+            ? _dio.post('/admin/content/ride-cards', data: body)
+            : _dio.patch('/admin/content/ride-cards/$id', data: body),
+      );
+
+  Future<void> deleteRideCard(String id) =>
+      _guard(() => _dio.delete('/admin/content/ride-cards/$id'));
 
   /// Support queue (`GET /admin/support/tickets`), optionally filtered.
   Future<List<AdminSupportTicket>> supportTickets({String? status}) async {

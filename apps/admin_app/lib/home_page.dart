@@ -128,6 +128,11 @@ class _AdminScaffold extends StatelessWidget {
                     label: Text('Promos'),
                   ),
                   const NavigationRailDestination(
+                    icon: Icon(Icons.view_carousel_outlined),
+                    selectedIcon: Icon(Icons.view_carousel),
+                    label: Text('Content'),
+                  ),
+                  const NavigationRailDestination(
                     icon: Icon(Icons.payments_outlined),
                     selectedIcon: Icon(Icons.payments),
                     label: Text('Pricing'),
@@ -181,6 +186,7 @@ class _AdminScaffold extends StatelessWidget {
         AdminTab.live => 'Live map',
         AdminTab.support => 'Support',
         AdminTab.promos => 'Promotions',
+        AdminTab.content => 'Content — cards under the ride',
         AdminTab.pricing => 'Pricing & surge',
         AdminTab.comparison => 'Price comparison & calibration',
         AdminTab.controls => 'Operational controls',
@@ -253,6 +259,7 @@ class _Body extends StatelessWidget {
       AdminTab.safety => _SafetyView(incidents: state.incidents),
       AdminTab.support => _SupportView(state: state),
       AdminTab.promos => _PromosView(promos: state.promos),
+      AdminTab.content => _ContentView(cards: state.rideCards),
       AdminTab.pricing => _PricingView(fares: state.fares, surge: state.surge),
       AdminTab.comparison =>
         _ComparisonView(models: state.comparisonModels),
@@ -2071,3 +2078,234 @@ class _IncidentCard extends StatelessWidget {
     );
   }
 }
+
+/// Promo / recommendation cards riders see under the ride details.
+class _ContentView extends StatelessWidget {
+  const _ContentView({required this.cards});
+
+  final List<AdminRideCard> cards;
+
+  Future<void> _edit(BuildContext context, [AdminRideCard? card]) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => BlocProvider.value(
+        value: context.read<AdminCubit>(),
+        child: _RideCardEditor(card: card),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    final live = cards.where((c) => c.isLiveAt(now)).length;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xl),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                live == 0
+                    ? 'No card is live — riders see nothing under the ride.'
+                    : '$live live now. Riders see up to 3, lowest order first.',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: () => _edit(context),
+              icon: const Icon(Icons.add),
+              label: const Text('New card'),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (cards.isEmpty)
+          const EmptyState(
+            icon: Icons.view_carousel_outlined,
+            title: 'No cards yet',
+            message: 'A card is a short offer or tip shown under the ride '
+                'details while a rider waits — optionally with a promo code '
+                'to copy or a link to open.',
+          ),
+        for (final c in cards) ...[
+          AppCard(
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 72,
+                  child: Text(
+                    c.isLiveAt(now) ? 'LIVE' : (c.active ? 'SCHEDULED' : 'PAUSED'),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: c.isLiveAt(now) ? AppColors.success : AppColors.textTertiaryLight,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('#${c.sortOrder}  ${c.title}', style: theme.textTheme.titleSmall),
+                      Text(c.body, style: theme.textTheme.bodySmall),
+                      if (c.ctaType != 'none')
+                        Text(
+                          c.ctaType == 'promo_code'
+                              ? '“${c.ctaLabel}” copies code ${c.ctaValue}'
+                              : '“${c.ctaLabel}” opens ${c.ctaValue}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: c.active,
+                  onChanged: (v) => context
+                      .read<AdminCubit>()
+                      .saveRideCard({'active': v}, id: c.id),
+                ),
+                IconButton(
+                  tooltip: 'Edit',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _edit(context, c),
+                ),
+                IconButton(
+                  tooltip: 'Delete',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => context.read<AdminCubit>().deleteRideCard(c.id),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+      ],
+    );
+  }
+}
+
+class _RideCardEditor extends StatefulWidget {
+  const _RideCardEditor({this.card});
+
+  final AdminRideCard? card;
+
+  @override
+  State<_RideCardEditor> createState() => _RideCardEditorState();
+}
+
+class _RideCardEditorState extends State<_RideCardEditor> {
+  late final _title = TextEditingController(text: widget.card?.title ?? '');
+  late final _body = TextEditingController(text: widget.card?.body ?? '');
+  late final _label = TextEditingController(text: widget.card?.ctaLabel ?? '');
+  late final _value = TextEditingController(text: widget.card?.ctaValue ?? '');
+  late final _order =
+      TextEditingController(text: '${widget.card?.sortOrder ?? 0}');
+  late String _type = widget.card?.ctaType ?? 'none';
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    for (final c in [_title, _body, _label, _value, _order]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await context.read<AdminCubit>().saveRideCard({
+        'title': _title.text.trim(),
+        'body': _body.text.trim(),
+        'ctaType': _type,
+        if (_type != 'none') 'ctaLabel': _label.text.trim(),
+        if (_type != 'none') 'ctaValue': _value.text.trim(),
+        'sortOrder': int.tryParse(_order.text.trim()) ?? 0,
+      }, id: widget.card?.id);
+      if (mounted) Navigator.of(context).pop();
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.card == null ? 'New card' : 'Edit card'),
+      content: SizedBox(
+        width: 460,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _title,
+                maxLength: 80,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              TextField(
+                controller: _body,
+                maxLength: 240,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'Text'),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: _type,
+                decoration: const InputDecoration(labelText: 'Button'),
+                items: const [
+                  DropdownMenuItem(value: 'none', child: Text('No button')),
+                  DropdownMenuItem(value: 'promo_code', child: Text('Copy a promo code')),
+                  DropdownMenuItem(value: 'url', child: Text('Open a link')),
+                ],
+                onChanged: (v) => setState(() => _type = v ?? 'none'),
+              ),
+              if (_type != 'none') ...[
+                TextField(
+                  controller: _label,
+                  maxLength: 40,
+                  decoration: const InputDecoration(labelText: 'Button label'),
+                ),
+                TextField(
+                  controller: _value,
+                  decoration: InputDecoration(
+                    labelText: _type == 'url' ? 'Link (https://…)' : 'Promo code',
+                  ),
+                ),
+              ],
+              TextField(
+                controller: _order,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                    labelText: 'Order (lower shows first)'),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(_error!, style: const TextStyle(color: AppColors.error)),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? 'Saving…' : 'Save'),
+        ),
+      ],
+    );
+  }
+}
+

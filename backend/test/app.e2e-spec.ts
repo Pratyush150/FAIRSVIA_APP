@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { RedisService } from '../src/common/redis/redis.service';
+import { PrismaService } from '../src/common/prisma/prisma.service';
 import { RedisKeys } from '../src/common/redis/redis.keys';
 
 /**
@@ -72,6 +73,11 @@ describe('Ride App API (e2e)', () => {
   // job can be mid-offer when the suite ends, so the default 5 s hook limit
   // intermittently failed the suite with every test green.
   afterAll(async () => {
+    // The suite's SOS must not linger: on a shared dev database it shows up
+    // as a real open alert in the admin console and fires SosRaised.
+    if (tripId) {
+      await app.get(PrismaService).safetyIncident.deleteMany({ where: { tripId } });
+    }
     await app.close();
   }, 60_000);
 
