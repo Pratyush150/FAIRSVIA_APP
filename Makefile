@@ -61,3 +61,14 @@ logs: ## Tail backend logs
 
 migrate: ## Create/apply a Prisma migration (NAME=your_migration)
 	docker exec ubernav_backend npx prisma migrate dev --name $(NAME)
+
+BACKUP_DIR ?= /var/backups/ridevela
+DB_PG = docker run --rm --network infra_default -e PGHOST=postgres -e PGUSER=ubernav \
+	-e PGPASSWORD=$${PGPASSWORD:-ubernav} -e PGDATABASE=ubernav \
+	-v $(CURDIR)/infra/backup:/scripts:ro -v $(BACKUP_DIR):/backups postgis/postgis:16-3.4
+
+backup-db: ## One verified Postgres backup of the dev DB into BACKUP_DIR (see infra/backup/README.md)
+	$(DB_PG) /scripts/pg-backup.sh
+
+restore-db: ## Restore DUMP=<file under BACKUP_DIR> into TARGET=<scratch db name>
+	$(DB_PG) /scripts/pg-restore.sh /backups/$(patsubst $(BACKUP_DIR)/%,%,$(DUMP)) $(TARGET)

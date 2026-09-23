@@ -137,6 +137,8 @@ services:
     command:
       - '--path.rootfs=/rootfs'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|run|var/lib/docker/.+)($$|/)'
+      # Postgres backup freshness, written by infra/backup/pg-backup.sh.
+      - '--collector.textfile.directory=/rootfs/var/backups/ridevela/metrics'
     pid: host
     volumes:
       - /:/rootfs:ro,rslave

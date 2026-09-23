@@ -172,6 +172,65 @@ jobs:
         run: kill "$(cat /tmp/backend.pid)" 2>/dev/null || true
 
   # ---------------------------------------------------------------------------
+  # Infra: the parts of production that no app test touches. Alert rules must
+  # parse, nginx must accept its TLS config, and a backup must restore to the
+  # same data — a backup that has never been restored is only a hope.
+  # ---------------------------------------------------------------------------
+  infra:
+    name: Infra (alerts, TLS config, backup round-trip)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: ubernav
+          POSTGRES_PASSWORD: ubernav
+          POSTGRES_DB: ubernav
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ubernav"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      PGHOST: localhost
+      PGUSER: ubernav
+      PGPASSWORD: ubernav
+      PGDATABASE: ubernav
+    steps:
+      - uses: actions/checkout@v4
+      - name: Alert rules parse
+        run: |
+          docker run --rm -v "$PWD/infra/monitoring/prometheus:/p:ro" \
+            --entrypoint promtool prom/prometheus:v2.54.1 check rules /p/alerts.yml
+      - name: Compose files are valid
+        run: |
+          POSTGRES_PASSWORD=ci REDIS_PASSWORD=ci docker compose -f infra/docker-compose.prod.yml config -q
+          docker compose -f infra/monitoring/docker-compose.monitoring.yml config -q
+      - name: nginx accepts the TLS config
+        run: |
+          mkdir -p /tmp/certs
+          openssl req -x509 -nodes -newkey rsa:2048 -days 1 -subj "/CN=ci" \
+            -keyout /tmp/certs/privkey.pem -out /tmp/certs/fullchain.pem
+          docker run --rm --add-host backend1:127.0.0.1 --add-host backend2:127.0.0.1 \
+            -v "$PWD/infra/nginx:/etc/nginx/ridevela:ro" -v /tmp/certs:/etc/nginx/certs:ro \
+            nginx:1.27-alpine nginx -t -c /etc/nginx/ridevela/nginx.conf
+      - name: Backup → restore round-trip
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "CREATE TABLE drill(id int PRIMARY KEY, note text);
+            INSERT INTO drill SELECT g, md5(g::text) FROM generate_series(1,5000) g;"
+          docker run --rm --network host -e PGHOST -e PGUSER -e PGPASSWORD -e PGDATABASE \
+            -v "$PWD/infra/backup:/scripts:ro" -v /tmp/backups:/backups \
+            postgis/postgis:16-3.4 /scripts/pg-backup.sh
+          dump=$(ls /tmp/backups/daily/*.dump)
+          test -f /tmp/backups/metrics/pg_backup.prom
+          docker run --rm --network host -e PGHOST -e PGUSER -e PGPASSWORD \
+            -v "$PWD/infra/backup:/scripts:ro" -v /tmp/backups:/backups \
+            postgis/postgis:16-3.4 /scripts/pg-restore.sh "/backups/daily/$(basename "$dump")" drill_restore
+          live=$(psql -Atc "SELECT count(*), sum(hashtext(note)) FROM drill")
+          restored=$(psql -d drill_restore -Atc "SELECT count(*), sum(hashtext(note)) FROM drill")
+          echo "live=$live restored=$restored"
+          test "$live" = "$restored"
+
+  # ---------------------------------------------------------------------------
   # Flutter: static analysis + widget/bloc tests across the whole workspace.
   # ---------------------------------------------------------------------------
   flutter:

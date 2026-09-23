@@ -1,10 +1,11 @@
 # Production-style deployment: compiled image (no source mount), TWO
 # load-balanced backend replicas behind nginx, isolated volumes. Runs entirely
 # separately from the dev stack (docker-compose.yml) — different project name,
-# its own Postgres/Redis, and only nginx is published (on :8088).
+# its own Postgres/Redis, and only nginx is published (:8088 HTTP → redirect,
+# :8443 HTTPS by default; see HTTP_PORT/HTTPS_PORT below).
 #
 #   docker compose -p ubernav_prod -f infra/docker-compose.prod.yml up -d --build
-#   curl http://localhost:8088/api/v1/health
+#   curl -k https://localhost:8443/api/v1/health   # -k only while on the placeholder cert
 #   docker compose -p ubernav_prod -f infra/docker-compose.prod.yml down
 #
 # Set real secrets in backend/.env.prod (copy from backend/.env.prod.example).
@@ -69,17 +70,64 @@ services:
   backend2:
     <<: *backend
 
+  # Nightly verified pg_dump with daily/weekly/monthly rotation. A host bind
+  # mount, not a named volume: backups must survive `docker volume rm` and be
+  # easy to copy off the box. Restore procedure: infra/backup/README.md.
+  pg_backup:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    entrypoint: ["/scripts/backup-loop.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ubernav
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
+      PGDATABASE: ubernav
+      BACKUP_HOUR_UTC: ${BACKUP_HOUR_UTC:-21}
+    volumes:
+      - ./backup:/scripts:ro
+      - ${BACKUP_HOST_DIR:-/var/backups/ridevela}:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Issues and renews the TLS certificate (infra/tls/README.md).
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    entrypoint: ["/scripts/certbot-loop.sh"]
+    environment:
+      TLS_DOMAIN: ${TLS_DOMAIN:-localhost}
+    volumes:
+      - ./tls:/scripts:ro
+      - tls_certs:/certs
+      - letsencrypt:/etc/letsencrypt
+      - acme_webroot:/var/www/certbot
+
+  # On the real server set HTTP_PORT=80 and HTTPS_PORT=443 in infra/.env —
+  # Let's Encrypt and the apps expect the standard ports. The defaults avoid
+  # clashing with anything else on a shared box.
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
+    entrypoint: ["/tls/nginx-start.sh"]
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # The directory, not the single file: a file bind mount pins the old
+      # inode, so after a `git pull` a reload would keep serving the old config.
+      - ./nginx:/etc/nginx/ridevela:ro
+      - ./tls:/tls:ro
+      - tls_certs:/etc/nginx/certs:ro
+      - acme_webroot:/var/www/certbot:ro
     ports:
-      - "8088:80"
+      - "${HTTP_PORT:-8088}:80"
+      - "${HTTPS_PORT:-8443}:443"
     depends_on:
       - backend1
       - backend2
+      - certbot
 
 volumes:
   prod_pgdata:
   prod_redisdata:
+  tls_certs:
+  letsencrypt:
+  acme_webroot:

@@ -101,6 +101,20 @@ groups:
 
   - name: ridevela-infrastructure
     rules:
+      - alert: PgBackupStale
+        # Nightly job; 26h allows one late run. Only fires once a backup has
+        # ever succeeded — before that the series does not exist, so a stack
+        # where backups never ran is NOT caught here (check the README).
+        expr: time() - ridevela_pg_backup_last_success_timestamp_seconds > 26 * 3600
+        for: 15m
+        labels: { severity: critical }
+        annotations:
+          summary: 'No verified Postgres backup in over 26 hours'
+          description: >-
+            Check `docker logs` of the pg_backup service. Until this clears,
+            the most recent restorable copy of trips, payments and the driver
+            ledger is older than a day.
+
       - alert: DiskSpaceLow
         # Already breached on the current host (97% used). Left at 90% so it
         # keeps meaning something once that is cleaned up.
