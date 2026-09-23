@@ -13,7 +13,7 @@ detail; where they disagree with this file, **this file wins**.
 
 | | State |
 |---|---|
-| **Android** | Pilot APKs built (release, v1.1.0 build 5001) and verified today on the emulator **through the public link, placed in Pune**: rider and driver, full ride from login to completion. |
+| **Android** | Pilot APKs **v1.2.0 (build 5002)** — the Uber-style UI — on two real phones (Realme RMX3381, Moto G34) and verified on the emulator **through the public link, placed in Pune**, light and dark mode. |
 | **iOS** | **Not built since 2026-09-14.** Cannot be built on the Linux server. Last run was on simulators only — **never on a physical iPhone**. Everything below is what needs proving. |
 | **Backend** | Runs in Docker on the Linux box (office). Reached by phones through a **public HTTPS link** (Cloudflare tunnel). |
 | **Market** | Pilot is **Pune, India**: rupees (₹), kilometres, +91 phone numbers, Pune fares. (Uzbekistan launch later uses the same switches with `uz`.) |
@@ -103,7 +103,7 @@ for app in rider_app driver_app; do
     --dart-define=API_BASE_URL=$URL \
     --dart-define=MARKET=in \
     --dart-define=ALLOW_SERVER_OVERRIDE=true \
-    --build-name=1.1.0 --build-number=5001
+    --build-name=1.2.0 --build-number=5002
   cd ../..
 done
 ```
@@ -168,6 +168,20 @@ anything different in §9 of `remaining-work-plan.md` with a screenshot.
 7. **Background:** lock the phone while online on a trip for a minute → the
    rider still sees the car move (driver declares background location).
 
+**UI (v1.2.0, Uber-style) — must match Android, light AND dark mode**
+1. Font is **Inter** everywhere (not the iOS system font). If you see San
+   Francisco, the font asset didn't load — check `packages/design_system/fonts/Inter-*.ttf`.
+2. Main buttons are **black with white text in light mode, white with black
+   text in dark mode** (Settings → Display → Dark to test). Nothing black-on-black.
+3. Map is **greyscale** (no blue river / yellow road shields), dark in dark mode;
+   route line black (white in dark); pickup = black ring, drop-off = black square.
+4. Home: one rounded **"Where to?"** bar with a **"Later"** chip inside.
+5. Ride list: no boxes around rows; the selected ride has a **2 px black outline**;
+   "Economy 👤4 · 8:02 PM · 4 min away · ₹93.11 · Details".
+6. Arriving sheet: headline, driver row, **PIN as one black badge**, grey
+   **Message** button, grey "Add a stop" / "Pre-book" tiles.
+7. The whole route is visible **above** the ride list (not hidden behind it).
+
 **iOS-specific things Android can't tell us — look for them**
 - Notch / Dynamic Island / home bar covering buttons (safe areas).
 - Keyboard covering the Continue / Verify / Save buttons.
@@ -177,7 +191,26 @@ anything different in §9 of `remaining-work-plan.md` with a screenshot.
 
 ---
 
-## 8. Blockers and owner actions (not code)
+## 8. Git and the shared server — rules for the Mac
+
+The phones, the emulator and the Mac all use the **same live server and
+database**. Things done from the Mac are visible to everyone testing.
+
+- **Never cancel, delete or reset other people's rides or data** to get a
+  clean state (a ride was cancelled from outside as "iOS verification reset"
+  on 2026-09-23 while Android was mid-test). Use your own demo account and
+  finish or cancel only your own rides from the app.
+- Don't touch `backend/`, `infra/` or the server's `.env` from the Mac — the
+  server runs on the Linux box. iOS work is `apps/*/ios/` and, if a real bug
+  needs it, Dart in `apps/` / `packages/`.
+- Git: work on `main`, small commits, message prefix `ios:`; always
+  `git pull --rebase origin main` before `git push origin main` (the Linux
+  box pushes too). Never force-push. Never commit `Secrets.xcconfig`,
+  signing/team changes, or a changed bundle ID.
+- A Dart change must keep Android working: run `flutter analyze` and
+  `flutter test` in every package you touched before pushing.
+
+## 9. Blockers and owner actions (not code)
 
 | Item | Why | How |
 |---|---|---|
@@ -188,10 +221,9 @@ anything different in §9 of `remaining-work-plan.md` with a screenshot.
 
 ---
 
-## 9. What is NOT in this pilot (so nobody promises it)
+## 10. What is NOT in this pilot (so nobody promises it)
 
 - Real SMS login for arbitrary numbers (demo accounts only).
 - Card payments in the pilot (Stripe is test-mode; cash is the pilot's payment).
 - Driver photo and car photo on the arriving screen (initials + car icon for now).
 - Uzbek / Russian languages; Uzbekistan map data.
-- The full Grafana analytics dashboard (metrics are collected; panels pending).
