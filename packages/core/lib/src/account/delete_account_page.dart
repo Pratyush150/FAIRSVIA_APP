@@ -119,7 +119,8 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                           icon: Icons.delete_outline_rounded,
                           title: 'Erased',
                           body: 'Your name, email, photo, saved places, '
-                              'cards, favourites and notifications.',
+                              'cards, favourites, emergency contacts '
+                              'and notifications.',
                         ),
                         const _Fact(
                           icon: Icons.event_busy_rounded,

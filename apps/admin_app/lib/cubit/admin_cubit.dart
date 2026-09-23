@@ -14,6 +14,7 @@ import '../data/admin_api.dart';
 /// looked at until an incident, and by then it could only show `now`.
 enum AdminTab {
   overview,
+  safety,
   trips,
   users,
   drivers,
@@ -44,6 +45,8 @@ class AdminState extends Equatable {
     this.surge = AdminSurge.empty,
     this.comparisonModels = const [],
     this.opsFlags = const [],
+    this.incidents = const [],
+    this.openIncidents = 0,
   });
 
   final AdminTab tab;
@@ -68,6 +71,11 @@ class AdminState extends Equatable {
   final List<AdminFare> fares;
   final AdminSurge surge;
   final List<AdminComparisonModel> comparisonModels;
+  final List<AdminSafetyIncident> incidents;
+
+  /// Unresolved-and-unacknowledged SOS count. Refreshed on every tick, on
+  /// every tab, so ops see a new SOS wherever they are.
+  final int openIncidents;
 
   AdminState copyWith({
     AdminTab? tab,
@@ -88,6 +96,8 @@ class AdminState extends Equatable {
     List<AdminFare>? fares,
     AdminSurge? surge,
     List<AdminComparisonModel>? comparisonModels,
+    List<AdminSafetyIncident>? incidents,
+    int? openIncidents,
   }) {
     return AdminState(
       tab: tab ?? this.tab,
@@ -107,6 +117,8 @@ class AdminState extends Equatable {
       fares: fares ?? this.fares,
       surge: surge ?? this.surge,
       comparisonModels: comparisonModels ?? this.comparisonModels,
+      incidents: incidents ?? this.incidents,
+      openIncidents: openIncidents ?? this.openIncidents,
     );
   }
 
@@ -129,6 +141,8 @@ class AdminState extends Equatable {
         fares,
         surge,
         comparisonModels,
+        incidents,
+        openIncidents,
       ];
 }
 
@@ -142,6 +156,7 @@ class AdminCubit extends Cubit<AdminState> {
 
   Future<void> start() async {
     await refresh();
+    await _refreshIncidents();
     _timer?.cancel();
     _timer = Timer.periodic(
       const Duration(seconds: 6),
@@ -162,6 +177,13 @@ class AdminCubit extends Cubit<AdminState> {
           final stats = await _api.stats();
           final trips = await _api.trips(status: 'active', limit: 20);
           emit(state.copyWith(loading: false, stats: stats, trips: trips));
+        case AdminTab.safety:
+          final incidents = await _api.safetyIncidents();
+          emit(state.copyWith(
+            loading: false,
+            incidents: incidents,
+            openIncidents: incidents.where((i) => i.isOpen).length,
+          ));
         case AdminTab.trips:
           final trips = await _api.trips(limit: 100);
           emit(state.copyWith(loading: false, trips: trips));
@@ -202,6 +224,7 @@ class AdminCubit extends Cubit<AdminState> {
   /// Silent refresh for the timer — never flips the loading flag or clobbers
   /// the view with an error banner.
   Future<void> _refreshLive() async {
+    await _refreshIncidents();
     try {
       switch (state.tab) {
         case AdminTab.overview:
@@ -212,6 +235,8 @@ class AdminCubit extends Cubit<AdminState> {
           emit(state.copyWith(trips: await _api.trips(limit: 100)));
         case AdminTab.live:
           emit(state.copyWith(live: await _api.live()));
+        case AdminTab.safety:
+          return; // refreshed by _refreshIncidents above
         case AdminTab.users:
         case AdminTab.drivers:
         case AdminTab.support:
@@ -223,6 +248,31 @@ class AdminCubit extends Cubit<AdminState> {
       }
     } catch (_) {
       // Ignore transient refresh failures; the next tick retries.
+    }
+  }
+
+  /// Runs on every tick whatever the tab, so a new SOS reaches ops within
+  /// one refresh interval.
+  Future<void> _refreshIncidents() async {
+    try {
+      final incidents = await _api.safetyIncidents();
+      emit(state.copyWith(
+        incidents: incidents,
+        openIncidents: incidents.where((i) => i.isOpen).length,
+      ));
+    } catch (_) {
+      // Transient; the next tick retries.
+    }
+  }
+
+  /// Mark an SOS as being handled, or close it with a note.
+  Future<void> updateIncident(String id, String status, {String? note}) async {
+    try {
+      await _api.updateIncident(id, status, note: note);
+      await _refreshIncidents();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+      rethrow;
     }
   }
 

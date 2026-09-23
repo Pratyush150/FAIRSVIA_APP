@@ -1156,24 +1156,16 @@ class _PickupNoteBanner extends StatelessWidget {
 /// same safety affordance riders have. Location is best-effort so an alert still
 /// fires if GPS is momentarily unavailable.
 Future<void> openDriverSafety(BuildContext context, String tripId) async {
-  double? lat;
-  double? lng;
-  try {
-    final pos = await Geolocator.getLastKnownPosition() ??
-        await Geolocator.getCurrentPosition();
-    lat = pos.latitude;
-    lng = pos.longitude;
-  } catch (_) {
-    // best-effort — send the alert without coordinates
-  }
-  if (!context.mounted) return;
   await showSafetySheet(
     context,
     tripId: tripId,
     safety: sl<SafetyRemoteDataSource>(),
-    shareText: 'I am driving a ${AppBrand.name} trip and may need help. Trip $tripId.',
-    lat: lat,
-    lng: lng,
+    shareText: "I'm driving a ${AppBrand.name} trip and may need help.",
+    locate: () async {
+      final pos = await Geolocator.getLastKnownPosition() ??
+          await Geolocator.getCurrentPosition();
+      return (lat: pos.latitude, lng: pos.longitude);
+    },
   );
 }
 

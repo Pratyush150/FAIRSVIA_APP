@@ -721,7 +721,8 @@ describe('Ride App API (e2e)', () => {
       .send({ lat: 12.97, lng: 77.59 });
     expect(sos.status).toBe(201);
     expect(sos.body.ok).toBe(true);
-    expect(sos.body.summary.raisedBy).toBe('rider');
+    expect(sos.body.incidentId).toEqual(expect.any(String));
+    expect(sos.body.repeat).toBe(false);
 
     const otherPhone = `+194${Date.now() % 100000000}`;
     await resetOtpLimits(otherPhone);

@@ -40,6 +40,7 @@ export class MetricsService {
 
   /** Payment failures by kind and reason — directly revenue-impacting. */
   private readonly paymentFailures: Counter<string>;
+  private readonly sosAlerts: Counter<string>;
 
   /**
    * Outbound vendor calls (Google, OSRM, Nominatim, Stripe, SES, SMS). The
@@ -103,6 +104,16 @@ export class MetricsService {
       labelNames: ['kind', 'reason'],
       registers: [this.registry],
     });
+    this.sosAlerts = new Counter({
+      name: 'sos_alerts_total',
+      help: 'SOS presses during a trip, by who pressed it',
+      labelNames: ['role'],
+      registers: [this.registry],
+    });
+    // Start both series at 0. increase() cannot see a counter's first 0→1
+    // step if the series did not exist before it, so without this the first
+    // SOS after every restart would never fire SosRaised.
+    for (const role of ['rider', 'driver']) this.sosAlerts.inc({ role }, 0);
     this.vendorDuration = new Histogram({
       name: 'vendor_request_duration_seconds',
       help: 'Outbound third-party request duration',
@@ -160,6 +171,10 @@ export class MetricsService {
   }
 
   /** A payment operation failed. [reason] must be low-cardinality. */
+  sosRaised(role: string): void {
+    this.sosAlerts.inc({ role });
+  }
+
   paymentFailed(kind: string, reason: string): void {
     this.paymentFailures.inc({ kind, reason });
   }

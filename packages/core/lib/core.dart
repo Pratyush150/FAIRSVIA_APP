@@ -48,6 +48,7 @@ export 'src/chat/chat_page.dart';
 // Safety toolkit (SOS).
 export 'src/safety/safety_remote_data_source.dart';
 export 'src/safety/safety_sheet.dart';
+export 'src/safety/emergency_contacts_page.dart';
 export 'src/util/navigation_launcher.dart';
 export 'src/network/auth_interceptor.dart';
 export 'src/navigation/external_nav.dart';

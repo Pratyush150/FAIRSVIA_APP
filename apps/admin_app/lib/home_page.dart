@@ -78,53 +78,66 @@ class _AdminScaffold extends StatelessWidget {
                     ),
                   ),
                 ),
-                destinations: const [
-                  NavigationRailDestination(
+                destinations: [
+                  const NavigationRailDestination(
                     icon: Icon(Icons.dashboard_outlined),
                     selectedIcon: Icon(Icons.dashboard),
                     label: Text('Overview'),
                   ),
                   NavigationRailDestination(
+                    icon: Badge(
+                      isLabelVisible: state.openIncidents > 0,
+                      label: Text('${state.openIncidents}'),
+                      child: const Icon(Icons.health_and_safety_outlined),
+                    ),
+                    selectedIcon: Badge(
+                      isLabelVisible: state.openIncidents > 0,
+                      label: Text('${state.openIncidents}'),
+                      child: const Icon(Icons.health_and_safety),
+                    ),
+                    label: const Text('Safety'),
+                  ),
+                  const NavigationRailDestination(
                     icon: Icon(Icons.route_outlined),
                     selectedIcon: Icon(Icons.route),
                     label: Text('Trips'),
                   ),
-                  NavigationRailDestination(
+                  const NavigationRailDestination(
                     icon: Icon(Icons.people_outline),
                     selectedIcon: Icon(Icons.people),
                     label: Text('Users'),
                   ),
-                  NavigationRailDestination(
+                  const NavigationRailDestination(
                     icon: Icon(Icons.directions_car_outlined),
                     selectedIcon: Icon(Icons.directions_car),
                     label: Text('Drivers'),
                   ),
-                  NavigationRailDestination(
+                  const NavigationRailDestination(
                     icon: Icon(Icons.map_outlined),
                     selectedIcon: Icon(Icons.map),
                     label: Text('Live'),
                   ),
-                  NavigationRailDestination(
+                  const NavigationRailDestination(
                     icon: Icon(Icons.support_agent_outlined),
                     selectedIcon: Icon(Icons.support_agent),
                     label: Text('Support'),
                   ),
-                  NavigationRailDestination(
+                  const NavigationRailDestination(
                     icon: Icon(Icons.local_offer_outlined),
                     selectedIcon: Icon(Icons.local_offer),
                     label: Text('Promos'),
                   ),
-                  NavigationRailDestination(
+                  const NavigationRailDestination(
                     icon: Icon(Icons.payments_outlined),
                     selectedIcon: Icon(Icons.payments),
                     label: Text('Pricing'),
                   ),
-                  NavigationRailDestination(
+                  const NavigationRailDestination(
                     icon: Icon(Icons.compare_arrows_outlined),
                     selectedIcon: Icon(Icons.compare_arrows),
                     label: Text('Compare'),
                   ),
-                  NavigationRailDestination(
+                  const NavigationRailDestination(
                     icon: Icon(Icons.toggle_off_outlined),
                     selectedIcon: Icon(Icons.toggle_on),
                     label: Text('Controls'),
@@ -141,6 +154,11 @@ class _AdminScaffold extends StatelessWidget {
                       loading: state.loading,
                       onRefresh: cubit.refresh,
                     ),
+                    if (state.openIncidents > 0 && state.tab != AdminTab.safety)
+                      _SosBanner(
+                        count: state.openIncidents,
+                        onOpen: () => cubit.selectTab(AdminTab.safety),
+                      ),
                     if (state.error != null)
                       _ErrorBanner(message: state.error!, onRetry: cubit.refresh),
                     Expanded(child: _Body(state: state)),
@@ -156,6 +174,7 @@ class _AdminScaffold extends StatelessWidget {
 
   String _titleFor(AdminTab tab) => switch (tab) {
         AdminTab.overview => 'Overview',
+        AdminTab.safety => 'Safety — SOS incidents',
         AdminTab.trips => 'Trips',
         AdminTab.users => 'Users',
         AdminTab.drivers => 'Drivers',
@@ -231,6 +250,7 @@ class _Body extends StatelessWidget {
           pendingOnly: state.driversPendingOnly,
         ),
       AdminTab.live => _LiveView(live: state.live),
+      AdminTab.safety => _SafetyView(incidents: state.incidents),
       AdminTab.support => _SupportView(state: state),
       AdminTab.promos => _PromosView(promos: state.promos),
       AdminTab.pricing => _PricingView(fares: state.fares, surge: state.surge),
@@ -1821,5 +1841,233 @@ class _ControlsView extends StatelessWidget {
       ),
     );
     if (ok == true) await cubit.setOpsFlag(flag.name, next);
+  }
+}
+
+/// Shown on every tab except Safety while any SOS is unacknowledged.
+class _SosBanner extends StatelessWidget {
+  const _SosBanner({required this.count, required this.onOpen});
+
+  final int count;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Material(
+        color: AppColors.errorInk,
+        child: InkWell(
+          onTap: onOpen,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl, vertical: AppSpacing.md),
+            child: Row(
+              children: [
+                const Icon(Icons.sos_rounded, color: Colors.white),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    count == 1
+                        ? 'An SOS is waiting for someone to acknowledge it.'
+                        : '$count SOS alerts are waiting for someone to acknowledge them.',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const Text('Open Safety',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700)),
+                const Icon(Icons.chevron_right_rounded, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SafetyView extends StatelessWidget {
+  const _SafetyView({required this.incidents});
+
+  final List<AdminSafetyIncident> incidents;
+
+  @override
+  Widget build(BuildContext context) {
+    if (incidents.isEmpty) {
+      return const EmptyState(
+        icon: Icons.health_and_safety_outlined,
+        title: 'No SOS incidents',
+        message: 'When a rider or driver presses SOS during a ride it appears '
+            'here within seconds, and a banner shows on every tab until '
+            'someone acknowledges it.',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xl),
+      itemCount: incidents.length,
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+      itemBuilder: (_, i) => _IncidentCard(incident: incidents[i]),
+    );
+  }
+}
+
+class _IncidentCard extends StatelessWidget {
+  const _IncidentCard({required this.incident});
+
+  final AdminSafetyIncident incident;
+
+  static String _ago(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+    if (d.inHours < 24) return '${d.inHours} h ago';
+    return '${d.inDays} d ago';
+  }
+
+  Future<void> _resolve(BuildContext context) async {
+    final cubit = context.read<AdminCubit>();
+    final note = TextEditingController(text: incident.note ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Resolve this SOS'),
+        content: SizedBox(
+          width: 420,
+          child: TextField(
+            controller: note,
+            autofocus: true,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'What happened?',
+              hintText: 'e.g. Called the rider — she is safe at home.',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Resolve')),
+        ],
+      ),
+    );
+    final text = note.text.trim();
+    note.dispose();
+    if (ok != true) return;
+    await cubit.updateIncident(incident.id, 'resolved',
+        note: text.isEmpty ? null : text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final i = incident;
+    final (color, label) = switch (i.status) {
+      'open' => (AppColors.error, 'OPEN'),
+      'acknowledged' => (AppColors.warning, 'ACKNOWLEDGED'),
+      _ => (AppColors.success, 'RESOLVED'),
+    };
+    final raiser = i.raisedBy;
+    final other = i.raisedByRole == 'driver' ? i.rider : i.driver;
+
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 4,
+            height: 96,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(label,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                            color: color, fontWeight: FontWeight.w800)),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text('· ${_ago(i.createdAt)} · trip ${i.tripStatus.replaceAll('_', ' ')}',
+                        style: theme.textTheme.bodySmall),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  raiser?.name == null
+                      ? 'A ${i.raisedByRole} (no name on the account) pressed SOS'
+                      : '${i.raisedByRole == 'driver' ? 'Driver' : 'Rider'} '
+                          '${raiser!.name} pressed SOS',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                SelectableText(
+                  [
+                    if (raiser?.phone != null) 'Call them: ${raiser!.phone}',
+                    if (other != null)
+                      '${i.raisedByRole == 'driver' ? 'Rider' : 'Driver'}: '
+                          '${other.name ?? '(no name)'} ${other.phone ?? ''}',
+                    if (i.driver?.plate != null) 'Plate ${i.driver!.plate}',
+                  ].join('   ·   '),
+                  style: theme.textTheme.bodyMedium,
+                ),
+                if (i.pickup != null || i.dropoff != null)
+                  Text('${i.pickup ?? '?'}  →  ${i.dropoff ?? '?'}',
+                      style: theme.textTheme.bodySmall),
+                Text(
+                  i.contactsTotal == 0
+                      ? 'No emergency contacts saved — nobody was texted.'
+                      : 'Texted ${i.contactsNotified} of ${i.contactsTotal} emergency contacts.',
+                  style: theme.textTheme.bodySmall,
+                ),
+                if (i.note != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text('Note: ${i.note}',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(fontStyle: FontStyle.italic)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (i.mapUrl != null)
+                OutlinedButton.icon(
+                  onPressed: () => openExternalUrl(i.mapUrl!),
+                  icon: const Icon(Icons.map_outlined, size: 18),
+                  label: const Text('Location'),
+                ),
+              const SizedBox(height: AppSpacing.sm),
+              if (i.isOpen)
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.errorInk),
+                  onPressed: () => context
+                      .read<AdminCubit>()
+                      .updateIncident(i.id, 'acknowledged'),
+                  child: const Text("I'm on it"),
+                ),
+              if (i.status != 'resolved')
+                TextButton(
+                  onPressed: () => _resolve(context),
+                  child: const Text('Resolve…'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

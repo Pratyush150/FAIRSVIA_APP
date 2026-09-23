@@ -236,6 +236,94 @@ class AdminDriver {
   }
 }
 
+/// A person on an SOS incident (the rider or the driver).
+class AdminIncidentPerson {
+  const AdminIncidentPerson({required this.id, this.name, this.phone, this.plate});
+
+  factory AdminIncidentPerson.fromJson(Map<String, dynamic> j) =>
+      AdminIncidentPerson(
+        id: j['id'] as String,
+        name: j['fullName'] as String?,
+        phone: j['phone'] as String?,
+        plate: j['plate'] as String?,
+      );
+
+  final String id;
+  final String? name;
+  final String? phone;
+  final String? plate;
+}
+
+/// One SOS press, tracked until ops resolve it.
+class AdminSafetyIncident {
+  const AdminSafetyIncident({
+    required this.id,
+    required this.tripId,
+    required this.status,
+    required this.raisedByRole,
+    required this.createdAt,
+    required this.contactsNotified,
+    required this.contactsTotal,
+    required this.tripStatus,
+    this.lat,
+    this.lng,
+    this.note,
+    this.pickup,
+    this.dropoff,
+    this.rider,
+    this.driver,
+  });
+
+  factory AdminSafetyIncident.fromJson(Map<String, dynamic> j) {
+    final trip = (j['trip'] as Map<String, dynamic>?) ?? const {};
+    Map<String, dynamic>? m(Object? o) => o is Map<String, dynamic> ? o : null;
+    return AdminSafetyIncident(
+      id: j['id'] as String,
+      tripId: j['tripId'] as String,
+      status: j['status'] as String,
+      raisedByRole: j['raisedByRole'] as String,
+      createdAt: DateTime.parse(j['createdAt'] as String).toLocal(),
+      contactsNotified: (j['contactsNotified'] as num?)?.toInt() ?? 0,
+      contactsTotal: (j['contactsTotal'] as num?)?.toInt() ?? 0,
+      tripStatus: trip['status'] as String? ?? '',
+      lat: (j['lat'] as num?)?.toDouble(),
+      lng: (j['lng'] as num?)?.toDouble(),
+      note: j['note'] as String?,
+      pickup: trip['pickup'] as String?,
+      dropoff: trip['dropoff'] as String?,
+      rider: m(trip['rider']) == null ? null : AdminIncidentPerson.fromJson(m(trip['rider'])!),
+      driver: m(trip['driver']) == null ? null : AdminIncidentPerson.fromJson(m(trip['driver'])!),
+    );
+  }
+
+  final String id;
+  final String tripId;
+
+  /// open | acknowledged | resolved
+  final String status;
+  final String raisedByRole;
+  final DateTime createdAt;
+  final int contactsNotified;
+  final int contactsTotal;
+  final String tripStatus;
+  final double? lat;
+  final double? lng;
+  final String? note;
+  final String? pickup;
+  final String? dropoff;
+  final AdminIncidentPerson? rider;
+  final AdminIncidentPerson? driver;
+
+  bool get isOpen => status == 'open';
+
+  /// Whoever pressed SOS.
+  AdminIncidentPerson? get raisedBy => raisedByRole == 'driver' ? driver : rider;
+
+  String? get mapUrl => lat == null || lng == null
+      ? null
+      : 'https://maps.google.com/?q=${lat!.toStringAsFixed(5)},${lng!.toStringAsFixed(5)}';
+}
+
 /// A support ticket in the admin queue. [messages] is populated only when a
 /// single thread is fetched.
 class AdminSupportMessage {
@@ -602,6 +690,19 @@ class AdminApi {
     );
     return LiveSnapshot.fromJson(res.data ?? const {});
   }
+
+  /// SOS incidents, unresolved first (`GET /admin/safety`).
+  Future<List<AdminSafetyIncident>> safetyIncidents() async {
+    final res = await _guard(() => _dio.get<List<dynamic>>('/admin/safety'));
+    return res.data!
+        .map((e) => AdminSafetyIncident.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Acknowledge or resolve an incident (`PATCH /admin/safety/:id`).
+  Future<void> updateIncident(String id, String status, {String? note}) =>
+      _guard(() => _dio.patch('/admin/safety/$id',
+          data: {'status': status, 'note': ?note}));
 
   /// Support queue (`GET /admin/support/tickets`), optionally filtered.
   Future<List<AdminSupportTicket>> supportTickets({String? status}) async {

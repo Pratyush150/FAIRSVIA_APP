@@ -149,13 +149,35 @@ String? _tripEtaLine(TripState state) {
 void _openSafety(BuildContext context, TripState state) {
   final tripId = state.trip?.id;
   if (tripId == null) return;
-  final share = '${AppBrand.name} trip to ${state.dropoffAddr ?? 'my destination'}. '
-      'Driver: ${state.driver?.name ?? 'assigned'}. Please track my ride.';
+  final car = state.driver;
+  final carLine = car == null
+      ? ''
+      : ' Car: ${car.vehicleLabel}${car.plate != null ? ', plate ${car.plate}' : ''}.'
+          ' Driver: ${car.name}.';
+  final at = state.driverLocation;
+  final where = at == null
+      ? ''
+      : ' Where I am: https://maps.google.com/?q=${at.lat.toStringAsFixed(5)},${at.lng.toStringAsFixed(5)}';
+  final cubit = context.read<TripCubit>();
+  final share = "I'm on a ${AppBrand.name} ride to "
+      '${state.dropoffAddr ?? 'my destination'}.$carLine$where';
   showSafetySheet(
     context,
     tripId: tripId,
     safety: sl<SafetyRemoteDataSource>(),
     shareText: share,
+    // The rider is in the car: their own fix first, the car's last position
+    // if the phone has none.
+    locate: () async {
+      try {
+        final p = await Geolocator.getLastKnownPosition() ??
+            await Geolocator.getCurrentPosition();
+        return (lat: p.latitude, lng: p.longitude);
+      } catch (_) {
+        final d = cubit.state.driverLocation;
+        return d == null ? null : (lat: d.lat, lng: d.lng);
+      }
+    },
   );
 }
 

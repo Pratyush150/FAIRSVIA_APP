@@ -26,6 +26,19 @@ groups:
         annotations:
           summary: '5xx rate above 1% for 5 minutes'
 
+  - name: ridevela-safety
+    rules:
+      - alert: SosRaised
+        # No `for:` — a person pressed SOS during a ride; every minute counts.
+        expr: increase(sos_alerts_total[5m]) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: 'SOS pressed during a ride ({{ $labels.role }})'
+          description: >-
+            Open the admin console Safety tab: the incident shows the trip,
+            both people, the plate and a map link. Acknowledge it there so the
+            team knows someone is on it, then resolve it with a note.
+
   - name: ridevela-marketplace
     rules:
       - alert: MatchLatencySlow
@@ -130,8 +143,10 @@ groups:
         annotations:
           summary: 'Host disk above 90% full'
           description: >-
-            Prometheus itself writes ~1-2 GB/month. Run `docker system prune`
-            and check retention settings before this fills.
+            Prometheus itself writes ~1-2 GB/month. Safe to reclaim: Flutter
+            build/ and .dart_tool/ dirs. Do NOT run `docker system prune -a`:
+            this host also carries unrelated robotics images and the live OSRM
+            map data (docs/session-handoff.md, "Disk").
 
       - alert: PostgresConnectionsHigh
         expr: >-

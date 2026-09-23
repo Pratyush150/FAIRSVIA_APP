@@ -79,6 +79,7 @@ export class AccountDeletionService {
       this.prisma.savedPlace.deleteMany({ where: { userId } }),
       this.prisma.paymentMethod.deleteMany({ where: { userId } }),
       this.prisma.notification.deleteMany({ where: { userId } }),
+      this.prisma.emergencyContact.deleteMany({ where: { userId } }),
       this.prisma.favoriteDriver.deleteMany({
         where: { OR: [{ riderId: userId }, { driverId: userId }] },
       }),

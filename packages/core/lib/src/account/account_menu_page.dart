@@ -8,6 +8,8 @@ import '../di/injector.dart';
 import '../driver/driver_remote_data_source.dart';
 import '../trip/payments_remote_data_source.dart';
 import '../trip/places_remote_data_source.dart';
+import '../safety/emergency_contacts_page.dart';
+import '../safety/safety_remote_data_source.dart';
 import '../trip/trip_remote_data_source.dart';
 import 'driver_earnings_page.dart';
 import 'payment_methods_page.dart';
@@ -241,6 +243,13 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
             ]),
           const SizedBox(height: AppSpacing.lg),
           _group([
+            _Item(
+              icon: Icons.contact_emergency_rounded,
+              title: 'Emergency contacts',
+              onTap: () => _open(EmergencyContactsPage(
+                safety: sl<SafetyRemoteDataSource>(),
+              )),
+            ),
             _Item(
               icon: Icons.support_agent_rounded,
               title: 'Help & support',

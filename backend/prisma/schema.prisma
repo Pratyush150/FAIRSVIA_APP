@@ -19,31 +19,32 @@ enum UserRole {
 }
 
 model User {
-  id          String   @id @default(uuid()) @db.Uuid
-  phone       String   @unique @db.VarChar(20)
-  email       String?  @db.VarChar(255)
-  fullName    String?  @map("full_name") @db.VarChar(120)
-  photoUrl    String?  @map("photo_url")
-  role        UserRole @default(rider)
-  ratingAvg   Decimal  @default(5.00) @map("rating_avg") @db.Decimal(3, 2)
-  ratingCount Int      @default(0) @map("rating_count")
-  isActive    Boolean  @default(true) @map("is_active")
+  id               String    @id @default(uuid()) @db.Uuid
+  phone            String    @unique @db.VarChar(20)
+  email            String?   @db.VarChar(255)
+  fullName         String?   @map("full_name") @db.VarChar(120)
+  photoUrl         String?   @map("photo_url")
+  role             UserRole  @default(rider)
+  ratingAvg        Decimal   @default(5.00) @map("rating_avg") @db.Decimal(3, 2)
+  ratingCount      Int       @default(0) @map("rating_count")
+  isActive         Boolean   @default(true) @map("is_active")
   // Set when the user deleted their own account. The row stays (trip and
   // payment records must be kept by law) but is anonymised.
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
   // Stripe Customer (cus_...) — created lazily on the first saved card so
   // charges/holds reference a real customer, not the Ride App user id.
-  stripeCustomerId String? @map("stripe_customer_id") @db.VarChar(64)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  stripeCustomerId String?   @map("stripe_customer_id") @db.VarChar(64)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  refreshTokens  RefreshToken[]
-  riderTrips     Trip[]          @relation("RiderTrips")
-  driverTrips    Trip[]          @relation("DriverTrips")
-  savedPlaces    SavedPlace[]
-  driverProfile  DriverProfile?
-  paymentMethods PaymentMethod[]
-  deviceTokens   DeviceToken[]
+  refreshTokens     RefreshToken[]
+  riderTrips        Trip[]             @relation("RiderTrips")
+  driverTrips       Trip[]             @relation("DriverTrips")
+  savedPlaces       SavedPlace[]
+  driverProfile     DriverProfile?
+  paymentMethods    PaymentMethod[]
+  deviceTokens      DeviceToken[]
+  emergencyContacts EmergencyContact[]
 
   @@map("users")
 }
@@ -119,62 +120,63 @@ enum RideTier {
 /// geography column can be added later for analytics/replay (matching in
 /// Phase 2 uses Redis GEO, not Postgres).
 model Trip {
-  id              String     @id @default(uuid()) @db.Uuid
-  riderId         String     @map("rider_id") @db.Uuid
-  driverId        String?    @map("driver_id") @db.Uuid
-  status          TripStatus @default(requested)
-  tier            RideTier   @default(economy)
+  id       String     @id @default(uuid()) @db.Uuid
+  riderId  String     @map("rider_id") @db.Uuid
+  driverId String?    @map("driver_id") @db.Uuid
+  status   TripStatus @default(requested)
+  tier     RideTier   @default(economy)
 
-  pickupAddr      String?    @map("pickup_addr")
-  pickupLat       Float      @map("pickup_lat")
-  pickupLng       Float      @map("pickup_lng")
-  dropoffAddr     String?    @map("dropoff_addr")
-  dropoffLat      Float      @map("dropoff_lat")
-  dropoffLng      Float      @map("dropoff_lng")
+  pickupAddr  String? @map("pickup_addr")
+  pickupLat   Float   @map("pickup_lat")
+  pickupLng   Float   @map("pickup_lng")
+  dropoffAddr String? @map("dropoff_addr")
+  dropoffLat  Float   @map("dropoff_lat")
+  dropoffLng  Float   @map("dropoff_lng")
 
   /// A short pickup note from the rider to the driver ("meet at the north gate",
   /// "wearing a red jacket"). Shown on the driver's offer + en-route screens.
-  pickupNote      String?    @map("pickup_note")
+  pickupNote String? @map("pickup_note")
 
   /// Set when this ride was booked for somebody else: `riderId` stays the
   /// account that booked and pays, and these describe who is actually
   /// travelling. The driver is shown these instead of the booker's details,
   /// and the passenger is texted the start code — they may not have the app.
   /// Both null = the booker is the passenger, the ordinary case.
-  passengerName   String?    @map("passenger_name") @db.VarChar(80)
-  passengerPhone  String?    @map("passenger_phone") @db.VarChar(20)
+  passengerName  String? @map("passenger_name") @db.VarChar(80)
+  passengerPhone String? @map("passenger_phone") @db.VarChar(20)
 
-  routePolyline   String?    @map("route_polyline")
-  stops           Json?      // ordered intermediate stops: [{lat,lng,addr?}]
-  distanceM       Int?       @map("distance_m")
-  durationS       Int?       @map("duration_s")
-  fareEstimate    Decimal?   @map("fare_estimate") @db.Decimal(10, 2)
-  fareFinal       Decimal?   @map("fare_final") @db.Decimal(10, 2)
-  surgeMultiplier Decimal    @default(1.0) @map("surge_multiplier") @db.Decimal(3, 2)
-  currency        String     @default("USD") @db.VarChar(3)
-  startOtp        String?    @map("start_otp") @db.VarChar(4)
-  promoCode       String?    @map("promo_code") @db.VarChar(24)
-  promoDiscount   Decimal    @default(0) @map("promo_discount") @db.Decimal(10, 2)
-  paymentMode     String     @default("card") @map("payment_mode") @db.VarChar(4) // card|cash
+  routePolyline   String?  @map("route_polyline")
+  stops           Json? // ordered intermediate stops: [{lat,lng,addr?}]
+  distanceM       Int?     @map("distance_m")
+  durationS       Int?     @map("duration_s")
+  fareEstimate    Decimal? @map("fare_estimate") @db.Decimal(10, 2)
+  fareFinal       Decimal? @map("fare_final") @db.Decimal(10, 2)
+  surgeMultiplier Decimal  @default(1.0) @map("surge_multiplier") @db.Decimal(3, 2)
+  currency        String   @default("USD") @db.VarChar(3)
+  startOtp        String?  @map("start_otp") @db.VarChar(4)
+  promoCode       String?  @map("promo_code") @db.VarChar(24)
+  promoDiscount   Decimal  @default(0) @map("promo_discount") @db.Decimal(10, 2)
+  paymentMode     String   @default("card") @map("payment_mode") @db.VarChar(4) // card|cash
   // The rider's chosen saved card for this ride (validated to belong to the
   // rider at creation). Null = charge the rider's default method.
-  paymentMethodId String?    @map("payment_method_id") @db.Uuid
+  paymentMethodId String?  @map("payment_method_id") @db.Uuid
 
-  cancelReason    String?    @map("cancel_reason")
-  cancelledBy     String?    @map("cancelled_by") @db.VarChar(10)
+  cancelReason String? @map("cancel_reason")
+  cancelledBy  String? @map("cancelled_by") @db.VarChar(10)
 
-  scheduledAt     DateTime?  @map("scheduled_at") @db.Timestamptz(6)
-  requestedAt     DateTime   @default(now()) @map("requested_at") @db.Timestamptz(6)
-  acceptedAt      DateTime?  @map("accepted_at") @db.Timestamptz(6)
-  arrivedAt       DateTime?  @map("arrived_at") @db.Timestamptz(6)
-  startedAt       DateTime?  @map("started_at") @db.Timestamptz(6)
-  completedAt     DateTime?  @map("completed_at") @db.Timestamptz(6)
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz(6)
+  requestedAt DateTime  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  acceptedAt  DateTime? @map("accepted_at") @db.Timestamptz(6)
+  arrivedAt   DateTime? @map("arrived_at") @db.Timestamptz(6)
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
 
-  rider   User        @relation("RiderTrips", fields: [riderId], references: [id])
-  driver  User?       @relation("DriverTrips", fields: [driverId], references: [id])
-  events  TripEvent[]
-  payment Payment?
-  ratings Rating[]
+  rider           User             @relation("RiderTrips", fields: [riderId], references: [id])
+  driver          User?            @relation("DriverTrips", fields: [driverId], references: [id])
+  events          TripEvent[]
+  payment         Payment?
+  ratings         Rating[]
+  safetyIncidents SafetyIncident[]
 
   @@index([riderId, requestedAt(sort: Desc)])
   @@index([driverId, requestedAt(sort: Desc)])
@@ -513,14 +515,14 @@ model PromoRedemption {
 /// rather than a per-route decorator, so a new admin endpoint is covered the
 /// day it is written instead of the day someone remembers to annotate it.
 model AuditLog {
-  id     String @id @default(uuid()) @db.Uuid
+  id        String  @id @default(uuid()) @db.Uuid
   /// Null only if an unauthenticated request somehow reached an admin route.
   actorId   String? @map("actor_id") @db.Uuid
   actorRole String? @map("actor_role") @db.VarChar(20)
 
   /// Stable name for the operation, e.g. `PATCH /admin/drivers/:id/verify`.
-  action String  @db.VarChar(200)
-  method String  @db.VarChar(10)
+  action String @db.VarChar(200)
+  method String @db.VarChar(10)
 
   /// The resource acted on, parsed from the route params where there is one.
   targetType String? @map("target_type") @db.VarChar(60)
@@ -529,7 +531,7 @@ model AuditLog {
   /// The request body, with anything secret-looking redacted.
   payload Json?
   /// What the handler returned (truncated), or the error message on a failure.
-  result Json?
+  result  Json?
 
   statusCode Int     @map("status_code")
   ip         String? @db.VarChar(64)
@@ -541,4 +543,43 @@ model AuditLog {
   @@index([targetType, targetId])
   @@index([createdAt])
   @@map("audit_log")
+}
+
+/// People a user wants alerted by SMS when they press SOS. Up to 3 per user.
+model EmergencyContact {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String   @db.VarChar(80)
+  phone     String   @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, phone])
+  @@index([userId])
+  @@map("emergency_contacts")
+}
+
+/// One SOS press, tracked until ops close it (open → acknowledged → resolved).
+model SafetyIncident {
+  id               String    @id @default(uuid()) @db.Uuid
+  tripId           String    @map("trip_id") @db.Uuid
+  raisedById       String    @map("raised_by_id") @db.Uuid
+  raisedByRole     String    @map("raised_by_role") @db.VarChar(10) // rider|driver
+  lat              Float?
+  lng              Float?
+  status           String    @default("open") @db.VarChar(12) // open|acknowledged|resolved
+  contactsTotal    Int       @default(0) @map("contacts_total")
+  contactsNotified Int       @default(0) @map("contacts_notified")
+  acknowledgedById String?   @map("acknowledged_by_id") @db.Uuid
+  acknowledgedAt   DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz(6)
+  note             String?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([tripId])
+  @@map("safety_incidents")
 }

@@ -72,6 +72,21 @@ export interface AppConfig {
   emailProvider: string;
   /** Verified SES sender address used as the From on outgoing email. */
   sesFrom: string;
+  /** Local emergency numbers shown in the SOS sheet, in display order. */
+  emergencyNumbers: { label: string; number: string }[];
+}
+
+/**
+ * `EMERGENCY_NUMBERS="Police:102,Ambulance:103"` → ordered list. The default
+ * is Uzbekistan (the launch market; CIS numbering). Set it per country —
+ * a wrong number here is worse than none.
+ */
+export function parseEmergencyNumbers(raw: string): { label: string; number: string }[] {
+  return raw
+    .split(',')
+    .map((pair) => pair.split(':').map((x) => x.trim()))
+    .filter(([label, number]) => label && number && /^[0-9+]{2,15}$/.test(number))
+    .map(([label, number]) => ({ label, number }));
 }
 
 // Dev-only fallbacks. These MUST never be used in production — the guard below
@@ -210,5 +225,8 @@ export default (): AppConfig => {
   },
   emailProvider: process.env.EMAIL_PROVIDER ?? 'mock',
   sesFrom: process.env.SES_FROM ?? 'noreply@rideapp.example.com',
+  emergencyNumbers: parseEmergencyNumbers(
+    process.env.EMERGENCY_NUMBERS ?? 'Police:102,Ambulance:103,Fire:101',
+  ),
   };
 };
