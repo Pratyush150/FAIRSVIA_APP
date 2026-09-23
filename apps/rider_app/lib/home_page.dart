@@ -738,18 +738,24 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                         onPressed: _recenterToMe,
                       ),
                     ),
-                    RideSheetForPhase(
-                      key: _sheetKey,
-                      state: state,
-                      onSearch: _openSearch,
-                      savedPlaces: _savedPlaces,
-                      onPickSaved: _pickSaved,
-                      // Booking is gated while we have no real fix: a ride
-                      // requested from the city-centre fallback would send the
-                      // driver to the wrong place.
-                      locationIssue: _hasRealLocation ? null : _locationIssue,
-                      onFixLocation: () => _onLocationBannerAction(
-                        _bannerActionFor(_locationIssue),
+                    // Flexible: the sheet caps itself at the screen height,
+                    // but the pill above takes room too — without this the
+                    // pair overflowed by 14 px whenever the sheet reached its
+                    // cap (seen mid-transition while booking).
+                    Flexible(
+                      child: RideSheetForPhase(
+                        key: _sheetKey,
+                        state: state,
+                        onSearch: _openSearch,
+                        savedPlaces: _savedPlaces,
+                        onPickSaved: _pickSaved,
+                        // Booking is gated while we have no real fix: a ride
+                        // requested from the city-centre fallback would send the
+                        // driver to the wrong place.
+                        locationIssue: _hasRealLocation ? null : _locationIssue,
+                        onFixLocation: () => _onLocationBannerAction(
+                          _bannerActionFor(_locationIssue),
+                        ),
                       ),
                     ),
                   ],

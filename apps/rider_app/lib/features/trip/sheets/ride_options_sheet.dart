@@ -18,8 +18,13 @@ class _RideOptions extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text('Choose a ride', style: theme.textTheme.headlineSmall),
-            const Spacer(),
+            Expanded(
+              child: Text('Choose a ride',
+                  style: theme.textTheme.headlineSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+            ),
+            const SizedBox(width: AppSpacing.sm),
             Text(
               '${estimate.distanceMi.toStringAsFixed(1)} mi · '
               '${_minutes(estimate.durationS)} min',

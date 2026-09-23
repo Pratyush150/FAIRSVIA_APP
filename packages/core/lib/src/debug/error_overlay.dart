@@ -70,6 +70,10 @@ class DebugBlocObserver extends BlocObserver {
 void installErrorHooks() {
   FlutterError.onError = (details) {
     reportError(details.exception, details.stack);
+    // presentError only prints the full report for the session's first error
+    // (later ones collapse to one line), which left on-device layout bugs
+    // with no widget or file to go on. Debug builds always print it.
+    if (kDebugMode) debugPrint(details.toString());
     FlutterError.presentError(details);
   };
   PlatformDispatcher.instance.onError = (error, stack) {

@@ -106,7 +106,12 @@ class _PrimaryButtonState extends State<PrimaryButton> {
                         Icon(w.icon, size: 20),
                         const SizedBox(width: AppSpacing.sm),
                       ],
-                      Text(w.label),
+                      // Long labels ("Confirm Economy · $7.33" on a 360dp
+                      // phone) ellipsize instead of overflowing the button.
+                      Flexible(
+                        child: Text(w.label,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
                     ],
                   ),
           ),
