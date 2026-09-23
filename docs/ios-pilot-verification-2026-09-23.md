@@ -135,3 +135,136 @@ items, 9 are verified on screen or by test, 1 is partial, and 8 — the entire
 driver flow plus every iOS-specific physical behaviour — are untouched. Nobody
 should describe the iOS build as field-ready until §3 and §4 above are done on
 a cabled iPhone.
+
+---
+
+# v1.2.0 (5002) — Uber-style UI, physical iPhone + simulator
+
+Second run, same day, against the v1.2.0 checklist in
+`mac-ios-pilot-handoff.md` §7. Backend: the same quick tunnel, healthy
+throughout. Flags: `MARKET=in`, `ALLOW_SERVER_OVERRIDE=true`, `1.2.0 / 5002`.
+
+**Two real bugs were found and fixed** (both were iOS-visible but the cause was
+shared Dart, so Android benefits too). Details below.
+
+## Builds and install
+
+| | |
+|---|---|
+| rider_app (device) | `✓ Built` 75.1 MB, 128 s |
+| driver_app (device) | `✓ Built` 44.5 MB, 28 s |
+| **Installed on the physical iPhone** | **Yes — both, v1.2.0 (5002).** First time either app has been on real hardware |
+
+`flutter install` stalls over wireless on a 75 MB release build (it did again).
+**`xcrun devicectl device install app --device <udid> <path>.app` works** and
+takes seconds — use that instead.
+
+**The apps will not launch on the iPhone yet.** `devicectl` reports:
+`"its profile has not been explicitly trusted by the user"`. That is the
+one-time step in handoff §3 and it needs a human on the phone:
+**Settings → General → VPN & Device Management → trust the developer.**
+Everything below was therefore driven on simulators.
+
+## UI (v1.2.0) — items 1–7, light and dark
+
+| # | Check | Status |
+|---|---|---|
+| 1 | Inter everywhere, not San Francisco | **PASS** — `Inter-*.ttf` bundled, declared in pubspec, `fontFamily: packages/design_system/Inter`; visually geometric, not SF |
+| 2 | Black on light / **white on dark**, nothing black-on-black | **FAIL → FIXED** (`5bca66b`) |
+| 3 | Greyscale map, black route, black square drop-off | **PASS** — yellow road shields gone, roads grey, route black in light and white in dark, drop-off a black square. Water and parks keep a slight tint in both modes; not the vivid blue the spec warns about |
+| 4 | One "Where to?" bar with a "Later" chip inside | **PASS (seen)** |
+| 5 | No boxes on rows, 2 px outline on the selected ride | **PASS (seen)** — "Economy 👤4 · No cars nearby · ₹93.10 · Details" ("No cars nearby" rather than a time because no driver was online yet) |
+| 6 | Arriving sheet: headline, driver row, PIN as one black badge, grey Message, grey tiles | **PASS (seen)** — all six elements |
+| 7 | Whole route visible above the ride list | **PASS on the ride list; FAIL on the arriving screen → FIXED** (`4e43bb0`) |
+
+### Bug 1 — the primary CTA went black-on-black in dark mode (`5bca66b`)
+
+`PrimaryButton` took its fill and label from `AppColors.accentInk`/`onAccent`,
+which read a global `_dark` flag written once per frame from
+`MaterialApp.builder`. A button that builds before the builder has run for the
+new brightness keeps the previous value, and nothing marks it dirty when the
+static later changes. Result: a black "Confirm Economy · ₹93.11" on the
+near-black dark sheet — the exact failure item 2 forbids. Light mode was fine,
+which is why the Android pass did not catch it.
+
+Fixed by reading `Theme.of(context).brightness`, which is correct whatever
+order the frame builds in and registers a dependency. Same colours on Android
+(`inkFor`/`onInkFor` are what the theme itself uses), and compatible with the
+`THEME=turquoise` palette added in `21d187b`. Three widget tests pin it.
+
+### Bug 2 — the arriving map framed null island (`4e43bb0`)
+
+While the driver was on the way, the rider's map zoomed out to show Africa,
+Arabia and India at once, car a speck over Pune, and **stayed there** — still
+world-zoomed a minute later.
+
+The approach-leg camera box is the first and last point of the decoded
+approach polyline. A malformed polyline decodes to (0, 0) — null island, in
+the Gulf of Guinea — and the box from there to Pune is ~7,700 km across.
+`fitBounds` guarded a span that was too *small* but not one that was too large,
+so the bad coordinate went straight to the camera.
+
+Now rejects a span over 300 km and falls back to the pickup box. The guard is
+on the span rather than the polyline, so it catches a bad coordinate from any
+source. Regression test uses a real null-island-to-Pune polyline and fails
+against the old code.
+
+## Rider checklist
+
+| # | Check | Status |
+|---|---|---|
+| 1–3 | +91 hint, local number → +919000000001, Pune map | **PASS (seen)** |
+| 4 | Search results | **PASS (seen)** — real Pune names ("Pune station, Agarkar Nagar…"), no plus-codes |
+| 5 | "2.6 km · 12 min", ₹ fares, no comparison card | **PASS (seen)** — Economy ₹93.10, Comfort ₹126.71, XL ₹175.63 |
+| 6 | Cash by default | **PASS (seen)** |
+| 7 | Arriving screen elements | **PASS (seen)** |
+| 8 | Cancel dialog says "₹50 cancellation fee" | **NOT VERIFIED** — the ••• menu would not open under synthetic taps. The *amount* is right (server returns `{"fee":50}`), the *wording* is unseen |
+| 9 | Place name in-trip, not a plus-code | **PASS (seen)** |
+| 10 | ₹ fare, cash line, ₹20/₹50/₹100/Custom, no "$" | **PASS (seen)** — "Ride completed ₹93.11", "Pay ₹93.11 in cash to your driver" |
+| 11 | Long-press logo → Server address | **NOT VERIFIED** — needs the signed-out sign-in screen |
+
+## Driver checklist — a full ride was completed
+
+| # | Check | Status |
+|---|---|---|
+| 1 | "You're offline · Earned today · ₹…" | **PASS (seen)** — ₹134.06 (account had prior earnings; the point is it is in ₹) |
+| 2 | Go online | **PASS (seen)** — "You're online · Looking for trips nearby…" |
+| 3 | Offer card: ₹fare, "x.x km · N min trip", "N min · x.x km to pickup", 15 s ring | **PASS (seen)** — ₹93.11, "2.6 km · 11 min trip", "1 min · < 150 m to pickup", ring counting from 15 |
+| 4 | "Head to pickup · N m", Navigate, Arrived | **PASS (seen)** — "0 m to pickup". Navigate *button* present; the hand-off itself was not tapped |
+| 5 | PIN → Start trip → On trip | **PASS (seen)** — PIN 6362 accepted |
+| 6 | "Trip complete · Today's earnings · ₹(80%)", "Collect ₹fare in cash" | **PASS (seen)** — ₹134.06 + (₹93.11 × 80% = ₹74.49) = **₹208.55**, exactly the driver's share. "Collect ₹93.11 in cash from the rider" |
+| 7 | Background location while locked | **NOT VERIFIED** |
+
+**Also confirmed on iOS:** the driver-stopped watchdog fired correctly — the
+rider was shown "Your driver has stopped · hasn't moved for about 3 minutes"
+after the stationary simulator driver passed the threshold.
+
+The ride was driven to completion and the driver taken offline, so no trip or
+demo account was left occupied on the shared server.
+
+## iOS-specific
+
+| Check | Status |
+|---|---|
+| Notch / Dynamic Island / home bar safe areas | **PASS (seen)** — content cleared both across every screen captured, light and dark |
+| Keyboard covering Continue / Verify / Save | **NOT VERIFIED** — not exercised directly |
+| Location "While using" → "Always" for the driver | **PARTIAL** — granted via `simctl privacy`, so the two-step iOS prompt itself was not seen |
+| Navigate hand-off to Google / Apple Maps | **NOT VERIFIED** |
+| Phone call / share sheet from ••• and Safety | **NOT VERIFIED** |
+
+## Tooling note
+
+`idb ui tap` is unreliable against Xcode 26.6: `describe-all` returns a correct
+tree but a tap often does not land, and several steps needed two or three
+attempts. Two simulators plus a concurrent Xcode build also shut the simulator
+host down once (no app crash report — it was memory pressure).
+
+The recommendation from the v1.1.0 run stands and is now stronger: replace
+this with a Flutter `integration_test` driven by `flutter drive`. It runs
+in-process, needs no synthetic touch injection, and can run in CI.
+
+## Regression state
+
+`flutter analyze` clean. 491 Flutter tests pass across all six packages
+(design_system 73, core 130, shared_models 52, rider 177 + 1 skipped golden,
+driver 51, admin 8). Backend untouched this run.
