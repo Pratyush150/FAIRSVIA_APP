@@ -14,9 +14,13 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    directory = sys.argv[2] if len(sys.argv) > 2 else "."
+    import functools
     import os
 
-    os.chdir(directory)
-    ThreadingHTTPServer(("0.0.0.0", port), NoCacheHandler).serve_forever()
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+    directory = os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else ".")
+    # Resolve the directory by path on every request, never os.chdir() into
+    # it: `flutter build web` deletes and recreates build/web, and a server
+    # whose cwd was the old (deleted) directory serves nothing after a rebuild.
+    handler = functools.partial(NoCacheHandler, directory=directory)
+    ThreadingHTTPServer(("0.0.0.0", port), handler).serve_forever()
