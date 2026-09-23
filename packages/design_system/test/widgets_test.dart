@@ -278,17 +278,24 @@ void main() {
     Color? label(FilledButton b) =>
         b.style?.foregroundColor?.resolve(<WidgetState>{});
 
-    testWidgets('black fill, white label in light mode', (tester) async {
+    testWidgets('light-mode ink fill and label in light mode', (tester) async {
       final b = await pumpIn(tester, Brightness.light);
-      expect(fill(b), AppColors.black);
-      expect(label(b), AppColors.white);
+      expect(fill(b), AppColors.inkFor(false));
+      expect(label(b), AppColors.onInkFor(false));
     });
 
-    testWidgets('inverts to white fill, black label in dark mode',
-        (tester) async {
+    testWidgets('switches to the dark-mode ink in dark mode', (tester) async {
       final b = await pumpIn(tester, Brightness.dark);
-      expect(fill(b), AppColors.white);
-      expect(label(b), AppColors.black);
+      expect(fill(b), AppColors.inkFor(true));
+      expect(label(b), AppColors.onInkFor(true));
+      // The two modes really differ — the bug was the light ink on a dark sheet.
+      expect(fill(b), isNot(AppColors.inkFor(false)));
+    });
+
+    test('the default palette is Samarkand Turquoise', () {
+      expect(AppColors.turquoise, isTrue);
+      expect(AppColors.inkFor(false), const Color(0xFF0B3C49));
+      expect(AppColors.inkFor(true), const Color(0xFF2EC4C6));
     });
 
     testWidgets('never paints ink on ink, in either mode', (tester) async {
