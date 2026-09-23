@@ -34,6 +34,40 @@ live code instead of trusting them.
 | **TLS / HTTPS automation** | `infra/tls/`: nginx on 443 (TLS 1.2/1.3, HSTS), HTTP → HTTPS redirect, certbot issue + 12-hourly renewal, self-signed placeholder so the stack always boots | Drill on the real compose definitions: HTTPS 200 over HTTP/2, redirect, ACME path, **server refuses TLS 1.1**, each security header exactly once, `/metrics` blocked, renewal hand-off served a new cert with no restart. Also fixed a latent bug: single-file bind mount meant nginx config edits were silently ignored on reload |
 | **Privacy policy** | `docs/legal/privacy-policy.md` — **draft**, written from the actual data model | Each claim checked against the code. One draft claim was false ("phone numbers are never shown") and was corrected — book-for-someone-else shows the passenger's phone to the driver |
 
+## Done 2026-09-23, second pass (verified on Android; iOS pending a Mac)
+
+| Item | What changed | How it was verified |
+|---|---|---|
+| **Payout double-pay race (real money)** | Stripe payouts now reserve the balance first (serializable), key the bank transfer on the reservation, give it back only on a definite rejection, and hold it for reconciliation if the outcome is unknown | Real-Postgres test: 6 simultaneous payouts of 60 against a 100 balance — **old code sent 6 transfers, new code 1** |
+| **Capture / cash / tip / cancellation fee atomic (C1)** | Payment state and the driver's ledger entry commit in one transaction with a status guard | Concurrency tests (6× at once → booked once); removing the guard makes them fail |
+| **Promo race (H2)** | Was already fixed (serializable transaction) — the plan was wrong. Found a real bug under it: serialization conflicts in raw SQL surfaced as a 500, not "no discount". One helper now handles both forms | Concurrency test |
+| **In-app account deletion (store blocker §2.1)** | `DELETE /users/me` + shared delete page for rider and driver. Refused during a ride or with a driver balance | 3 e2e + 6 widget tests; on the emulator a throwaway rider was deleted and a driver with a balance was refused |
+| **SOS that reaches people** | Emergency contacts (up to 3) texted with location, car and plate; local numbers from config (Police 102 / Ambulance 103 / Fire 101); `SafetyIncident` lifecycle; `SosRaised` critical alert; admin **Safety tab** with badge + banner on every tab; the false "Safety team alerted. Stay on the line." copy removed | 3 e2e, 11 widget, 4 admin tests; alert went *firing* 10 s after a real SOS; full SOS on the emulator during a live ride; admin acknowledge audited |
+| **Backend still said "FairsVia"** | Login-code SMS, receipt email, passenger SMS, comparison label → one `BRAND_NAME` constant | Unit tests |
+
+## Found while testing — fixed or tracked
+
+| Finding | Status |
+|---|---|
+| **Production queues would never connect**: BullMQ dropped the Redis password, and the prod Redis requires one — dispatch, payments and notifications would all fail | Fixed + proven against a password-protected Redis (old options time out, new ones process the job). Uncommitted at time of writing |
+| e2e workers consumed the dev server's live jobs (shared Redis), slowing teardown past 60 s | Fix ready (`QUEUE_PREFIX=e2e` for tests); being verified |
+| e2e teardown failed green suites (5 s hook limit) | Fixed (60 s) |
+| DiskSpaceLow alert told on-call to `docker system prune` (would wipe the owner's robotics images) | Fixed |
+| `tools/webserve.py` served nothing after any `flutter build web` (cwd was the deleted build dir) | Fixed |
+| `tools/visual-check/shot-monitoring.mjs` still hard-codes the old LAN IP and a removed tab | New `shot-safety*.mjs` resolve the IP; the old script to be removed |
+| Dev watch-mode backend kept serving old code after a change (no restart after recompile) | Trap — restart the container before live checks. Added to handoff |
+| Emulator ANR in the location plugin (`geolocator` registers NMEA on the main thread; the emulator GPS HAL stalled) | Emulator HAL issue, not app code — **watch for it on real phones** (field test) |
+| **Driver card row overflows off-screen with Uzbek car names/plates** (33 px; 125 px at large text) | Being fixed as part of the arriving-screen redesign (§6); regression test written |
+| Driver app `versionCode` is 1 in `pubspec.yaml` while a 4001 build exists | Must increase monotonically before any store upload |
+| Already built, plan was stale: resend-OTP countdown, name + email at sign-up, add-stop at booking | Removed from §7 |
+
+## Needs the owner
+
+- **Pushing**: auto mode blocks a token inside a command. Once per machine, cache it
+  yourself (see the chat) and every verified change is then pushed right away.
+- **"Add trip" in the arriving-screen brief** — add a stop to this ride, or book
+  another ride? "Pre-book" is being built either way.
+
 ---
 
 ## 1. Blocked on the owner only (not code)
@@ -58,7 +92,7 @@ live code instead of trusting them.
 
 | # | Item | Why |
 |---|---|---|
-| 2.1 | **In-app account deletion** — rider and driver | **Required by Apple (since 2022) and Google Play (since 2024)** for any app with sign-up. Verified 2026-09-23: no delete-account endpoint or screen exists. Needs: endpoint, anonymisation that keeps legally-required trip/payment records, confirmation UI, and a web deletion link for Play |
+| 2.1 | ✅ **Done 2026-09-23** — ~~In-app account deletion~~ — rider and driver | **Required by Apple (since 2022) and Google Play (since 2024)** for any app with sign-up. Verified 2026-09-23: no delete-account endpoint or screen exists. Needs: endpoint, anonymisation that keeps legally-required trip/payment records, confirmation UI, and a web deletion link for Play |
 | 2.2 | **Privacy policy + terms links in the apps** | Both stores require them reachable in-app. Blocked only on the public URL |
 | 2.3 | **ATS `NSAllowsArbitraryLoads` removal** (iOS) | Apple rejects it; TLS now exists to replace it. Needs a Mac to verify |
 
@@ -84,10 +118,10 @@ Verified 2026-09-23 against the running stack:
 |---|---|---|
 | C2 | Driver withdrawal double-spend race | ✅ **Fixed** — serializable transaction (`ledger.service.ts`) |
 | H1 | Refund over-refund race | ✅ **Fixed** — reserve-then-call-provider, idempotency key, reversal on failure |
-| C1 | Capture vs driver earning not atomic | 🟠 **Partly fixed.** Capture is capped at the authorised hold. The payment-status update and the ledger credit are still two statements (`payments.service.ts` ~257–267) — a crash between them leaves a captured fare with no driver credit. Put both in one transaction |
-| H2 | Per-user promo limit bypass under concurrency | 🔴 **Open** — `PromoRedemption` has no `@@unique([promoId, userId])` |
+| C1 | Capture vs driver earning not atomic | ✅ **Fixed 2026-09-23** (was: partly fixed. Capture is capped at the authorised hold. The payment-status update and the ledger credit are still two statements (`payments.service.ts` ~257–267) — a crash between them leaves a captured fare with no driver credit. Put both in one transaction |
+| H2 | Per-user promo limit bypass under concurrency | ✅ **Already fixed** (serializable txn; the earlier "open" was wrong). Raw-SQL conflict 500 fixed 2026-09-23 |
 | M13 | Money stored as `Float` | 🟡 **Open** — `FareConfig` / competitor tables (`baseFare`, `bookingFee`, `minFare`, `observedFare`). Trip/Payment are correctly `Decimal`. Fix together with 3.2 |
-| — | **SOS notifies no one** | 🔴 **Open.** Writes an alert for the admin view only — no SMS, call or emergency contact. Must not be labelled an emergency feature until it alerts someone (local emergency number 102/103 in Uzbekistan, trusted contacts, ops on-call) |
+| — | **SOS notifies no one** | ✅ **Fixed 2026-09-23** — contacts texted, ops alerted, admin Safety tab. Needs Alertmanager delivery wired before launch (§1). Was: Writes an alert for the admin view only — no SMS, call or emergency contact. Must not be labelled an emergency feature until it alerts someone (local emergency number 102/103 in Uzbekistan, trusted contacts, ops on-call) |
 | — | Driver document upload | Open — onboarding is typed text; verification is a manual admin toggle |
 
 ---
@@ -138,8 +172,9 @@ build to verify. ~3–4 days, excluding photo storage.
 
 **Tier 1:** editable pickup · in-app masked calling · driver + vehicle photos
 · wait timer / no-show UI.
-**Tier 2:** rebook a past trip · add stop / change destination mid-trip ·
-resend OTP with countdown · name + email at signup · set-default / delete card.
+**Tier 2:** rebook a past trip · add stop / change destination **mid-trip**
+(adding stops at booking already exists) · set-default / delete card.
+(Resend-OTP countdown and name + email at sign-up already exist.)
 **Tier 3:** local wallets (Payme / Click — replaces Apple/Google Pay as the
 priority for Uzbekistan) · settings screens (i18n moved to §3.4) ·
 **referral program (kept by owner decision)** · pool rides and add-ons.
