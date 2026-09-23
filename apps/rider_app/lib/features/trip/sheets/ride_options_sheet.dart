@@ -421,6 +421,35 @@ Future<DateTime?> _pickCupertino(BuildContext context) async {
   return picked.isBefore(floor) ? floor : picked;
 }
 
+/// Asks for a future pickup time — the native wheel on Apple platforms, the
+/// Material date + time pickers elsewhere — clamped to the backend's rule
+/// (at least 5 minutes ahead, with a minute of slack; up to 30 days).
+Future<DateTime?> pickRideTime(BuildContext context) async {
+  final platform = Theme.of(context).platform;
+  if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
+    return _pickCupertino(context);
+  }
+  final now = DateTime.now();
+  final date = await showDatePicker(
+    context: context,
+    firstDate: now,
+    lastDate: now.add(const Duration(days: 30)),
+    initialDate: now.add(const Duration(hours: 1)),
+  );
+  if (date == null || !context.mounted) return null;
+  final time = await showTimePicker(
+    context: context,
+    initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+  );
+  if (time == null) return null;
+  final when =
+      DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  // Clamping to exactly now+5 and sending a few seconds later was rejected
+  // by the backend with a 400 — hence 6.
+  final floor = now.add(const Duration(minutes: 6));
+  return when.isBefore(floor) ? floor : when;
+}
+
 /// "Ride now" vs "Schedule for …" row with a date/time picker.
 class _ScheduleRow extends StatelessWidget {
   const _ScheduleRow({required this.state});
@@ -428,40 +457,8 @@ class _ScheduleRow extends StatelessWidget {
 
   Future<void> _pick(BuildContext context) async {
     final cubit = context.read<TripCubit>();
-    final platform = Theme.of(context).platform;
-    if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
-      final when = await _pickCupertino(context);
-      if (when != null) cubit.setScheduledAt(when);
-      return;
-    }
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 30)),
-      initialDate: now.add(const Duration(hours: 1)),
-    );
-    if (date == null || !context.mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
-    );
-    if (time == null) return;
-    final when = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      time.hour,
-      time.minute,
-    );
-    // Must be at least 5 minutes ahead (backend rule). Clamp with a minute of
-    // slack: clamping to exactly now+5 and sending a few seconds later was
-    // rejected by the backend with a 400.
-    if (when.isBefore(now.add(const Duration(minutes: 6)))) {
-      cubit.setScheduledAt(now.add(const Duration(minutes: 6)));
-    } else {
-      cubit.setScheduledAt(when);
-    }
+    final when = await pickRideTime(context);
+    if (when != null) cubit.setScheduledAt(when);
   }
 
   @override

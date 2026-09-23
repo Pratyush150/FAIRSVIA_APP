@@ -28,3 +28,4 @@ part 'ride_options_sheet.dart';
 part 'ride_details_sheet.dart';
 part 'live_ride_sheets.dart';
 part 'completed_sheet.dart';
+part 'pre_book_page.dart';

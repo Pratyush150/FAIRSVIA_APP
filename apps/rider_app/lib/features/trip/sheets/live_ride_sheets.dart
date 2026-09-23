@@ -848,20 +848,57 @@ class _RideStops extends StatelessWidget {
   }
 }
 
-/// Quick actions under the ride: "Add a stop" (the brief's "Add trip").
+/// Quick actions under the ride: "Add a stop" (the brief's "Add trip") and
+/// "Pre-book" a ride for later.
 class _RideQuickActions extends StatelessWidget {
   const _RideQuickActions({required this.state});
 
   final TripState state;
 
+  Future<void> _preBook(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final trip = await Navigator.of(context).push<Trip>(MaterialPageRoute(
+      builder: (_) => PreBookPage(
+        repository: sl<TripRepository>(),
+        // Most pre-books from mid-ride are the ride back.
+        pickup: state.trip?.dropoff.point ?? state.dropoff,
+        pickupAddr: state.trip?.dropoff.address ?? state.dropoffAddr,
+        paymentMode: state.trip?.paymentMode ?? state.paymentMode,
+      ),
+    ));
+    if (trip == null) return;
+    final when = trip.scheduledAt;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(when == null
+            ? 'Ride scheduled. Find it in Account › Scheduled rides.'
+            : 'Ride scheduled for ${_formatSchedule(when)}. '
+                'Find it in Account › Scheduled rides.'),
+      ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!TripCubit.canAddStopTo(state)) return const SizedBox.shrink();
-    return _QuickActionCard(
-      icon: Icons.add_location_alt_rounded,
-      title: 'Add a stop',
-      subtitle: 'See the new price before you confirm',
-      onTap: () => _addStopToRide(context, state),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (TripCubit.canAddStopTo(state)) ...[
+          _QuickActionCard(
+            icon: Icons.add_location_alt_rounded,
+            title: 'Add a stop',
+            subtitle: 'See the new price before you confirm',
+            onTap: () => _addStopToRide(context, state),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        _QuickActionCard(
+          icon: Icons.event_available_rounded,
+          title: 'Pre-book a ride',
+          subtitle: 'Your ride back, or any trip later',
+          onTap: () => _preBook(context),
+        ),
+      ],
     );
   }
 }
