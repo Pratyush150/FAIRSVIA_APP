@@ -1,5 +1,6 @@
 import { BadGatewayException, Logger } from '@nestjs/common';
 import { SmsProvider } from './sms-provider.interface';
+import { BRAND_NAME } from '../../common/brand';
 
 /**
  * Real Twilio SMS provider via the REST API (no SDK dependency), mirroring the
@@ -28,7 +29,7 @@ export class TwilioSmsProvider implements SmsProvider {
   async sendOtp(phone: string, code: string): Promise<void> {
     await this.send(
       phone,
-      `Your FairsVia verification code is ${code}. It expires shortly. Do not share it.`,
+      `Your ${BRAND_NAME} verification code is ${code}. It expires shortly. Do not share it.`,
       'OTP SMS',
     );
   }

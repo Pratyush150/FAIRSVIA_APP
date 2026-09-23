@@ -7,6 +7,7 @@ import {
   RouteResult,
 } from './geo-provider.interface';
 import { haversineMeters } from './geo.util';
+import { BRAND_NAME } from '../common/brand';
 
 /**
  * Self-hostable OpenStreetMap provider: OSRM for road-following routes and
@@ -29,7 +30,7 @@ export class OsmGeoProvider implements GeoProvider {
     process.env.GEO_VIEWBOX ?? '-80.45,25.95,-80.10,25.55';
   private static readonly countryCodes =
     process.env.GEO_COUNTRY_CODES ?? 'us';
-  private static readonly userAgent = 'FairsVia/1.0 (self-hosted)';
+  private static readonly userAgent = `${BRAND_NAME}/1.0 (self-hosted)`;
 
   constructor(
     private readonly osrmBaseUrl: string,

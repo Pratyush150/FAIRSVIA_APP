@@ -3,6 +3,7 @@ import { PricingService } from '../pricing/pricing.service';
 import { CURRENCY, METERS_PER_MILE } from '../pricing/fare-config';
 import { COMPETITOR_MODELS, ProviderFareModel } from './competitor-config';
 import { CalibrationService } from './calibration.service';
+import { BRAND_NAME } from '../common/brand';
 
 /** How sure we are of a modeled price. `exact` = our own real fare. */
 export type QuoteConfidence = 'exact' | 'high' | 'medium' | 'low';
@@ -71,7 +72,7 @@ export interface PriceComparison {
 }
 
 const OUR_PROVIDER = 'ubernav';
-const OUR_DISPLAY = 'FairsVia';
+const OUR_DISPLAY = BRAND_NAME;
 
 /** Surge at/above this is treated as "high demand" for the reliability flag. */
 const HIGH_DEMAND_SURGE = 1.2;

@@ -1,6 +1,7 @@
 import { BadGatewayException, Logger } from '@nestjs/common';
 import { SmsProvider } from './sms-provider.interface';
 import { AwsCreds, signAwsRequest } from '../../common/aws/aws-sigv4';
+import { BRAND_NAME } from '../../common/brand';
 
 /**
  * Amazon SNS SMS provider via the SNS query API + hand-rolled SigV4 (no SDK),
@@ -26,7 +27,7 @@ export class SnsSmsProvider implements SmsProvider {
   async sendOtp(phone: string, code: string): Promise<void> {
     await this.publish(
       phone,
-      `Your FairsVia verification code is ${code}. It expires shortly. Do not share it.`,
+      `Your ${BRAND_NAME} verification code is ${code}. It expires shortly. Do not share it.`,
       'OTP SMS',
     );
   }

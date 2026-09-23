@@ -43,6 +43,7 @@ import { EmailService } from '../email/email.service';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { EstimateDto } from './dto/estimate.dto';
 import { TripStateMachine } from './trip-state-machine';
+import { BRAND_NAME } from '../common/brand';
 
 const CANCELLABLE: TripStatus[] = [
   TripStatus.scheduled,
@@ -448,7 +449,7 @@ export class TripsService {
     void this.notifications.notifyTrip(trip.riderId, 'arrived', { tripId });
     // The booker gets the push above; the passenger is standing at the kerb
     // and may have no app at all, so they get a text.
-    this.notifyPassenger(trip, 'Your FairsVia ride is here at the pickup point.');
+    this.notifyPassenger(trip, `Your ${BRAND_NAME} ride is here at the pickup point.`);
     return { status: TripStatus.arrived, arrivedDistanceM: arrivedDistanceM ?? null };
   }
 

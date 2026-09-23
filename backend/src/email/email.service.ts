@@ -4,6 +4,7 @@ import {
   EmailMessage,
   EmailProvider,
 } from './email-provider.interface';
+import { BRAND_NAME } from '../common/brand';
 
 /**
  * Application-facing email API. Wraps the configured provider (SES or mock) and
@@ -34,12 +35,12 @@ export class EmailService {
     const money = `$${amount.toFixed(2)}`;
     await this.send({
       to,
-      subject: `Your FairsVia receipt — ${money}`,
+      subject: `Your ${BRAND_NAME} receipt — ${money}`,
       html:
-        `<h2 style="font-family:sans-serif">Thanks for riding with FairsVia</h2>` +
+        `<h2 style="font-family:sans-serif">Thanks for riding with ${BRAND_NAME}</h2>` +
         `<p style="font-family:sans-serif">Trip <strong>${tripId}</strong></p>` +
         `<p style="font-family:sans-serif">Total charged: <strong>${money}</strong></p>`,
-      text: `Thanks for riding with FairsVia. Trip ${tripId}. Total charged: ${money}.`,
+      text: `Thanks for riding with ${BRAND_NAME}. Trip ${tripId}. Total charged: ${money}.`,
     });
   }
 }
