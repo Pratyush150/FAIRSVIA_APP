@@ -74,3 +74,22 @@ Add it to `prometheus/prometheus.yml` **by address**, one target per replica.
 Do not point the scraper at nginx: it uses `ip_hash` for Socket.IO session
 affinity, which would pin the scraper to one replica and silently halve the
 data while looking perfectly healthy.
+
+## Public access to Grafana (pilot, 2026-09-23)
+
+Grafana is reachable from any network through a Cloudflare quick tunnel
+(container `ridevela_grafana_tunnel`, on the monitoring network, pointing at
+`http://grafana:3000`). Its address changes if the container restarts; get the
+current one with:
+
+    docker logs ridevela_grafana_tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
+
+- Login is required (anonymous access is off). The default `admin/ridevela`
+  password was replaced with a strong one before the link was opened;
+  `GF_SECURITY_ADMIN_PASSWORD` in the compose file only applies to a brand-new
+  `grafana_data` volume, so wiping that volume brings the weak default back —
+  change it again before re-opening the link.
+- Team members use the `team` account (Viewer: dashboards only, no editing,
+  no ad-hoc queries). Passwords are held by the owner, never in this repo.
+- The permanent version is a named tunnel on the RideVela Cloudflare account
+  (e.g. `grafana.ridevela.com`) with Cloudflare Access in front.
