@@ -14,6 +14,22 @@ export class RealtimeService {
     this.server = server;
   }
 
+  /**
+   * Authenticated sockets connected to THIS process, by role. Each backend
+   * instance reports its own; Prometheus sums them across instances.
+   */
+  localConnectionsByRole(): Map<string, number> {
+    const byRole = new Map<string, number>();
+    const sockets = this.server?.sockets?.sockets;
+    if (!sockets) return byRole;
+    for (const socket of sockets.values()) {
+      const role = (socket.data as { role?: string } | undefined)?.role;
+      if (!role) continue; // still authenticating, or rejected
+      byRole.set(role, (byRole.get(role) ?? 0) + 1);
+    }
+    return byRole;
+  }
+
   /** Emit to a specific user's personal room (`user:{id}`). */
   emitToUser(userId: string, event: string, payload: unknown = {}): void {
     if (!this.server) return;

@@ -74,6 +74,19 @@ export interface AppConfig {
   sesFrom: string;
   /** Local emergency numbers shown in the SOS sheet, in display order. */
   emergencyNumbers: { label: string; number: string }[];
+  /** IANA zone whose midnight starts a business day ("today" in earnings,
+   *  dashboards, daily-active counts). The launch market is Tashkent. */
+  businessTimezone: string;
+}
+
+/** Fail at boot on a typo'd zone rather than silently counting days in UTC. */
+function validTimezone(tz: string): string {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+  } catch {
+    throw new Error(`BUSINESS_TZ "${tz}" is not a valid IANA time zone`);
+  }
+  return tz;
 }
 
 /**
@@ -228,5 +241,6 @@ export default (): AppConfig => {
   emergencyNumbers: parseEmergencyNumbers(
     process.env.EMERGENCY_NUMBERS ?? 'Police:102,Ambulance:103,Fire:101',
   ),
+  businessTimezone: validTimezone(process.env.BUSINESS_TZ ?? 'Asia/Tashkent'),
   };
 };

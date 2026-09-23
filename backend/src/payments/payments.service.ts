@@ -626,13 +626,20 @@ export class PaymentsService {
     //  - Cash ride: the rider hands the tip to the driver in cash — record it,
     //    never charge a card (there may be none, and charging would fail).
     //  - Card ride: charge the card the ride used (falling back to the default).
-    //    With no chargeable method, record the tip anyway rather than failing
-    //    the whole action (the driver is still credited; reconciled out-of-band).
+    //    With a real processor and no card to charge, refuse: crediting the
+    //    driver for a tip nobody paid is the platform paying it. (The mock
+    //    simulates an always-present card, so it records the tip as before.)
     if (trip.paymentMode !== 'cash') {
       const [customerRef, method] = await Promise.all([
         this.ensureCustomer(userId),
         this.methodFor(trip),
       ]);
+      if (!method?.externalId && this.provider.needsSavedCard) {
+        throw new BadRequestException({
+          code: 'PAYMENT_METHOD_REQUIRED',
+          message: 'Add a card to leave a tip.',
+        });
+      }
       if (method?.externalId) {
         await this.provider.charge({
           amount: tip,
@@ -1094,6 +1101,17 @@ export class PaymentsService {
       }
     }
     return this.listMethods(userId);
+  }
+
+  /**
+   * Can a card ride booked now actually be paid for? [chosenMethodId] is the
+   * card picked at booking, already checked to belong to the rider. Without
+   * this, a rider with no saved card could book a card ride that is driven
+   * and then can never be captured — the fare is simply lost.
+   */
+  async canChargeCard(riderId: string, chosenMethodId: string | null): Promise<boolean> {
+    if (!this.provider.needsSavedCard || chosenMethodId) return true;
+    return (await this.defaultMethod(riderId)) !== null;
   }
 
   private async defaultMethod(userId: string) {

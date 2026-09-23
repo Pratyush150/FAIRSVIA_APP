@@ -36,7 +36,8 @@ describe('RealtimeGateway.handleDisconnect', () => {
       null as never, // trips
       drivers as never,
       null as never, // chat
-      null as never, // prisma
+      null as never, // prisma,
+      { touch: jest.fn() } as never,
     );
     return { gateway, goOffline };
   }
@@ -107,6 +108,7 @@ describe('RealtimeGateway.handleConnection', () => {
         user: { findUnique },
         driverProfile: { findUnique: profileFind, updateMany: profileUpdate },
       } as never,
+      { touch: jest.fn() } as never,
     );
     const client = {
       data: {} as { userId?: string; role?: string },

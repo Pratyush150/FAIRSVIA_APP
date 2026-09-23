@@ -5,6 +5,7 @@ import { TripStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { MetricsService } from './metrics.service';
+import { RealtimeService } from '../../realtime/realtime.service';
 import { QUEUE_DISPATCH, QUEUE_NOTIFICATIONS } from '../queue/queue.constants';
 
 /** Trip statuses that count as "in flight" right now. */
@@ -36,6 +37,7 @@ export class BusinessMetricsService implements OnModuleInit {
     private readonly metrics: MetricsService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly realtime: RealtimeService,
     @InjectQueue(QUEUE_DISPATCH) private readonly dispatchQueue: Queue,
     @InjectQueue(QUEUE_NOTIFICATIONS) private readonly notificationsQueue: Queue,
   ) {}
@@ -44,13 +46,24 @@ export class BusinessMetricsService implements OnModuleInit {
     this.metrics.setCollector('dispatch_queue_depth', () =>
       this.guard('dispatch_queue_depth', () => this.collectQueues()),
     );
-    this.metrics.setCollector('drivers_online', () =>
-      this.guard('drivers_online', () => this.collectDrivers()),
+    // drivers_online and drivers_on_trip come from one Redis read. prom-client
+    // collects all gauges concurrently, so both share the in-flight read
+    // rather than doing it twice or one reading the other's stale value.
+    this.metrics.setCollector('drivers_online', () => {
+      this.driversInFlight ??= this.guard('drivers_online', () =>
+        this.collectDrivers(),
+      ).finally(() => (this.driversInFlight = undefined));
+      return this.driversInFlight;
+    });
+    this.metrics.setCollector('websocket_connections', () =>
+      this.guard('websocket_connections', async () => this.collectSockets()),
     );
     this.metrics.setCollector('active_trips', () =>
       this.guard('active_trips', () => this.collectActiveTrips()),
     );
   }
+
+  private driversInFlight?: Promise<void>;
 
   private async guard(name: string, fn: () => Promise<void>): Promise<void> {
     try {
@@ -93,20 +106,23 @@ export class BusinessMetricsService implements OnModuleInit {
    * even though dispatch has taken them out of the pool.
    */
   private async collectDrivers(): Promise<void> {
-    const g = this.metrics.driversOnline;
-    g.reset();
     const statusKeys = await this.redis.client.keys('driver:*:status');
-    if (statusKeys.length === 0) return;
-    const statuses = await this.redis.client.mget(...statusKeys);
+    const statuses = statusKeys.length ? await this.redis.client.mget(...statusKeys) : [];
 
     const onlineIds: string[] = [];
+    let onTrip = 0;
     for (let i = 0; i < statusKeys.length; i++) {
       const status = statuses[i];
       if (!status || status === 'offline') continue;
       // key shape: driver:{id}:status
       const id = statusKeys[i].split(':')[1];
-      if (id) onlineIds.push(id);
+      if (!id) continue;
+      onlineIds.push(id);
+      if (status === 'on_trip') onTrip += 1;
     }
+    const g = this.metrics.driversOnline;
+    g.reset();
+    this.metrics.driversOnTrip.set(onTrip);
     if (onlineIds.length === 0) return;
 
     const tiers = await this.redis.client.mget(
@@ -120,6 +136,15 @@ export class BusinessMetricsService implements OnModuleInit {
       byTier.set(key, (byTier.get(key) ?? 0) + 1);
     }
     for (const [tier, count] of byTier) g.set({ tier }, count);
+  }
+
+  private collectSockets(): void {
+    const g = this.metrics.wsConnections;
+    g.reset();
+    // Always report both roles, so "0 riders connected" is a value, not a gap.
+    g.set({ role: 'rider' }, 0);
+    g.set({ role: 'driver' }, 0);
+    for (const [role, n] of this.realtime.localConnectionsByRole()) g.set({ role }, n);
   }
 
   private async collectActiveTrips(): Promise<void> {

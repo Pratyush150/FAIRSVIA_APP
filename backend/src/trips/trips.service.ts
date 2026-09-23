@@ -226,6 +226,15 @@ export class TripsService {
       riderId,
       dto.paymentMethodId,
     );
+    if (
+      (dto.paymentMode ?? 'card') === 'card' &&
+      !(await this.payments.canChargeCard(riderId, paymentMethodId))
+    ) {
+      throw new BadRequestException({
+        code: 'PAYMENT_METHOD_REQUIRED',
+        message: 'Add a card, or choose cash, to book this ride.',
+      });
+    }
     const pickup: LatLng = { lat: dto.pickupLat, lng: dto.pickupLng };
     const dropoff: LatLng = { lat: dto.dropoffLat, lng: dto.dropoffLng };
     const route = await this.routeFor(pickup, dropoff, dto.stops);

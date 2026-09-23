@@ -78,6 +78,7 @@ describe('TripsService', () => {
     const payments = {
       captureForTrip: jest.fn().mockResolvedValue({ fareFinal: 11, platformFee: 2.2, driverPayout: 8.8 }),
       chargeCancellationFee: jest.fn().mockResolvedValue(0),
+      canChargeCard: jest.fn().mockResolvedValue(true),
     };
     const notifications = { notifyTrip: jest.fn().mockResolvedValue(undefined), notify: jest.fn() };
     const config = { get: jest.fn((k: string) => (k === 'arrivalRadiusM' ? 150 : k === 'cancellationFee' ? 5 : undefined)) };

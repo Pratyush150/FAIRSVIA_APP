@@ -76,6 +76,13 @@ export interface TransferParams {
  * implementation is selected when STRIPE_SECRET_KEY is set.
  */
 export interface PaymentProvider {
+  /**
+   * Whether a card ride can only be charged against a card the rider saved.
+   * True for a real processor. The mock simulates an always-present card, so
+   * dev and test flows can book card rides without the add-card step.
+   */
+  readonly needsSavedCard: boolean;
+
   /** Place an authorization hold (manual capture). */
   authorize(params: AuthorizeParams): Promise<PaymentIntentResult>;
 

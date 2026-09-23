@@ -12,6 +12,7 @@ import { FavoritesService } from '../favorites/favorites.service';
 import { DriversService } from '../drivers/drivers.service';
 import { SurgeService } from '../surge/surge.service';
 import { OpsFlagsService } from '../ops/ops-flags.service';
+import { MetricsService } from '../common/metrics/metrics.service';
 import { GEO_PROVIDER, GeoProvider, RouteResult } from '../geo/geo-provider.interface';
 import {
   SMS_PROVIDER,
@@ -117,6 +118,7 @@ export class DispatchService {
     private readonly drivers: DriversService,
     private readonly surge: SurgeService,
     private readonly flags: OpsFlagsService,
+    private readonly metrics: MetricsService,
   ) {}
 
   /**
@@ -252,22 +254,42 @@ export class DispatchService {
     }
 
     // Window elapsed with no available driver.
+    await this.declareNoDrivers(trip);
+  }
+
+  /**
+   * End a search that found nobody: [trip] leaves [from] (MATCHING, or
+   * REQUESTED for a ride whose search never started) for no_drivers /
+   * expired, and the rider is told. Returns false when the trip had already
+   * moved on (accepted, cancelled) — nothing is done then.
+   */
+  async declareNoDrivers(
+    trip: Pick<Trip, 'id' | 'riderId' | 'pickupLat' | 'pickupLng'>,
+    from: TripStatus = TripStatus.matching,
+  ): Promise<boolean> {
+    const tripId = trip.id;
     try {
       await this.stateMachine.transition({
         tripId,
-        from: TripStatus.matching,
-        to: TripStatus.no_drivers,
+        from,
+        to: from === TripStatus.matching ? TripStatus.no_drivers : TripStatus.expired,
         actor: 'system',
       });
-      this.realtime.emitToUser(trip.riderId, 'trip:no_drivers', { tripId });
-      void this.notifications.notifyTrip(trip.riderId, 'no_drivers', { tripId });
-      // Unmet demand must not keep surging the cell for the next rider.
-      await this.surge
-        .releaseDemand(trip.pickupLat, trip.pickupLng, trip.riderId)
-        .catch(() => undefined);
     } catch {
-      // Trip left MATCHING (cancelled) — nothing to do.
+      return false; // Trip left that state (accepted, cancelled) — nothing to do.
     }
+    this.realtime.emitToUser(trip.riderId, 'trip:no_drivers', { tripId });
+    void this.notifications.notifyTrip(trip.riderId, 'no_drivers', { tripId });
+    // Unmet demand must not keep surging the cell for the next rider.
+    await this.surge
+      .releaseDemand(trip.pickupLat, trip.pickupLng, trip.riderId)
+      .catch(() => undefined);
+    return true;
+  }
+
+  /** Trips parked by the ops dispatch pause (waiting on purpose). */
+  async deferredIds(): Promise<Set<string>> {
+    return new Set(await this.redis.client.smembers(RedisKeys.dispatchDeferred()));
   }
 
   /**
@@ -535,6 +557,7 @@ export class DispatchService {
 
       const verdict = await this.awaitResponse(trip.id, driverId);
       await this.redis.client.del(RedisKeys.dispatchOffer(trip.id));
+      this.metrics.offerOutcome(verdict === 'timeout' ? 'expired' : verdict);
 
       if (verdict !== 'accepted') {
         if (verdict === 'declined') {

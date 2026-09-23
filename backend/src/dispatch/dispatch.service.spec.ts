@@ -29,6 +29,7 @@ describe('DispatchService', () => {
     const drivers = { forceOffline: jest.fn().mockResolvedValue(true) };
     const surge = { releaseDemand: jest.fn().mockResolvedValue(undefined) };
     const sms = { sendOtp: jest.fn(), sendMessage: jest.fn().mockResolvedValue(undefined) };
+    const metrics = { offerOutcome: jest.fn() };
     const svc = new DispatchService(
       prisma as never,
       redis as never,
@@ -42,8 +43,9 @@ describe('DispatchService', () => {
       drivers as never,
       surge as never,
       flagsAllOff as never,
+      metrics as never,
     );
-    return { svc, redis, queue, favorites, realtime, prisma, drivers, surge, geo, sms };
+    return { svc, redis, queue, favorites, metrics, realtime, prisma, drivers, surge, geo, sms };
   }
 
   it('dispatchTrip enqueues a durable job keyed by tripId (de-dupe)', async () => {
@@ -241,6 +243,18 @@ describe('DispatchService', () => {
       internals.awaitResponse = jest.fn().mockResolvedValue('timeout');
       await internals.offerTo('driver-B', trip, { name: 'Priya', rating: 4.8 });
       expect(redis.client.sadd).not.toHaveBeenCalled();
+    });
+
+    it('records every offer outcome for the acceptance-rate panel', async () => {
+      const { svc, redis, metrics } = make();
+      redis.client.set.mockResolvedValue('OK');
+      const internals = svc as unknown as Internals;
+      internals.approachDistanceM = jest.fn().mockResolvedValue(undefined);
+      for (const verdict of ['declined', 'timeout'] as const) {
+        internals.awaitResponse = jest.fn().mockResolvedValue(verdict);
+        await internals.offerTo('driver-A', trip, { name: 'Priya', rating: 4.8 });
+      }
+      expect(metrics.offerOutcome.mock.calls).toEqual([['declined'], ['expired']]);
     });
   });
 
@@ -467,6 +481,7 @@ describe('DispatchService', () => {
       { forceOffline: jest.fn() } as never,
       surge as never,
       flagsAllOff as never,
+      { offerOutcome: jest.fn() } as never,
     );
     // Skip the real inter-sweep delay so the test is fast.
     (svc as unknown as { sleep: () => Promise<void> }).sleep = () => Promise.resolve();

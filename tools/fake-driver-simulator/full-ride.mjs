@@ -208,43 +208,61 @@ async function main() {
 
   // --- Payout ledger + withdrawal (B1) ---
   const bal = await api('/drivers/balance', { token: driver.token });
-  assert(bal.balance > 0, 'ledger balance is positive after a paid ride');
-  // For a card ride, the ledger holds the net payout + the tip.
-  const expectedLedger =
-    Math.round((receipt.driverPayout + 25) * 100) / 100;
-  assert(
-    Math.abs(bal.balance - expectedLedger) < 0.01,
-    `ledger balance $${bal.balance} === payout+tip $${expectedLedger}`,
-  );
-  assert(
-    bal.entries.some((e) => e.type === 'earning') &&
-      bal.entries.some((e) => e.type === 'tip'),
-    'ledger has earning + tip entries',
-  );
-  console.log(`• ledger balance $${bal.balance} (earning + tip)`);
+  // The balance the refund below is measured against.
+  let preRefundBalance = bal.balance;
+  if (paymentMode === 'cash') {
+    // Cash: the driver keeps the fare and the tip in hand and owes the
+    // platform its commission, so the balance is exactly minus that fee.
+    assert(
+      Math.abs(bal.balance + receipt.platformFee) < 0.01,
+      `cash ledger balance $${bal.balance} === -commission $${receipt.platformFee}`,
+    );
+    assert(
+      bal.entries.some((e) => e.type === 'commission') &&
+        !bal.entries.some((e) => e.type === 'tip'),
+      'cash ledger has the commission owed and no tip credit',
+    );
+    console.log(`• ledger balance $${bal.balance} (commission owed on cash)`);
+  } else {
+    assert(bal.balance > 0, 'ledger balance is positive after a paid ride');
+    // For a card ride, the ledger holds the net payout + the tip.
+    const expectedLedger =
+      Math.round((receipt.driverPayout + 25) * 100) / 100;
+    assert(
+      Math.abs(bal.balance - expectedLedger) < 0.01,
+      `ledger balance $${bal.balance} === payout+tip $${expectedLedger}`,
+    );
+    assert(
+      bal.entries.some((e) => e.type === 'earning') &&
+        bal.entries.some((e) => e.type === 'tip'),
+      'ledger has earning + tip entries',
+    );
+    console.log(`• ledger balance $${bal.balance} (earning + tip)`);
 
-  // Withdraw part of the balance; it debits and the new balance matches.
-  const withdrawAmt = Math.floor(bal.balance / 2);
-  const wd = await api('/drivers/balance/withdraw', {
-    method: 'POST',
-    token: driver.token,
-    body: { amount: withdrawAmt },
-  });
-  assert(wd.withdrawn === withdrawAmt, 'withdrawal amount recorded');
-  const afterBal = await api('/drivers/balance', { token: driver.token });
-  assert(
-    Math.abs(afterBal.balance - (bal.balance - withdrawAmt)) < 0.01,
-    'balance debited by the withdrawal',
-  );
-  // Over-withdrawing the remaining balance is rejected.
-  const over = await api('/drivers/balance/withdraw', {
-    method: 'POST',
-    token: driver.token,
-    body: { amount: afterBal.balance + 1000 },
-    expectError: true,
-  });
-  assert(over.status === 400, 'over-withdrawal rejected (400)');
-  console.log(`• withdrew $${withdrawAmt}, balance now $${afterBal.balance}`);
+    // Withdraw part of the balance; it debits and the new balance matches.
+    const withdrawAmt = Math.floor(bal.balance / 2);
+    const wd = await api('/drivers/balance/withdraw', {
+      method: 'POST',
+      token: driver.token,
+      body: { amount: withdrawAmt },
+    });
+    assert(wd.withdrawn === withdrawAmt, 'withdrawal amount recorded');
+    const afterBal = await api('/drivers/balance', { token: driver.token });
+    assert(
+      Math.abs(afterBal.balance - (bal.balance - withdrawAmt)) < 0.01,
+      'balance debited by the withdrawal',
+    );
+    // Over-withdrawing the remaining balance is rejected.
+    const over = await api('/drivers/balance/withdraw', {
+      method: 'POST',
+      token: driver.token,
+      body: { amount: afterBal.balance + 1000 },
+      expectError: true,
+    });
+    assert(over.status === 400, 'over-withdrawal rejected (400)');
+    console.log(`• withdrew $${withdrawAmt}, balance now $${afterBal.balance}`);
+    preRefundBalance = afterBal.balance;
+  }
 
   // --- Notification inbox (C4): the ride milestones were persisted ---
   const inbox = await api('/me/notifications', { token: rider.token });
@@ -299,7 +317,7 @@ async function main() {
   const postRefundBal = await api('/drivers/balance', { token: driver.token });
   const expectedClawback = Math.round(refundAmt * 0.8 * 100) / 100;
   assert(
-    Math.abs(afterBal.balance - postRefundBal.balance - expectedClawback) < 0.01,
+    Math.abs(preRefundBalance - postRefundBal.balance - expectedClawback) < 0.01,
     `refund clawed back $${expectedClawback} from the driver`,
   );
   console.log(

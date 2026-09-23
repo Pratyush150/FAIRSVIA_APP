@@ -33,6 +33,7 @@ function build(opts: {
     metrics,
     prisma,
     redis,
+    { localConnectionsByRole: () => new Map([['rider', 2]]) } as never,
     queue as never,
     queue as never,
   );
@@ -99,6 +100,25 @@ describe('BusinessMetricsService', () => {
       tierValues: ['economy', 'economy'],
     });
     expect(await sample(metrics, 'drivers_online', { tier: 'economy' })).toBe(2);
+  });
+
+  it('counts busy drivers once, even though two gauges ask for them', async () => {
+    const { metrics } = build({
+      statusKeys: ['driver:a:status', 'driver:b:status', 'driver:c:status'],
+      statusValues: ['online', 'on_trip', 'on_trip'],
+      tierValues: ['economy', 'xl', 'xl'],
+    });
+    expect(await sample(metrics, 'drivers_on_trip')).toBe(2);
+    expect(await sample(metrics, 'drivers_online', { tier: 'xl' })).toBe(2);
+    // The build() mock answers exactly one status read + one tier read; a
+    // second Redis read per scrape would have returned nothing and zeroed a
+    // gauge. Both gauges above being right is the proof they shared one.
+  });
+
+  it('reports WebSocket connections by role, with 0 rather than a gap', async () => {
+    const { metrics } = build({});
+    expect(await sample(metrics, 'websocket_connections', { role: 'rider' })).toBe(2);
+    expect(await sample(metrics, 'websocket_connections', { role: 'driver' })).toBe(0);
   });
 
   it('buckets an online driver with no tier rather than dropping them', async () => {
@@ -171,6 +191,20 @@ describe('MetricsService business counters', () => {
     const text = await metrics.scrape();
     expect(textValue(text, 'trips_total{status="accepted"}')).toBe(2);
     expect(textValue(text, 'trips_total{status="matching"}')).toBe(1);
+  });
+
+  it('counts offer outcomes, and every outcome exists from boot at 0', async () => {
+    const metrics = new MetricsService();
+    let text = await metrics.scrape();
+    for (const outcome of ['accepted', 'declined', 'expired']) {
+      expect(textValue(text, `dispatch_offers_total{outcome="${outcome}"}`)).toBe(0);
+    }
+    metrics.offerOutcome('accepted');
+    metrics.offerOutcome('expired');
+    metrics.offerOutcome('expired');
+    text = await metrics.scrape();
+    expect(textValue(text, 'dispatch_offers_total{outcome="accepted"}')).toBe(1);
+    expect(textValue(text, 'dispatch_offers_total{outcome="expired"}')).toBe(2);
   });
 
   it('separates a retried payment failure from an exhausted one', async () => {

@@ -1,4 +1,4 @@
-import { BadGatewayException, ConflictException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, TripStatus } from '@prisma/client';
 import { PaymentsService } from './payments.service';
@@ -116,6 +116,7 @@ describe('PaymentsService', () => {
         detailsSubmitted: true,
         chargesEnabled: true,
       }),
+      needsSavedCard: false,
       createTransfer: jest.fn().mockResolvedValue('tr_test'),
       ...overrides,
     } as PaymentProvider;
@@ -154,6 +155,7 @@ describe('PaymentsService', () => {
         detailsSubmitted: true,
         chargesEnabled: true,
       }),
+      needsSavedCard: false,
       createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
@@ -235,6 +237,7 @@ describe('PaymentsService', () => {
         detailsSubmitted: true,
         chargesEnabled: true,
       }),
+      needsSavedCard: false,
       createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
@@ -277,6 +280,7 @@ describe('PaymentsService', () => {
         detailsSubmitted: true,
         chargesEnabled: true,
       }),
+      needsSavedCard: false,
       createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
@@ -331,10 +335,26 @@ describe('PaymentsService', () => {
     expect(ledger.record).toHaveBeenCalledWith('d1', 'tip', 15, expect.anything(), expect.anything());
   });
 
-  it('records a card-ride tip without a charge when the rider has no saved card', async () => {
-    // Previously the missing method made the provider call throw and the tip
-    // silently vanished; the driver is still credited and the charge is
-    // reconciled out-of-band.
+  it('with a real processor, refuses a card tip it cannot charge — and credits nobody', async () => {
+    ledger.record.mockClear();
+    const prisma = makePrisma();
+    (prisma as any).trip.findUnique.mockResolvedValue({
+      id: 't1', riderId: 'r1', driverId: 'd1', currency: 'USD',
+      status: TripStatus.completed, paymentMode: 'card',
+    });
+    (prisma as any).payment.findUnique.mockResolvedValue({ tip: 0, driverPayout: 80 });
+    (prisma as any).paymentMethod.findFirst.mockResolvedValue(null);
+    const provider = { ...makeProvider(), needsSavedCard: true };
+    await expect(makeService(prisma, provider).addTip('r1', 't1', 5)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(provider.charge).not.toHaveBeenCalled();
+    expect((prisma as any).payment.updateMany).not.toHaveBeenCalled();
+    expect(ledger.record).not.toHaveBeenCalled();
+  });
+
+  it('with the mock provider, records a card-ride tip when no card is saved', async () => {
+    // The mock stands in for an always-present card (dev and tests).
     ledger.record.mockClear();
     const prisma = makePrisma();
     (prisma as any).trip.findUnique.mockResolvedValue({
@@ -466,6 +486,7 @@ describe('PaymentsService', () => {
         detailsSubmitted: true,
         chargesEnabled: true,
       }),
+      needsSavedCard: false,
       createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
@@ -623,6 +644,7 @@ describe('PaymentsService', () => {
         detailsSubmitted: true,
         chargesEnabled: true,
       }),
+      needsSavedCard: false,
       createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
@@ -771,6 +793,7 @@ describe('PaymentsService', () => {
         detailsSubmitted: true,
         chargesEnabled: true,
       }),
+      needsSavedCard: false,
       createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
@@ -822,6 +845,7 @@ describe('PaymentsService', () => {
         detailsSubmitted: true,
         chargesEnabled: true,
       }),
+      needsSavedCard: false,
       createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
@@ -859,6 +883,7 @@ describe('PaymentsService', () => {
         detailsSubmitted: true,
         chargesEnabled: true,
       }),
+      needsSavedCard: false,
       createTransfer: jest.fn().mockResolvedValue('tr_test'),
     } as PaymentProvider;
 
@@ -903,6 +928,7 @@ describe('PaymentsService', () => {
       createConnectAccount,
       createAccountLink,
       getAccount: jest.fn(),
+      needsSavedCard: false,
       createTransfer: jest.fn(),
     } as PaymentProvider;
 
@@ -945,6 +971,7 @@ describe('PaymentsService', () => {
       createConnectAccount: jest.fn(),
       createAccountLink: jest.fn(),
       getAccount,
+      needsSavedCard: false,
       createTransfer: jest.fn(),
     } as PaymentProvider;
 
@@ -1019,6 +1046,7 @@ describe('PaymentsService', () => {
     const reverse = reverseMock();
     ledger.withdraw.mockResolvedValueOnce({ withdrawn: 20, balance: 30, entryId: 'le_2' });
     const svc = makeService(prisma, makeProvider({
+      needsSavedCard: false,
       createTransfer: jest.fn().mockRejectedValue(
         new ProviderRejectedException('Insufficient funds in platform balance'),
       ),
@@ -1033,6 +1061,7 @@ describe('PaymentsService', () => {
     const reverse = reverseMock();
     ledger.withdraw.mockResolvedValueOnce({ withdrawn: 20, balance: 30, entryId: 'le_3' });
     const svc = makeService(prisma, makeProvider({
+      needsSavedCard: false,
       createTransfer: jest.fn().mockRejectedValue(
         new BadGatewayException('Stripe unreachable: socket hang up'),
       ),

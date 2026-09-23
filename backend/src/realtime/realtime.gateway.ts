@@ -30,6 +30,7 @@ import { ChatService } from '../chat/chat.service';
 import { RealtimeService } from './realtime.service';
 import { gatewayCors } from './gateway-cors';
 import { WsExceptionsFilter } from './ws-exceptions.filter';
+import { ActivityService } from '../common/activity/activity.service';
 
 interface AuthedSocket extends Socket {
   data: { userId?: string; role?: string };
@@ -74,6 +75,7 @@ export class RealtimeGateway
     private readonly drivers: DriversService,
     private readonly chat: ChatService,
     private readonly prisma: PrismaService,
+    private readonly activity: ActivityService,
   ) {}
 
   afterInit(server: Server): void {
@@ -118,6 +120,7 @@ export class RealtimeGateway
       if (!user || !user.isActive) throw new Error('user inactive');
       client.data.userId = user.id;
       client.data.role = user.role;
+      this.activity.touch(user.id);
       await client.join(`user:${user.id}`);
       this.logger.log(`Connected user ${user.id} (${user.role})`);
       if (user.role === 'driver') {

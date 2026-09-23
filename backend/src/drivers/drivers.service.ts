@@ -11,6 +11,7 @@ import { RedisKeys } from '../common/redis/redis.keys';
 import { RealtimeService } from '../realtime/realtime.service';
 import { OnboardingDto } from './dto/onboarding.dto';
 import { TIER_KEYS } from '../pricing/fare-config';
+import { startOfBusinessDay } from '../common/time/business-day';
 
 /** Why the server (not the driver) took a driver offline. */
 export type ForcedOfflineReason =
@@ -181,28 +182,55 @@ export class DriversService {
     );
   }
 
+  /**
+   * What the driver actually earned: their share of each fare (`driverPayout`,
+   * i.e. after the platform fee — tips are added into it by addTip, so it
+   * already includes them), plus cancellation compensation.
+   * Not the fare itself — the fare includes the platform's cut, and a
+   * "today's earnings" that shows money the driver never gets is a promise
+   * the payout will break.
+   *
+   * "Today" starts at midnight in the business time zone (Tashkent), not the
+   * server's, which runs in UTC.
+   */
   async earnings(userId: string, range: 'today' | 'week') {
-    const since = new Date();
-    if (range === 'today') {
-      since.setHours(0, 0, 0, 0);
-    } else {
-      since.setDate(since.getDate() - 7);
+    const tz = this.config.get<string>('businessTimezone') ?? 'Asia/Tashkent';
+    const now = new Date();
+    const since =
+      range === 'today'
+        ? startOfBusinessDay(now, tz)
+        : new Date(now.getTime() - 7 * 86400_000);
+    const settled = { in: ['captured', 'collected'] };
+    const [rides, cancellations] = await Promise.all([
+      this.prisma.trip.findMany({
+        where: {
+          driverId: userId,
+          status: TripStatus.completed,
+          completedAt: { gte: since },
+        },
+        select: { payment: { select: { status: true, driverPayout: true } } },
+      }),
+      this.prisma.payment.findMany({
+        where: {
+          kind: 'cancellation',
+          status: settled,
+          updatedAt: { gte: since },
+          trip: { driverId: userId },
+        },
+        select: { driverPayout: true },
+      }),
+    ]);
+    let total = 0;
+    for (const { payment } of rides) {
+      if (!payment || !settled.in.includes(payment.status)) continue;
+      total += Number(payment.driverPayout ?? 0);
     }
-    const trips = await this.prisma.trip.findMany({
-      where: {
-        driverId: userId,
-        status: TripStatus.completed,
-        completedAt: { gte: since },
-      },
-    });
-    const total = trips.reduce(
-      (sum, t) => sum + Number(t.fareFinal ?? t.fareEstimate ?? 0),
-      0,
-    );
+    for (const c of cancellations) total += Number(c.driverPayout ?? 0);
     return {
       range,
       total: Math.round(total * 100) / 100,
-      trips: trips.length,
+      trips: rides.length,
     };
   }
+
 }

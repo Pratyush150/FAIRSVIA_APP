@@ -72,7 +72,20 @@ describe('Ride App API (e2e)', () => {
   // app.close() drains in-flight BullMQ jobs (graceful shutdown). A dispatch
   // job can be mid-offer when the suite ends, so the default 5 s hook limit
   // intermittently failed the suite with every test green.
+  const suiteStart = new Date();
+
   afterAll(async () => {
+    // Rides this suite left in flight must not linger either: the dev server
+    // shares this database and offers every "matching" ride to real online
+    // drivers — a phone in the field would get offers for test rides. Scoped
+    // to riders the suite itself created.
+    await app.get(PrismaService).trip.updateMany({
+      where: {
+        status: { in: ['requested', 'matching', 'accepted', 'arrived', 'in_progress'] },
+        rider: { createdAt: { gte: suiteStart } },
+      },
+      data: { status: 'cancelled', cancelReason: 'e2e cleanup' },
+    });
     // The suite's SOS must not linger: on a shared dev database it shows up
     // as a real open alert in the admin console and fires SosRaised.
     if (tripId) {

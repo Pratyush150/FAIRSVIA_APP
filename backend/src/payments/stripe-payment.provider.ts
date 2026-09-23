@@ -19,6 +19,7 @@ import {
  * Amounts are converted to the smallest currency unit (e.g. cents).
  */
 export class StripePaymentProvider implements PaymentProvider {
+  readonly needsSavedCard: boolean = true;
   private readonly logger = new Logger('StripePayments');
 
   // Pinned API version for the ephemeral key — must match what the mobile SDK

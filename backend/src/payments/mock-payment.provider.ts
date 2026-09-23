@@ -18,6 +18,7 @@ import {
  */
 @Injectable()
 export class MockPaymentProvider implements PaymentProvider {
+  readonly needsSavedCard: boolean = false;
   private readonly logger = new Logger('MockPayments');
 
   constructor() {

@@ -90,8 +90,13 @@ model DriverProfile {
   stripeAccountId String? @map("stripe_account_id") @db.VarChar(64)
   payoutsEnabled  Boolean @default(false) @map("payouts_enabled")
 
+  /// When this person became a driver (onboarding), not when they signed up.
+  /// Rows that existed before the column carry the migration's time.
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([createdAt])
   @@map("driver_profiles")
 }
 
@@ -603,4 +608,16 @@ model RideCard {
 
   @@index([active, sortOrder])
   @@map("ride_cards")
+}
+
+/// One row per user per business day they used the app (any authenticated
+/// request or socket connection). Feeds DAU / MAU and "active drivers" in
+/// Grafana. Written at most once per user per day — see ActivityService.
+model UserActiveDay {
+  userId String   @map("user_id") @db.Uuid
+  day    DateTime @db.Date
+
+  @@id([userId, day])
+  @@index([day])
+  @@map("user_active_days")
 }

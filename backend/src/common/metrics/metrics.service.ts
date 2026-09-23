@@ -7,6 +7,9 @@ import {
   Histogram,
 } from 'prom-client';
 
+export const OFFER_OUTCOMES = ['accepted', 'declined', 'expired'] as const;
+export type OfferOutcome = (typeof OFFER_OUTCOMES)[number];
+
 /**
  * Owns the Prometheus registry and the HTTP request metrics. Also keeps a few
  * cheap running totals so the admin dashboard can show a friendly snapshot
@@ -49,10 +52,22 @@ export class MetricsService {
    */
   private readonly vendorDuration: Histogram<string>;
 
+  /**
+   * Every ride offer's outcome: accepted, declined, or expired (the driver let
+   * the timer run out). The acceptance rate is the share that were accepted —
+   * a falling line means drivers are ignoring or refusing offers, which shows
+   * up as slow matching long before riders complain.
+   */
+  private readonly dispatchOffers: Counter<string>;
+
   /** Gauges filled at scrape time — see [setCollector]. */
   readonly dispatchQueueDepth: Gauge<string>;
   readonly driversOnline: Gauge<string>;
+  /** Online drivers currently on a trip — busy supply. Available = online − this. */
+  readonly driversOnTrip: Gauge<string>;
   readonly activeTrips: Gauge<string>;
+  /** Authenticated WebSocket connections on this instance, by role. */
+  readonly wsConnections: Gauge<string>;
 
   /**
    * Scrape-time fillers for the gauges above, keyed by gauge name.
@@ -122,6 +137,16 @@ export class MetricsService {
       registers: [this.registry],
     });
 
+    this.dispatchOffers = new Counter({
+      name: 'dispatch_offers_total',
+      help: 'Ride offers made to drivers, by outcome',
+      labelNames: ['outcome'],
+      registers: [this.registry],
+    });
+    // Same reason as sos_alerts_total: a rate over a series that did not exist
+    // yet reads as "no data", not 0.
+    for (const outcome of OFFER_OUTCOMES) this.dispatchOffers.inc({ outcome }, 0);
+
     // Gauges are point-in-time facts, so they are set by a collector at scrape
     // time rather than incremented from call sites.
     this.dispatchQueueDepth = new Gauge({
@@ -137,6 +162,20 @@ export class MetricsService {
       labelNames: ['tier'],
       registers: [this.registry],
       collect: () => this.runCollector('drivers_online'),
+    });
+    this.driversOnTrip = new Gauge({
+      name: 'drivers_on_trip',
+      help: 'Online drivers currently on a trip',
+      registers: [this.registry],
+      // Same collector as drivers_online: one Redis read fills both.
+      collect: () => this.runCollector('drivers_online'),
+    });
+    this.wsConnections = new Gauge({
+      name: 'websocket_connections',
+      help: 'Authenticated WebSocket connections on this instance, by role',
+      labelNames: ['role'],
+      registers: [this.registry],
+      collect: () => this.runCollector('websocket_connections'),
     });
     this.activeTrips = new Gauge({
       name: 'active_trips',
@@ -161,6 +200,11 @@ export class MetricsService {
   /** A trip entered [status]. */
   tripStatus(status: string): void {
     this.tripsTotal.inc({ status });
+  }
+
+  /** A ride offer to a driver ended with [outcome]. */
+  offerOutcome(outcome: OfferOutcome): void {
+    this.dispatchOffers.inc({ outcome });
   }
 
   /** A driver accepted [seconds] after the trip was requested. */

@@ -38,6 +38,7 @@ import { SupportModule } from './support/support.module';
 import { BackgroundModule } from './background/background.module';
 import { EmailModule } from './email/email.module';
 import { AuditModule } from './common/audit/audit.module';
+import { ActivityModule } from './common/activity/activity.module';
 import { OpsModule } from './ops/ops.module';
 import { ContentModule } from './content/content.module';
 import { HealthController } from './health/health.controller';
@@ -52,6 +53,7 @@ import { HealthController } from './health/health.controller';
     LoggingModule, // structured pino logging
     MetricsModule, // Prometheus /metrics + request interceptor
     AuditModule, // append-only log of every admin write
+    ActivityModule, // daily-active users for DAU / MAU
     OpsModule, // runtime kill switches (geo/dispatch/surge/payouts)
     PrismaModule,
     RedisModule,

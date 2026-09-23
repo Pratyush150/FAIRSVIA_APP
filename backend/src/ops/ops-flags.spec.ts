@@ -186,6 +186,7 @@ describe('pausing dispatch defers work rather than losing it', () => {
       {} as never,
       {} as never,
       ctx.flags,
+      { offerOutcome: jest.fn() } as never,
     );
   }
 
