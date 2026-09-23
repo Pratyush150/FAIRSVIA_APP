@@ -253,4 +253,50 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  /// Regression: the primary CTA used to read a global brightness flag that
+  /// MaterialApp.builder writes once per frame. A button that built before the
+  /// builder had run for the new brightness kept the previous one, which on
+  /// iOS painted a black CTA on the near-black dark sheet. It now derives the
+  /// brightness from its own context, so it cannot go black-on-black.
+  group('PrimaryButton ink follows the theme, not a global', () {
+    Future<FilledButton> pumpIn(WidgetTester tester, Brightness b) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(brightness: b),
+          home: Scaffold(
+            body: PrimaryButton(label: 'Confirm', onPressed: () {}),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return tester.widget<FilledButton>(find.byType(FilledButton));
+    }
+
+    Color? fill(FilledButton b) =>
+        b.style?.backgroundColor?.resolve(<WidgetState>{});
+    Color? label(FilledButton b) =>
+        b.style?.foregroundColor?.resolve(<WidgetState>{});
+
+    testWidgets('black fill, white label in light mode', (tester) async {
+      final b = await pumpIn(tester, Brightness.light);
+      expect(fill(b), AppColors.black);
+      expect(label(b), AppColors.white);
+    });
+
+    testWidgets('inverts to white fill, black label in dark mode',
+        (tester) async {
+      final b = await pumpIn(tester, Brightness.dark);
+      expect(fill(b), AppColors.white);
+      expect(label(b), AppColors.black);
+    });
+
+    testWidgets('never paints ink on ink, in either mode', (tester) async {
+      for (final brightness in [Brightness.light, Brightness.dark]) {
+        final b = await pumpIn(tester, brightness);
+        expect(fill(b), isNot(label(b)), reason: 'ink-on-ink in $brightness');
+      }
+    });
+  });
+
 }

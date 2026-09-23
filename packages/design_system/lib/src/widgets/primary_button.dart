@@ -55,7 +55,16 @@ class _PrimaryButtonState extends State<PrimaryButton> {
     final enabled = w.onPressed != null && !w.loading;
     // accentInk (not accent) so the white label clears WCAG AA (5.2:1);
     // errorInk likewise (6.6:1).
-    final fill = w.destructive ? AppColors.errorInk : AppColors.accentInk;
+    // Read the brightness from this widget's own context rather than the
+    // global AppColors flag. That flag is written once per frame from
+    // MaterialApp.builder, so a button that builds before the builder has run
+    // for the new brightness paints with the previous one — on iOS that showed
+    // up as a black CTA on the near-black dark sheet. Theme.of also registers a
+    // dependency, so the button repaints when the brightness changes.
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final fill =
+        w.destructive ? AppColors.errorInk : AppColors.inkFor(dark);
+    final onFill = w.destructive ? AppColors.white : AppColors.onInkFor(dark);
     return AnimatedScale(
       scale: _pressed ? 0.97 : 1.0,
       duration: AppMotion.fast,
@@ -68,7 +77,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
           style: FilledButton.styleFrom(
             backgroundColor: fill,
             disabledBackgroundColor: fill.withValues(alpha: 0.4),
-            foregroundColor: AppColors.onAccent,
+            foregroundColor: onFill,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppSpacing.radius),
@@ -95,7 +104,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
                     width: 22,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.4,
-                      valueColor: AlwaysStoppedAnimation(AppColors.onAccent),
+                      valueColor: AlwaysStoppedAnimation(onFill),
                     ),
                   )
                 : Row(
