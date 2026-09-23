@@ -17,7 +17,8 @@ export type ForcedOfflineReason =
   | 'disconnect' // socket dropped / closed without an explicit offline
   | 'stale_location' // no GPS ping for PRESENCE_STALE_MS while "online"
   | 'presence_lost' // reconnect found no live presence for a DB-online driver
-  | 'deactivated'; // admin deactivated the account
+  | 'deactivated' // admin deactivated the account
+  | 'account_deleted'; // the driver deleted their own account
 
 @Injectable()
 export class DriversService {

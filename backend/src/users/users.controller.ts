@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { UsersService } from './users.service';
+import { AccountDeletionService } from './account-deletion.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CreatePlaceDto } from './dto/create-place.dto';
 import { UpdatePlaceDto } from './dto/update-place.dto';
@@ -20,11 +21,20 @@ import { UpdatePlaceDto } from './dto/update-place.dto';
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly users: UsersService) {}
+  constructor(
+    private readonly users: UsersService,
+    private readonly deletion: AccountDeletionService,
+  ) {}
 
   @Get('me')
   me(@CurrentUser() user: AuthUser) {
     return this.users.findById(user.userId);
+  }
+
+  /** Permanently delete the caller's own account (store requirement). */
+  @Delete('me')
+  deleteMe(@CurrentUser() user: AuthUser) {
+    return this.deletion.deleteAccount(user.userId);
   }
 
   @Patch('me')

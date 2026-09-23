@@ -28,6 +28,9 @@ model User {
   ratingAvg   Decimal  @default(5.00) @map("rating_avg") @db.Decimal(3, 2)
   ratingCount Int      @default(0) @map("rating_count")
   isActive    Boolean  @default(true) @map("is_active")
+  // Set when the user deleted their own account. The row stays (trip and
+  // payment records must be kept by law) but is anonymised.
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
   // Stripe Customer (cus_...) — created lazily on the first saved card so
   // charges/holds reference a real customer, not the Ride App user id.
   stripeCustomerId String? @map("stripe_customer_id") @db.VarChar(64)

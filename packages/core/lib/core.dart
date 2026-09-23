@@ -26,6 +26,7 @@ export 'src/debug/error_overlay.dart';
 export 'src/account/format.dart';
 export 'src/account/users_remote_data_source.dart';
 export 'src/account/account_menu_page.dart';
+export 'src/account/delete_account_page.dart';
 export 'src/account/trip_history_page.dart';
 export 'src/account/receipt_page.dart';
 export 'src/account/profile_edit_page.dart';

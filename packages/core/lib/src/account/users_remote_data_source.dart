@@ -74,6 +74,12 @@ class UsersRemoteDataSource {
         return SavedPlace.fromJson(res.data!);
       });
 
+  /// Permanently deletes the signed-in account. The server refuses (409) while
+  /// a ride is in progress or a driver still has a balance, with a message
+  /// meant for the user.
+  Future<void> deleteMe() =>
+      _guard(() => _dio.delete<Map<String, dynamic>>('/users/me'));
+
   Future<void> deletePlace(String id) =>
       _guard(() => _dio.delete<Map<String, dynamic>>('/users/me/places/$id'));
 

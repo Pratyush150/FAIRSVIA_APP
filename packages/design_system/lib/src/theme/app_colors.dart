@@ -57,6 +57,11 @@ class AppColors {
   static const Color success = Color(0xFF17B26A);
   static const Color warning = Color(0xFFF79009);
   static const Color error = Color(0xFFF04438);
+  /// Darker red for filled destructive buttons: white text on it is 6.6:1
+  /// (WCAG AA), where [error] is only 3.8:1.
+  static const Color errorInk = Color(0xFFB42318);
+  static const Color errorSoft = Color(0xFFFEF3F2);
+  static const Color errorSoftDark = Color(0xFF2B1614);
   static const Color info = Color(0xFF2E90FA);
   /// Rating stars / premium accents.
   static const Color star = Color(0xFFFBBF24);

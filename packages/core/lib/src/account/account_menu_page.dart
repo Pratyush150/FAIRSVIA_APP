@@ -11,6 +11,7 @@ import '../trip/places_remote_data_source.dart';
 import '../trip/trip_remote_data_source.dart';
 import 'driver_earnings_page.dart';
 import 'payment_methods_page.dart';
+import 'delete_account_page.dart';
 import 'driver_payouts_page.dart';
 import 'favorite_drivers_page.dart';
 import 'favorites_remote_data_source.dart';
@@ -118,6 +119,32 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
       // Going offline is best effort; the sign-out itself must not be stuck.
     }
     bloc.add(const AuthSignedOut());
+  }
+
+  void _openDeleteAccount() {
+    final blocked = widget.signOutBlocker?.call();
+    if (blocked != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(blocked)));
+      return;
+    }
+    final bloc = context.read<AuthBloc>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    _open(DeleteAccountPage(
+      users: sl<UsersRemoteDataSource>(),
+      isDriver: widget.isDriver,
+      onBeforeDelete: widget.onBeforeSignOut,
+      onDeleted: () {
+        navigator.popUntil((r) => r.isFirst);
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+              const SnackBar(content: Text('Your account has been deleted.')));
+        bloc.add(const AuthSignedOut());
+      },
+    ));
   }
 
   void _open(Widget page) {
@@ -232,6 +259,20 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               onTap: _confirmSignOut,
             ),
           ]),
+          const SizedBox(height: AppSpacing.xl),
+          // Deliberately quiet: reachable (a store requirement) but not a
+          // button anyone taps by accident next to "Sign out".
+          Center(
+            child: TextButton(
+              onPressed: _openDeleteAccount,
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+              child: const Text('Delete account'),
+            ),
+          ),
         ],
       ),
     );

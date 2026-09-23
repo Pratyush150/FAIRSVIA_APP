@@ -14,12 +14,17 @@ class PrimaryButton extends StatefulWidget {
     this.onPressed,
     this.loading = false,
     this.icon,
+    this.destructive = false,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool loading;
   final IconData? icon;
+
+  /// Red instead of brand green, for irreversible actions (e.g. deleting an
+  /// account). Still the one primary action on its screen.
+  final bool destructive;
 
   @override
   State<PrimaryButton> createState() => _PrimaryButtonState();
@@ -48,6 +53,9 @@ class _PrimaryButtonState extends State<PrimaryButton> {
   Widget build(BuildContext context) {
     final w = widget;
     final enabled = w.onPressed != null && !w.loading;
+    // accentInk (not accent) so the white label clears WCAG AA (5.2:1);
+    // errorInk likewise (6.6:1).
+    final fill = w.destructive ? AppColors.errorInk : AppColors.accentInk;
     return AnimatedScale(
       scale: _pressed ? 0.97 : 1.0,
       duration: AppMotion.fast,
@@ -58,9 +66,8 @@ class _PrimaryButtonState extends State<PrimaryButton> {
         child: FilledButton(
           statesController: _states,
           style: FilledButton.styleFrom(
-            // accentInk (not accent) so the white label clears WCAG AA (5.2:1).
-            backgroundColor: AppColors.accentInk,
-            disabledBackgroundColor: AppColors.accentInk.withValues(alpha: 0.4),
+            backgroundColor: fill,
+            disabledBackgroundColor: fill.withValues(alpha: 0.4),
             foregroundColor: AppColors.onAccent,
             elevation: 0,
             shape: RoundedRectangleBorder(
