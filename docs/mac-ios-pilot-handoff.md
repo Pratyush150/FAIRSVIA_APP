@@ -13,7 +13,7 @@ detail; where they disagree with this file, **this file wins**.
 
 | | State |
 |---|---|
-| **Android** | Pilot APKs **v1.3.0 (build 5005)** — the final **"Samarkand Turquoise"** UI — on the pilot phones and verified on the emulator **through the public link, placed in Pune**, light and dark mode (including switching mode while the app is open). |
+| **Android** | Pilot APKs **v1.3.1 (build 5007)** — the final **"Samarkand Turquoise"** UI — on the pilot phones and verified on the emulator **through the public link, placed in Pune**, light and dark mode (including switching mode while the app is open). |
 | **iOS** | **Not built since 2026-09-14.** Cannot be built on the Linux server. Last run was on simulators only — **never on a physical iPhone**. Everything below is what needs proving. |
 | **Backend** | Runs in Docker on the Linux box (office). Reached by phones through a **public HTTPS link** (Cloudflare tunnel). |
 | **Market** | Pilot is **Pune, India**: rupees (₹), kilometres, +91 phone numbers, Pune fares. (Uzbekistan launch later uses the same switches with `uz`.) |
@@ -103,7 +103,7 @@ for app in rider_app driver_app; do
     --dart-define=API_BASE_URL=$URL \
     --dart-define=MARKET=in \
     --dart-define=ALLOW_SERVER_OVERRIDE=true \
-    --build-name=1.3.0 --build-number=5005
+    --build-name=1.3.1 --build-number=5007
   cd ../..
 done
 ```
@@ -183,7 +183,10 @@ Turquoise is the default palette; no extra build flag is needed
    dark map is charcoal with lighter roads and deep-teal water. Route line
    **turquoise**; pickup = black ring, drop-off = black square.
 4. Home: one rounded **"Where to?"** bar with a **"Later"** chip inside.
-5. Ride list: no boxes around rows; the selected ride has a **2 px turquoise outline**;
+5. Ride list: each ride type has its own **side-view car illustration** —
+   Economy a turquoise hatchback, Comfort a teal sedan, XL a slate MPV,
+   Premium a black sedan (shaded body, alloys, headlight at the front).
+   No boxes around rows; the selected ride has a **2 px turquoise outline**;
    "Economy 👤4 · 8:02 PM · 4 min away · ₹93.11 · Details".
 6. Arriving sheet: headline, driver row, **PIN as one teal badge** (turquoise in dark), grey
    **Message** button, grey "Add a stop" / "Pre-book" tiles.

@@ -870,18 +870,6 @@ class _RideTierTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  IconData get _icon {
-    switch (tier.tier) {
-      case 'comfort':
-        return Icons.directions_car_filled_rounded;
-      case 'xl':
-        return Icons.airport_shuttle_rounded;
-      case 'premium':
-        return Icons.local_taxi_rounded;
-      default:
-        return Icons.directions_car_rounded;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -912,7 +900,7 @@ class _RideTierTile extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: 64,
-                    child: Icon(_icon, size: 40, color: theme.colorScheme.onSurface),
+                    child: VehicleGlyph(tier: tier.tier),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
