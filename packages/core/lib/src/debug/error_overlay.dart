@@ -5,6 +5,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+
+/// Sentry is off unless a build passes `--dart-define=SENTRY_DSN=...`, matching
+/// the backend's mock-until-keyed pattern.
+const String _sentryDsn = String.fromEnvironment('SENTRY_DSN');
+const String _sentryEnvironment =
+    String.fromEnvironment('SENTRY_ENVIRONMENT', defaultValue: 'development');
 
 /// Holds the most recent uncaught error so it can be painted on screen. This
 /// exists so failures are visible during self-hosted web testing (SSH server,
@@ -24,6 +31,8 @@ void reportError(Object error, [StackTrace? stack]) {
     debugPrint('IGNORED transient socket-close error: $error');
     return;
   }
+  // No-op when Sentry was never initialised (no DSN).
+  Sentry.captureException(error, stackTrace: stack);
   final trace = stack?.toString() ?? '';
   final head = trace.isEmpty
       ? ''
@@ -75,6 +84,14 @@ void installErrorHooks() {
 void runGuarded(FutureOr<void> Function() body) {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    if (_sentryDsn.isNotEmpty) {
+      await SentryFlutter.init((o) {
+        o.dsn = _sentryDsn;
+        o.environment = _sentryEnvironment;
+      });
+    }
+    // After Sentry's init: these hooks replace its handlers and forward to
+    // Sentry themselves via reportError, so nothing is reported twice.
     installErrorHooks();
     await body();
   }, reportError);
