@@ -9,6 +9,7 @@ export 'src/theme/app_typography.dart';
 export 'src/theme/app_theme.dart';
 export 'src/theme/app_motion.dart';
 export 'src/theme/app_a11y.dart';
+export 'src/theme/app_glass.dart';
 
 export 'src/widgets/primary_button.dart';
 export 'src/widgets/secondary_button.dart';
@@ -16,6 +17,7 @@ export 'src/widgets/app_card.dart';
 export 'src/widgets/vehicle_glyph.dart';
 export 'src/widgets/ridevela_mark.dart';
 export 'src/widgets/app_sheet.dart';
+export 'src/widgets/glass_surface.dart';
 export 'src/widgets/app_circle_button.dart';
 export 'src/widgets/app_icon_badge.dart';
 export 'src/widgets/app_status_chip.dart';

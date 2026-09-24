@@ -663,6 +663,11 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                 route: layer.route,
                 pulseAt: layer.searchPulse,
                 driverCarAsset: layer.driverCarAsset,
+                // Plan F: the plate hangs under the car on the map too,
+                // written exactly as the driver card writes it.
+                driverPlateTag: AppGlass.enabled && state.driver?.plate != null
+                    ? Market.current.formatPlate(state.driver!.plate!)
+                    : null,
                 fitBounds: layer.cameraFitBounds,
                 recenter: _recenter,
                 recenterSeq: _recenterSeq,

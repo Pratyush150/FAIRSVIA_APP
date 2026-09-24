@@ -360,14 +360,14 @@ class _TotalWithBreakdownState extends State<_TotalWithBreakdown> {
                   ),
                   Text(_open ? 'Hide' : 'Details',
                       style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: AppColors.accentInk)),
+                          ?.copyWith(color: AppColors.accentText)),
                   const SizedBox(width: 2),
                   Icon(
                     _open
                         ? PhosphorIconsRegular.caretUp
                         : PhosphorIconsRegular.caretDown,
                     size: 20,
-                    color: AppColors.accentInk,
+                    color: AppColors.accentText,
                   ),
                 ],
               ),

@@ -76,7 +76,80 @@ class AppMap extends StatefulWidget {
     this.onFollowingChanged,
     this.pulseAt,
     this.driverCarAsset,
+    this.driverPlateTag,
   });
+
+  /// Plan F: the driver's number plate, drawn as a small tag just under the
+  /// car on the map ("find your car"). Null (every other build) draws none.
+  /// The tag is its own marker, not part of the car bitmap: the car rotates
+  /// with its heading, and upside-down plate text would be unreadable.
+  final String? driverPlateTag;
+
+  /// Renders the plate tag drawn under the car: a solid white plate chip
+  /// (never glass — the plate must stay at full contrast) with a dark
+  /// outline and the plate in bold tabular figures, under a transparent band
+  /// [plateTagGap] tall so that anchoring the image's top-centre on the car's
+  /// position hangs the chip just below the car.
+  ///
+  /// Returns PNG bytes rasterised at [pixelRatio] and the logical size to
+  /// draw them at.
+  static Future<({Uint8List png, Size size})> renderPlateTag(
+    String plate, {
+    double pixelRatio = 3,
+  }) async {
+    final text = TextPainter(
+      text: TextSpan(
+        text: plate.toUpperCase(),
+        style: const TextStyle(
+          fontFamily: 'Inter',
+          package: 'design_system',
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+          color: Color(0xFF0F1417),
+          fontFeatures: [FontFeature.tabularFigures()],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    const padH = 7.0, padV = 3.0, shadowPad = 4.0;
+    final chipW = text.width + padH * 2;
+    final chipH = text.height + padV * 2;
+    final w = chipW + shadowPad * 2;
+    final h = plateTagGap + chipH + shadowPad * 2;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder)..scale(pixelRatio);
+    final chip = RRect.fromRectAndRadius(
+      Rect.fromLTWH(shadowPad, plateTagGap + shadowPad, chipW, chipH),
+      const Radius.circular(5),
+    );
+    canvas.drawRRect(
+      chip.shift(const Offset(0, 1.5)),
+      Paint()
+        ..color = const Color(0x40000000)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+    );
+    canvas.drawRRect(chip, Paint()..color = const Color(0xFFFFFFFF));
+    canvas.drawRRect(
+      chip.deflate(0.6),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFF0F1417),
+    );
+    text.paint(canvas, Offset(shadowPad + padH, plateTagGap + shadowPad + padV));
+    final img = await recorder
+        .endRecording()
+        .toImage((w * pixelRatio).ceil(), (h * pixelRatio).ceil());
+    final data = await img.toByteData(format: ui.ImageByteFormat.png);
+    img.dispose();
+    return (png: data!.buffer.asUint8List(), size: Size(w, h));
+  }
+
+  /// Transparent band above the plate chip: about half the car's drawn
+  /// length, so the chip clears the car's tail whatever way it points.
+  static const double plateTagGap = 26;
 
   /// Top-down car image for the driver marker (nose pointing up; the map
   /// rotates it to the heading) — the same vehicle the rider booked, from
@@ -307,6 +380,30 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       if (mounted) setState(() => _driverAssetIcon = null);
     }
   }
+  gmaps.BitmapDescriptor? _plateTagIcon; // Plan F plate tag under the car
+  String? _plateTagFor;
+
+  Future<void> _loadPlateTag() async {
+    final plate = widget.driverPlateTag;
+    if (plate == _plateTagFor) return;
+    _plateTagFor = plate;
+    if (plate == null || plate.trim().isEmpty) {
+      if (mounted) setState(() => _plateTagIcon = null);
+      return;
+    }
+    try {
+      final tag = await AppMap.renderPlateTag(plate);
+      final icon =
+          gmaps.BitmapDescriptor.bytes(tag.png, width: tag.size.width);
+      if (mounted && widget.driverPlateTag == plate) {
+        setState(() => _plateTagIcon = icon);
+      }
+    } catch (_) {
+      // No tag rather than a broken one; the plate is still on the card.
+      if (mounted) setState(() => _plateTagIcon = null);
+    }
+  }
+
   gmaps.BitmapDescriptor? _meIcon; // rider's blue "you are here" dot
   gmaps.BitmapDescriptor? _pickupIcon; // black ring, white centre
   gmaps.BitmapDescriptor? _dropoffIcon; // black square, white centre
@@ -361,6 +458,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     _driverTo = initialDriver;
     _makeDriverIcon();
     _loadDriverAsset();
+    _loadPlateTag();
     _makeMeIcon();
     _makeStopIcons();
   }
@@ -456,6 +554,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   void didUpdateWidget(AppMap old) {
     super.didUpdateWidget(old);
     if (old.driverCarAsset != widget.driverCarAsset) _loadDriverAsset();
+    if (old.driverPlateTag != widget.driverPlateTag) _loadPlateTag();
     final paddingMoved =
         (old.boundsPadding.bottom - widget.boundsPadding.bottom).abs() > 24 ||
             (old.boundsPadding.top - widget.boundsPadding.top).abs() > 24;
@@ -794,6 +893,21 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
             ? gmaps.InfoWindow(title: m.label)
             : gmaps.InfoWindow.noText,
       ));
+      final tag = _plateTagIcon;
+      if (isDriver && tag != null) {
+        // Upright (not flat, never rotated) and hung from its top edge on
+        // the car's gliding position, so it follows the car and stays under
+        // it on screen whichever way the car points.
+        out.add(gmaps.Marker(
+          markerId: const gmaps.MarkerId('driver_plate_tag'),
+          position: _g(point),
+          icon: tag,
+          anchor: const Offset(0.5, 0),
+          zIndexInt: 4,
+          alpha: m.stale ? 0.45 : 1.0,
+          consumeTapEvents: false,
+        ));
+      }
     }
     return out;
   }

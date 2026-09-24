@@ -515,7 +515,7 @@ class _ScheduleRow extends StatelessWidget {
             else
               Text('Schedule',
                   style: theme.textTheme.labelLarge
-                      ?.copyWith(color: AppColors.accent)),
+                      ?.copyWith(color: AppColors.accentText)),
           ],
         ),
       ),

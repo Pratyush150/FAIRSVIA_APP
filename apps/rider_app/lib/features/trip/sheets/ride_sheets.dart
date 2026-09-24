@@ -23,6 +23,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_models/shared_models.dart';
 
 part 'sheet_shell.dart';
+part 'glass_phase_sheet.dart';
 part 'where_to_sheet.dart';
 part 'ride_options_sheet.dart';
 part 'ride_details_sheet.dart';

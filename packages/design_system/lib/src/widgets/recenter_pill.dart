@@ -3,6 +3,8 @@ import '../theme/phosphor_icons.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_elevation.dart';
+import '../theme/app_glass.dart';
+import 'glass_surface.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 
@@ -42,7 +44,7 @@ class RecenterPill extends StatelessWidget {
           child: Semantics(
             button: true,
             label: '$label on the vehicle',
-            child: Material(
+            child: AppGlass.enabled ? _glass(context) : Material(
               color: scheme.surface,
               borderRadius: BorderRadius.circular(AppSpacing.pill),
               clipBehavior: Clip.antiAlias,
@@ -72,7 +74,7 @@ class RecenterPill extends StatelessWidget {
                           style: Theme.of(context)
                               .textTheme
                               .labelLarge
-                              ?.copyWith(color: AppColors.accentInk),
+                              ?.copyWith(color: AppColors.accentText),
                         ),
                       ],
                     ),
@@ -85,4 +87,40 @@ class RecenterPill extends StatelessWidget {
       ),
     );
   }
+
+  /// Plan F: the same pill in frosted glass (strong fill: it carries text).
+  Widget _glass(BuildContext context) => GlassSurface(
+        strong: true,
+        borderRadius: BorderRadius.circular(AppSpacing.pill),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: () {
+              AppHaptics.light();
+              onPressed();
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm + 2,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(PhosphorIconsRegular.gpsFix,
+                      size: 20, color: AppColors.accentText),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: AppColors.accentText),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }

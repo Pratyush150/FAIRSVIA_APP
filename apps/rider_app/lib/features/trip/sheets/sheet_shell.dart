@@ -56,6 +56,21 @@ class RideSheetForPhase extends StatelessWidget {
           onRetry: onSearch,
         ),
     };
+    final footer = state.phase == TripPhase.choosingRide &&
+            state.estimate != null
+        ? _RideConfirmFooter(state: state)
+        : state.phase == TripPhase.completed
+            ? const CompletedDoneButton()
+            : null;
+    if (AppGlass.enabled) {
+      // Plan F: one floating glass card that morphs between phases.
+      return _GlassPhaseSheet(
+        state: state,
+        footer: footer,
+        chromeless: state.phase == TripPhase.idle && locationIssue == null,
+        child: child,
+      );
+    }
     // Cross-fade + slide between phases, and smoothly resize the sheet as each
     // phase's content changes height — so the flow feels like one continuous
     // surface rather than a stack of hard-swapped cards. Under Reduce Motion
@@ -66,11 +81,7 @@ class RideSheetForPhase extends StatelessWidget {
       // is otherwise tall enough to hide the route and both markers.
       maxHeightFraction:
           state.phase == TripPhase.choosingRide ? kRideOptionsSheetFraction : null,
-      footer: state.phase == TripPhase.choosingRide && state.estimate != null
-          ? _RideConfirmFooter(state: state)
-          : state.phase == TripPhase.completed
-              ? const CompletedDoneButton()
-              : null,
+      footer: footer,
       child: AnimatedSize(
         duration: reduced ? Duration.zero : AppMotion.slow,
         curve: AppMotion.standard,
