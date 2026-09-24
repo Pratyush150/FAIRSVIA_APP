@@ -10,6 +10,8 @@ function build(opts: {
   activeTrips?: number;
   queueCounts?: Record<string, number>;
   failRedis?: boolean;
+  /** Driver ids whose last location ping is old (a ghost left online). */
+  staleIds?: string[];
 }) {
   const metrics = new MetricsService();
   const prisma = {
@@ -21,10 +23,23 @@ function build(opts: {
     .fn()
     .mockResolvedValueOnce(opts.statusValues ?? [])
     .mockResolvedValueOnce(opts.tierValues ?? []);
+  // Location pings: fresh for everyone except staleIds.
+  const pipeline = () => {
+    const ids: string[] = [];
+    const p = {
+      hget: (key: string) => {
+        ids.push(key.split(':')[1]);
+        return p;
+      },
+      exec: async () =>
+        ids.map((id) => [null, (opts.staleIds ?? []).includes(id) ? String(Date.now() - 3600_000) : String(Date.now())]),
+    };
+    return p;
+  };
   const redis = {
     client: opts.failRedis
-      ? { keys: jest.fn().mockRejectedValue(new Error('redis down')), mget }
-      : { keys, mget },
+      ? { keys: jest.fn().mockRejectedValue(new Error('redis down')), mget, pipeline }
+      : { keys, mget, pipeline },
   } as unknown as RedisService;
 
   const counts = opts.queueCounts ?? { waiting: 0, active: 0 };
@@ -113,6 +128,18 @@ describe('BusinessMetricsService', () => {
     // The build() mock answers exactly one status read + one tier read; a
     // second Redis read per scrape would have returned nothing and zeroed a
     // gauge. Both gauges above being right is the proof they shared one.
+  });
+
+  it("doesn't count a driver whose phone stopped sending positions", async () => {
+    // Driver c's status still says on_trip, but its last ping is an hour old.
+    const { metrics } = build({
+      statusKeys: ['driver:a:status', 'driver:b:status', 'driver:c:status'],
+      statusValues: ['online', 'on_trip', 'on_trip'],
+      tierValues: ['economy', 'economy'],
+      staleIds: ['c'],
+    });
+    expect(await sample(metrics, 'drivers_online', { tier: 'economy' })).toBe(2);
+    expect(await sample(metrics, 'drivers_on_trip')).toBe(1);
   });
 
   it('reports WebSocket connections by role, with 0 rather than a gap', async () => {

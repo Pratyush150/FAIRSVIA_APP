@@ -95,6 +95,32 @@ and the name stays RideVela.
 
 ---
 
+## 0c. Simpler analytics (owner request 2026-09-24) — ✅ done 2026-09-24
+
+The single 72-panel Analytics page was too dense for someone new. Rebuild as
+one plain-language **Today** home page + five focused pages, same data.
+
+| Page | Answers | Panels |
+|---|---|---|
+| 🏠 Today (home) | rides done today · money in today · people using the app today · drivers online now · riders waiting now · anything broken now · rides per hour | 7 |
+| 🚕 Rides | completed / cancelled / no driver found · success rate · average fare · average pickup wait · rides per hour/day · why rides are cancelled | ≤ 8 |
+| 💰 Money | money in · money we kept · drivers earned · refunds · cash vs card · money per day · failed payments | ≤ 8 |
+| 👥 People | all users · new sign-ups · people using the app (daily, 30 days) · growth (30 days) | ≤ 8 |
+| 🧑‍✈️ Drivers | online / free / busy now · offers accepted · driver cancellations · top drivers · supply over time | ≤ 8 |
+| 🖥️ Tech health | server load, speed, errors, database, alerts firing | ≤ 12 |
+
+Rules: questions or plain phrases as titles; one-sentence ⓘ on every tile; ₹
+units; one colour meaning everywhere (green good / orange watch / red act);
+the same page buttons on every page; currency (INR) and time zone
+(Asia/Kolkata) fixed and hidden. Nothing from the old page is dropped.
+
+Built by `infra/monitoring/grafana/build_dashboards.py`; all 52 queries return
+live data with 0 errors; checked rendered. Also fixed: "drivers online" counted
+ghost drivers whose app had stopped sending positions (111 shown, 0 real) — it
+now uses dispatch's freshness rule.
+
+---
+
 ## 0b. Clean analytics data (owner: "when it's needed")
 
 Grafana's pipelines are live (Prometheus scrape every 15 s, SQL on the live

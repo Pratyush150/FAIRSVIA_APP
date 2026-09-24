@@ -4,9 +4,13 @@ import { JobType, Queue } from 'bullmq';
 import { TripStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { RedisKeys } from '../redis/redis.keys';
 import { MetricsService } from './metrics.service';
 import { RealtimeService } from '../../realtime/realtime.service';
 import { QUEUE_DISPATCH, QUEUE_NOTIFICATIONS } from '../queue/queue.constants';
+
+/** Same freshness window dispatch uses to treat a driver as present. */
+const PRESENCE_STALE_MS = Number(process.env.PRESENCE_STALE_MS ?? 45000);
 
 /** Trip statuses that count as "in flight" right now. */
 const ACTIVE_STATUSES: TripStatus[] = [
@@ -109,17 +113,32 @@ export class BusinessMetricsService implements OnModuleInit {
     const statusKeys = await this.redis.client.keys('driver:*:status');
     const statuses = statusKeys.length ? await this.redis.client.mget(...statusKeys) : [];
 
-    const onlineIds: string[] = [];
-    let onTrip = 0;
+    const candidates: { id: string; onTrip: boolean }[] = [];
     for (let i = 0; i < statusKeys.length; i++) {
       const status = statuses[i];
       if (!status || status === 'offline') continue;
       // key shape: driver:{id}:status
       const id = statusKeys[i].split(':')[1];
-      if (!id) continue;
-      onlineIds.push(id);
-      if (status === 'on_trip') onTrip += 1;
+      if (id) candidates.push({ id, onTrip: status === 'on_trip' });
     }
+    // "Online" means actually sending positions — the same rule dispatch uses
+    // before offering a ride. A status key alone isn't enough: a phone that
+    // died or an app that was killed leaves it behind, and the dashboard then
+    // counted every such ghost as a driver on the road.
+    const pings = candidates.length
+      ? await candidates
+          .reduce((p, c) => p.hget(RedisKeys.driverLoc(c.id), 'ts'), this.redis.client.pipeline())
+          .exec()
+      : [];
+    const now = Date.now();
+    const onlineIds: string[] = [];
+    let onTrip = 0;
+    candidates.forEach((c, i) => {
+      const ts = Number(pings?.[i]?.[1] ?? 0);
+      if (!ts || now - ts > PRESENCE_STALE_MS) return;
+      onlineIds.push(c.id);
+      if (c.onTrip) onTrip += 1;
+    });
     const g = this.metrics.driversOnline;
     g.reset();
     this.metrics.driversOnTrip.set(onTrip);
