@@ -1238,7 +1238,20 @@ describe('Ride App API (e2e)', () => {
         })
         .expect(201);
 
-      // Verified → online allowed.
+      // No name yet: riders couldn't check who is coming, so no going online.
+      const nameless = await request(server)
+        .post('/api/v1/drivers/status')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({ status: 'online' })
+        .expect(400);
+      expect(nameless.body.code).toBe('NAME_REQUIRED');
+      await request(server)
+        .patch('/api/v1/users/me')
+        .set('Authorization', `Bearer ${dToken}`)
+        .send({ fullName: 'Rahul Patil' })
+        .expect(200);
+
+      // Verified and named → online allowed.
       await request(server)
         .post('/api/v1/drivers/status')
         .set('Authorization', `Bearer ${dToken}`)

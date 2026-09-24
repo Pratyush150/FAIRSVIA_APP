@@ -595,14 +595,14 @@ class _ComplimentTagsState extends State<_ComplimentTags> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Center(
-          child: Text('What went well?', style: theme.textTheme.titleSmall),
-        ),
+        Text('What went well?', style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.sm),
+        // One left-aligned wrap: a centred wrap left the last, shorter row
+        // centred under rows that read as left-aligned.
         Wrap(
           spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.xs,
-          alignment: WrapAlignment.center,
+          runSpacing: AppSpacing.sm,
+          alignment: WrapAlignment.start,
           children: [
             for (final tag in _ComplimentTags.options)
               FilterChip(

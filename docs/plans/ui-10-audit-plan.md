@@ -24,7 +24,7 @@ Scores are the audit's; "done" means built, tested and seen on a device.
 
 ---
 
-## Phase 1 — fix what looks broken (target 7.5)
+## Phase 1 — fix what looks broken (target 7.5) — ✅ done 2026-09-24 (seen on the emulator)
 
 | # | Item | Code check | Fix |
 |---|---|---|---|

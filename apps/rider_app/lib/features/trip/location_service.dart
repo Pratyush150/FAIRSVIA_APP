@@ -112,11 +112,12 @@ class LocationService {
   /// The `NSLocationTemporaryUsageDescriptionDictionary` key in Info.plist.
   static const String preciseRidePurposeKey = 'PreciseRide';
 
-  /// City center used when GPS is denied/unavailable. Configurable per build:
-  /// `--dart-define=FALLBACK_LOCATION=<lat>,<lng>` (defaults to Miami, FL).
+  /// City center used when GPS is denied/unavailable: the market's launch
+  /// city (Pune, Tashkent…), overridable per build with
+  /// `--dart-define=FALLBACK_LOCATION=<lat>,<lng>`.
   static final GeoPoint fallback =
       _parsePoint(const String.fromEnvironment('FALLBACK_LOCATION')) ??
-          const GeoPoint(25.7743, -80.1937);
+          GeoPoint(Market.current.cityCenter.$1, Market.current.cityCenter.$2);
 
   static GeoPoint? _parsePoint(String s) {
     if (s.isEmpty) return null;

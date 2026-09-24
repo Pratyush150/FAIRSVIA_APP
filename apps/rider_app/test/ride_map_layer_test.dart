@@ -28,6 +28,25 @@ void main() {
   }
 
   group('markers', () {
+    test('the "you are here" dot gives way to the pickup it sits on', () {
+      // Rider standing on their pickup, choosing a ride: one marker, not two.
+      const onPickup = TripState(
+        phase: TripPhase.choosingRide,
+        pickup: me,
+        dropoff: dropoff,
+      );
+      expect(of(layer(onPickup).markers, MapMarkerKind.me), isNull);
+      expect(of(layer(onPickup).markers, MapMarkerKind.pickup), isNotNull);
+
+      // Pickup set somewhere else: both are useful, both show.
+      const elsewhere = TripState(
+        phase: TripPhase.choosingRide,
+        pickup: pickup,
+        dropoff: dropoff,
+      );
+      expect(of(layer(elsewhere).markers, MapMarkerKind.me), isNotNull);
+    });
+
     test('show the rider before a driver exists, and drop them after', () {
       const idle = TripState(pickup: pickup, dropoff: dropoff);
       expect(of(layer(idle).markers, MapMarkerKind.me), isNotNull);

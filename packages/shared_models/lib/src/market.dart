@@ -14,25 +14,29 @@ class Market {
     required this.maxTip,
     required this.dialCode,
     required this.examplePhone,
+    required this.cityCenter,
   });
 
   /// India (Pune pilot): rupees, kilometres.
   static const india = Market._(
       code: 'in', currency: 'INR', metric: true,
       tipPresets: [20, 50, 100], maxTip: 2000,
-      dialCode: '+91', examplePhone: '+91 98765 43210');
+      dialCode: '+91', examplePhone: '+91 98765 43210',
+      cityCenter: (18.5204, 73.8567)); // Pune (pilot city)
 
   /// Uzbekistan (launch market): som, kilometres.
   static const uzbekistan = Market._(
       code: 'uz', currency: 'UZS', metric: true,
       tipPresets: [5000, 10000, 20000], maxTip: 500000,
-      dialCode: '+998', examplePhone: '+998 90 123 45 67');
+      dialCode: '+998', examplePhone: '+998 90 123 45 67',
+      cityCenter: (41.3111, 69.2797)); // Tashkent
 
   /// United States: dollars, miles.
   static const unitedStates = Market._(
       code: 'us', currency: 'USD', metric: false,
       tipPresets: [2, 3, 5], maxTip: 500,
-      dialCode: '+1', examplePhone: '+1 305 555 0137');
+      dialCode: '+1', examplePhone: '+1 305 555 0137',
+      cityCenter: (25.7743, -80.1937)); // Miami
 
   final String code;
 
@@ -53,6 +57,42 @@ class Market {
 
   /// A made-up number in the local format, for hints.
   final String examplePhone;
+
+  /// (lat, lng) where a map opens when the phone's position isn't known yet:
+  /// the market's launch city, never somewhere on another continent.
+  final (double, double) cityCenter;
+
+  // Indian state / union-territory codes, the first two letters of a plate.
+  static const _inStates =
+      'AN|AP|AR|AS|BR|CH|CG|DD|DL|DN|GA|GJ|HR|HP|JK|JH|KA|KL|LA|LD|MP|MH|MN|ML|MZ|NL|OD|OR|PY|PB|RJ|SK|TN|TS|TR|UP|UK|UA|WB';
+
+  /// A plate as typed ("mh12-ab 1234") in its stored form ("MH12AB1234").
+  static String normalizePlate(String typed) =>
+      typed.toUpperCase().replaceAll(RegExp(r'[\s\-.]'), '');
+
+  /// Whether [typed] can be a real plate here — the same rule the server
+  /// applies, so a driver learns about a typo before sending.
+  bool isValidPlate(String typed) {
+    final p = normalizePlate(typed);
+    if (code == 'in') {
+      return RegExp('^($_inStates)\\d{1,2}[A-Z]{0,3}\\d{1,4}\$').hasMatch(p) ||
+          RegExp(r'^\d{2}BH\d{4}[A-Z]{1,2}$').hasMatch(p);
+    }
+    return RegExp(r'^[A-Z0-9]{2,12}$').hasMatch(p);
+  }
+
+  /// A plate the way it is printed on the car, for riders to match:
+  /// "MH12AB1234" → "MH 12 AB 1234". Plates that don't parse come back as-is.
+  String formatPlate(String plate) {
+    final p = normalizePlate(plate);
+    if (code != 'in') return p;
+    final m = RegExp(r'^([A-Z]{2})(\d{1,2})([A-Z]{0,3})(\d{1,4})$').firstMatch(p);
+    if (m == null) return p;
+    return [m[1], m[2], m[3], m[4]].where((g) => g != null && g.isNotEmpty).join(' ');
+  }
+
+  /// An example plate for hints and errors.
+  String get examplePlate => code == 'in' ? 'MH 12 AB 1234' : 'ABC 1234';
 
   /// A typed phone number as E.164, or null when it can't be one. People type
   /// numbers the local way ("98765 43210", "098765 43210"), so a number

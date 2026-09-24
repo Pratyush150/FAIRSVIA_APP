@@ -73,10 +73,15 @@ class _RideOptions extends StatelessWidget {
                 _RideTierTile(
                   tier: tier,
                   selected: tier.tier == state.selectedTier,
-                  onTap: () {
-                    AppHaptics.selection();
-                    cubit.selectTier(tier.tier);
-                  },
+                  // No car of this type nearby: shown, dimmed, not pickable —
+                  // unless the ride is booked for later, when "nearby now"
+                  // doesn't matter.
+                  onTap: tier.available || state.scheduledAt != null
+                      ? () {
+                          AppHaptics.selection();
+                          cubit.selectTier(tier.tier);
+                        }
+                      : null,
                 ).animate().fadeIn(
                       delay: AppMotion.stagger * i,
                       duration: AppMotion.normal,
@@ -342,7 +347,9 @@ class _StopsSection extends StatelessWidget {
 
 String _confirmLabel(TripState state) {
   final fare = state.selectedFare;
-  if (fare == null) return 'Confirm';
+  if (fare == null) {
+    return state.scheduledAt == null ? 'No cars nearby right now' : 'Choose a ride';
+  }
   final net = state.discountedFare ?? fare.fare;
   final amount = (state.appliedPromo != null && net != fare.fare)
       ? net
@@ -868,7 +875,9 @@ class _RideTierTile extends StatelessWidget {
 
   final FareTier tier;
   final bool selected;
-  final VoidCallback onTap;
+
+  /// Null when this ride type has no car nearby.
+  final VoidCallback? onTap;
 
 
   @override
@@ -878,7 +887,10 @@ class _RideTierTile extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
-      child: Padding(
+      enabled: onTap != null,
+      child: Opacity(
+       opacity: onTap == null ? 0.4 : 1,
+       child: Padding(
         padding: const EdgeInsets.only(bottom: 4),
         child: Material(
           color: Colors.transparent,
@@ -967,6 +979,7 @@ class _RideTierTile extends StatelessWidget {
           ),
         ),
       ),
+     ),
     );
   }
 

@@ -77,17 +77,24 @@ export function phone(prefix = '9') {
   return `+1${prefix}${String(n).padStart(9, '0').slice(0, 9)}`;
 }
 
+// Pilot-realistic test drivers (Pune): an Indian name and a Maharashtra
+// plate, so screens and demos never show "Driver" with a US plate. Drivers
+// need a name before they can go online.
+const NAMES = ['Rahul Patil', 'Amit Deshmukh', 'Sneha Kulkarni', 'Vikram Joshi', 'Priya Shinde', 'Sagar Pawar'];
 export async function onboardDriver(token, tier = 'economy') {
+  const n = Date.now();
+  await api('/users/me', { method: 'PATCH', token, body: { fullName: NAMES[n % NAMES.length] } });
+  const letters = String.fromCharCode(65 + (n % 26), 65 + (Math.floor(n / 32) % 26));
   return api('/drivers/onboarding', {
     method: 'POST',
     token,
     body: {
-      vehicleMake: 'Toyota',
-      vehicleModel: 'Camry',
+      vehicleMake: 'Maruti Suzuki',
+      vehicleModel: 'Dzire',
       vehicleColor: 'White',
-      plateNumber: 'FL' + Math.floor(100000 + (Date.now() % 900000)),
+      plateNumber: `MH12${letters}${String(1000 + (n % 9000))}`,
       vehicleTier: tier,
-      licenseNo: 'FL-' + (Date.now() % 100000),
+      licenseNo: 'MH12-' + (n % 100000),
     },
   });
 }

@@ -24,6 +24,19 @@ class FareTier extends Equatable {
   /// null when no driver is nearby.
   final int? etaSeconds;
 
+  /// A car of this type is close enough to come: the server only sends an
+  /// ETA when one is. Unavailable types are shown dimmed and can't be picked.
+  bool get available => etaSeconds != null;
+
+  /// The ride to pre-select: the first one a car can actually do (the list is
+  /// cheapest-first), or null when no car of any type is nearby.
+  static String? defaultTier(List<FareTier> tiers) {
+    for (final t in tiers) {
+      if (t.available) return t.tier;
+    }
+    return null;
+  }
+
   /// What makes up [fare] — base, distance, time, booking fee, plus surge and
   /// any minimum-fare top-up. Shown behind the "Details" control on the ride
   /// sheet so the price isn't a bare number. Null for an older backend that

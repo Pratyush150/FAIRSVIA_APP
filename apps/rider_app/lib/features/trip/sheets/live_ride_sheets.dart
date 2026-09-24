@@ -562,7 +562,7 @@ class _DriverVehicleCard extends StatelessWidget {
                               : AppColors.borderLight),
                     ),
                     child: Text(
-                      d!.plate!,
+                      Market.current.formatPlate(d!.plate!),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleSmall

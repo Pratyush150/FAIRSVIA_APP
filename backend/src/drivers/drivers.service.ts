@@ -12,6 +12,8 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { OnboardingDto } from './dto/onboarding.dto';
 import { TIER_KEYS } from '../pricing/fare-config';
 import { startOfBusinessDay } from '../common/time/business-day';
+import { CURRENCY } from '../pricing/fare-config';
+import { PLATE_EXAMPLE, isValidPlate, normalizePlate } from './plates';
 
 /** Why the server (not the driver) took a driver offline. */
 export type ForcedOfflineReason =
@@ -34,6 +36,19 @@ export class DriversService {
    *  are auto-approved when DRIVER_AUTO_VERIFY is on (dev default); otherwise the
    *  driver onboards as pending and an admin must verify before they go online. */
   async onboarding(userId: string, dto: OnboardingDto) {
+    // Riders are told to match the plate before getting in, so it must be the
+    // real one, in the market's format — and stored in one form.
+    const plate = normalizePlate(dto.plateNumber);
+    if (!isValidPlate(plate, CURRENCY)) {
+      const example = PLATE_EXAMPLE[CURRENCY];
+      throw new BadRequestException({
+        code: 'PLATE_INVALID',
+        message: example
+          ? `Enter the number plate as it is on the car, e.g. ${example}.`
+          : 'Enter the number plate as it is on the car.',
+      });
+    }
+    dto = { ...dto, plateNumber: plate };
     const autoVerify = this.config.get<boolean>('driverAutoVerify') ?? true;
     // Re-verification: a verified driver who changes an identity/vehicle
     // document field (plate, licence) goes back to pending — the approval was
@@ -107,6 +122,18 @@ export class DriversService {
     if (status === 'online') {
       if (!profile.docsVerified) {
         throw new ForbiddenException('Documents are not verified yet');
+      }
+      // Riders see the driver's name on the arriving screen and are told to
+      // check it: a nameless "Driver" can't be verified, so no name, no rides.
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { fullName: true },
+      });
+      if ((user?.fullName?.trim().length ?? 0) < 2) {
+        throw new BadRequestException({
+          code: 'NAME_REQUIRED',
+          message: 'Add your full name in Account before going online — riders check it when you arrive.',
+        });
       }
       await this.redis.client.set(RedisKeys.driverStatus(userId), 'online');
       await this.redis.client.set(

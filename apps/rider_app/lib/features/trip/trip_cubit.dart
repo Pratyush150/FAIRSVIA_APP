@@ -709,7 +709,7 @@ class TripCubit extends Cubit<TripState> {
       emit(state.copyWith(
         phase: TripPhase.choosingRide,
         estimate: estimate,
-        selectedTier: estimate.tiers.isNotEmpty ? estimate.tiers.first.tier : null,
+        selectedTier: FareTier.defaultTier(estimate.tiers),
         appliedPromo: null,
         promoError: null,
         stops: const [],
@@ -772,8 +772,7 @@ class TripCubit extends Cubit<TripState> {
       emit(state.copyWith(
         phase: TripPhase.choosingRide,
         estimate: estimate,
-        selectedTier:
-            estimate.tiers.isNotEmpty ? estimate.tiers.first.tier : null,
+        selectedTier: FareTier.defaultTier(estimate.tiers),
         appliedPromo: null,
         promoError: null,
       ));

@@ -55,6 +55,22 @@ void main() {
       expect(Market.india.toE164(''), isNull);
     });
 
+    test('maps open on the market\'s own city before GPS arrives', () {
+      final (lat, lng) = Market.india.cityCenter;
+      expect(lat, closeTo(18.52, 0.01)); // Pune
+      expect(lng, closeTo(73.86, 0.01));
+      expect(Market.uzbekistan.cityCenter.$1, closeTo(41.31, 0.01)); // Tashkent
+    });
+
+    test('Indian plates: checked like the server, shown as printed', () {
+      expect(Market.india.isValidPlate('mh 12-ab 1234'), isTrue);
+      expect(Market.india.isValidPlate('22 BH 1234 AA'), isTrue);
+      expect(Market.india.isValidPlate('FL534048'), isFalse);
+      expect(Market.india.formatPlate('MH12AB1234'), 'MH 12 AB 1234');
+      expect(Market.india.formatPlate('dl3cab1234'), 'DL 3 CAB 1234');
+      expect(Market.unitedStates.isValidPlate('FL534048'), isTrue);
+    });
+
     test('the US reads feet and miles', () {
       expect(Market.unitedStates.distance(100), '330 ft');
       expect(Market.unitedStates.distance(16093), '10.0 mi');

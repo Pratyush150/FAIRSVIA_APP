@@ -49,6 +49,10 @@ class RideMapLayer {
   /// other and a bounds fit would zoom the map to its maximum; frame a fixed
   /// [arrivalBoxHalfSpanM] box around the pickup instead.
   static const double minFitSpanM = 60;
+
+  /// Closer than this, the "you are here" dot is dropped in favour of the
+  /// pickup marker it would sit on.
+  static const double meOnPickupM = 30;
   static const double arrivalBoxHalfSpanM = 125; // ~250 m box
 
   /// Upper bound on a believable camera fit. City rides are a few kilometres;
@@ -159,8 +163,15 @@ class RideMapLayer {
     // "You are here": before a driver is assigned the rider's own position is
     // the anchor of the map (Uber's blue dot). Once on the way it would only
     // clutter the pickup pin, so it is dropped for the live-tracking phases.
-    if (state.phase.index <= TripPhase.searching.index ||
-        state.phase == TripPhase.error) {
+    // Also hidden when the rider stands on the pickup (within 30 m): two
+    // markers on one spot fight and neither reads.
+    final onPickup = state.pickup != null &&
+        distanceMeters(MapUtils.toLatLng(myLocation),
+                MapUtils.toLatLng(state.pickup!)) <
+            meOnPickupM;
+    if ((state.phase.index <= TripPhase.searching.index ||
+            state.phase == TripPhase.error) &&
+        !(onPickup && state.phase != TripPhase.idle)) {
       out.add(AppMapMarker(
         point: MapUtils.toLatLng(myLocation),
         kind: MapMarkerKind.me,

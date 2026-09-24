@@ -41,9 +41,9 @@ class _DriverHomeView extends StatefulWidget {
 class _DriverHomeViewState extends State<_DriverHomeView>
     with WidgetsBindingObserver {
   // City centre shown before the first GPS fix. Configurable per build with
-  // --dart-define=FALLBACK_LOCATION=<lat>,<lng> (matches the rider app); defaults
-  // to Miami when unset. Previously hardcoded to Miami, which left the driver map
-  // stranded there in other markets until a trip framed the camera.
+  // --dart-define=FALLBACK_LOCATION=<lat>,<lng> (matches the rider app);
+  // otherwise the market's launch city (Market.cityCenter). It used to default
+  // to Miami, so a driver in Pune saw a US city until the first GPS fix.
   static final LatLng _fallback = _parseFallback();
   static LatLng _parseFallback() {
     const raw = String.fromEnvironment('FALLBACK_LOCATION');
@@ -53,7 +53,9 @@ class _DriverHomeViewState extends State<_DriverHomeView>
       final lng = double.tryParse(parts[1].trim());
       if (lat != null && lng != null) return LatLng(lat, lng);
     }
-    return const LatLng(25.7743, -80.1937); // Miami, FL
+    // The market's launch city (Pune for the pilot), not a US default.
+    final (lat, lng) = Market.current.cityCenter;
+    return LatLng(lat, lng);
   }
   StreamSubscription<Position>? _posSub;
   // Presence heartbeat: geolocator only emits when the driver MOVES
@@ -1745,11 +1747,10 @@ class _OnboardingDialogState extends State<_OnboardingDialog> {
     final plate = _plate.text.trim();
     if (make.isEmpty) return 'Enter the vehicle make (e.g. Toyota).';
     if (model.isEmpty) return 'Enter the vehicle model (e.g. Camry).';
-    if (plate.length < 2 || plate.length > 12) {
-      return 'Enter the plate number as printed (2–12 characters).';
-    }
-    if (!RegExp(r'^[A-Za-z0-9 -]+$').hasMatch(plate)) {
-      return 'Plate numbers only use letters, digits, spaces and dashes.';
+    // Same rule as the server: riders match this plate before getting in.
+    if (!Market.current.isValidPlate(plate)) {
+      return 'Enter the number plate as it is on the car, e.g. '
+          '${Market.current.examplePlate}.';
     }
     return null;
   }
