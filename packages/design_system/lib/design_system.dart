@@ -9,6 +9,7 @@ export 'src/theme/app_typography.dart';
 export 'src/theme/app_theme.dart';
 export 'src/theme/app_motion.dart';
 export 'src/theme/app_a11y.dart';
+export 'src/theme/app_variant.dart';
 
 export 'src/widgets/primary_button.dart';
 export 'src/widgets/secondary_button.dart';
@@ -32,6 +33,8 @@ export 'src/widgets/map_geo.dart';
 export 'src/widgets/connection_banner.dart';
 export 'src/widgets/app_skeleton.dart';
 export 'src/widgets/pulse_radar.dart';
+export 'src/widgets/kolam.dart';
+export 'src/widgets/local_art.dart';
 export 'src/widgets/recenter_pill.dart';
 export 'src/widgets/blurred_scrim.dart';
 export 'src/widgets/brand_splash.dart';

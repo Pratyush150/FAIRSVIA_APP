@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
+import 'app_variant.dart';
 
 /// Light and dark themes shared by all three apps. Component themes are tuned so
 /// even un-restyled Material widgets (cards, chips, inputs, dialogs) inherit the
@@ -56,6 +57,8 @@ class AppTheme {
     );
 
     final text = AppTypography.textTheme(textPrimary, textSecondary);
+    // Plan D: sheets are warm paper, not white; cards on them stay white.
+    final sheet = AppVariant.local ? LocalColour.paperFor(isDark) : surface;
 
     OutlineInputBorder inputBorder(Color c, [double w = 1]) =>
         OutlineInputBorder(
@@ -163,9 +166,9 @@ class AppTheme {
       ),
 
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: surface,
+        backgroundColor: sheet,
         surfaceTintColor: Colors.transparent,
-        modalBackgroundColor: surface,
+        modalBackgroundColor: sheet,
         elevation: 0,
         showDragHandle: false,
         shape: const RoundedRectangleBorder(

@@ -271,6 +271,16 @@ jobs:
             flutter test test/theme_variant_test.dart --dart-define=THEME=$t
             echo "::endgroup::"
           done
+      - name: Plan D (THEME=local) — full design_system + rider suites
+        # Plan D changes more than tokens (type, art, kolam radar, badges,
+        # pay strip), so its build runs the whole suites, not just tokens.
+        run: |
+          set -e
+          for d in packages/design_system apps/rider_app; do
+            echo "::group::THEME=local flutter test $d"
+            (cd "$d" && flutter test --dart-define=THEME=local)
+            echo "::endgroup::"
+          done
 
   # ---------------------------------------------------------------------------
   # Android build: the rider and driver apps ship on phones, so a web build is

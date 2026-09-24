@@ -59,7 +59,8 @@ class _FindingDriverState extends State<_FindingDriver> {
               enabled: !AppMotion.reduced(context),
               child: ExcludeSemantics(
                 child: PulseRadar(
-                  size: 56,
+                  // Plan D's kolam needs room round the glyph.
+                  size: LocalArt.on ? 76 : 56,
                   child: Icon(PhosphorIconsRegular.taxi,
                       size: 20, color: AppColors.accent),
                 ),
@@ -125,6 +126,13 @@ String _tierLabel(TripState state) {
     if (t.tier == tier) return t.label;
   }
   return tier.isEmpty ? 'Ride' : tier[0].toUpperCase() + tier.substring(1);
+}
+
+/// Who the pay strip names: the driver's first name, or "your driver"
+/// mid-sentence when the payload has none.
+String _payee(TripState state) {
+  final n = RideStatus.driverName(state);
+  return n == 'Your driver' ? 'your driver' : n;
 }
 
 bool _paysCash(TripState state) =>
@@ -355,6 +363,18 @@ class DriverInfoSheet extends StatelessWidget {
         if (otp != null) ...[
           const SizedBox(height: AppSpacing.md),
           _RidePin(pin: otp, driverName: RideStatus.driverName(state)),
+        ],
+        // Plan D: once the car is here, a cash rider sees who to pay.
+        if (LocalArt.on && arrived && _paysCash(state) && state.displayFare != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          PayDriverStrip(
+            amount: Money.format(state.displayFare!,
+                currency: state.trip?.currency ??
+                    state.selectedFare?.currency ??
+                    state.estimate?.currency,
+                wholeOnly: true),
+            driverName: _payee(state),
+          ),
         ],
         if (_showOnMyWay) ...[
           const SizedBox(height: AppSpacing.lg),

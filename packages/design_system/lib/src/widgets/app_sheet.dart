@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_elevation.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_variant.dart';
 
 /// The floating, rounded bottom panel used across the rider & driver home
 /// screens. Rounded top corners, a soft upward shadow, a grab handle, and
@@ -82,10 +83,13 @@ class _SheetBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final sheet = Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        // Plan D: warm paper, so the white cards on it read as cards.
+        color: AppVariant.local
+            ? LocalColour.paperFor(isDark)
+            : Theme.of(context).colorScheme.surface,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AppSpacing.radiusXl),
         ),
@@ -140,5 +144,52 @@ class _SheetBody extends StatelessWidget {
         ),
       ),
     );
+    if (!AppVariant.local) return sheet;
+    // Plan D's signature edge: a thin marigold rule along the rounded top.
+    return CustomPaint(
+      foregroundPainter: const MarigoldRulePainter(),
+      child: sheet,
+    );
   }
+}
+
+/// Plan D: a thin marigold rule traced along a sheet's rounded top edge,
+/// fading out into the corners like a strung garland. Decorative only (the
+/// accent never carries meaning).
+class MarigoldRulePainter extends CustomPainter {
+  const MarigoldRulePainter({
+    this.radius = AppSpacing.radiusXl,
+    this.width = 2.5,
+  });
+
+  final double radius;
+  final double width;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = radius;
+    final inset = width / 2;
+    final path = Path()
+      ..moveTo(inset, r)
+      ..arcToPoint(Offset(r, inset), radius: Radius.circular(r - inset))
+      ..lineTo(size.width - r, inset)
+      ..arcToPoint(Offset(size.width - inset, r),
+          radius: Radius.circular(r - inset));
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..shader = LinearGradient(colors: [
+        LocalColour.marigold.withValues(alpha: 0),
+        LocalColour.marigold,
+        LocalColour.marigold,
+        LocalColour.marigold.withValues(alpha: 0),
+      ], stops: const [0, 0.14, 0.86, 1])
+          .createShader(Offset.zero & Size(size.width, r));
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(MarigoldRulePainter old) =>
+      old.radius != radius || old.width != width;
 }

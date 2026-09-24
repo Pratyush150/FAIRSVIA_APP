@@ -42,6 +42,15 @@ class _WhereToCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Plan D: the Pune skyline heads the sheet — marigold art only, no
+        // meaning, hidden from screen readers.
+        if (LocalArt.on) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+            child: LocalCityscape(),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
         // One big pill is the whole call to action: "Where to?" on the left,
         // a "Later" chip on the right to book ahead.
         Semantics(

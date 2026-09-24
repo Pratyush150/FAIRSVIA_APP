@@ -131,7 +131,8 @@ void main() {
       expect(find.byType(gmaps.GoogleMap), findsOneWidget);
       // Light theme gets the de-cluttered light basemap style.
       final map = tester.widget<gmaps.GoogleMap>(find.byType(gmaps.GoogleMap));
-      expect(map.style, mapLightStyle);
+      expect(map.style,
+          AppVariant.local ? mapLightStyleWarm : mapLightStyle);
     });
 
     // Regression: no style was ever applied, so the map stayed white in dark
@@ -156,7 +157,7 @@ void main() {
     });
 
     test('map styles are valid Google Maps style JSON arrays', () {
-      for (final style in [mapLightStyle, mapNightStyle]) {
+      for (final style in [mapLightStyle, mapNightStyle, mapLightStyleWarm]) {
         final decoded = jsonDecode(style);
         expect(decoded, isA<List<dynamic>>());
         for (final rule in decoded as List<dynamic>) {

@@ -165,6 +165,17 @@ void main() {
     );
     return;
   }
+  // The references are the shipped palette and type; an option build
+  // (--dart-define=THEME=…) changes both by design, so it has no goldens.
+  if (AppColors.variant.isNotEmpty) {
+    test(
+      'golden suite',
+      () {},
+      skip: 'Goldens are the default build; THEME=${AppColors.variant} '
+          'restyles the card by design.',
+    );
+    return;
+  }
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     await _loadAllFonts();
