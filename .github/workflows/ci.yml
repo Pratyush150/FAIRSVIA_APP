@@ -260,6 +260,17 @@ jobs:
               echo "::endgroup::"
             fi
           done
+      - name: Theme variant tokens (Visual Direction v2 A/B/C + mono)
+        # Build-time palettes: each is a different const set, so each is
+        # compiled and checked (tokens + WCAG contrast) on its own.
+        working-directory: packages/design_system
+        run: |
+          set -e
+          for t in midnight daylight daynight mono; do
+            echo "::group::THEME=$t"
+            flutter test test/theme_variant_test.dart --dart-define=THEME=$t
+            echo "::endgroup::"
+          done
 
   # ---------------------------------------------------------------------------
   # Android build: the rider and driver apps ship on phones, so a web build is

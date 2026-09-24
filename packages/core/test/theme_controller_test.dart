@@ -46,6 +46,32 @@ void main() {
     },
   );
 
+  test('a ride holds the theme: a change mid-ride waits until it ends', () {
+    final c = ThemeController(_Store());
+    expect(c.effective.value, ThemeMode.system);
+
+    c.holdFor(Brightness.light);
+    expect(c.effective.value, ThemeMode.light);
+
+    // Rider flips to Dark mid-trip: saved and shown as chosen, not applied.
+    c.value = ThemeMode.dark;
+    expect(c.value, ThemeMode.dark);
+    expect(c.effective.value, ThemeMode.light);
+
+    c.release();
+    expect(c.effective.value, ThemeMode.dark);
+    // Not held any more: changes apply straight away again.
+    c.value = ThemeMode.light;
+    expect(c.effective.value, ThemeMode.light);
+  });
+
+  test('a fresh install starts in the build default', () async {
+    // Tests build without THEME, so the default follows the phone.
+    expect(ThemeController.buildDefault, ThemeMode.system);
+    expect((await ThemeController.load(_Store())).value,
+        ThemeController.buildDefault);
+  });
+
   testWidgets('the Appearance sheet switches the theme when tapped', (
     tester,
   ) async {

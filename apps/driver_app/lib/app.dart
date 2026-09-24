@@ -42,7 +42,7 @@ class _DriverAppState extends State<DriverApp> {
       // Light / Dark / Same as phone, chosen in Account → Appearance.
       child: ValueListenableBuilder<ThemeMode>(
         valueListenable: sl.isRegistered<ThemeController>()
-            ? sl<ThemeController>()
+            ? sl<ThemeController>().effective
             : ValueNotifier(ThemeMode.system),
         builder: (context, mode, _) => MaterialApp.router(
           title: AppBrand.driverTitle,

@@ -33,6 +33,12 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  # Visual Direction v2 hero art (build-time variants; see AppColors.variant
+  # and docs/brand/). 2.0x/ folders are picked up as resolution variants.
+  assets:
+    - assets/vehicles/midnight/
+    - assets/vehicles/daylight/
+    - assets/heroes/daylight/
   # skeletonizer (and our icons) rely on the Material icon font.
   uses-material-design: true
   fonts:

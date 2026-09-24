@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
+
 /// A side-view car illustration per ride type — a compact hatchback, a
 /// sedan, a tall MPV and a long black premium sedan — so the ride list reads
 /// at a glance, the way ride-hailing apps show each class. Drawn here (our
@@ -13,15 +15,41 @@ class VehicleGlyph extends StatelessWidget {
   final String tier;
   final double width;
 
+  /// Which illustrated set the build uses, or null for the drawn glyphs:
+  /// Plan A (midnight) flat silver cars, Plan B (daylight) 3D cars, and for
+  /// Plan C (daynight) whichever matches the current mode.
+  static String? artSet(bool dark) => switch (AppColors.variant) {
+        'midnight' => 'midnight',
+        'daylight' => 'daylight',
+        'daynight' => dark ? 'midnight' : 'daylight',
+        _ => null,
+      };
+
+  static String _file(String tier) => switch (tier) {
+        'economy' || 'comfort' || 'xl' || 'premium' => tier,
+        _ => 'comfort',
+      };
+
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final painted = CustomPaint(
+      size: Size(width, width * 0.5),
+      painter: _VehiclePainter(_shapeFor(tier), dark),
+    );
+    final set = artSet(dark);
     return Semantics(
       label: '$tier car',
-      child: CustomPaint(
-        size: Size(width, width * 0.5),
-        painter: _VehiclePainter(_shapeFor(tier), dark),
-      ),
+      child: set == null
+          ? painted
+          : Image.asset(
+              'packages/design_system/assets/vehicles/$set/${_file(tier)}.png',
+              width: width,
+              height: width * 0.625,
+              fit: BoxFit.contain,
+              // A missing asset must never blank the ride list.
+              errorBuilder: (_, _, _) => painted,
+            ),
     );
   }
 

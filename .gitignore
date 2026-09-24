@@ -41,3 +41,4 @@ apk-dist/
 # OSM extracts + OSRM/Nominatim generated data (large binaries, rebuildable)
 infra/osm-data/
 infra/nominatim-data/
+build-variants/

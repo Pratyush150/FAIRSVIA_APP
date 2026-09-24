@@ -1,3 +1,5 @@
+import 'app_colors.dart';
+
 /// 4px base spacing grid + corner radii, shared across the apps.
 class AppSpacing {
   AppSpacing._();
@@ -13,10 +15,13 @@ class AppSpacing {
   static const double xxxl = 40;
   static const double huge = 48;
 
-  // Corner radii. Generous, consistent rounding reads as premium.
-  static const double radiusSm = 6;
-  static const double radius = 8;
-  static const double radiusLg = 12;
-  static const double radiusXl = 16;
+  // Corner radii. Generous, consistent rounding reads as premium. The v2
+  // theme builds (THEME=midnight|daylight|daynight) use the audit's softer
+  // 12 px controls and 20 px sheets.
+  static const bool _v2 = AppColors.v2;
+  static const double radiusSm = _v2 ? 8 : 6;
+  static const double radius = _v2 ? 12 : 8;
+  static const double radiusLg = _v2 ? 16 : 12;
+  static const double radiusXl = _v2 ? 20 : 16;
   static const double pill = 999;
 }

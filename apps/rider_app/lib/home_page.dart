@@ -532,6 +532,21 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         '$minutes ${minutes == 1 ? 'minute' : 'minutes'}.';
   }
 
+  /// From finding a driver to the end of the trip the theme holds still: a
+  /// phone switching to night mode must not repaint the map and sheets while
+  /// the rider is matching a car (Visual Direction v2, Plan C).
+  void _holdThemeDuringRide(BuildContext context, TripPhase phase) {
+    if (!sl.isRegistered<ThemeController>()) return;
+    final theme = sl<ThemeController>();
+    final live = phase.index >= TripPhase.searching.index &&
+        phase.index <= TripPhase.onTrip.index;
+    if (live && !theme.isHeld) {
+      theme.holdFor(Theme.of(context).brightness);
+    } else if (!live && theme.isHeld) {
+      theme.release();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<TripCubit, TripState>(
@@ -544,6 +559,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
           (curr.phase == TripPhase.idle && prev.error != curr.error),
       listener: (context, state) {
         final cubit = context.read<TripCubit>();
+        _holdThemeDuringRide(context, state.phase);
         // Socket came back: the cubit re-syncs the trip, and the map catches
         // up with it. Without this the rider watches "Connected" appear over
         // a car still frozen where the connection dropped.

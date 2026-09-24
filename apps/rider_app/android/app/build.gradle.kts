@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -13,6 +14,23 @@ val mapsSecretsFile = rootProject.file("secrets.properties")
 val mapsApiKey: String = Properties().apply {
     if (mapsSecretsFile.exists()) mapsSecretsFile.inputStream().use { load(it) }
 }.getProperty("MAPS_API_KEY") ?: ""
+
+// Visual Direction v2 variant builds (--dart-define=THEME=midnight|daylight|
+// daynight) install as separate apps with their own name, so the three looks
+// can sit side by side on one phone. Flutter hands dart-defines to Gradle as
+// base64 in the "dart-defines" property. The default/turquoise/mono builds
+// keep the normal ID, so they update the installed app as before.
+val themeVariant: String = (project.findProperty("dart-defines") as String?)
+    ?.split(",")
+    ?.map { d: String -> String(Base64.getDecoder().decode(d), Charsets.UTF_8) }
+    ?.firstOrNull { d: String -> d.startsWith("THEME=") }
+    ?.removePrefix("THEME=")
+    ?: ""
+val variantLabel: String? = mapOf(
+    "midnight" to "RideVela A · Midnight",
+    "daylight" to "RideVela B · Daylight",
+    "daynight" to "RideVela C · Day&Night",
+)[themeVariant]
 
 android {
     namespace = "in.novarobotics.ubernav.rider_app"
@@ -34,6 +52,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+        manifestPlaceholders["appLabel"] = variantLabel ?: "RideVela Rider"
+        if (variantLabel != null) applicationIdSuffix = ".$themeVariant"
     }
 
     buildTypes {
