@@ -73,7 +73,31 @@ class AppMap extends StatefulWidget {
     this.boundsPadding = const EdgeInsets.all(64),
     this.cameraMode = MapCameraMode.fit,
     this.onFollowingChanged,
+    this.pulseAt,
   });
+
+  /// Draws the "finding your driver" radar here: three rings spreading from
+  /// the pickup every [pulsePeriod] (audit 3.8). Null draws nothing. With the
+  /// system's Reduce Motion / Remove animations on, the rings stand still.
+  final LatLng? pulseAt;
+
+  static const Duration pulsePeriod = Duration(milliseconds: 1600);
+
+  /// Ring radius range in metres: a ring starts at the pin and spreads to a
+  /// couple of blocks, the distance a nearby driver would come from.
+  static const double pulseMinM = 30;
+  static const double pulseMaxM = 260;
+
+  /// The three rings at [t] (0..1 through one period): (radius m, opacity).
+  /// Pure so the drawing rule can be tested without a map.
+  @visibleForTesting
+  static List<(double, double)> pulseRings(double t) => [
+        for (var i = 0; i < 3; i++)
+          () {
+            final p = (t + i / 3) % 1.0;
+            return (pulseMinM + (pulseMaxM - pulseMinM) * p, (1 - p) * 0.55);
+          }(),
+      ];
 
   final LatLng initialCenter;
   final double initialZoom;
@@ -308,8 +332,55 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    _pulseTimer?.cancel();
     _driverAnim.dispose();
     super.dispose();
+  }
+
+  // --- Pickup radar ----------------------------------------------------------
+  // Circles are platform objects, so they are re-sent on a ~12 fps tick rather
+  // than every frame: smooth enough for a slow spreading ring, and cheap on
+  // the platform channel.
+  Timer? _pulseTimer;
+  final Stopwatch _pulseClock = Stopwatch();
+
+  void _syncPulse(bool reduceMotion) {
+    final want = widget.pulseAt != null && !reduceMotion;
+    if (want && _pulseTimer == null) {
+      _pulseClock
+        ..reset()
+        ..start();
+      _pulseTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!want && _pulseTimer != null) {
+      _pulseTimer!.cancel();
+      _pulseTimer = null;
+      _pulseClock.stop();
+    }
+  }
+
+  Set<gmaps.Circle> _buildPulse(bool reduceMotion) {
+    final at = widget.pulseAt;
+    if (at == null) return const {};
+    final period = AppMap.pulsePeriod.inMilliseconds;
+    // Reduce Motion: a still frame with the rings evenly spread.
+    final t = reduceMotion
+        ? 0.0
+        : (_pulseClock.elapsedMilliseconds % period) / period;
+    final colour = AppColors.highlight;
+    return {
+      for (final (i, (radius, opacity)) in AppMap.pulseRings(t).indexed)
+        gmaps.Circle(
+          circleId: gmaps.CircleId('pulse$i'),
+          center: _g(at),
+          radius: radius,
+          strokeWidth: 2,
+          strokeColor: colour.withValues(alpha: opacity),
+          fillColor: colour.withValues(alpha: opacity * 0.25),
+          zIndex: 0,
+        ),
+    };
   }
 
   /// True while a camera move we started is still expected to be in flight.
@@ -981,7 +1052,9 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     _syncPolylines();
+    _syncPulse(reduceMotion);
     return gmaps.GoogleMap(
       initialCameraPosition: gmaps.CameraPosition(
         target: _g(widget.initialCenter),
@@ -992,6 +1065,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       style: dark ? mapNightStyle : mapLightStyle,
       markers: _buildMarkers(),
       polylines: _polylines,
+      circles: _buildPulse(reduceMotion),
       padding: widget.boundsPadding,
       myLocationEnabled: false,
       myLocationButtonEnabled: false,

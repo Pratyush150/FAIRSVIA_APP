@@ -86,6 +86,37 @@ void main() {
     });
   });
 
+  test('the finding-a-driver radar spreads from the pickup, only while searching', () {
+    const searching =
+        TripState(phase: TripPhase.searching, pickup: pickup, dropoff: dropoff);
+    expect(layer(searching).searchPulse, MapUtils.toLatLng(pickup));
+    for (final phase in [
+      TripPhase.choosingRide,
+      TripPhase.driverEnRoute,
+      TripPhase.onTrip,
+      TripPhase.idle,
+    ]) {
+      expect(
+        layer(TripState(phase: phase, pickup: pickup, dropoff: dropoff))
+            .searchPulse,
+        isNull,
+        reason: '$phase',
+      );
+    }
+  });
+
+  test('radar rings spread out and fade, evenly spaced', () {
+    final rings = AppMap.pulseRings(0);
+    expect(rings, hasLength(3));
+    // Start of the cycle: one ring at the pin, fully visible.
+    expect(rings.first.$1, AppMap.pulseMinM);
+    expect(rings.first.$2, closeTo(0.55, 1e-9));
+    // A ring near the end of its spread is almost gone.
+    final late = AppMap.pulseRings(0.99).first;
+    expect(late.$1, closeTo(AppMap.pulseMaxM, 3));
+    expect(late.$2, lessThan(0.01));
+  });
+
   group('the live leg', () {
     test('is the approach while the driver comes to the pickup', () {
       expect(layer(const TripState(phase: TripPhase.driverEnRoute)).legKey,

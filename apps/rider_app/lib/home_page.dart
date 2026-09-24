@@ -661,6 +661,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                 initialZoom: 16, // street level on the rider, like Uber
                 markers: layer.markers,
                 route: layer.route,
+                pulseAt: layer.searchPulse,
                 fitBounds: layer.cameraFitBounds,
                 recenter: _recenter,
                 recenterSeq: _recenterSeq,

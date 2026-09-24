@@ -121,6 +121,18 @@ class RideMapLayer {
     return planned;
   }
 
+  /// Where the "finding your driver" radar spreads from: the pickup pin
+  /// (on the routed road end, like the marker), only while searching.
+  LatLng? get searchPulse {
+    if (state.phase != TripPhase.searching || state.pickup == null) return null;
+    final tripRoute = MapUtils.decodePolyline(
+      state.estimate?.polyline ?? state.trip?.routePolyline ?? '',
+    );
+    return tripRoute.length >= 2
+        ? tripRoute.first
+        : MapUtils.toLatLng(state.pickup!);
+  }
+
   List<AppMapMarker> get markers {
     final out = <AppMapMarker>[];
     // Pins sit on the routed road ends (not the raw geocode, which can land in
