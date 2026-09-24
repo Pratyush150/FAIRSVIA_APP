@@ -104,10 +104,7 @@ screenshot into `~/Desktop/ridevela-ui/<theme>/`, then the next.
 The other `THEME=` flags in the code (indigo, lapis, marigold, copper, garnet)
 change colours only — the owner asked not to show those.
 
-**New for everyone (1.8.0):** **Auto** and **Bike** ride types in Pune —
-listed first (cheapest), with 3D auto-rickshaw and bike art, Pune meter fares
-(auto ₹30 first 1.5 km then ₹20/km). To see one offered, run on nova-pc:
-`ssh nova-pc "cd ~/ubernav/tools/fake-driver-simulator && node tier-ride.mjs auto"`.
+**Auto and Bike ride types are switched off** (owner, 2026-09-24) — don't show them.
 
 On Android the owner already has these as separate apps ("RideVela A ·
 Midnight", "B · Daylight", "C · Day&Night") — the APKs are on nova-pc in
