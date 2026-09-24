@@ -120,7 +120,7 @@ void main() {
         driverStale: true,
       ),
     );
-    expect(find.text('Arriving in 2 min'), findsOneWidget);
+    expect(find.textContaining('arriving now'), findsOneWidget);
     expect(find.text(DriverInfoSheet.waitingForLocation), findsOneWidget);
   });
 
@@ -177,7 +177,7 @@ void main() {
       );
       expect(find.text(TripCubit.cancelFailedMessage), findsOneWidget);
       // The ride is still live: the ETA headline is intact, not an error screen.
-      expect(find.text('Arriving in 4 min'), findsOneWidget);
+      expect(find.textContaining('arriving in 4 min'), findsOneWidget);
       await tester.tap(find.byTooltip('More options'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel ride'));

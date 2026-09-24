@@ -335,28 +335,24 @@ class _RidePin extends StatelessWidget {
               ],
             ),
           ),
-          // The PIN as one ink badge, readable through a car window.
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(AppSpacing.radius),
+          // One box per digit, like a code on a receipt: easy to read out
+          // one number at a time through a car window.
+          for (final d in pin.split('')) ...[
+            const SizedBox(width: 6),
+            Container(
+              width: 38,
+              height: 46,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                border: Border.all(color: AppColors.accent, width: 1.5),
+              ),
+              child: Text(d,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700, letterSpacing: 0)),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final d in pin.split(''))
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: Text(d,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.onAccent,
-                            letterSpacing: 0)),
-                  ),
-              ],
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -487,41 +483,44 @@ class _DriverVehicleCard extends StatelessWidget {
     final tint = vehicleTint(d?.vehicleColor);
     final lightCar = tint != null && tint.computeLuminance() > 0.6;
     final vehicle = d?.vehicleLabel ?? '';
+    final plate = d?.plate;
+    final muted = dark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     return AppCard(
       child: Row(
         children: [
+          // The driver's face first, with the car's colour as a badge on it:
+          // the rider matches a person and a car, in that order.
           SizedBox(
-            width: 60,
-            height: 66,
+            width: 64,
+            height: 60,
             child: Stack(
               clipBehavior: Clip.none,
-              alignment: Alignment.topCenter,
               children: [
                 AppAvatar(name: realName, size: 56),
                 Positioned(
+                  right: 0,
                   bottom: 0,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(AppSpacing.pill),
-                      boxShadow: AppElevation.sm,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(PhosphorIconsFill.star,
-                            size: 13, color: AppColors.star),
-                        const SizedBox(width: 2),
-                        // No driver payload yet (e.g. restored after a cold
-                        // start) — show "—" rather than inventing a 5.0.
-                        Text(
-                          d == null ? '—' : d.rating.toStringAsFixed(1),
-                          style: theme.textTheme.labelSmall
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                      ],
+                  child: Semantics(
+                    label: vehicle.isEmpty ? 'Car' : vehicle,
+                    excludeSemantics: true,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        // A white/silver car on a light disc disappears — give
+                        // light cars a dark disc so the colour still reads.
+                        color: lightCar
+                            ? AppColors.primaryElevated
+                            : theme.colorScheme.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: dark
+                                ? AppColors.borderDark
+                                : AppColors.borderLight),
+                        boxShadow: AppElevation.sm,
+                      ),
+                      child: Icon(PhosphorIconsRegular.car,
+                          size: 16, color: tint ?? muted),
                     ),
                   ),
                 ),
@@ -533,71 +532,48 @@ class _DriverVehicleCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  realName ?? 'Your driver',
-                  style: theme.textTheme.titleMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                // The plate is what the rider checks at the kerb, so it is the
+                // biggest thing on the card (Uber/Ola do the same).
+                if (plate != null)
+                  Text(
+                    Market.current.formatPlate(plate),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800, letterSpacing: 1),
+                  ),
                 if (vehicle.isNotEmpty)
                   Text(
                     vehicle,
-                    style: theme.textTheme.bodyMedium,
+                    style: theme.textTheme.bodyMedium?.copyWith(color: muted),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                if (d?.plate != null) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: dark
-                          ? AppColors.surfaceMutedDark
-                          : AppColors.surfaceMutedLight,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                      border: Border.all(
-                          color: dark
-                              ? AppColors.borderDark
-                              : AppColors.borderLight),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        realName ?? 'Your driver',
+                        style: theme.textTheme.titleSmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: Text(
-                      Market.current.formatPlate(d!.plate!),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(letterSpacing: 1),
+                    const SizedBox(width: AppSpacing.xs),
+                    const Icon(PhosphorIconsFill.star,
+                        size: 14, color: AppColors.star),
+                    const SizedBox(width: 2),
+                    // No driver payload yet (e.g. restored after a cold
+                    // start) — show "—" rather than inventing a 5.0.
+                    Text(
+                      d == null ? '—' : d.rating.toStringAsFixed(1),
+                      style: theme.textTheme.labelMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Semantics(
-            label: vehicle.isEmpty ? 'Car' : vehicle,
-            excludeSemantics: true,
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                // A white/silver car on a light disc disappears — give light
-                // cars a dark disc so the colour still reads.
-                color: lightCar
-                    ? AppColors.primaryElevated
-                    : (dark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight),
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: dark ? AppColors.borderDark : AppColors.borderLight),
-              ),
-              child: Icon(
-                PhosphorIconsRegular.car,
-                size: 30,
-                color: tint ??
-                    (dark
-                        ? AppColors.textSecondaryDark
-                        : AppColors.textSecondaryLight),
-              ),
             ),
           ),
         ],
@@ -681,17 +657,7 @@ class _RideMenuButton extends StatelessWidget {
       onSelected: (v) {
         switch (v) {
           case 'share':
-            final d = state.driver;
-            final car = d == null
-                ? ''
-                : ' Car: ${d.vehicleLabel}${d.plate != null ? ', plate ${d.plate}' : ''}. Driver: ${d.name}.';
-            shareTripText(
-              context,
-              "I'm on a ${AppBrand.name} ride to "
-              '${state.dropoffAddr ?? 'my destination'}.$car',
-            );
-          case 'safety':
-            _openSafety(context, state);
+            _shareTrip(context, state);
           case 'help':
             Navigator.of(context).push(MaterialPageRoute(
               builder: (_) =>
@@ -707,13 +673,6 @@ class _RideMenuButton extends StatelessWidget {
           child: ListTile(
             leading: Icon(PhosphorIconsRegular.export),
             title: Text('Share trip status'),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'safety',
-          child: ListTile(
-            leading: Icon(PhosphorIconsRegular.shieldCheck),
-            title: Text('Safety'),
           ),
         ),
         PopupMenuItem(
@@ -757,17 +716,20 @@ class _OnTripSheet extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _sosButton(context, state),
-              IconButton(
-                tooltip: 'Message driver',
-                icon: _ChatIcon(unread: state.unreadMessages),
-                onPressed: () => _openTripChat(context, state),
-              ),
-            ],
+          trailing: IconButton(
+            tooltip: 'Message driver',
+            icon: _ChatIcon(unread: state.unreadMessages),
+            onPressed: () => _openTripChat(context, state),
           ),
+        ),
+        // Safety and Share side by side, labelled: in-trip they are the two
+        // things a rider may need in a hurry.
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          children: [
+            _sosButton(context, state),
+            _shareButton(context, state),
+          ],
         ),
         if (_tripEtaLine(state) case final eta?) ...[
           const SizedBox(height: AppSpacing.sm),

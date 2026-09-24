@@ -106,6 +106,7 @@ abstract final class PhosphorIconsFill {
   static const IconData circle = IconData(0xe18a, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
   static const IconData heart = IconData(0xe2a8, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
   static const IconData sealCheck = IconData(0xe606, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
+  static const IconData shieldCheck = IconData(0xe40c, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
   static const IconData square = IconData(0xe45e, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
   static const IconData star = IconData(0xe46a, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
   static const IconData toggleRight = IconData(0xe676, fontFamily: 'PhosphorFill', fontPackage: 'design_system');

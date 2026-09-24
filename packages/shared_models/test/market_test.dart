@@ -62,6 +62,17 @@ void main() {
       expect(Market.uzbekistan.cityCenter.$1, closeTo(41.31, 0.01)); // Tashkent
     });
 
+    test('SOS numbers are the market\'s own, never another country\'s', () {
+      expect(Market.india.emergencyNumbers,
+          [('Emergency', '112'), ('Police', '100'), ('Ambulance', '108')]);
+      expect(Market.uzbekistan.emergencyNumbers.first, ('Police', '102'));
+      expect(Market.unitedStates.emergencyNumbers, [('Emergency', '911')]);
+      for (final m in [Market.india, Market.uzbekistan, Market.unitedStates]) {
+        // The SOS sheet shows three tiles; a fourth would be silently dropped.
+        expect(m.emergencyNumbers.length, inInclusiveRange(1, 3));
+      }
+    });
+
     test('Indian plates: checked like the server, shown as printed', () {
       expect(Market.india.isValidPlate('mh 12-ab 1234'), isTrue);
       expect(Market.india.isValidPlate('22 BH 1234 AA'), isTrue);

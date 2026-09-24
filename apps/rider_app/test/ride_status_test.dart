@@ -14,23 +14,23 @@ void main() {
       );
 
   group('driver on the way', () {
-    test('states the ETA under the headline, not as it', () {
+    test('puts who and when in the headline, what to do under it', () {
       final s = RideStatus.of(enRoute(eta: 240));
-      expect(s.title, 'Your driver is on the way');
-      expect(s.subtitle, 'Arriving in 4 min');
+      expect(s.title, 'Your driver arriving in 4 min');
+      expect(s.subtitle, 'Meet at your pickup spot');
     });
 
     test('switches to "almost here" as the car closes in', () {
       expect(RideStatus.of(enRoute(eta: 240)).title,
-          'Your driver is on the way');
+          'Your driver arriving in 4 min');
       expect(RideStatus.of(enRoute(eta: 120)).title,
           'Your driver is arriving now');
-      expect(RideStatus.of(enRoute(eta: 120)).subtitle, 'Arriving in 2 min');
+      expect(RideStatus.of(enRoute(eta: 120)).subtitle, 'Head to your pickup spot');
     });
 
     test('never counts down to zero minutes', () {
       // "Arriving in 0 min" reads as "should already be here".
-      expect(RideStatus.of(enRoute(eta: 5)).subtitle, 'Arriving in 1 min');
+      expect(RideStatus.of(enRoute(eta: 5)).title, 'Your driver is arriving now');
       expect(RideStatus.minutesFrom(1), 1);
     });
 
@@ -38,7 +38,7 @@ void main() {
       final s = RideStatus.of(
         enRoute(driver: const AssignedDriver(name: 'Raj', rating: 4.9, etaSec: 300)),
       );
-      expect(s.subtitle, 'Arriving in 5 min');
+      expect(s.title, 'Raj arriving in 5 min');
     });
 
     test('promises no time it cannot back up', () {
@@ -60,7 +60,7 @@ void main() {
     const bekzod = AssignedDriver(name: 'Bekzod Karimov', rating: 4.9);
     test('on the way / arriving now', () {
       expect(RideStatus.of(enRoute(eta: 240, driver: bekzod)).title,
-          'Bekzod is on the way');
+          'Bekzod arriving in 4 min');
       expect(RideStatus.of(enRoute(eta: 60, driver: bekzod)).title,
           'Bekzod is arriving now');
     });
@@ -72,7 +72,7 @@ void main() {
     test('never shows a placeholder as a name', () {
       const placeholder = AssignedDriver(name: 'Your driver', rating: 5);
       expect(RideStatus.of(enRoute(eta: 240, driver: placeholder)).title,
-          'Your driver is on the way');
+          'Your driver arriving in 4 min');
     });
   });
 

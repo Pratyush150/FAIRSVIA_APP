@@ -177,13 +177,84 @@ void _openSafety(BuildContext context, TripState state) {
   );
 }
 
-/// A small red SOS button for the active-trip sheets.
-Widget _sosButton(BuildContext context, TripState state) {
-  return IconButton(
-    tooltip: 'Safety',
-    icon: const Icon(PhosphorIconsRegular.shieldCheck, color: AppColors.error),
-    onPressed: () => _openSafety(context, state),
+/// The Safety entry on the active-trip sheets: a labelled pill, not a bare
+/// shield icon — riders looking for help should not have to guess what an
+/// icon means. Neutral at rest; the sheet it opens carries the red.
+Widget _sosButton(BuildContext context, TripState state) => _RidePill(
+      icon: PhosphorIconsFill.shieldCheck,
+      label: 'Safety',
+      onTap: () => _openSafety(context, state),
+    );
+
+/// Share the live trip (who, which car, where to) — a pill beside Safety
+/// once the ride is under way.
+Widget _shareButton(BuildContext context, TripState state) => _RidePill(
+      icon: PhosphorIconsRegular.export,
+      label: 'Share',
+      onTap: () => _shareTrip(context, state),
+    );
+
+void _shareTrip(BuildContext context, TripState state) {
+  final d = state.driver;
+  final car = d == null
+      ? ''
+      : ' Car: ${d.vehicleLabel}${d.plate != null ? ', plate ${d.plate}' : ''}. Driver: ${d.name}.';
+  shareTripText(
+    context,
+    "I'm on a ${AppBrand.name} ride to "
+    '${state.dropoffAddr ?? 'my destination'}.$car',
   );
+}
+
+class _RidePill extends StatelessWidget {
+  const _RidePill({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, right: 6),
+      child: Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: Material(
+          color: dark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight,
+          shape: const StadiumBorder(),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: onTap,
+            child: ConstrainedBox(
+              // 44 pt tap target, per the icon rules.
+              constraints: const BoxConstraints(minHeight: 40),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 16, color: theme.colorScheme.onSurface),
+                    const SizedBox(width: 4),
+                    Text(label,
+                        style: theme.textTheme.labelLarge
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Opens the in-trip chat with the assigned driver.

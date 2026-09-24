@@ -41,10 +41,11 @@ Scores are the audit's; "done" means built, tested and seen on a device.
 | # | Item | Fix |
 |---|---|---|
 | 2.1 | Icon system | `phosphor_flutter`; the 8 rules (one library, 24/20/16 px, Regular + Fill for state, colour by meaning, one 40 px container style, labels, 3:1 contrast, 44 pt targets); replace every icon per the audit's table |
-| 2.2 | Driver card = verification | Plate as the hero (22 pt, 700, tabular, spaced); 56 px driver photo over a 3/4 car render tinted to the real car colour; "White Toyota Camry" under the plate; **Call** + **Message** side by side (the car button goes) |
-| 2.3 | Titles with name + ETA | "Rahul arriving in 3 min" / "Rahul has arrived"; sentence case, never ALL CAPS |
-| 2.4 | PIN as four boxes | 48×56 pt boxes, title size, surface.2, read digit by digit by screen readers |
-| 2.5 | Safety pill | "Safety" pill with ShieldCheck (white at rest; red only during an active SOS); **Share trip** next to it in-trip |
+| 2.2 ✅ | Driver card = verification | Plate as the hero (22 pt, 700, tabular, spaced); 56 px driver photo over a 3/4 car render tinted to the real car colour; "White Toyota Camry" under the plate; **Call** + **Message** side by side (the car button goes) |
+| 2.3 ✅ | Titles with name + ETA | "Rahul arriving in 3 min" / "Rahul has arrived"; sentence case, never ALL CAPS |
+| 2.4 ✅ | PIN as four boxes | 48×56 pt boxes, title size, surface.2, read digit by digit by screen readers |
+| 2.5 ✅ | Safety pill | "Safety" pill with ShieldCheck (white at rest; red only during an active SOS); **Share trip** next to it in-trip |
+| — | *Done 2026-09-24 (v1.4.2/5010, seen on emulator):* plate is the card's biggest line, car colour as a badge on the avatar, name + rating under it; "Sneha arriving in 9 min" / "Meet at your pickup spot"; PIN in four boxes; labelled Safety pill (neutral) on every live sheet, Safety + Share pills in-trip, Safety removed from the ••• menu. **Found and fixed on the way:** the SOS sheet showed Uzbek numbers (Police 102 / Ambulance 103) in the India build — now per market: 112 / Police 100 / Ambulance 108; server via `EMERGENCY_NUMBERS`. Still open from 2.2: a real driver photo (2.6) and the 3/4 car render (2.7). | |
 | 2.6 | Driver photos | Photo upload at onboarding (storage decision needed — see plan §1 "document upload"); letter avatar only as fallback |
 | 2.7 | Realistic ride-type cars | Redraw the four as one 3/4-view set, silver/white body, same lighting; shape carries the tier |
 

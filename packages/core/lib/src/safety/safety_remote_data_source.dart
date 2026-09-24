@@ -1,8 +1,10 @@
 import 'package:dio/dio.dart';
 
+import 'package:shared_models/shared_models.dart';
+
 import '../network/api_exception.dart';
 
-/// A local emergency service number, e.g. Police 102.
+/// A local emergency service number, e.g. Police 100.
 class EmergencyNumber {
   const EmergencyNumber(this.label, this.number);
 
@@ -13,12 +15,12 @@ class EmergencyNumber {
   final String number;
 
   /// Used until the server's list arrives, so the call buttons work even
-  /// offline. Matches the backend default (Uzbekistan).
-  static const fallback = [
-    EmergencyNumber('Police', '102'),
-    EmergencyNumber('Ambulance', '103'),
-    EmergencyNumber('Fire', '101'),
-  ];
+  /// offline: the build's market numbers (India: 112, Police 100, Ambulance 108;
+  /// 112 also reaches fire, and the sheet has room for three).
+  static List<EmergencyNumber> get fallback => [
+        for (final (label, number) in Market.current.emergencyNumbers)
+          EmergencyNumber(label, number),
+      ];
 }
 
 /// Someone the user wants texted when they press SOS.

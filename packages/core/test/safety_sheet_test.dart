@@ -1,3 +1,4 @@
+import 'package:shared_models/shared_models.dart';
 import 'package:core/core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -71,7 +72,8 @@ void main() {
     when(() => safety.emergencyNumbers())
         .thenThrow(const ApiException('offline'));
     await pump(tester);
-    expect(find.text('102'), findsOneWidget);
+    // The build's own market numbers, not whatever the server last said.
+    expect(find.text(Market.current.emergencyNumbers.first.$2), findsOneWidget);
   });
 
   testWidgets('with no contacts it says nobody will be texted — before and after', (tester) async {

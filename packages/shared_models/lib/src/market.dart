@@ -15,6 +15,7 @@ class Market {
     required this.dialCode,
     required this.examplePhone,
     required this.cityCenter,
+    required this.emergencyNumbers,
   });
 
   /// India (Pune pilot): rupees, kilometres.
@@ -22,21 +23,32 @@ class Market {
       code: 'in', currency: 'INR', metric: true,
       tipPresets: [20, 50, 100], maxTip: 2000,
       dialCode: '+91', examplePhone: '+91 98765 43210',
-      cityCenter: (18.5204, 73.8567)); // Pune (pilot city)
+      cityCenter: (18.5204, 73.8567), // Pune (pilot city)
+      emergencyNumbers: [
+        ('Emergency', '112'),
+        ('Police', '100'),
+        ('Ambulance', '108'),
+      ]);
 
   /// Uzbekistan (launch market): som, kilometres.
   static const uzbekistan = Market._(
       code: 'uz', currency: 'UZS', metric: true,
       tipPresets: [5000, 10000, 20000], maxTip: 500000,
       dialCode: '+998', examplePhone: '+998 90 123 45 67',
-      cityCenter: (41.3111, 69.2797)); // Tashkent
+      cityCenter: (41.3111, 69.2797), // Tashkent
+      emergencyNumbers: [
+        ('Police', '102'),
+        ('Ambulance', '103'),
+        ('Fire', '101'),
+      ]);
 
   /// United States: dollars, miles.
   static const unitedStates = Market._(
       code: 'us', currency: 'USD', metric: false,
       tipPresets: [2, 3, 5], maxTip: 500,
       dialCode: '+1', examplePhone: '+1 305 555 0137',
-      cityCenter: (25.7743, -80.1937)); // Miami
+      cityCenter: (25.7743, -80.1937), // Miami
+      emergencyNumbers: [('Emergency', '911')]);
 
   final String code;
 
@@ -61,6 +73,11 @@ class Market {
   /// (lat, lng) where a map opens when the phone's position isn't known yet:
   /// the market's launch city, never somewhere on another continent.
   final (double, double) cityCenter;
+
+  /// (label, number) for the SOS sheet's call buttons, used until (or
+  /// without) the server's list. A wrong number here is worse than none: an
+  /// Uzbek "Police 102" in India dials an ambulance line.
+  final List<(String, String)> emergencyNumbers;
 
   // Indian state / union-territory codes, the first two letters of a plate.
   static const _inStates =

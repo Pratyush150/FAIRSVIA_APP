@@ -86,9 +86,13 @@ class RideStatus {
           );
         }
         final almost = eta <= almostHereSec;
+        // Name and time in the headline, the way riders scan it ("Rahul
+        // arriving in 3 min"); the line under it says what to do.
         return RideStatus(
-          title: almost ? '$who is arriving now' : '$who is on the way',
-          subtitle: 'Arriving in ${minuteLabel(eta)}',
+          title: almost
+              ? '$who is arriving now'
+              : '$who arriving in ${minuteLabel(eta)}',
+          subtitle: almost ? 'Head to your pickup spot' : 'Meet at your pickup spot',
           tone: almost ? RideStatusTone.success : RideStatusTone.accent,
         );
 
