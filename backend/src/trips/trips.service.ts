@@ -25,6 +25,7 @@ import {
 } from '../auth/sms/sms-provider.interface';
 import { haversineMeters } from '../geo/geo.util';
 import { StopDto } from './dto/stop.dto';
+import { roundFare } from '../common/money';
 import { CURRENCY } from '../pricing/fare-config';
 import { FareBreakdown, PricingService } from '../pricing/pricing.service';
 import { SurgeService } from '../surge/surge.service';
@@ -785,7 +786,7 @@ export class TripsService {
     // Carry the up-front promo discount onto the final (odometer-based) fare.
     // `fareEstimate` is stored net of the promo; the clamp is on gross fares.
     const grossEstimate = estimate + discount;
-    const gross = this.clampFare(metered, grossEstimate, trip.tier);
+    const gross = this.clampFare(metered, grossEstimate, trip.tier, trip.currency ?? CURRENCY);
     const fareFinal = Math.max(gross - discount, 0);
     return {
       fareFinal,
@@ -830,7 +831,12 @@ export class TripsService {
    * at the tier's minimum fare. Without a usable estimate the metered fare is
    * only floored.
    */
-  private clampFare(metered: number, grossEstimate: number, tier: string): number {
+  private clampFare(
+    metered: number,
+    grossEstimate: number,
+    tier: string,
+    currency: string,
+  ): number {
     let fare = metered;
     if (grossEstimate > 0) {
       fare = Math.min(
@@ -839,7 +845,8 @@ export class TripsService {
       );
     }
     fare = Math.max(fare, this.pricing.minFareFor(tier));
-    return Math.round(fare * 100) / 100;
+    // The charged fare follows the same rule as the quote: whole rupees.
+    return roundFare(fare, currency);
   }
 
   private async assertDriverTrip(

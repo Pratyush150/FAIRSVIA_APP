@@ -11,7 +11,11 @@ import { api, connect, login, onboardDriver, phone, wait } from './lib.mjs';
 
 // Start a few blocks NW of the rider's pinned Miami location so the car has a
 // short, visible drive to the pickup.
-const START = { lat: 25.7660, lng: -80.1955 };
+// START_LAT / START_LNG move it (Pune pilot: 18.5300, 73.8475).
+const START = {
+  lat: Number(process.env.START_LAT ?? 25.766),
+  lng: Number(process.env.START_LNG ?? -80.1955),
+};
 
 function bearing(a, b) {
   const dLng = ((b.lng - a.lng) * Math.PI) / 180;

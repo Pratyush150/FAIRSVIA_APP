@@ -16,6 +16,8 @@ process.env.STRIPE_SECRET_KEY = '';
 process.env.MARKET_CURRENCY = 'USD';
 process.env.CANCELLATION_FEE = '5';
 process.env.BUSINESS_TZ = 'Asia/Tashkent';
+// The SOS list the suites assert (the code default); a pilot box sets its own.
+process.env.EMERGENCY_NUMBERS = 'Police:102,Ambulance:103,Fire:101';
 
 // The one demo number public-edge.e2e expects to be allowed a login code
 // over the public edge.

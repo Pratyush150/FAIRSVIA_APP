@@ -3,13 +3,48 @@ part of 'ride_sheets.dart';
 /// The sheets of a live ride: finding a driver, the driver on the way or
 /// arrived, the trip in progress, and cancelling.
 
-class _FindingDriver extends StatelessWidget {
+class _FindingDriver extends StatefulWidget {
   const _FindingDriver({required this.state});
   final TripState state;
 
   @override
+  State<_FindingDriver> createState() => _FindingDriverState();
+}
+
+class _FindingDriverState extends State<_FindingDriver> {
+  Timer? _timer;
+  bool _stillLooking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Count from when the ride was requested when the server says so (a
+    // relaunch mid-search must not restart the clock); otherwise from now.
+    final requested = widget.state.trip?.requestedAt;
+    final elapsed = requested == null
+        ? Duration.zero
+        : DateTime.now().difference(requested.toLocal());
+    final wait = RideStatus.stillLookingAfter - elapsed;
+    if (wait <= Duration.zero) {
+      _stillLooking = true;
+    } else {
+      _timer = Timer(wait, () {
+        if (mounted) setState(() => _stillLooking = true);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final theme = Theme.of(context);
+    final place = RideStatus.placeName(state);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -26,17 +61,40 @@ class _FindingDriver extends StatelessWidget {
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: RideStatusHeader(
-                status: RideStatus.of(state),
-                detail: Text(
-                  'Trip to ${state.dropoffAddr ?? 'your destination'}',
-                  style: theme.textTheme.bodySmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                status: RideStatus.of(state, stillLooking: _stillLooking),
+                detail: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // What was booked, so the rider can check it while
+                    // waiting: "Economy · ₹102 · Cash".
+                    Text(
+                      searchingSummary(state),
+                      style: theme.textTheme.bodyMedium?.tabular(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'To ${place ?? 'your destination'}',
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
+        if (_stillLooking) ...[
+          const SizedBox(height: AppSpacing.sm),
+          // No "try another ride type" here: the cubit cannot re-request a
+          // live search on another tier without cancelling it (which clears
+          // the whole draft), so offering it would be a button that lies.
+          Text(
+            'Drivers nearby are busy. We’ll keep looking.',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
         if (state.error != null) ...[
           const SizedBox(height: AppSpacing.sm),
           _SheetWarning(message: state.error!),
@@ -49,6 +107,35 @@ class _FindingDriver extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The booked ride's tier label ("Economy"), from the estimate when it is
+/// held, else the tier id capitalised; "Ride" when nothing names it.
+String _tierLabel(TripState state) {
+  final tier = state.trip?.tier ?? state.selectedTier;
+  if (tier == null) return 'Ride';
+  for (final t in state.estimate?.tiers ?? const <FareTier>[]) {
+    if (t.tier == tier) return t.label;
+  }
+  return tier.isEmpty ? 'Ride' : tier[0].toUpperCase() + tier.substring(1);
+}
+
+bool _paysCash(TripState state) =>
+    (state.trip?.paymentMode ?? state.paymentMode) == 'cash';
+
+/// "Economy · ₹102 · Cash" — tier, whole-unit fare, payment mode — for the
+/// finding-driver sheet. The fare is left out when nothing has priced the
+/// ride yet rather than showing a zero. Public for tests.
+String searchingSummary(TripState state) {
+  final fare = state.displayFare;
+  final currency = state.trip?.currency ??
+      state.selectedFare?.currency ??
+      state.estimate?.currency;
+  return [
+    _tierLabel(state),
+    if (fare != null) Money.format(fare, currency: currency, wholeOnly: true),
+    _paysCash(state) ? 'Cash' : 'Card',
+  ].join(' · ');
 }
 
 /// Confirms a ride cancellation before calling through. When a driver is already
@@ -365,22 +452,13 @@ class _PickupSummary extends StatelessWidget {
 
   final TripState state;
 
-  String get _tier {
-    final tier = state.trip?.tier ?? state.selectedTier;
-    if (tier == null) return 'Ride';
-    for (final t in state.estimate?.tiers ?? const <FareTier>[]) {
-      if (t.tier == tier) return t.label;
-    }
-    return tier.isEmpty ? 'Ride' : tier[0].toUpperCase() + tier.substring(1);
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
-    final cash = (state.trip?.paymentMode ?? state.paymentMode) == 'cash';
+    final cash = _paysCash(state);
     final pickup = state.trip?.pickup.address ?? state.pickupAddr;
-    Widget chip(IconData icon, String label) => Container(
+    Widget chip(Widget icon, String label) => Container(
           padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.sm, vertical: 4),
           decoration: BoxDecoration(
@@ -390,7 +468,7 @@ class _PickupSummary extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 14),
+              icon,
               const SizedBox(width: 4),
               Text(label, style: theme.textTheme.labelMedium),
             ],
@@ -420,8 +498,18 @@ class _PickupSummary extends StatelessWidget {
                 spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xs,
                 children: [
-                  chip(PhosphorIconsRegular.car, _tier),
-                  chip(cash ? PhosphorIconsRegular.money : PhosphorIconsRegular.creditCard,
+                  chip(const Icon(PhosphorIconsRegular.car, size: 14),
+                      _tierLabel(state)),
+                  chip(
+                      cash
+                          ? _HeroIcon(
+                              asset: 'cash',
+                              size: 16,
+                              fallback: const Icon(PhosphorIconsRegular.money,
+                                  size: 14),
+                            )
+                          : const Icon(PhosphorIconsRegular.creditCard,
+                              size: 14),
                       cash ? 'Cash' : 'Card'),
                 ],
               ),
@@ -707,15 +795,11 @@ class _OnTripSheet extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // On trip the map is the star: the sheet says the state, the time
-        // left and the destination, and gets out of the way.
+        // left and the destination — once, in the headline ("On the way to
+        // …") or, near the end, under "Arriving soon" — and gets out of the
+        // way.
         RideStatusHeader(
           status: RideStatus.of(state),
-          detail: Text(
-            state.dropoffAddr ?? '',
-            style: theme.textTheme.bodySmall,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
           trailing: IconButton(
             tooltip: 'Message driver',
             icon: _ChatIcon(unread: state.unreadMessages),
@@ -836,9 +920,11 @@ class _RideQuickActions extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (TripCubit.canAddStopTo(state)) ...[
+        // Not in the last kilometre: by then a stop is a detour, not a plan.
+        if (TripCubit.canAddStopTo(state) && !RideStatus.nearlyThere(state)) ...[
           _QuickActionCard(
             icon: PhosphorIconsRegular.mapPinPlus,
+            hero: 'add_stop',
             title: 'Add a stop',
             subtitle: 'See the new price before you confirm',
             onTap: () => _addStopToRide(context, state),
@@ -847,6 +933,7 @@ class _RideQuickActions extends StatelessWidget {
         ],
         _QuickActionCard(
           icon: PhosphorIconsRegular.calendarCheck,
+          hero: 'prebook',
           title: 'Pre-book a ride',
           subtitle: 'Your ride back, or any trip later',
           onTap: () => _preBook(context),
@@ -859,12 +946,16 @@ class _RideQuickActions extends StatelessWidget {
 class _QuickActionCard extends StatelessWidget {
   const _QuickActionCard({
     required this.icon,
+    this.hero,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
 
   final IconData icon;
+
+  /// The Plan B/C 3D art for this action (see [_HeroIcon]).
+  final String? hero;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -886,7 +977,11 @@ class _QuickActionCard extends StatelessWidget {
               color: theme.colorScheme.surface,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: AppColors.accentInk, size: 22),
+            child: _HeroIcon(
+              asset: hero,
+              size: 40,
+              fallback: Icon(icon, color: AppColors.accentInk, size: 22),
+            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -904,6 +999,43 @@ class _QuickActionCard extends StatelessWidget {
           const Icon(PhosphorIconsRegular.caretRight),
         ],
       ),
+    );
+  }
+}
+
+/// A Plan B/C ("daylight"/"daynight") 3D hero icon, or [fallback] everywhere
+/// else. Only in a light-themed Plan B/C build: the art is lit for a light
+/// background, and every other build must look exactly as before — which the
+/// const [AppColors.planLight] guarantees at compile time. A missing or broken
+/// asset falls back to the Phosphor glyph rather than an empty box.
+class _HeroIcon extends StatelessWidget {
+  const _HeroIcon({
+    required this.asset,
+    required this.size,
+    required this.fallback,
+  });
+
+  /// File name under `design_system/assets/heroes/daylight/`, without `.png`.
+  final String? asset;
+  final double size;
+  final Widget fallback;
+
+  static bool enabled(BuildContext context) =>
+      AppColors.planLight &&
+      Theme.of(context).brightness == Brightness.light;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = asset;
+    if (name == null || !enabled(context)) return fallback;
+    return Image.asset(
+      'assets/heroes/daylight/$name.png',
+      package: 'design_system',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      excludeFromSemantics: true,
+      errorBuilder: (_, _, _) => fallback,
     );
   }
 }

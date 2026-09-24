@@ -83,16 +83,57 @@ void main() {
     expect(s.subtitle, 'Looking for nearby drivers…');
   });
 
+  test('a long search admits it is still looking', () {
+    const state = TripState(phase: TripPhase.searching);
+    final s = RideStatus.of(state, stillLooking: true);
+    expect(s.title, 'Finding your driver');
+    expect(s.subtitle, 'Still looking…');
+    expect(RideStatus.stillLookingAfter, const Duration(seconds: 45));
+  });
+
   group('on trip', () {
-    test('counts down the time to the destination', () {
-      const state =
-          TripState(phase: TripPhase.onTrip, liveEtaSec: 1080);
+    test('names the destination once, in the headline, and counts down', () {
+      const state = TripState(
+        phase: TripPhase.onTrip,
+        liveEtaSec: 1080,
+        liveRemainingM: 9000,
+        dropoffAddr: 'Pune Railway Station, Agarkar Nagar, Pune',
+      );
       final s = RideStatus.of(state);
-      expect(s.title, 'Ride in progress');
+      expect(s.title, 'On the way to Pune Railway Station');
       expect(s.subtitle, '18 min to destination');
     });
 
-    test('becomes "arriving soon" near the end', () {
+    test('says "your destination" when no address is known', () {
+      const state = TripState(phase: TripPhase.onTrip, liveEtaSec: 1080);
+      expect(RideStatus.of(state).title, 'On the way to your destination');
+    });
+
+    test('becomes "arriving soon" under 500 m left', () {
+      const base = TripState(
+        phase: TripPhase.onTrip,
+        liveEtaSec: 300, // slow traffic: the time alone would not say so
+        dropoffAddr: '221B Baker St',
+      );
+      final far = RideStatus.of(base.copyWith(liveRemainingM: 500));
+      expect(far.title, 'On the way to 221B Baker St');
+      final near = RideStatus.of(base.copyWith(liveRemainingM: 499));
+      expect(near.title, 'Arriving soon');
+      // The place moves to the sub-line — still said only once.
+      expect(near.subtitle, '221B Baker St');
+    });
+
+    test('distance wins over a short ETA when both are known', () {
+      const state = TripState(
+        phase: TripPhase.onTrip,
+        liveEtaSec: 90,
+        liveRemainingM: 1500,
+        dropoffAddr: '221B Baker St',
+      );
+      expect(RideStatus.of(state).title, 'On the way to 221B Baker St');
+    });
+
+    test('falls back to the ETA near the end when no distance is known', () {
       const state = TripState(
         phase: TripPhase.onTrip,
         liveEtaSec: 90,
@@ -101,6 +142,21 @@ void main() {
       final s = RideStatus.of(state);
       expect(s.title, 'Arriving soon');
       expect(s.subtitle, '221B Baker St');
+    });
+
+    test('knows when a stop is no longer worth offering', () {
+      const onTrip = TripState(phase: TripPhase.onTrip);
+      expect(RideStatus.nearlyThere(onTrip), isFalse, reason: 'unknown');
+      expect(RideStatus.nearlyThere(onTrip.copyWith(liveRemainingM: 1000)),
+          isFalse);
+      expect(RideStatus.nearlyThere(onTrip.copyWith(liveRemainingM: 999)),
+          isTrue);
+      // While the driver is on the way the live distance is the approach
+      // leg, not the rider's journey.
+      expect(
+          RideStatus.nearlyThere(const TripState(
+              phase: TripPhase.driverEnRoute, liveRemainingM: 200)),
+          isFalse);
     });
   });
 

@@ -117,6 +117,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the completed sheet (pinned Done) never overflows', (tester) async {
+    // Also the on-trip → completed switch, where the footer appears.
+    for (final (size, scale) in const [
+      (Size(411, 914), 1.0),
+      (Size(360, 640), 1.0),
+      (Size(360, 640), 1.3),
+    ]) {
+      await run(tester, const [TripPhase.onTrip, TripPhase.completed],
+          size: size, textScale: scale);
+      expect(tester.takeException(), isNull, reason: 'at $size ×$scale');
+    }
+  });
+
+  testWidgets('a long search ("Still looking…") never overflows', (tester) async {
+    await run(tester, const [TripPhase.searching],
+        size: const Size(360, 640), textScale: 1.3);
+    await tester.pump(const Duration(seconds: 46));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Still looking…'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the ride options sheet never overflows (with its footer)', (tester) async {
     final estimate = TripEstimate(
       distanceM: 1500,
@@ -159,6 +181,10 @@ void main() {
         await tester.pump(const Duration(milliseconds: 16));
       }
       expect(tester.takeException(), isNull, reason: 'at $size');
+      // 3.7: each row says when the car comes and when you arrive; the
+      // payment choice sits in the footer right above Confirm.
+      expect(find.textContaining('Pickup in 3 min · Drop '), findsOneWidget);
+      expect(find.text('Cash'), findsWidgets);
     }
     tester.view.reset();
   });

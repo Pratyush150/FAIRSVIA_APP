@@ -37,6 +37,42 @@ class RideStatus {
   /// rider can get their things together.
   static const int arrivingSoonSec = 120;
 
+  /// Under this much road left the ride is "arriving soon" (audit 3.10). The
+  /// distance wins over [arrivingSoonSec] whenever the live leg carries it:
+  /// two minutes in Pune traffic can still be a kilometre away.
+  static const int arrivingSoonM = 500;
+
+  /// Under this much road left there is no point offering "Add a stop" — the
+  /// ride is all but over (audit 3.10).
+  static const int addStopCutoffM = 1000;
+
+  /// How long "Finding your driver" can run before the sheet admits it is
+  /// taking a while (audit 3.8).
+  static const Duration stillLookingAfter = Duration(seconds: 45);
+
+  /// Road left on the trip leg, or null when no live number is known. Only
+  /// during the trip itself: while the driver is on the way the live figure
+  /// is the approach leg, not the rider's journey.
+  static int? tripRemainingM(TripState state) =>
+      state.phase == TripPhase.onTrip ? state.liveRemainingM : null;
+
+  /// True once the ride is close enough to its end that adding a stop would
+  /// only confuse the driver. False when the distance left is unknown.
+  static bool nearlyThere(TripState state) {
+    final left = tripRemainingM(state);
+    return left != null && left < addStopCutoffM;
+  }
+
+  /// The destination as a rider names it: the first part of the address
+  /// ("Pune Railway Station" from "Pune Railway Station, Agarkar Nagar, Pune…"),
+  /// or null when there is none.
+  static String? placeName(TripState state) {
+    final addr = (state.dropoffAddr ?? state.trip?.dropoff.address)?.trim();
+    if (addr == null || addr.isEmpty) return null;
+    final first = addr.split(',').first.trim();
+    return first.isEmpty ? addr : first;
+  }
+
   /// Minutes, rounded up and floored at 1 — a live ETA that reads "0 min" is
   /// worse than one that reads "1 min", because zero implies "already there".
   static int minutesFrom(int seconds) => (seconds / 60).ceil().clamp(1, 999);
@@ -59,12 +95,15 @@ class RideStatus {
   ///
   /// [currency] formats the completed-ride total; it defaults to the receipt's
   /// own currency so a trip priced in another market reads correctly.
-  static RideStatus of(TripState state) {
+  ///
+  /// [stillLooking] is true once the search has run past [stillLookingAfter];
+  /// the sheet owns that clock, so this stays a pure function of its inputs.
+  static RideStatus of(TripState state, {bool stillLooking = false}) {
     switch (state.phase) {
       case TripPhase.searching:
-        return const RideStatus(
+        return RideStatus(
           title: 'Finding your driver',
-          subtitle: 'Looking for nearby drivers…',
+          subtitle: stillLooking ? 'Still looking…' : 'Looking for nearby drivers…',
           tone: RideStatusTone.accent,
         );
 
@@ -104,18 +143,24 @@ class RideStatus {
         );
 
       case TripPhase.onTrip:
+        // The destination appears exactly once: in the headline while the
+        // ride is under way, in the sub-line once it is arriving.
         final left = state.liveEtaSec ?? state.estimate?.durationS;
-        if (left != null && left <= arrivingSoonSec) {
+        final metres = tripRemainingM(state);
+        final place = placeName(state);
+        final soon = metres != null
+            ? metres < arrivingSoonM
+            : (left != null && left <= arrivingSoonSec);
+        if (soon) {
           return RideStatus(
             title: 'Arriving soon',
-            subtitle: state.dropoffAddr,
+            subtitle: place,
             tone: RideStatusTone.success,
           );
         }
         return RideStatus(
-          title: 'Ride in progress',
-          subtitle:
-              left == null ? state.dropoffAddr : '${minuteLabel(left)} to destination',
+          title: 'On the way to ${place ?? 'your destination'}',
+          subtitle: left == null ? null : '${minuteLabel(left)} to destination',
           tone: RideStatusTone.accent,
         );
 

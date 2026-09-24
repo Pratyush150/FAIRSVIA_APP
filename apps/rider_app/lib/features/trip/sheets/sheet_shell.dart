@@ -66,7 +66,9 @@ class RideSheetForPhase extends StatelessWidget {
           state.phase == TripPhase.choosingRide ? kRideOptionsSheetFraction : null,
       footer: state.phase == TripPhase.choosingRide && state.estimate != null
           ? _RideConfirmFooter(state: state)
-          : null,
+          : state.phase == TripPhase.completed
+              ? const CompletedDoneButton()
+              : null,
       child: AnimatedSize(
         duration: AppMotion.normal,
         curve: AppMotion.standard,

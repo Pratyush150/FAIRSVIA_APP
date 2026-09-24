@@ -117,62 +117,39 @@ class _CompletedSheetState extends State<CompletedSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Center(
-            child: Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.accentSoft,
-                shape: BoxShape.circle,
+            child: _HeroIcon(
+              asset: 'done',
+              size: 72,
+              fallback: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.accentSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(PhosphorIconsRegular.check,
+                    color: AppColors.accent, size: 36),
               ),
-              child: Icon(PhosphorIconsRegular.check,
-                  color: AppColors.accent, size: 36),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
           Center(
-            child: Column(
-              children: [
-                Text(RideStatus.of(state).title,
-                    style: theme.textTheme.headlineSmall),
-                if (RideStatus.of(state).subtitle case final total?) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    total,
-                    style: theme.textTheme.titleMedium
-                        ?.tabular()
-                        .copyWith(color: AppColors.accentInk),
-                  ),
-                ],
-              ],
-            ),
+            child: Text(RideStatus.of(state).title,
+                style: theme.textTheme.headlineSmall),
           ),
           const SizedBox(height: AppSpacing.lg),
+          // One line — "Total ₹75" — with everything that makes it up folded
+          // under it (audit 3.11). The total is said once, here.
           AppCard(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
+              vertical: AppSpacing.sm,
             ),
-            child: Column(
-              children: [
-                _ReceiptRow(label: 'Fare', value: fare, currency: state.receipt?.currency),
-                if (tip > 0)
-                  _ReceiptRow(label: 'Tip', value: tip, currency: state.receipt?.currency),
-                Divider(height: AppSpacing.lg, color: theme.dividerColor),
-                _ReceiptRow(
-                  label: 'Total',
-                  value: fare + tip,
-                  currency: state.receipt?.currency,
-                  bold: true,
-                ),
-                // Itemised lines (base / distance / time / booking fee /
-                // surge / promo) when the backend recorded them; older
-                // trips keep the two-line total above.
-                if (state.fareBreakdown != null)
-                  _FareDetails(
-                    breakdown: state.fareBreakdown!,
-                    currency: state.receipt?.currency ?? Market.current.currency,
-                  ),
-              ],
+            child: _TotalWithBreakdown(
+              fare: fare,
+              tip: tip,
+              breakdown: state.fareBreakdown,
+              currency: state.receipt?.currency,
             ),
           ),
           if (state.receipt?.isCash ?? false)
@@ -260,7 +237,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
                 child: _CustomTipChip(
                   // Highlight when the chosen tip isn't one of the presets.
                   selected: chosenTip != null &&
-                      !const [2.0, 3.0, 5.0].contains(chosenTip),
+                      !Market.current.tipPresets.contains(chosenTip),
                   onTap: locked
                       ? null
                       : () async {
@@ -305,70 +282,107 @@ class _CompletedSheetState extends State<CompletedSheet> {
               ),
             ),
           ],
-          const SizedBox(height: AppSpacing.xl),
-          PrimaryButton(
-            label: 'Done',
-            onPressed: () => context.read<TripCubit>().reset(),
-          ),
+          // Done is not here: it is pinned under the sheet
+          // ([CompletedDoneButton], the sheet's footer) so it never scrolls
+          // away behind the tip and rating sections.
         ],
       ),
     );
   }
 }
 
-/// Collapsible "Fare details" disclosure under the receipt total. The tip
-/// line is the sheet's own (it tracks the just-added tip live), so the
-/// breakdown's tip is not repeated here.
-class _FareDetails extends StatefulWidget {
-  const _FareDetails({required this.breakdown, required this.currency});
-  final FareBreakdown breakdown;
-  final String currency;
+/// The completed sheet's "Done": the sheet's pinned footer, always in reach
+/// however tall the rating/tip sections grow.
+class CompletedDoneButton extends StatelessWidget {
+  const CompletedDoneButton({super.key});
 
   @override
-  State<_FareDetails> createState() => _FareDetailsState();
+  Widget build(BuildContext context) => PrimaryButton(
+        label: 'Done',
+        onPressed: () => context.read<TripCubit>().reset(),
+      );
 }
 
-class _FareDetailsState extends State<_FareDetails> {
+/// "Total ₹75" on one line; tap it for what it is made of — the itemised
+/// fare (base / distance / time / booking fee / surge / promo) when the
+/// backend recorded one, else the fare, plus the tip. The tip line is the
+/// sheet's own (it tracks a just-added tip live), so the breakdown's tip is
+/// not repeated.
+class _TotalWithBreakdown extends StatefulWidget {
+  const _TotalWithBreakdown({
+    required this.fare,
+    required this.tip,
+    required this.breakdown,
+    required this.currency,
+  });
+  final double fare;
+  final double tip;
+  final FareBreakdown? breakdown;
+  final String? currency;
+
+  @override
+  State<_TotalWithBreakdown> createState() => _TotalWithBreakdownState();
+}
+
+class _TotalWithBreakdownState extends State<_TotalWithBreakdown> {
   bool _open = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final breakdown = widget.breakdown;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InkWell(
-          onTap: () => setState(() => _open = !_open),
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-            child: Row(
-              children: [
-                Text('Fare details',
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: AppColors.accent)),
-                const Spacer(),
-                Icon(
-                  _open
-                      ? PhosphorIconsRegular.caretUp
-                      : PhosphorIconsRegular.caretDown,
-                  size: 20,
-                  color: AppColors.accent,
-                ),
-              ],
+        Semantics(
+          button: true,
+          expanded: _open,
+          child: InkWell(
+            onTap: () => setState(() => _open = !_open),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Total ${Fmt.money(widget.fare + widget.tip, widget.currency)}',
+                      style: theme.textTheme.titleMedium?.tabular(),
+                    ),
+                  ),
+                  Text(_open ? 'Hide' : 'Details',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.accentInk)),
+                  const SizedBox(width: 2),
+                  Icon(
+                    _open
+                        ? PhosphorIconsRegular.caretUp
+                        : PhosphorIconsRegular.caretDown,
+                    size: 20,
+                    color: AppColors.accentInk,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        if (_open)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-            child: FareBreakdownRows(
-              breakdown: widget.breakdown,
-              currency: widget.currency,
+        if (_open) ...[
+          Divider(height: AppSpacing.md, color: theme.dividerColor),
+          if (breakdown != null)
+            FareBreakdownRows(
+              breakdown: breakdown,
+              currency: widget.currency ?? Market.current.currency,
               showTip: false,
               style: theme.textTheme.bodyMedium,
-            ),
-          ),
+            )
+          else
+            _ReceiptRow(
+                label: 'Fare', value: widget.fare, currency: widget.currency),
+          if (widget.tip > 0)
+            _ReceiptRow(
+                label: 'Tip', value: widget.tip, currency: widget.currency),
+          const SizedBox(height: AppSpacing.xs),
+        ],
       ],
     );
   }
@@ -379,21 +393,18 @@ class _ReceiptRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.currency,
-    this.bold = false,
   });
   final String label;
   final double value;
 
   /// The receipt's currency; the market's when the receipt has none yet.
   final String? currency;
-  final bool bold;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final style = bold
-        ? theme.textTheme.titleMedium
-        : theme.textTheme.bodyLarge;
+    // Same size as the itemised lines it sits among in the expander.
+    final style = theme.textTheme.bodyMedium;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(

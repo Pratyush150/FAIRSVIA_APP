@@ -255,8 +255,12 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         result.point.lat,
         result.point.lng,
       );
-      if (mounted && place.address.isNotEmpty) {
-        setState(() => _myLocationAddr = place.address);
+      // Short, landmark-first form ("Mote Mangal Karyalay Rd, Dattwadi,
+      // Pune") — the pickup field hint and the trip's pickup line — rather
+      // than the raw postal address. Falls back to the address on an older
+      // backend that sends no label.
+      if (mounted && place.shortAddress.isNotEmpty) {
+        setState(() => _myLocationAddr = place.shortAddress);
       }
     } catch (_) {
       // Non-fatal: keep the generic label if reverse-geocoding fails.
@@ -367,7 +371,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
       );
       if (chosen == null || !mounted) return;
       pickup = chosen.location;
-      pickupAddr = chosen.address;
+      pickupAddr = chosen.shortAddress;
     }
     await context.read<TripCubit>().chooseDestination(
       pickup: pickup,
@@ -506,9 +510,13 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         '${_stoppedFor(alert.stoppedSec)} Message or call them if you need to.',
       ),
     };
+    // A new advisory replaces an open one rather than stacking on it.
+    _closeRideAlert();
     return showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) {
+        _rideAlertContext = ctx;
+        return AlertDialog(
         title: Text(title),
         content: Text(message),
         actions: [
@@ -517,8 +525,19 @@ class _RiderHomeViewState extends State<_RiderHomeView>
             child: const Text('OK'),
           ),
         ],
-      ),
-    );
+      );
+      },
+    ).whenComplete(() => _rideAlertContext = null);
+  }
+
+  /// The open advisory dialog, if any — so it can be closed once the moment it
+  /// describes has passed (it must not sit over the receipt).
+  BuildContext? _rideAlertContext;
+
+  void _closeRideAlert() {
+    final ctx = _rideAlertContext;
+    _rideAlertContext = null;
+    if (ctx != null && ctx.mounted) Navigator.of(ctx).pop();
   }
 
   /// "Your driver hasn't moved for about 3 minutes." — rounded, because the
@@ -578,6 +597,13 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         // and a snackbar that slides away after four seconds is too easy to
         // miss from the back seat.
         final alert = state.alert;
+        // "Left the route" / "has stopped" describe a car on the way; once the
+        // ride is over (or cancelled) the advisory is stale — close it.
+        if (state.phase != TripPhase.driverEnRoute &&
+            state.phase != TripPhase.driverArrived &&
+            state.phase != TripPhase.onTrip) {
+          _closeRideAlert();
+        }
         if (alert != null) {
           cubit.clearAlert();
           unawaited(_showRideAlert(context, alert));

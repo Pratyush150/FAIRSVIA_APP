@@ -72,6 +72,7 @@ class _RideOptions extends StatelessWidget {
               for (final (i, tier) in estimate.tiers.indexed)
                 _RideTierTile(
                   tier: tier,
+                  tripDurationS: estimate.durationS,
                   selected: tier.tier == state.selectedTier,
                   // No car of this type nearby: shown, dimmed, not pickable —
                   // unless the ride is booked for later, when "nearby now"
@@ -98,8 +99,6 @@ class _RideOptions extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           PriceComparisonCard(comparison: estimate.comparison!),
         ],
-        const SizedBox(height: AppSpacing.sm),
-        _PaymentModeToggle(state: state),
         const SizedBox(height: AppSpacing.sm),
         _ScheduleRow(state: state),
         const SizedBox(height: AppSpacing.sm),
@@ -264,6 +263,9 @@ class _RideConfirmFooter extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // How it's paid sits right above the button that commits to it.
+        _PaymentModeToggle(state: state),
+        const SizedBox(height: AppSpacing.sm),
         PrimaryButton(
           label: _confirmLabel(state),
           onPressed:
@@ -297,7 +299,7 @@ class _StopsSection extends StatelessWidget {
     );
     if (details != null) {
       await cubit.addStop(
-        TripStop(point: details.location, address: details.address),
+        TripStop(point: details.location, address: details.shortAddress),
       );
     }
   }
@@ -869,11 +871,15 @@ class _PromoFieldState extends State<_PromoField> {
 class _RideTierTile extends StatelessWidget {
   const _RideTierTile({
     required this.tier,
+    required this.tripDurationS,
     required this.selected,
     required this.onTap,
   });
 
   final FareTier tier;
+
+  /// Pickup → destination drive time, for the "Drop 11:41 PM" estimate.
+  final int tripDurationS;
   final bool selected;
 
   /// Null when this ride type has no car nearby.
@@ -939,7 +945,9 @@ class _RideTierTile extends StatelessWidget {
                         Text(
                           eta == null
                               ? 'No cars nearby'
-                              : '${_arrivalClock(eta)} · ${_minutes(eta)} min away',
+                              // When the car comes, and when the rider gets
+                              // there: the two numbers people compare tiers on.
+                              : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
                           style: theme.textTheme.bodySmall,
                         ),
                       ],
@@ -958,17 +966,21 @@ class _RideTierTile extends StatelessWidget {
                             .tabular(),
                       ),
                       // What the number is made of — only when the backend
-                      // itemised it; an empty "Details" is worse than none.
+                      // itemised it; an empty breakdown is worse than none.
                       if (tier.breakdown != null)
-                        GestureDetector(
-                          onTap: () => showFareDetailsSheet(context, tier),
-                          behavior: HitTestBehavior.opaque,
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text('Details',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  decoration: TextDecoration.underline,
-                                )),
+                        Semantics(
+                          button: true,
+                          label: 'Fare details for ${tier.label}',
+                          excludeSemantics: true,
+                          child: InkResponse(
+                            onTap: () => showFareDetailsSheet(context, tier),
+                            radius: 22,
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 2, left: 8),
+                              child: Icon(PhosphorIconsRegular.info,
+                                  size: 20,
+                                  color: theme.textTheme.bodySmall?.color),
+                            ),
                           ),
                         ),
                     ],

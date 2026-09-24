@@ -1,4 +1,4 @@
-import { formatMoney, marketCurrency } from './money';
+import { formatMoney, marketCurrency, roundFare } from './money';
 
 describe('money', () => {
   it('formats each launch currency the way people write it', () => {
@@ -14,5 +14,12 @@ describe('money', () => {
     expect(marketCurrency({})).toBe('USD');
     expect(marketCurrency({ MARKET_CURRENCY: 'inr' })).toBe('INR');
     expect(() => marketCurrency({ MARKET_CURRENCY: 'rupees' })).toThrow(/ISO 4217/);
+  });
+
+  it('rounds fares to whole rupees / som, and to cents elsewhere', () => {
+    expect(roundFare(101.73, 'INR')).toBe(102);
+    expect(roundFare(101.49, 'inr')).toBe(101);
+    expect(roundFare(18499.6, 'UZS')).toBe(18500);
+    expect(roundFare(12.345, 'USD')).toBe(12.35);
   });
 });

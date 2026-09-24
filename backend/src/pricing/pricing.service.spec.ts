@@ -98,4 +98,34 @@ describe('PricingService', () => {
     expect(pricing.minFareFor('premium')).toBe(FARE_CONFIG.premium.minFare);
     expect(() => pricing.minFareFor('rocket')).toThrow(/Unknown tier/);
   });
+
+  it('quotes whole rupees in an INR market, and the lines still add up', () => {
+    jest.isolateModules(() => {
+      const prev = process.env.MARKET_CURRENCY;
+      process.env.MARKET_CURRENCY = 'INR';
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { PricingService: InrPricing } = require('./pricing.service');
+        const inr = new InrPricing({} as unknown as PrismaService);
+        for (const [m, s, surge] of [
+          [3217, 611, 1],
+          [12877, 1733, 1.3],
+          [800, 190, 1.7],
+        ] as const) {
+          for (const e of inr.estimateAllTiers(m, s, surge)) {
+            expect(e.currency).toBe('INR');
+            expect(Number.isInteger(e.fare)).toBe(true);
+            const b = e.breakdown;
+            expect(
+              b.baseFare + b.distanceFare + b.timeFare + b.bookingFee +
+                b.minimumFareAdjustment,
+            ).toBeCloseTo(e.fare, 6);
+          }
+        }
+      } finally {
+        if (prev === undefined) delete process.env.MARKET_CURRENCY;
+        else process.env.MARKET_CURRENCY = prev;
+      }
+    });
+  });
 });

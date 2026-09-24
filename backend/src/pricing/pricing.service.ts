@@ -4,6 +4,7 @@ import {
   Logger,
   OnModuleInit,
 } from '@nestjs/common';
+import { roundFare } from '../common/money';
 import { PrismaService } from '../common/prisma/prisma.service';
 import {
   CURRENCY,
@@ -183,12 +184,15 @@ export class PricingService implements OnModuleInit {
     // the total independently leaves the two up to a cent apart, and a rider
     // reading the "Details" list can do the addition themselves — so the fare
     // is defined as the sum of what they are shown, floored at the minimum.
-    const base = round2(cfg.baseFare * surge);
-    const distance = round2(distanceFare * surge);
-    const time = round2(timeFare * surge);
-    const booking = round2(cfg.bookingFee);
+    // In whole-unit markets (₹, so'm) each line is a whole number, so the
+    // total is too and the itemisation still adds up exactly.
+    const r = (n: number) => roundFare(n, CURRENCY);
+    const base = r(cfg.baseFare * surge);
+    const distance = r(distanceFare * surge);
+    const time = r(timeFare * surge);
+    const booking = r(cfg.bookingFee);
     const metered = round2(base + distance + time + booking);
-    const fare = Math.max(metered, round2(cfg.minFare));
+    const fare = Math.max(metered, r(cfg.minFare));
     const shortfall = round2(fare - metered);
 
     return {

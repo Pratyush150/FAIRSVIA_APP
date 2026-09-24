@@ -33,3 +33,18 @@ export function formatMoney(amount: number, currency: string): string {
   if (!spec) return `${sign}${currency.toUpperCase()} ${n}`;
   return spec.prefix ? `${sign}${spec.symbol}${n}` : `${sign}${n} ${spec.symbol}`;
 }
+
+/**
+ * Currencies whose fares are quoted in whole units. Riders in India pay
+ * "₹102", never "₹101.73" — ride apps there price to the rupee — and Uzbek
+ * som has no coins at all. Paisa still exist for ledger arithmetic; only the
+ * quoted fare lines are whole.
+ */
+const WHOLE_FARE = new Set(['INR', 'UZS']);
+
+/** Round a fare line: whole units in [WHOLE_FARE] markets, else cents. */
+export function roundFare(n: number, currency: string): number {
+  return WHOLE_FARE.has(currency.toUpperCase())
+    ? Math.round(n)
+    : Math.round(n * 100) / 100;
+}
