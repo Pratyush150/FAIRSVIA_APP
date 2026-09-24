@@ -12,6 +12,7 @@ import '../safety/emergency_contacts_page.dart';
 import '../safety/safety_remote_data_source.dart';
 import '../trip/trip_remote_data_source.dart';
 import 'driver_earnings_page.dart';
+import 'format.dart';
 import 'payment_methods_page.dart';
 import 'delete_account_page.dart';
 import 'driver_payouts_page.dart';
@@ -39,9 +40,15 @@ class AccountMenuPage extends StatefulWidget {
     this.onVehicle,
     this.onBeforeSignOut,
     this.signOutBlocker,
+    this.profileDetails,
   });
 
   final bool isDriver;
+
+  /// App-specific facts shown inside the profile card, under the name and
+  /// phone (the driver app puts rating, trips and plate here). When given, it
+  /// owns the rating too, so the card's own rating line is not repeated.
+  final Widget? profileDetails;
 
   /// Drivers: opens the vehicle editor (shown as a "Vehicle" row).
   final VoidCallback? onVehicle;
@@ -171,7 +178,11 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
           AppSpacing.xxl,
         ),
         children: [
-          _ProfileHeader(user: user, onEdit: _editProfile),
+          _ProfileHeader(
+            user: user,
+            onEdit: _editProfile,
+            details: widget.profileDetails,
+          ),
           const SizedBox(height: AppSpacing.xl),
           _group([
             _Item(
@@ -318,7 +329,8 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
         children: [
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0)
-              const Divider(height: 1, indent: 60, endIndent: AppSpacing.md),
+              // Starts under the title: 12 inset + 24 icon + 12 gap.
+              const Divider(height: 1, indent: 48, endIndent: AppSpacing.md),
             _tile(items[i]),
           ],
         ],
@@ -331,33 +343,49 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
     return Builder(
       builder: (context) {
         final theme = Theme.of(context);
+        final dark = theme.brightness == Brightness.dark;
         return InkWell(
           onTap: item.onTap,
           borderRadius: BorderRadius.circular(AppSpacing.radius),
           child: Padding(
+            // 12 + 24 + 12 = 48 px rows: above the 44 pt touch minimum.
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
               vertical: AppSpacing.md,
             ),
+            // Icon, title and chevron share one centre line: the title's
+            // line box is single-height with even leading, so its glyphs sit
+            // on the same axis as the 24 px icon and the 20 px chevron
+            // instead of riding high in a 1.3× line.
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Icon(
                   item.icon,
-                  size: 22,
-                  color: color ?? AppColors.textSecondaryLight,
+                  size: 24,
+                  color: color ??
+                      (dark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
                     item.title,
-                    style: theme.textTheme.titleSmall?.copyWith(color: color),
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(color: color, height: 1.0),
+                    textHeightBehavior: const TextHeightBehavior(
+                      leadingDistribution: TextLeadingDistribution.even,
+                    ),
                   ),
                 ),
                 if (!item.danger)
-                  const Icon(
+                  Icon(
                     PhosphorIconsRegular.caretRight,
-                    size: 22,
-                    color: AppColors.textTertiaryLight,
+                    size: 20,
+                    color: dark
+                        ? AppColors.textTertiaryDark
+                        : AppColors.textTertiaryLight,
                   ),
               ],
             ),
@@ -382,53 +410,89 @@ class _Item {
 }
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.user, required this.onEdit});
+  const _ProfileHeader({required this.user, required this.onEdit, this.details});
   final AppUser? user;
   final VoidCallback onEdit;
+  final Widget? details;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
     final hasName = user?.fullName?.trim().isNotEmpty ?? false;
     final name = hasName ? user!.fullName! : 'Add your name';
-    return AppCard(
-      onTap: onEdit,
-      child: Row(
-        children: [
-          AppAvatar(name: hasName ? name : null, size: 56),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: theme.textTheme.titleLarge),
-                const SizedBox(height: 2),
-                Text(user?.phone ?? '', style: theme.textTheme.bodyMedium),
-                if ((user?.ratingCount ?? 0) > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xs),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          PhosphorIconsFill.star,
-                          size: 15,
-                          color: AppColors.star,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          user!.ratingAvg.toStringAsFixed(1),
-                          style: theme.textTheme.labelLarge,
-                        ),
-                      ],
-                    ),
+    final identity = Row(
+      children: [
+        AppAvatar(name: hasName ? name : null, size: 56),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: theme.textTheme.titleLarge),
+              const SizedBox(height: 2),
+              // Spaced the way it is read aloud, and in tabular figures so
+              // the groups line up.
+              Text(
+                Fmt.phone(user?.phone),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              if (details == null && (user?.ratingCount ?? 0) > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        PhosphorIconsFill.star,
+                        size: 16,
+                        color: AppColors.star,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        user!.ratingAvg.toStringAsFixed(1),
+                        style: theme.textTheme.labelLarge,
+                      ),
+                    ],
                   ),
-              ],
+                ),
+            ],
+          ),
+        ),
+        Icon(
+          PhosphorIconsRegular.pencilSimple,
+          size: 20,
+          color: dark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight,
+        ),
+      ],
+    );
+    final extra = details;
+    if (extra == null) return AppCard(onTap: onEdit, child: identity);
+    // Only the identity row edits the profile; the details below are facts,
+    // not a second way into the editor.
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onEdit,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppSpacing.radius),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: identity,
+              ),
             ),
           ),
-          const Icon(
-            PhosphorIconsRegular.pencilSimple,
-            size: 20,
-            color: AppColors.textTertiaryLight,
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: extra,
           ),
         ],
       ),

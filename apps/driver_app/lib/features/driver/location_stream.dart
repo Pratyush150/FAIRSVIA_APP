@@ -73,6 +73,65 @@ Future<LocationAccess> checkLocationAccess() async {
   }
 }
 
+/// Whether asking for location now would put the OS permission dialog on
+/// screen: access is undecided (iOS "not determined"), or on Android it was
+/// refused once and may be asked again. The RideVela priming screen goes in
+/// front of exactly that dialog, so the driver knows why before the OS asks.
+/// Never true in mock-location or web builds (no OS dialog there).
+Future<bool> locationPromptPending() async {
+  if (_mockPoint != null || kIsWeb) return false;
+  try {
+    return await Geolocator.checkPermission() == LocationPermission.denied;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Current location access WITHOUT asking for anything: no OS dialog, no
+/// temporary-precision prompt. Used to notice a fix made in Settings when the
+/// app comes back to the foreground.
+Future<LocationAccess> currentLocationAccess() async {
+  if (_mockPoint != null || kIsWeb) return LocationAccess.granted;
+  try {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return LocationAccess.servicesOff;
+    }
+    switch (await Geolocator.checkPermission()) {
+      case LocationPermission.always:
+      case LocationPermission.whileInUse:
+        try {
+          if (await Geolocator.getLocationAccuracy() ==
+              LocationAccuracyStatus.reduced) {
+            return LocationAccess.reduced;
+          }
+        } catch (_) {
+          // No accuracy API on this platform: full accuracy.
+        }
+        return LocationAccess.granted;
+      case LocationPermission.deniedForever:
+        return LocationAccess.deniedForever;
+      case LocationPermission.denied:
+      case LocationPermission.unableToDetermine:
+        return LocationAccess.denied;
+    }
+  } catch (_) {
+    return LocationAccess.denied;
+  }
+}
+
+/// Opens the fix for [access] in the OS: the location-services page when GPS
+/// is switched off system-wide, otherwise this app's own settings page (where
+/// the permission and Precise Location live).
+Future<bool> openLocationFix(LocationAccess access) async {
+  try {
+    return access == LocationAccess.servicesOff
+        ? await Geolocator.openLocationSettings()
+        : await Geolocator.openAppSettings();
+  } catch (_) {
+    return false;
+  }
+}
+
 /// iOS 14+ / Android 12+: the user may have granted only approximate
 /// location. Ask once for temporary full accuracy (needs the
 /// NSLocationTemporaryUsageDescriptionDictionary "PreciseRide" purpose key);

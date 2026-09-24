@@ -28,6 +28,32 @@ class Fmt {
   static String money(double amount, [String? currency]) =>
       Money.format(amount, currency: currency);
 
+  /// A stored E.164 number spaced the way it is read aloud:
+  /// "+919876543210" → "+91 98765 43210", "+998901234567" →
+  /// "+998 90 123 45 67", "+13055550137" → "+1 305 555 0137". Numbers from
+  /// other countries, or that don't have the expected length, come back as
+  /// stored rather than grouped wrongly.
+  static String phone(String? e164) {
+    final raw = (e164 ?? '').replaceAll(RegExp(r'[\s\-()]'), '');
+    String group(String digits, List<int> sizes) {
+      final out = <String>[];
+      var i = 0;
+      for (final n in sizes) {
+        out.add(digits.substring(i, i + n));
+        i += n;
+      }
+      return out.join(' ');
+    }
+
+    final india = RegExp(r'^\+91(\d{10})$').firstMatch(raw);
+    if (india != null) return '+91 ${group(india[1]!, [5, 5])}';
+    final uz = RegExp(r'^\+998(\d{9})$').firstMatch(raw);
+    if (uz != null) return '+998 ${group(uz[1]!, [2, 3, 2, 2])}';
+    final us = RegExp(r'^\+1(\d{10})$').firstMatch(raw);
+    if (us != null) return '+1 ${group(us[1]!, [3, 3, 4])}';
+    return e164 ?? '';
+  }
+
   /// Multiplier line such as "1.2×" (one decimal, `×` not `x`).
   static String surge(double multiplier) => '${multiplier.toStringAsFixed(1)}×';
 

@@ -76,4 +76,18 @@ void main() {
       expect(Fmt.dateTime(null), '—');
     });
   });
+
+  group('Fmt.phone', () {
+    test('spaces numbers the way each market reads them', () {
+      expect(Fmt.phone('+919876543210'), '+91 98765 43210');
+      expect(Fmt.phone('+998901234567'), '+998 90 123 45 67');
+      expect(Fmt.phone('+13055550137'), '+1 305 555 0137');
+    });
+
+    test('leaves unknown or malformed numbers as stored', () {
+      expect(Fmt.phone('+4915112345678'), '+4915112345678');
+      expect(Fmt.phone('+9198765'), '+9198765');
+      expect(Fmt.phone(null), '');
+    });
+  });
 }

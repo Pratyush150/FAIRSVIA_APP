@@ -548,6 +548,21 @@ void main() {
       verify(() => remote.setStatus('online')).called(1);
       await cubit.close();
     });
+
+    test('setLocationIssue records a priming refusal and clears on granted',
+        () async {
+      final cubit = make();
+      await cubit.init('token');
+      cubit.setLocationIssue(LocationAccess.deniedForever);
+      expect(cubit.state.locationIssue, LocationAccess.deniedForever);
+      expect(cubit.state.phase, DriverPhase.offline);
+      // No snackbar text: the sheet's banner carries the message.
+      expect(cubit.state.error, isNull);
+
+      cubit.setLocationIssue(LocationAccess.granted);
+      expect(cubit.state.locationIssue, isNull);
+      await cubit.close();
+    });
   });
 
   // ── Server-driven presence: driver:status_changed ─────────────────────────

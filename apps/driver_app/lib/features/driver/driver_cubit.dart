@@ -220,6 +220,16 @@ class DriverCubit extends Cubit<DriverState> {
     }
   }
 
+  /// Records (or clears, with null) a location problem found outside
+  /// [goOnline] — the priming screen's refused request, or a fix made in
+  /// Settings noticed on resume — so the offline sheet's banner matches.
+  void setLocationIssue(LocationAccess? issue) {
+    if (isClosed || state.locationIssue == issue) return;
+    emit(state.copyWith(
+      locationIssue: issue == LocationAccess.granted ? null : issue,
+    ));
+  }
+
   Future<void> goOffline() async {
     _cancelAcceptTimer();
     _stopPresenceSync();

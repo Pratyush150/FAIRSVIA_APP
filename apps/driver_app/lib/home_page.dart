@@ -9,7 +9,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_models/shared_models.dart';
 
+import 'features/account/driver_profile_stats.dart';
 import 'features/driver/driver_cubit.dart';
+import 'features/driver/location_priming_page.dart';
 import 'features/driver/location_stream.dart';
 
 /// Driver home: map + online toggle, interrupting offer modal, and the
@@ -99,7 +101,27 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   Future<void> _primeLocation() async {
     if (kIsWeb) return;
     try {
-      if (!await ensureLocationPermission()) return;
+      // First run (or an Android "deny" that may be asked again): explain
+      // why on RideVela's own screen before the OS dialog appears.
+      if (await locationPromptPending()) {
+        if (!mounted) return;
+        final cubit = context.read<DriverCubit>();
+        final access =
+            await Navigator.of(context).push(LocationPrimingPage.route());
+        if (access != LocationAccess.granted) {
+          if (access != null) cubit.setLocationIssue(access);
+          return;
+        }
+      } else {
+        // Already decided: never prompt here, just show the banner if it is
+        // blocked (going online still re-checks and may ask for precision).
+        final access = await currentLocationAccess();
+        if (!mounted) return;
+        if (access != LocationAccess.granted) {
+          context.read<DriverCubit>().setLocationIssue(access);
+          return;
+        }
+      }
       final pos = await driverPositionStream()
           .first
           .timeout(const Duration(seconds: 10));
@@ -114,7 +136,19 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // iOS kills the WebSocket while the app is suspended; without this a driver
     // returning from another app still reads "Online" but never gets an offer.
-    if (state == AppLifecycleState.resumed) _resumeSocket();
+    if (state == AppLifecycleState.resumed) {
+      _resumeSocket();
+      unawaited(_recheckLocationIssue());
+    }
+  }
+
+  /// Back from Settings: drop the location banner once access is fixed (or
+  /// update it to what is still wrong).
+  Future<void> _recheckLocationIssue() async {
+    if (context.read<DriverCubit>().state.locationIssue == null) return;
+    final access = await currentLocationAccess();
+    if (!mounted) return;
+    context.read<DriverCubit>().setLocationIssue(access);
   }
 
   Future<void> _connect() async {
@@ -495,7 +529,9 @@ class _DriverHomeViewState extends State<_DriverHomeView>
         }
         if (state.needsOnboarding) {
           _showOnboarding(context);
-        } else if (state.error != null) {
+        } else if (state.error != null && state.locationIssue == null) {
+          // A location refusal is shown by the sheet's banner instead, with
+          // its Open Settings button, and stays until it is fixed.
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(
@@ -503,12 +539,6 @@ class _DriverHomeViewState extends State<_DriverHomeView>
               behavior: SnackBarBehavior.floating,
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 300),
               content: Text(state.error!),
-              // Route the driver straight to the fix when we refused to go
-              // online for lack of location access.
-              action: _locationFixAction(state.locationIssue),
-              duration: state.locationIssue != null
-                  ? const Duration(seconds: 8)
-                  : const Duration(seconds: 4),
             ));
         }
       },
@@ -572,6 +602,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                                   MaterialPageRoute(
                                     builder: (menuCtx) => AccountMenuPage(
                                       isDriver: true,
+                                      profileDetails: _profileStats(context),
                                       onVehicle: () => _editVehicle(menuCtx, cubit),
                                       // A live trip must be finished first;
                                       // the backend refuses offline mid-trip.
@@ -614,26 +645,16 @@ class _DriverHomeViewState extends State<_DriverHomeView>
     );
   }
 
-  /// "Settings" for a permanent permission denial, "Turn on" when device
-  /// location services are off; nothing for a plain (re-askable) denial.
-  SnackBarAction? _locationFixAction(LocationAccess? issue) {
-    switch (issue) {
-      case LocationAccess.deniedForever:
-      case LocationAccess.reduced:
-        return SnackBarAction(
-          label: 'Settings',
-          onPressed: () => unawaited(Geolocator.openAppSettings()),
-        );
-      case LocationAccess.servicesOff:
-        return SnackBarAction(
-          label: 'Turn on',
-          onPressed: () => unawaited(Geolocator.openLocationSettings()),
-        );
-      case LocationAccess.denied:
-      case LocationAccess.granted:
-      case null:
-        return null;
-    }
+  /// Rating, trips and plate for the Account profile card.
+  Widget _profileStats(BuildContext context) {
+    final user = context.read<AuthBloc>().state.user;
+    final driver = sl<DriverRemoteDataSource>();
+    return DriverProfileStats(
+      ratingAvg: user?.ratingAvg ?? 0,
+      ratingCount: user?.ratingCount ?? 0,
+      loadProfile: driver.me,
+      loadWeek: () => driver.earnings(range: 'week'),
+    );
   }
 
   Future<void> _showOnboarding(BuildContext context) async {
@@ -679,6 +700,22 @@ class _DriverHomeViewState extends State<_DriverHomeView>
         ..showSnackBar(const SnackBar(content: Text('Vehicle updated.')));
     }
   }
+}
+
+/// "Go online": when the OS would show its location dialog, RideVela's
+/// priming screen goes first; the cubit's own check then finds access
+/// already decided. Anything else goes straight to [DriverCubit.goOnline].
+Future<void> _goOnline(BuildContext context, DriverCubit cubit) async {
+  if (await locationPromptPending()) {
+    if (!context.mounted) return;
+    final access =
+        await Navigator.of(context).push(LocationPrimingPage.route());
+    if (access != LocationAccess.granted) {
+      if (access != null) cubit.setLocationIssue(access);
+      return;
+    }
+  }
+  await cubit.goOnline();
 }
 
 class _BottomSheet extends StatelessWidget {
@@ -742,11 +779,18 @@ class _BottomSheet extends StatelessWidget {
                 ),
               ],
             ),
+            if (state.locationIssue case final issue?) ...[
+              const SizedBox(height: AppSpacing.md),
+              LocationAccessBanner(
+                access: issue,
+                onOpenSettings: () => unawaited(openLocationFix(issue)),
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
             PrimaryButton(
               label: 'Go online',
               loading: state.busy,
-              onPressed: state.busy ? null : () => cubit.goOnline(),
+              onPressed: state.busy ? null : () => _goOnline(context, cubit),
             ),
           ],
         );

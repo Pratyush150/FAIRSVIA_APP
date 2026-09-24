@@ -76,4 +76,78 @@ void main() {
     expect(find.text('Ada Lovelace'), findsOneWidget);
     verify(() => auth.add(const AuthProfileCompleted(after))).called(1);
   });
+
+  testWidgets('rider page: spaced phone, own rating line, no details slot',
+      (tester) async {
+    whenListen(
+      auth,
+      const Stream<AuthState>.empty(),
+      initialState: const AuthState(
+        status: AuthStatus.authenticated,
+        user: AppUser(
+          id: 'u1',
+          phone: '+919876543210',
+          role: 'rider',
+          fullName: 'Asha Rao',
+          ratingAvg: 4.8,
+          ratingCount: 9,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      BlocProvider<AuthBloc>.value(
+        value: auth,
+        child: const MaterialApp(home: AccountMenuPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('+91 98765 43210'), findsOneWidget);
+    expect(find.text('4.8'), findsOneWidget);
+    expect(find.text('Saved places'), findsOneWidget);
+  });
+
+  testWidgets('driver details slot renders inside the profile card and '
+      'replaces the built-in rating line', (tester) async {
+    whenListen(
+      auth,
+      const Stream<AuthState>.empty(),
+      initialState: const AuthState(
+        status: AuthStatus.authenticated,
+        user: AppUser(
+          id: 'u1',
+          phone: '+919876543210',
+          role: 'driver',
+          fullName: 'Ravi Kumar',
+          ratingAvg: 4.8,
+          ratingCount: 9,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      BlocProvider<AuthBloc>.value(
+        value: auth,
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const AccountMenuPage(
+            isDriver: true,
+            profileDetails: Text('DETAILS'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('DETAILS'), findsOneWidget);
+    expect(find.text('4.8'), findsNothing);
+    expect(find.text('Earnings'), findsOneWidget);
+    // The page sits on the theme's background, not a hard-coded colour.
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(scaffold.backgroundColor, isNull);
+    expect(AppTheme.dark.scaffoldBackgroundColor, AppColors.backgroundDark);
+    // Row icons follow the theme in dark mode (they were light-mode grey).
+    final chevron = tester.widget<Icon>(
+      find.byIcon(PhosphorIconsRegular.caretRight).first,
+    );
+    expect(chevron.color, AppColors.textTertiaryDark);
+    expect(chevron.size, 20);
+  });
 }
