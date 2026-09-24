@@ -35,7 +35,20 @@ class AppColors {
   static const bool planLight = variant == 'daylight' || variant == 'daynight';
 
   /// Any of the v2 plans (A/B/C) rather than the original palettes.
-  static const bool v2 = planDark || planLight;
+  /// The later option builds (docs/plans/colour-palette-options.md and
+  /// visual-direction-v3-research.md): five palettes and Plans D/E/F as
+  /// solid-token builds. Same layout; tokens only.
+  static const bool v3 = variant == 'indigo' ||
+      variant == 'lapis' ||
+      variant == 'marigold' ||
+      variant == 'copper' ||
+      variant == 'garnet' ||
+      variant == 'local' ||
+      variant == 'ink' ||
+      variant == 'glass';
+
+  /// Any of the v2/v3 option builds rather than the original palettes.
+  static const bool v2 = planDark || planLight || v3;
 
   // Samarkand Turquoise: deep teal-navy ink on light, bright turquoise ink on
   // dark; turquoise highlights (route, selection) in both.
@@ -44,13 +57,97 @@ class AppColors {
   // highlight the bright #2BC4C4; Plan A's dark ink is #2BC4C4 with #0E0F11
   // text on it.
   static const Color _tealInk =
-      planLight ? Color(0xFF0A7C7C) : Color(0xFF0B3C49);
+      variant == 'indigo'
+      ? Color(0xFF4B32C3)
+      : variant == 'lapis'
+      ? Color(0xFF1D3F9E)
+      : variant == 'marigold'
+      ? Color(0xFFB8430A)
+      : variant == 'copper'
+      ? Color(0xFF1F2023)
+      : variant == 'garnet'
+      ? Color(0xFF9B1B45)
+      : variant == 'local'
+      ? Color(0xFF0A6E6E)
+      : variant == 'ink'
+      ? Color(0xFF0B0B0C)
+      : variant == 'glass'
+      ? Color(0xFF007A7A)
+      : planLight ? Color(0xFF0A7C7C) : Color(0xFF0B3C49);
   static const Color _turquoise =
-      planLight ? Color(0xFF2BC4C4) : Color(0xFF0FA3A8);
+      variant == 'indigo'
+      ? Color(0xFF6A4DF0)
+      : variant == 'lapis'
+      ? Color(0xFF2F5BD3)
+      : variant == 'marigold'
+      ? Color(0xFFD9570F)
+      : variant == 'copper'
+      ? Color(0xFFB4541E)
+      : variant == 'garnet'
+      ? Color(0xFFC2255C)
+      : variant == 'local'
+      ? Color(0xFF0A6E6E)
+      : variant == 'ink'
+      ? Color(0xFF0A7C7C)
+      : variant == 'glass'
+      ? Color(0xFF007A7A)
+      : planLight ? Color(0xFF2BC4C4) : Color(0xFF0FA3A8);
   static const Color _turquoiseBright =
-      planDark ? Color(0xFF2BC4C4) : Color(0xFF2EC4C6);
+      variant == 'indigo'
+      ? Color(0xFFB6A8FF)
+      : variant == 'lapis'
+      ? Color(0xFFF0C052)
+      : variant == 'marigold'
+      ? Color(0xFFFFB547)
+      : variant == 'copper'
+      ? Color(0xFFF09A5E)
+      : variant == 'garnet'
+      ? Color(0xFFFF7AA0)
+      : variant == 'local'
+      ? Color(0xFF3CCFCF)
+      : variant == 'ink'
+      ? Color(0xFF3FC9C9)
+      : variant == 'glass'
+      ? Color(0xFF35D0D0)
+      : planDark ? Color(0xFF2BC4C4) : Color(0xFF2EC4C6);
   static const Color _onTurquoise =
-      planDark ? Color(0xFF0E0F11) : Color(0xFF00181B);
+      variant == 'indigo'
+      ? Color(0xFF120E2A)
+      : variant == 'lapis'
+      ? Color(0xFF0B0F1A)
+      : variant == 'marigold'
+      ? Color(0xFF1A0E00)
+      : variant == 'copper'
+      ? Color(0xFF1B0D04)
+      : variant == 'garnet'
+      ? Color(0xFF2A0512)
+      : variant == 'local'
+      ? Color(0xFF0E0F11)
+      : variant == 'ink'
+      ? Color(0xFF0A0A0A)
+      : variant == 'glass'
+      ? Color(0xFF0E1114)
+      : planDark ? Color(0xFF0E0F11) : Color(0xFF00181B);
+
+  /// Dark-mode ink (buttons). Same as the dark highlight except where a
+  /// palette separates them (lapis: blue buttons, gold route).
+  static const Color _inkDark = variant == 'indigo'
+      ? Color(0xFFA898FF)
+      : variant == 'lapis'
+      ? Color(0xFF8EA8FF)
+      : variant == 'marigold'
+      ? Color(0xFFFF9F43)
+      : variant == 'copper'
+      ? Color(0xFFE8894F)
+      : variant == 'garnet'
+      ? Color(0xFFFF6B94)
+      : variant == 'local'
+      ? Color(0xFF3CCFCF)
+      : variant == 'ink'
+      ? Color(0xFFF4F3EE)
+      : variant == 'glass'
+      ? Color(0xFF35D0D0)
+      : _turquoiseBright;
 
   /// Called once per build from each app's `MaterialApp.builder`.
   static void syncBrightness(Brightness brightness) =>
@@ -62,7 +159,10 @@ class AppColors {
 
   /// Primary action / selection / emphasis: black on light, white on dark.
   static Color get accent => inkFor(_dark);
-  static Color get accentPressed => turquoise
+  static Color get accentPressed => v3
+      // The option palettes: the ink, 18 % toward black (light) / white (dark).
+      ? Color.lerp(inkFor(_dark), _dark ? white : black, 0.18)!
+      : turquoise
       ? (_dark
           ? const Color(0xFF26A9AB)
           : (planLight ? const Color(0xFF086464) : const Color(0xFF14505F)))
@@ -82,21 +182,69 @@ class AppColors {
   /// Quiet fill for selected rows, chips, highlights.
   static Color get accentSoft => softFor(_dark);
   static const Color accentSoftDark =
-      planDark ? Color(0xFF1F2024) : Color(0xFF282828);
+      variant == 'indigo'
+      ? Color(0xFF211E30)
+      : variant == 'lapis'
+      ? Color(0xFF1C2334)
+      : variant == 'marigold'
+      ? Color(0xFF25201A)
+      : variant == 'copper'
+      ? Color(0xFF222225)
+      : variant == 'garnet'
+      ? Color(0xFF271C20)
+      : variant == 'local'
+      ? Color(0xFF29241D)
+      : variant == 'ink'
+      ? Color(0xFF1D1D1B)
+      : variant == 'glass'
+      ? Color(0xFF1E2328)
+      : planDark ? Color(0xFF1F2024) : Color(0xFF282828);
 
   /// Text/icons drawn on an [accent] fill.
   static Color get onAccent => onInkFor(_dark);
 
   static Color inkFor(bool dark) => turquoise
-      ? (dark ? _turquoiseBright : _tealInk)
+      ? (dark ? _inkDark : _tealInk)
       : (dark ? white : black);
   static Color onInkFor(bool dark) => turquoise
       ? (dark ? _onTurquoise : white)
       : (dark ? black : white);
   static Color softFor(bool dark) => turquoise
       ? (dark
-          ? (planDark ? const Color(0xFF12302F) : const Color(0xFF0E2E31))
-          : const Color(0xFFE6F6F6))
+          ? variant == 'indigo'
+      ? const Color(0xFF251F45)
+      : variant == 'lapis'
+      ? const Color(0xFF1E2A4A)
+      : variant == 'marigold'
+      ? const Color(0xFF3A2512)
+      : variant == 'copper'
+      ? const Color(0xFF33221A)
+      : variant == 'garnet'
+      ? const Color(0xFF3A1622)
+      : variant == 'local'
+      ? const Color(0xFF173230)
+      : variant == 'ink'
+      ? const Color(0xFF16302F)
+      : variant == 'glass'
+      ? const Color(0xFF123032)
+      : (planDark ? const Color(0xFF12302F) : const Color(0xFF0E2E31))
+          : variant == 'indigo'
+      ? const Color(0xFFEEEAFD)
+      : variant == 'lapis'
+      ? const Color(0xFFE8EEFB)
+      : variant == 'marigold'
+      ? const Color(0xFFFDEFE3)
+      : variant == 'copper'
+      ? const Color(0xFFF8ECE3)
+      : variant == 'garnet'
+      ? const Color(0xFFFBE9EF)
+      : variant == 'local'
+      ? const Color(0xFFE3F1EE)
+      : variant == 'ink'
+      ? const Color(0xFFE6F2F1)
+      : variant == 'glass'
+      ? const Color(0xFFE3F3F3)
+      : const Color(0xFFE6F6F6))
       : (dark ? accentSoftDark : const Color(0xFFF3F3F3));
 
   /// Near-black chrome (dark buttons on light surfaces).
@@ -105,30 +253,190 @@ class AppColors {
 
   // --- Surfaces & canvas -----------------------------------------------------
   // Plan B: white sheets on a #F5F6F7 page; Plan A: #17181B sheets on #0E0F11.
-  static const Color surfaceLight = Color(0xFFFFFFFF);
+  static const Color surfaceLight = variant == 'indigo'
+      ? Color(0xFFFFFFFF)
+      : variant == 'lapis'
+      ? Color(0xFFFFFFFF)
+      : variant == 'marigold'
+      ? Color(0xFFFFFFFF)
+      : variant == 'copper'
+      ? Color(0xFFFFFFFF)
+      : variant == 'garnet'
+      ? Color(0xFFFFFFFF)
+      : variant == 'local'
+      ? Color(0xFFFFFFFF)
+      : variant == 'ink'
+      ? Color(0xFFFFFFFF)
+      : variant == 'glass'
+      ? Color(0xFFFFFFFF)
+      : Color(0xFFFFFFFF);
   /// Inputs, chips, inset rows on light.
   static const Color surfaceMutedLight =
-      planLight ? Color(0xFFEEF0F2) : Color(0xFFF3F3F3);
+      variant == 'indigo'
+      ? Color(0xFFEFEDF7)
+      : variant == 'lapis'
+      ? Color(0xFFECEFF5)
+      : variant == 'marigold'
+      ? Color(0xFFF3EEE6)
+      : variant == 'copper'
+      ? Color(0xFFEFEDEA)
+      : variant == 'garnet'
+      ? Color(0xFFF3ECEC)
+      : variant == 'local'
+      ? Color(0xFFF3EDE2)
+      : variant == 'ink'
+      ? Color(0xFFF0F0EC)
+      : variant == 'glass'
+      ? Color(0xFFEEF1F3)
+      : planLight ? Color(0xFFEEF0F2) : Color(0xFFF3F3F3);
   static const Color backgroundLight =
-      planLight ? Color(0xFFF5F6F7) : Color(0xFFFFFFFF);
+      variant == 'indigo'
+      ? Color(0xFFF6F5FB)
+      : variant == 'lapis'
+      ? Color(0xFFF4F6FA)
+      : variant == 'marigold'
+      ? Color(0xFFFAF7F2)
+      : variant == 'copper'
+      ? Color(0xFFF6F5F3)
+      : variant == 'garnet'
+      ? Color(0xFFFAF6F6)
+      : variant == 'local'
+      ? Color(0xFFFBF7F0)
+      : variant == 'ink'
+      ? Color(0xFFFAFAF7)
+      : variant == 'glass'
+      ? Color(0xFFF7F8F9)
+      : planLight ? Color(0xFFF5F6F7) : Color(0xFFFFFFFF);
 
   static const Color surfaceDark =
-      planDark ? Color(0xFF17181B) : Color(0xFF141414);
+      variant == 'indigo'
+      ? Color(0xFF171522)
+      : variant == 'lapis'
+      ? Color(0xFF141A28)
+      : variant == 'marigold'
+      ? Color(0xFF1B1612)
+      : variant == 'copper'
+      ? Color(0xFF18181A)
+      : variant == 'garnet'
+      ? Color(0xFF1C1417)
+      : variant == 'local'
+      ? Color(0xFF1E1A15)
+      : variant == 'ink'
+      ? Color(0xFF141413)
+      : variant == 'glass'
+      ? Color(0xFF15191D)
+      : planDark ? Color(0xFF17181B) : Color(0xFF141414);
   static const Color surfaceMutedDark =
-      planDark ? Color(0xFF1F2024) : Color(0xFF282828);
+      variant == 'indigo'
+      ? Color(0xFF211E30)
+      : variant == 'lapis'
+      ? Color(0xFF1C2334)
+      : variant == 'marigold'
+      ? Color(0xFF25201A)
+      : variant == 'copper'
+      ? Color(0xFF222225)
+      : variant == 'garnet'
+      ? Color(0xFF271C20)
+      : variant == 'local'
+      ? Color(0xFF29241D)
+      : variant == 'ink'
+      ? Color(0xFF1D1D1B)
+      : variant == 'glass'
+      ? Color(0xFF1E2328)
+      : planDark ? Color(0xFF1F2024) : Color(0xFF282828);
   static const Color backgroundDark =
-      planDark ? Color(0xFF0E0F11) : Color(0xFF000000);
+      variant == 'indigo'
+      ? Color(0xFF0E0D16)
+      : variant == 'lapis'
+      ? Color(0xFF0B0F1A)
+      : variant == 'marigold'
+      ? Color(0xFF110D0A)
+      : variant == 'copper'
+      ? Color(0xFF0F0F10)
+      : variant == 'garnet'
+      ? Color(0xFF120C0E)
+      : variant == 'local'
+      ? Color(0xFF14110D)
+      : variant == 'ink'
+      ? Color(0xFF0A0A0A)
+      : variant == 'glass'
+      ? Color(0xFF0E1114)
+      : planDark ? Color(0xFF0E0F11) : Color(0xFF000000);
 
   // --- Text ------------------------------------------------------------------
   static const Color textPrimaryLight =
-      planLight ? Color(0xFF111315) : Color(0xFF000000);
+      variant == 'indigo'
+      ? Color(0xFF141225)
+      : variant == 'lapis'
+      ? Color(0xFF0F1729)
+      : variant == 'marigold'
+      ? Color(0xFF1A140E)
+      : variant == 'copper'
+      ? Color(0xFF151412)
+      : variant == 'garnet'
+      ? Color(0xFF1C1214)
+      : variant == 'local'
+      ? Color(0xFF1C1A17)
+      : variant == 'ink'
+      ? Color(0xFF0B0B0C)
+      : variant == 'glass'
+      ? Color(0xFF0F1417)
+      : planLight ? Color(0xFF111315) : Color(0xFF000000);
   static const Color textSecondaryLight =
-      planLight ? Color(0xFF5F646B) : Color(0xFF545454);
+      variant == 'indigo'
+      ? Color(0xFF5E5A72)
+      : variant == 'lapis'
+      ? Color(0xFF556070)
+      : variant == 'marigold'
+      ? Color(0xFF6B6158)
+      : variant == 'copper'
+      ? Color(0xFF625E58)
+      : variant == 'garnet'
+      ? Color(0xFF6A5C5F)
+      : variant == 'local'
+      ? Color(0xFF5E574D)
+      : variant == 'ink'
+      ? Color(0xFF55554F)
+      : variant == 'glass'
+      ? Color(0xFF4A545C)
+      : planLight ? Color(0xFF5F646B) : Color(0xFF545454);
   /// 4.6:1 on white — the lightest grey that still passes WCAG AA.
   static const Color textTertiaryLight = Color(0xFF757575);
-  static const Color textPrimaryDark = Color(0xFFFFFFFF);
+  static const Color textPrimaryDark = variant == 'indigo'
+      ? Color(0xFFFFFFFF)
+      : variant == 'lapis'
+      ? Color(0xFFFFFFFF)
+      : variant == 'marigold'
+      ? Color(0xFFFFFFFF)
+      : variant == 'copper'
+      ? Color(0xFFFFFFFF)
+      : variant == 'garnet'
+      ? Color(0xFFFFFFFF)
+      : variant == 'local'
+      ? Color(0xFFF6F1E8)
+      : variant == 'ink'
+      ? Color(0xFFF4F3EE)
+      : variant == 'glass'
+      ? Color(0xFFF2F5F7)
+      : Color(0xFFFFFFFF);
   static const Color textSecondaryDark =
-      planDark ? Color(0xFFA0A3A8) : Color(0xFFAFAFAF);
+      variant == 'indigo'
+      ? Color(0xFFA9A5BD)
+      : variant == 'lapis'
+      ? Color(0xFFA3ACBD)
+      : variant == 'marigold'
+      ? Color(0xFFB0A69B)
+      : variant == 'copper'
+      ? Color(0xFFA7A5A1)
+      : variant == 'garnet'
+      ? Color(0xFFB5A5AA)
+      : variant == 'local'
+      ? Color(0xFFB5AC9E)
+      : variant == 'ink'
+      ? Color(0xFFA3A29B)
+      : variant == 'glass'
+      ? Color(0xFFA7B0B8)
+      : planDark ? Color(0xFFA0A3A8) : Color(0xFFAFAFAF);
   static const Color textTertiaryDark = Color(0xFF8E8E8E);
 
   // --- Icons -----------------------------------------------------------------
@@ -142,9 +450,41 @@ class AppColors {
 
   // --- Lines -----------------------------------------------------------------
   static const Color borderLight =
-      planLight ? Color(0xFFE3E5E8) : Color(0xFFE8E8E8);
+      variant == 'indigo'
+      ? Color(0xFFE1DEEE)
+      : variant == 'lapis'
+      ? Color(0xFFDDE2EB)
+      : variant == 'marigold'
+      ? Color(0xFFE8E1D6)
+      : variant == 'copper'
+      ? Color(0xFFE3E0DB)
+      : variant == 'garnet'
+      ? Color(0xFFE8DEDF)
+      : variant == 'local'
+      ? Color(0xFFE6DDCD)
+      : variant == 'ink'
+      ? Color(0xFFDAD9D3)
+      : variant == 'glass'
+      ? Color(0xFFDDE2E6)
+      : planLight ? Color(0xFFE3E5E8) : Color(0xFFE8E8E8);
   static const Color borderDark =
-      planDark ? Color(0xFF2A2C31) : Color(0xFF333333);
+      variant == 'indigo'
+      ? Color(0xFF2E2A42)
+      : variant == 'lapis'
+      ? Color(0xFF2A3246)
+      : variant == 'marigold'
+      ? Color(0xFF352D25)
+      : variant == 'copper'
+      ? Color(0xFF2F2F33)
+      : variant == 'garnet'
+      ? Color(0xFF3A2A2F)
+      : variant == 'local'
+      ? Color(0xFF3A332A)
+      : variant == 'ink'
+      ? Color(0xFF2E2E2B)
+      : variant == 'glass'
+      ? Color(0xFF2C3238)
+      : planDark ? Color(0xFF2A2C31) : Color(0xFF333333);
 
   // --- Semantic --------------------------------------------------------------
   static const Color success = Color(0xFF05944F);

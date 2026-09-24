@@ -30,6 +30,14 @@ val variantLabel: String? = mapOf(
     "midnight" to "RideVela A · Midnight",
     "daylight" to "RideVela B · Daylight",
     "daynight" to "RideVela C · Day&Night",
+    "local" to "RideVela D · Local",
+    "ink" to "RideVela E · Ink",
+    "glass" to "RideVela F · Glass",
+    "indigo" to "RideVela · Indigo",
+    "lapis" to "RideVela · Lapis",
+    "marigold" to "RideVela · Marigold",
+    "copper" to "RideVela · Copper",
+    "garnet" to "RideVela · Garnet",
 )[themeVariant]
 
 android {

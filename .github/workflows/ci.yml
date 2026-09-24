@@ -266,7 +266,7 @@ jobs:
         working-directory: packages/design_system
         run: |
           set -e
-          for t in midnight daylight daynight mono; do
+          for t in midnight daylight daynight mono indigo lapis marigold copper garnet local ink glass; do
             echo "::group::THEME=$t"
             flutter test test/theme_variant_test.dart --dart-define=THEME=$t
             echo "::endgroup::"
