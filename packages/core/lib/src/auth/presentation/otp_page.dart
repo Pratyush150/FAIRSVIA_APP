@@ -108,7 +108,7 @@ class _OtpPageState extends State<OtpPage> {
                   Text.rich(
                     TextSpan(
                       style: theme.textTheme.bodyLarge
-                          ?.copyWith(color: AppColors.textSecondaryLight),
+                          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                       children: [
                         const TextSpan(text: 'We sent a 6-digit code to '),
                         TextSpan(
@@ -201,7 +201,7 @@ class _OtpPageState extends State<OtpPage> {
                         ? Text(
                             'Resend code in ${_cooldown}s',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                                color: AppColors.textTertiaryLight),
+                                color: Theme.of(context).colorScheme.onSurfaceVariant),
                           )
                         : TextButton(
                             onPressed: state.busy || state.phone == null

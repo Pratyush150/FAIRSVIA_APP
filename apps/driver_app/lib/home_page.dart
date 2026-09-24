@@ -739,60 +739,11 @@ class _BottomSheet extends StatelessWidget {
     final Widget child;
     switch (state.phase) {
       case DriverPhase.offline:
-        child = Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  height: 46,
-                  width: 46,
-                  decoration: BoxDecoration(
-                    color: theme.brightness == Brightness.dark
-                        ? AppColors.surfaceMutedDark
-                        : AppColors.surfaceMutedLight,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(PhosphorIconsRegular.moonStars,
-                      color: theme.brightness == Brightness.dark
-                          ? AppColors.textTertiaryDark
-                          : AppColors.textTertiaryLight,
-                      size: 24),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("You're offline",
-                          style: theme.textTheme.titleLarge),
-                      const SizedBox(height: 2),
-                      Text(
-                        state.lastEarned != null
-                            ? 'Earned today · ${Fmt.money(state.lastEarned!)}'
-                            : 'Go online to start earning',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (state.locationIssue case final issue?) ...[
-              const SizedBox(height: AppSpacing.md),
-              LocationAccessBanner(
-                access: issue,
-                onOpenSettings: () => unawaited(openLocationFix(issue)),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.lg),
-            PrimaryButton(
-              label: 'Go online',
-              loading: state.busy,
-              onPressed: state.busy ? null : () => _goOnline(context, cubit),
-            ),
-          ],
+        child = DriverOfflineSheet(
+          lastEarned: state.lastEarned,
+          locationIssue: state.locationIssue,
+          busy: state.busy,
+          onGoOnline: () => _goOnline(context, cubit),
         );
       case DriverPhase.online:
       case DriverPhase.offered:
@@ -817,8 +768,12 @@ class _BottomSheet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("You're online",
-                          style: theme.textTheme.titleLarge),
+                      Semantics(
+                        liveRegion: true,
+                        header: true,
+                        child: Text("You're online",
+                            style: theme.textTheme.titleLarge),
+                      ),
                       const SizedBox(height: 2),
                       Text('Looking for trips nearby…',
                           style: theme.textTheme.bodyMedium),
@@ -903,6 +858,90 @@ class _BottomSheet extends StatelessWidget {
   }
 }
 
+/// The offline state of the driver's home sheet: what today earned, any
+/// location problem, and "Go online". Public so it can be widget-tested
+/// (including the accessibility guidelines) without the map.
+class DriverOfflineSheet extends StatelessWidget {
+  const DriverOfflineSheet({
+    super.key,
+    this.lastEarned,
+    this.locationIssue,
+    this.busy = false,
+    required this.onGoOnline,
+  });
+
+  final double? lastEarned;
+  final LocationAccess? locationIssue;
+  final bool busy;
+  final VoidCallback onGoOnline;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              height: 46,
+              width: 46,
+              decoration: BoxDecoration(
+                color: dark
+                    ? AppColors.surfaceMutedDark
+                    : AppColors.surfaceMutedLight,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(PhosphorIconsRegular.moonStars,
+                  color: dark
+                      ? AppColors.textTertiaryDark
+                      : AppColors.textTertiaryLight,
+                  size: 24),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Announced when the driver goes offline (audit 4.3).
+                  Semantics(
+                    liveRegion: true,
+                    header: true,
+                    child: Text("You're offline",
+                        style: theme.textTheme.titleLarge),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    lastEarned != null
+                        ? 'Earned today · ${Fmt.money(lastEarned!)}'
+                        : 'Go online to start earning',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (locationIssue case final issue?) ...[
+          const SizedBox(height: AppSpacing.md),
+          LocationAccessBanner(
+            access: issue,
+            onOpenSettings: () => unawaited(openLocationFix(issue)),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.lg),
+        PrimaryButton(
+          label: 'Go online',
+          loading: busy,
+          onPressed: busy ? null : onGoOnline,
+        ),
+      ],
+    );
+  }
+}
+
 /// The rider tapped "I'm on my way": they are coming out — no need to call.
 class _RiderComingBanner extends StatelessWidget {
   const _RiderComingBanner({this.name});
@@ -937,7 +976,8 @@ class _RiderComingBanner extends StatelessWidget {
           ],
         ),
       ),
-    ).animate().fadeIn(duration: AppMotion.normal).slideY(begin: -0.2);
+    ).motion((w) =>
+        w.animate().fadeIn(duration: AppMotion.normal).slideY(begin: -0.2));
   }
 }
 
@@ -967,7 +1007,12 @@ class _CompletedSheet extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         Center(
-          child: Text('Trip complete', style: theme.textTheme.headlineSmall),
+          child: Semantics(
+            liveRegion: true,
+            header: true,
+            child: Text('Trip complete',
+                style: theme.textTheme.headlineSmall),
+          ),
         ),
         if (state.lastEarned != null) ...[
           const SizedBox(height: AppSpacing.xs),
@@ -1084,7 +1129,12 @@ class _LifecycleSheet extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(title, style: theme.textTheme.headlineSmall),
+              // Announced when the trip moves on (Head to pickup → On trip).
+              child: Semantics(
+                liveRegion: true,
+                header: true,
+                child: Text(title, style: theme.textTheme.headlineSmall),
+              ),
             ),
             if (tripId != null) ...[
               IconButton(
@@ -1425,7 +1475,12 @@ class _StartTripSheetState extends State<_StartTripSheet> {
         Row(
           children: [
             Expanded(
-              child: Text('Confirm rider', style: theme.textTheme.headlineSmall),
+              child: Semantics(
+                liveRegion: true,
+                header: true,
+                child: Text('Confirm rider',
+                    style: theme.textTheme.headlineSmall),
+              ),
             ),
             if (widget.tripId != null) ...[
               IconButton(
@@ -1732,15 +1787,14 @@ class _OfferOverlayState extends State<OfferOverlay> {
                   ],
                 ),
               ),
-            )
-                .animate()
-                .fadeIn(duration: AppMotion.fast)
-                .scaleXY(
-                  begin: 0.9,
-                  end: 1,
-                  duration: AppMotion.normal,
-                  curve: AppMotion.emphasized,
-                ),
+            ).motion(
+              (w) => w.animate().fadeIn(duration: AppMotion.fast).scaleXY(
+                    begin: 0.9,
+                    end: 1,
+                    duration: AppMotion.normal,
+                    curve: AppMotion.enter,
+                  ),
+            ),
           ),
           ),
         ],

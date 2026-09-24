@@ -69,4 +69,43 @@ void main() {
     expect(find.text(AppBrand.name), findsNothing);
     expect(find.text('home'), findsOneWidget);
   });
+
+  testWidgets('the driver lockup carries a Driver pill; the rider one does not',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(home: BrandSplash(onDone: () {}, driver: true)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(RideVelaDriverPill), findsOneWidget);
+    expect(find.bySemanticsLabel('RideVela Driver'), findsOneWidget);
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(MaterialApp(home: BrandSplash(onDone: () {})));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(RideVelaDriverPill), findsNothing);
+    await tester.pumpAndSettle();
+  });
+
+  test('the splash hands over within 1.5 s', () {
+    expect(AppBrand.splashTotal.inMilliseconds, lessThanOrEqualTo(1500));
+  });
+
+  testWidgets('the bar fills as a loader until the handover', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: BrandSplash(onDone: () {})));
+    double bar() => tester
+        .getSize(find.descendant(
+            of: find.byType(AnimatedBuilder).last,
+            matching: find.byType(Container)))
+        .width;
+    await tester.pump(AppBrand.splashFadeIn);
+    final start = bar();
+    await tester.pump(AppBrand.splashSettle);
+    final mid = bar();
+    await tester.pump(AppBrand.splashHandover - const Duration(milliseconds: 1));
+    final end = bar();
+    expect(start, lessThan(mid));
+    expect(mid, lessThan(end));
+    expect(end, closeTo(56, 0.5));
+    await tester.pumpAndSettle();
+  });
 }

@@ -11,6 +11,13 @@ import 'ride_status.dart';
 /// as one surface changing its mind, not a stack of different cards. The text
 /// cross-fades on the standard motion tokens; the numeric sub-line uses
 /// tabular figures so a ticking ETA doesn't shuffle sideways.
+///
+/// The headline is a screen-reader live region (audit 4.3): when the moment
+/// changes — "Priya is on the way" → "Priya has arrived" — TalkBack and
+/// VoiceOver announce it without the rider having to find it. The region's
+/// label is [RideStatus.moment], which leaves the minute count out (it rides
+/// along as the node's value), so a reader hears each change of moment and
+/// not every tick of the ETA.
 class RideStatusHeader extends StatelessWidget {
   const RideStatusHeader({
     super.key,
@@ -38,17 +45,28 @@ class RideStatusHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              AnimatedSwitcher(
-                duration: AppMotion.normal,
-                switchInCurve: AppMotion.emphasized,
-                switchOutCurve: AppMotion.exit,
-                child: Text(
-                  status.title,
-                  // Keyed on the text so the switcher animates when the wording
-                  // changes ("on the way" → "almost here") and stays put when
-                  // only the minute count moves.
-                  key: ValueKey(status.title),
-                  style: theme.textTheme.headlineSmall,
+              // One node carrying the current wording: the switcher briefly
+              // holds the old and new Text during the cross-fade, and a
+              // reader must hear only the new one.
+              Semantics(
+                container: true,
+                liveRegion: true,
+                header: true,
+                label: status.moment,
+                value: status.momentDetail,
+                excludeSemantics: true,
+                child: AnimatedSwitcher(
+                  duration: AppMotion.normal,
+                  switchInCurve: AppMotion.enter,
+                  switchOutCurve: AppMotion.exit,
+                  child: Text(
+                    status.title,
+                    // Keyed on the text so the switcher animates when the
+                    // wording changes ("on the way" → "almost here") and
+                    // stays put when only the minute count moves.
+                    key: ValueKey(status.title),
+                    style: theme.textTheme.headlineSmall,
+                  ),
                 ),
               ),
               if (status.subtitle case final sub?) ...[

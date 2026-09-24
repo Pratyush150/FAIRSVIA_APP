@@ -129,7 +129,8 @@ class _Stat extends StatelessWidget {
     );
     return Semantics(
       container: true,
-      label: '$label: $value',
+      // A plate is spelled out ("M H 1 2 …"), not read as words.
+      label: '$label: ${plate ? AppA11y.spell(value) : value}',
       excludeSemantics: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

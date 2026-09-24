@@ -123,7 +123,7 @@ class ErrorOverlay extends StatelessWidget {
               right: 0,
               bottom: 0,
               child: Material(
-                color: const Color(0xFFB00020),
+                color: AppColors.errorInk,
                 child: SafeArea(
                   top: false,
                   child: Padding(

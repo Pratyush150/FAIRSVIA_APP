@@ -16,13 +16,15 @@ class VehicleGlyph extends StatelessWidget {
   final double width;
 
   /// Which illustrated set the build uses, or null for the drawn glyphs:
-  /// Plan A (midnight) flat silver cars, Plan B (daylight) 3D cars, and for
-  /// Plan C (daynight) whichever matches the current mode.
+  /// the flat silver 3/4-view cars (audit 2.7) for the shipped turquoise
+  /// build and Plan A (midnight), Plan B's 3D cars (daylight), and for Plan C
+  /// (daynight) whichever matches the current mode. The black-and-white
+  /// `mono` build keeps the drawn glyphs (the art has a teal stripe).
   static String? artSet(bool dark) => switch (AppColors.variant) {
-        'midnight' => 'midnight',
         'daylight' => 'daylight',
         'daynight' => dark ? 'midnight' : 'daylight',
-        _ => null,
+        'mono' => null,
+        _ => 'midnight',
       };
 
   static String _file(String tier) => switch (tier) {

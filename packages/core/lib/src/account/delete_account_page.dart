@@ -100,9 +100,12 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                     ),
                     child: const Icon(PhosphorIconsRegular.userMinus,
                         color: AppColors.error, size: 28),
-                  ).animate().fadeIn(duration: AppMotion.normal).scale(
-                      begin: const Offset(0.85, 0.85),
-                      curve: AppMotion.emphasized),
+                  ).motion((w) => w
+                      .animate()
+                      .fadeIn(duration: AppMotion.normal)
+                      .scale(
+                          begin: const Offset(0.85, 0.85),
+                          curve: AppMotion.enter)),
                   const SizedBox(height: AppSpacing.lg),
                   Text('Delete your ${AppBrand.name} account?',
                       style: theme.textTheme.headlineSmall),
@@ -163,10 +166,10 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                   // refusal must be visible right where the user just tapped,
                   // whatever the screen height.
                   if (_error != null) ...[
-                    _ErrorNotice(message: _error!)
+                    _ErrorNotice(message: _error!).motion((w) => w
                         .animate()
                         .fadeIn(duration: AppMotion.fast)
-                        .slideY(begin: 0.15, curve: AppMotion.standard),
+                        .slideY(begin: 0.15, curve: AppMotion.standard)),
                     const SizedBox(height: AppSpacing.md),
                   ],
                   _Acknowledge(

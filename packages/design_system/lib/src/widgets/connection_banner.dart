@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/phosphor_icons.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 
 /// A slim bar at the top of the screen reporting realtime connectivity.
@@ -66,7 +67,7 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
     final text =
         widget.connected ? widget.reconnectedMessage : widget.message;
     return AnimatedSize(
-      duration: const Duration(milliseconds: 200),
+      duration: AppMotion.of(context, AppMotion.normal),
       alignment: Alignment.topCenter,
       child: !showing
           ? const SizedBox(width: double.infinity)

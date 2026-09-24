@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
+import '../theme/app_spacing.dart';
+import '../theme/app_typography.dart';
+
 /// The RideVela logomark ("Road-V"): a V drawn as a road running away from
 /// you, with a lane line — V for Vela, a road for the ride. The same drawing
 /// as the app icon and `docs/brand/`, painted here so it stays sharp at any
@@ -68,4 +72,43 @@ class _MarkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MarkPainter old) => old.driver != driver;
+}
+
+/// The "Driver" pill set beside the RideVela mark or wordmark in the driver
+/// app (splash lockup, login header), so a driver never mistakes it for the
+/// rider app — the audit's brand lockup item 3.4.
+///
+/// Brand ink on its soft tint, in the current theme's brightness: readable in
+/// light and dark and in every `THEME=` variant (the ink/soft pair is the one
+/// used for selected rows).
+class RideVelaDriverPill extends StatelessWidget {
+  const RideVelaDriverPill({super.key, this.label = 'Driver'});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.softFor(dark),
+        borderRadius: BorderRadius.circular(AppSpacing.pill),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: AppTypography.fontFamily,
+          fontSize: 13,
+          height: 18 / 13,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+          color: AppColors.inkFor(dark),
+        ),
+      ),
+    );
+  }
 }

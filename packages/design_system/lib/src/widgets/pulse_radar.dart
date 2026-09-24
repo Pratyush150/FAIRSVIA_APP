@@ -29,8 +29,20 @@ class PulseRadar extends StatefulWidget {
 class _PulseRadarState extends State<PulseRadar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(seconds: 3))
-        ..repeat();
+      AnimationController(vsync: this, duration: const Duration(seconds: 3));
+
+  // Reduce Motion / Remove animations: the rings hold still (audit 4.2).
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      _c
+        ..stop()
+        ..value = 0;
+    } else if (!_c.isAnimating) {
+      _c.repeat();
+    }
+  }
 
   @override
   void dispose() {

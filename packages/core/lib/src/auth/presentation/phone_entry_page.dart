@@ -35,6 +35,9 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
   final _controller = TextEditingController();
   bool _valid = false;
 
+  /// The driver app's login ("RideVela Driver"): driver mark + "Driver" pill.
+  bool get _driver => widget.title.toLowerCase().contains('driver');
+
   // Span recognizers must outlive build and be disposed with the state.
   late final _termsTap = TapGestureRecognizer()
     ..onTap = () => openLegalDocument(context, LegalDocument.terms);
@@ -99,14 +102,15 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                                     ),
                                   )
                                 : null,
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: RideVelaMark(
-                                size: 64,
-                                driver: widget.title.toLowerCase().contains(
-                                  'driver',
-                                ),
-                              ),
+                            child: Row(
+                              children: [
+                                RideVelaMark(size: 64, driver: _driver),
+                                // The driver app says so beside the mark.
+                                if (_driver) ...[
+                                  const SizedBox(width: AppSpacing.md),
+                                  const RideVelaDriverPill(),
+                                ],
+                              ],
                             ),
                           ),
                           const SizedBox(height: AppSpacing.xl),
@@ -118,14 +122,14 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                           Text(
                             'Enter your phone number and we\'ll text you a code to sign in.',
                             style: theme.textTheme.bodyLarge?.copyWith(
-                              color: AppColors.textSecondaryLight,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: AppSpacing.xxl),
                           Text(
                             'Phone number',
                             style: theme.textTheme.labelLarge?.copyWith(
-                              color: AppColors.textSecondaryLight,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(height: AppSpacing.sm),
@@ -212,7 +216,7 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                         ),
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textTertiaryLight,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),

@@ -8,6 +8,7 @@ export 'src/theme/app_elevation.dart';
 export 'src/theme/app_typography.dart';
 export 'src/theme/app_theme.dart';
 export 'src/theme/app_motion.dart';
+export 'src/theme/app_a11y.dart';
 
 export 'src/widgets/primary_button.dart';
 export 'src/widgets/secondary_button.dart';

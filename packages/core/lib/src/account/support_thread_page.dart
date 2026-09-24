@@ -198,6 +198,7 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
             ),
             const SizedBox(width: AppSpacing.sm),
             IconButton.filled(
+              tooltip: 'Send message',
               onPressed: _sending ? null : _send,
               icon: _sending
                   ? const SizedBox(

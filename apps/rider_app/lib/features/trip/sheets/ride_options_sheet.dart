@@ -16,15 +16,17 @@ class _RideOptions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        // A Wrap, not a Row: at the largest text sizes the distance and time
+        // drop under the title instead of running off the edge.
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: AppSpacing.sm,
           children: [
-            Expanded(
-              child: Text('Choose a ride',
-                  style: theme.textTheme.headlineSmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-            ),
-            const SizedBox(width: AppSpacing.sm),
+            Text('Choose a ride',
+                style: theme.textTheme.headlineSmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
             Text(
               '${Market.current.legDistance(estimate.distanceM)} · '
               '${_minutes(estimate.durationS)} min',
@@ -83,16 +85,18 @@ class _RideOptions extends StatelessWidget {
                           cubit.selectTier(tier.tier);
                         }
                       : null,
-                ).animate().fadeIn(
-                      delay: AppMotion.stagger * i,
-                      duration: AppMotion.normal,
-                    ).moveY(
-                      begin: 8,
-                      end: 0,
-                      delay: AppMotion.stagger * i,
-                      duration: AppMotion.normal,
-                      curve: AppMotion.emphasized,
-                    ),
+                ).motion(
+                  (w) => w.animate().fadeIn(
+                        delay: AppMotion.stagger * i,
+                        duration: AppMotion.normal,
+                      ).moveY(
+                        begin: 8,
+                        end: 0,
+                        delay: AppMotion.stagger * i,
+                        duration: AppMotion.normal,
+                        curve: AppMotion.enter,
+                      ),
+                ),
             ],
           ),
         if (estimate.comparison != null) ...[
@@ -327,9 +331,10 @@ class _StopsSection extends StatelessWidget {
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
-                InkWell(
-                  onTap: () => cubit.removeStop(i),
-                  child: const Icon(PhosphorIconsRegular.x, size: 16),
+                IconButton(
+                  tooltip: 'Remove stop ${i + 1}',
+                  onPressed: () => cubit.removeStop(i),
+                  icon: const Icon(PhosphorIconsRegular.x, size: 16),
                 ),
               ],
             ),
@@ -481,6 +486,8 @@ class _ScheduleRow extends StatelessWidget {
       onTap: () => _pick(context),
       borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
       child: Container(
+        // 48 tall: Android's minimum touch target.
+        constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.sm,
@@ -698,7 +705,11 @@ class _PayChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
+    // Selected is never colour alone: the chip's glyph becomes a check.
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: InkWell(
       onTap: () {
         AppHaptics.selection();
         onTap();
@@ -707,6 +718,8 @@ class _PayChip extends StatelessWidget {
       child: AnimatedContainer(
         duration: AppMotion.fast,
         curve: AppMotion.standard,
+        // 48 tall: Android's minimum touch target.
+        constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           color: selected
@@ -723,7 +736,8 @@ class _PayChip extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: selected ? AppColors.accent : null),
+            Icon(selected ? PhosphorIconsFill.checkCircle : icon,
+                size: 18, color: selected ? AppColors.accent : null),
             const SizedBox(width: AppSpacing.sm),
             Flexible(
               child: Text(
@@ -740,6 +754,7 @@ class _PayChip extends StatelessWidget {
                   size: 18, color: selected ? AppColors.accent : null),
           ],
         ),
+      ),
       ),
     );
   }
@@ -773,7 +788,7 @@ class _PromoFieldState extends State<_PromoField> {
         Scrollable.ensureVisible(
           context,
           alignment: 0.5,
-          duration: const Duration(milliseconds: 250),
+          duration: AppMotion.of(context, AppMotion.normal),
         );
       });
     }
@@ -808,8 +823,9 @@ class _PromoFieldState extends State<_PromoField> {
             Expanded(
               child: Text(
                 '${promo.code} applied · −${Money.format(promo.discount, wholeOnly: true)}',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: AppColors.success),
+                // Ink, not green: green text on the green tint is 3.4:1,
+                // under WCAG AA. The green tag and tint still say "applied".
+                style: theme.textTheme.bodyMedium,
               ),
             ),
             IconButton(
@@ -954,37 +970,36 @@ class _RideTierTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        // Same rule as the confirm footer (Fmt.money), so the
-                        // list and the button always agree.
-                        Fmt.money(tier.fare, tier.currency),
-                        style: theme.textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700)
-                            .tabular(),
-                      ),
-                      // What the number is made of — only when the backend
-                      // itemised it; an empty breakdown is worse than none.
-                      if (tier.breakdown != null)
-                        Semantics(
-                          button: true,
-                          label: 'Fare details for ${tier.label}',
-                          excludeSemantics: true,
-                          child: InkResponse(
-                            onTap: () => showFareDetailsSheet(context, tier),
-                            radius: 22,
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 2, left: 8),
-                              child: Icon(PhosphorIconsRegular.info,
-                                  size: 20,
-                                  color: theme.textTheme.bodySmall?.color),
-                            ),
-                          ),
-                        ),
-                    ],
+                  Text(
+                    // Same rule as the confirm footer (Fmt.money), so the
+                    // list and the button always agree.
+                    Fmt.money(tier.fare, tier.currency),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700)
+                        .tabular(),
                   ),
+                  // What the number is made of — only when the backend
+                  // itemised it; an empty breakdown is worse than none. The
+                  // glyph is 20 but the target is a full 48 × 48, beside the
+                  // fare rather than under it so the row stays one height.
+                  if (tier.breakdown != null)
+                    Semantics(
+                      button: true,
+                      label: 'Fare details for ${tier.label}',
+                      onTap: () => showFareDetailsSheet(context, tier),
+                      excludeSemantics: true,
+                      child: InkResponse(
+                        onTap: () => showFareDetailsSheet(context, tier),
+                        radius: 22,
+                        child: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Icon(PhosphorIconsRegular.info,
+                              size: 20,
+                              color: theme.textTheme.bodySmall?.color),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

@@ -59,6 +59,7 @@ class _DriverAppState extends State<DriverApp> {
             // Ink colours (black on light, white on dark) follow the theme.
             AppColors.syncBrightness(Theme.of(context).brightness);
             return BrandSplashGate(
+              driver: true,
               child: ErrorOverlay(child: child ?? const SizedBox.shrink()),
             );
           },

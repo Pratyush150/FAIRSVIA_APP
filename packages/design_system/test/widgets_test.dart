@@ -293,6 +293,9 @@ void main() {
     });
 
     test('the default palette is Samarkand Turquoise', () {
+      // Only the default build; variant builds are checked in
+      // theme_variant_test.dart.
+      if (AppColors.variant.isNotEmpty) return;
       expect(AppColors.turquoise, isTrue);
       expect(AppColors.inkFor(false), const Color(0xFF0B3C49));
       expect(AppColors.inkFor(true), const Color(0xFF2EC4C6));

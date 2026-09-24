@@ -26,6 +26,12 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
+        <!-- Notification small icon (the Road-V, white on transparent) for
+             push messages once Firebase Messaging is added; the driver's
+             location-service notification sets it in code. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_ridevela" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

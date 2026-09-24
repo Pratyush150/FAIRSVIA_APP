@@ -68,10 +68,14 @@ void main() {
 
     expect(find.text('Allow location to get ride offers'), findsOneWidget);
     expect(find.text('Ride offers near you'), findsOneWidget);
-    expect(
-      find.text('Only while you are online', skipOffstage: false),
-      findsOneWidget,
+    // The last reason sits below the fold at the audit's 15/22 body size;
+    // the list scrolls to it.
+    await tester.scrollUntilVisible(
+      find.text('Only while you are online'),
+      200,
+      scrollable: find.byType(Scrollable).first,
     );
+    expect(find.text('Only while you are online'), findsOneWidget);
     // Nothing has been asked of the OS yet.
     expect(requests, 0);
 

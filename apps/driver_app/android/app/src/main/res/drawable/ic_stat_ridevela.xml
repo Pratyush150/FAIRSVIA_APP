@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar / notification small icon: the Road-V mark as a white
+     silhouette on transparent (Android draws small icons from alpha only).
+     Same V as ridevela_mark.dart and tools/brand/build_logo.mjs, cropped to
+     the V; the lane line is cut out, and widened so it survives at 24 dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="384"
+    android:viewportHeight="384">
+    <group
+        android:translateX="-64"
+        android:translateY="-72">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M96,118 L216,118 L256,262 L296,118 L416,118 L300,410 L212,410 Z
+                M242,304 A14,14 0 0 1 270,304 L270,320 A14,14 0 0 1 242,320 Z
+                M242,366 A14,14 0 0 1 270,366 L270,380 A14,14 0 0 1 242,380 Z" />
+    </group>
+</vector>

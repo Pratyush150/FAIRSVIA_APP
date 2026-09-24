@@ -53,6 +53,50 @@ void main() {
     }
   });
 
+  test('named tokens: icon.neutral, danger and warning (audit 3.1)', () {
+    expect(AppColors.iconNeutralDark, const Color(0xFF9A9DA3));
+    expect(AppColors.dangerDark, const Color(0xFFFF4D4F));
+    expect(AppColors.warningDark, const Color(0xFFF5A623));
+    for (final dark in [false, true]) {
+      final surfaces = dark
+          ? [AppColors.surfaceDark, AppColors.surfaceMutedDark,
+              AppColors.backgroundDark]
+          : [AppColors.surfaceLight, AppColors.surfaceMutedLight,
+              AppColors.backgroundLight];
+      for (final bg in surfaces) {
+        // Icons need 3:1; the dark danger/warning are used for text too.
+        expect(contrast(AppColors.iconNeutralFor(dark), bg), greaterThan(3),
+            reason: 'icon.neutral on $bg');
+        if (dark) {
+          expect(contrast(AppColors.dangerFor(dark), bg), greaterThan(4.5),
+              reason: 'danger on $bg');
+          expect(contrast(AppColors.warningFor(dark), bg), greaterThan(4.5),
+              reason: 'warning on $bg');
+        }
+      }
+    }
+    // Only the v2 builds switch the theme's dark error colour; the shipped
+    // default keeps the red its screens were tuned with.
+    expect(AppTheme.dark.colorScheme.error,
+        AppColors.v2 ? AppColors.dangerDark : AppColors.error);
+    expect(AppTheme.light.colorScheme.error, AppColors.error);
+  });
+
+  testWidgets('the Driver pill reads in light and dark', (tester) async {
+    for (final theme in [AppTheme.light, AppTheme.dark]) {
+      await tester.pumpWidget(MaterialApp(
+        theme: theme,
+        home: const Scaffold(body: Center(child: RideVelaDriverPill())),
+      ));
+      await tester.pumpAndSettle(); // MaterialApp animates theme changes
+      final dark = theme.brightness == Brightness.dark;
+      final text = tester.widget<Text>(find.text('Driver'));
+      expect(contrast(text.style!.color!, AppColors.softFor(dark)),
+          greaterThan(4.5),
+          reason: 'dark=$dark');
+    }
+  });
+
   testWidgets('ride-type cars use the plan\'s own artwork', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: Center(child: VehicleGlyph(tier: 'xl')),

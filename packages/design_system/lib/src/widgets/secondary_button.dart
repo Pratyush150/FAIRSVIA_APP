@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_typography.dart';
 
 /// Full-width secondary action — outlined, same height/rhythm as [PrimaryButton].
 /// Use for the lesser of two side-by-side actions, or a standalone alt action.
@@ -32,7 +33,7 @@ class SecondaryButton extends StatelessWidget {
         : (isDark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight);
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: AppSpacing.buttonHeight,
       child: TextButton(
         style: TextButton.styleFrom(
           foregroundColor: fg,
@@ -41,7 +42,13 @@ class SecondaryButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radius),
           ),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          // The family must be named here: a button's textStyle replaces the
+          // theme's, and without it the label fell back to the platform font.
+          textStyle: const TextStyle(
+            fontFamily: AppTypography.fontFamily,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         onPressed: onPressed == null
             ? null

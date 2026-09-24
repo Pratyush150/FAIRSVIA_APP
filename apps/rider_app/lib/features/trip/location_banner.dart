@@ -75,7 +75,7 @@ class LocationBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final message = messageFor(issue, reducedAccuracy);
     return AnimatedSize(
-      duration: const Duration(milliseconds: 200),
+      duration: AppMotion.of(context, AppMotion.normal),
       alignment: Alignment.topCenter,
       child: message == null
           ? const SizedBox(width: double.infinity)

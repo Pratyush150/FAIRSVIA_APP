@@ -15,6 +15,15 @@ class AppSpacing {
   static const double xxxl = 40;
   static const double huge = 48;
 
+  /// Standard left/right margin of a screen or sheet's content (audit 3.3).
+  static const double screenMargin = lg;
+
+  // Control heights (audit 3.3: buttons 56 / 56 / 44). Primary and secondary
+  // actions are 56 high; tertiary/text buttons at least 44, the touch-target
+  // floor.
+  static const double buttonHeight = 56;
+  static const double buttonHeightTertiary = 44;
+
   // Corner radii. Generous, consistent rounding reads as premium. The v2
   // theme builds (THEME=midnight|daylight|daynight) use the audit's softer
   // 12 px controls and 20 px sheets.

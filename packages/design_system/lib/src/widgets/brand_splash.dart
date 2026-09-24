@@ -18,12 +18,16 @@ import 'ridevela_mark.dart';
 /// the app's own router shows its own progress, which is where a spinner
 /// belongs.
 ///
-/// Timing follows the brand spec: fade in, settle, hand over.
+/// Timing follows the brand spec: fade in, settle, hand over — 1.4 s in all,
+/// inside the audit's 1.5 s cap (3.4). The short brand bar under the lockup
+/// fills from the end of the fade to the handover, so it reads as the
+/// loader without a spinner.
 class BrandSplash extends StatefulWidget {
   const BrandSplash({
     super.key,
     required this.onDone,
     this.name = AppBrand.name,
+    this.driver = false,
   });
 
   /// Called once, after the full animation, on the frame the app takes over.
@@ -31,6 +35,10 @@ class BrandSplash extends StatefulWidget {
 
   /// The wordmark to draw. Defaults to [AppBrand.name].
   final String name;
+
+  /// The driver app's lockup: the driver colourway of the mark and a
+  /// "Driver" pill after the wordmark.
+  final bool driver;
 
   @override
   State<BrandSplash> createState() => _BrandSplashState();
@@ -66,9 +74,11 @@ class _BrandSplashState extends State<BrandSplash>
         curve: Interval(0, settleEnd, curve: AppMotion.emphasized),
       ),
     );
+    // The bar is the loader: it fills from the moment the wordmark is in
+    // until the handover, so it finishes exactly as the app takes over.
     _rule = CurvedAnimation(
       parent: _c,
-      curve: Interval(fadeEnd, settleEnd, curve: AppMotion.emphasized),
+      curve: Interval(fadeEnd, 1, curve: Curves.easeInOut),
     );
     _c.forward();
     // A timer, not an animation-status listener: the handover must happen even
@@ -90,6 +100,8 @@ class _BrandSplashState extends State<BrandSplash>
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = dark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final driver =
+        widget.driver || widget.name.toLowerCase().contains('driver');
     return Scaffold(
       backgroundColor: dark
           ? AppColors.backgroundDark
@@ -106,10 +118,7 @@ class _BrandSplashState extends State<BrandSplash>
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    RideVelaMark(
-                      size: 48,
-                      driver: widget.name.toLowerCase().contains('driver'),
-                    ),
+                    RideVelaMark(size: 48, driver: driver),
                     const SizedBox(width: AppSpacing.md),
                     Text(
                       widget.name,
@@ -121,6 +130,10 @@ class _BrandSplashState extends State<BrandSplash>
                         color: ink,
                       ),
                     ),
+                    if (driver) ...[
+                      const SizedBox(width: AppSpacing.sm),
+                      const RideVelaDriverPill(),
+                    ],
                   ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -154,9 +167,17 @@ class _BrandSplashState extends State<BrandSplash>
 /// It is a one-shot per widget lifetime: rebuilds of [child] underneath (the
 /// router settling, a bloc emitting) do not restart the animation.
 class BrandSplashGate extends StatefulWidget {
-  const BrandSplashGate({super.key, required this.child, this.enabled = true});
+  const BrandSplashGate({
+    super.key,
+    required this.child,
+    this.enabled = true,
+    this.driver = false,
+  });
 
   final Widget child;
+
+  /// The driver app's lockup (see [BrandSplash.driver]).
+  final bool driver;
 
   /// False skips the splash entirely — used by widget tests, which should not
   /// have to pump 1.4 s of brand animation before they can find anything.
@@ -179,6 +200,7 @@ class _BrandSplashGateState extends State<BrandSplashGate> {
             child: TickerMode(
               enabled: true,
               child: BrandSplash(
+                driver: widget.driver,
                 onDone: () => setState(() => _showing = false),
               ),
             ),

@@ -26,7 +26,7 @@ class StarRating extends StatelessWidget {
     final muted = Theme.of(context).brightness == Brightness.dark
         ? AppColors.borderDark
         : AppColors.borderLight;
-    return Row(
+    final row = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(5, (i) {
         final filled = i < value;
@@ -36,31 +36,47 @@ class StarRating extends StatelessWidget {
           color: filled ? color : muted,
         );
         // A filled star springs in; re-keying on `value` re-triggers the pop
-        // each time the rating changes, so tapping cascades the stars.
+        // each time the rating changes, so tapping cascades the stars. Under
+        // Reduce Motion the fill alone says it.
         if (filled) {
-          star = star
-              .animate(key: ValueKey('star_${i}_$value'))
-              .scaleXY(
-                begin: 0.6,
-                end: 1,
-                duration: AppMotion.normal,
-                curve: AppMotion.emphasized,
-              );
+          star = star.motion(
+            (w) => w.animate(key: ValueKey('star_${i}_$value')).scaleXY(
+                  begin: 0.6,
+                  end: 1,
+                  duration: AppMotion.slow,
+                  curve: AppMotion.enter,
+                ),
+            fadeWhenReduced: false,
+          );
         }
         if (onRate == null) {
           return Padding(padding: const EdgeInsets.all(2), child: star);
         }
-        return IconButton(
-          onPressed: () {
-            AppHaptics.selection();
-            onRate!(i + 1);
-          },
-          icon: star,
-          padding: const EdgeInsets.all(2),
-          constraints: const BoxConstraints(),
-          splashRadius: size * 0.7,
+        final n = i + 1;
+        // A screen reader hears "Rate 4 stars", and which stars are lit;
+        // the target is 48 × 48 whatever the star size (Android minimum).
+        return Semantics(
+          selected: filled,
+          child: IconButton(
+            tooltip: n == 1 ? 'Rate 1 star' : 'Rate $n stars',
+            onPressed: () {
+              AppHaptics.selection();
+              onRate!(n);
+            },
+            icon: star,
+            padding: const EdgeInsets.all(2),
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            splashRadius: size * 0.7,
+          ),
         );
       }),
+    );
+    if (onRate != null) return row;
+    // Read-only: one phrase, not five unlabelled star glyphs.
+    return Semantics(
+      label: 'Rated $value out of 5',
+      excludeSemantics: true,
+      child: row,
     );
   }
 }

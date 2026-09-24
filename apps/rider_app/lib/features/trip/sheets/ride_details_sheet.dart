@@ -157,6 +157,7 @@ class RideDetailsContent extends StatelessWidget {
                       icon: PhosphorIconsRegular.ticket,
                       label: 'Plate',
                       value: plate,
+                      spokenValue: AppA11y.spell(plate),
                     ),
                 ],
               ),
@@ -231,16 +232,21 @@ class _RideDetailRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.spokenValue,
   });
 
   final IconData icon;
   final String label;
   final String value;
 
+  /// What a screen reader says for [value] when it differs (a plate, spelled
+  /// out character by character).
+  final String? spokenValue;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,6 +265,13 @@ class _RideDetailRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+    final spoken = spokenValue;
+    if (spoken == null) return row;
+    return Semantics(
+      label: '$label: $spoken',
+      excludeSemantics: true,
+      child: row,
     );
   }
 }

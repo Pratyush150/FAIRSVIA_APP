@@ -74,7 +74,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
       curve: AppMotion.standard,
       child: SizedBox(
         width: double.infinity,
-        height: 56,
+        height: AppSpacing.buttonHeight,
         child: FilledButton(
           statesController: _states,
           style: FilledButton.styleFrom(

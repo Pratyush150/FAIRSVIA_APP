@@ -33,7 +33,8 @@ class RecenterPill extends StatelessWidget {
       ignoring: !visible,
       child: AnimatedSlide(
         offset: visible ? Offset.zero : const Offset(0, 0.4),
-        duration: AppMotion.normal,
+        // Reduce Motion: no slide, the fade below still shows it arriving.
+        duration: AppMotion.of(context, AppMotion.normal),
         curve: AppMotion.emphasized,
         child: AnimatedOpacity(
           opacity: visible ? 1 : 0,

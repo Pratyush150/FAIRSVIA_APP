@@ -133,9 +133,14 @@ class _CompletedSheetState extends State<CompletedSheet> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
+          // Announced as it appears: the ride's last change of moment.
           Center(
-            child: Text(RideStatus.of(state).title,
-                style: theme.textTheme.headlineSmall),
+            child: Semantics(
+              liveRegion: true,
+              header: true,
+              child: Text(RideStatus.of(state).title,
+                  style: theme.textTheme.headlineSmall),
+            ),
           ),
           const SizedBox(height: AppSpacing.lg),
           // One line — "Total ₹75" — with everything that makes it up folded
@@ -160,10 +165,13 @@ class _CompletedSheetState extends State<CompletedSheet> {
                   const Icon(PhosphorIconsRegular.money,
                       size: 16, color: AppColors.warning),
                   const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    'Pay ${Fmt.money(fare + tip, state.receipt?.currency)} in cash to your driver',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: AppColors.warning),
+                  // Wraps at large text sizes instead of running off the edge.
+                  Expanded(
+                    child: Text(
+                      'Pay ${Fmt.money(fare + tip, state.receipt?.currency)} in cash to your driver',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: AppColors.warning),
+                    ),
                   ),
                 ],
               ),
@@ -429,7 +437,9 @@ class _TipChip extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final enabled = onTap != null || selected;
-    return Material(
+    return Semantics(
+      selected: selected,
+      child: Material(
       color: Colors.transparent,
       child: Ink(
         decoration: BoxDecoration(
@@ -453,17 +463,52 @@ class _TipChip extends StatelessWidget {
           child: Container(
             height: 48,
             alignment: Alignment.center,
-            child: Text(
-              Money.format(amount, wholeOnly: true),
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: selected
-                    ? AppColors.accent
-                    : (enabled ? theme.colorScheme.onSurface : null),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            // Scales down rather than clipping at large text sizes; the
+            // chosen amount carries a check, so it is never colour alone.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _ChipLabel(
+                text: Money.format(amount, wholeOnly: true),
+                selected: selected,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: selected
+                      ? AppColors.accent
+                      : (enabled ? theme.colorScheme.onSurface : null),
+                ),
               ),
             ),
           ),
         ),
       ),
+      ),
+    );
+  }
+}
+
+/// A tip amount (or "Custom") with a check in front once it is the chosen
+/// one — so the selection reads without relying on the accent colour.
+class _ChipLabel extends StatelessWidget {
+  const _ChipLabel({
+    required this.text,
+    required this.selected,
+    required this.style,
+  });
+  final String text;
+  final bool selected;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (selected) ...[
+          Icon(PhosphorIconsRegular.check, size: 16, color: AppColors.accent),
+          const SizedBox(width: 4),
+        ],
+        Text(text, maxLines: 1, style: style),
+      ],
     );
   }
 }
@@ -479,7 +524,9 @@ class _CustomTipChip extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final enabled = onTap != null || selected;
-    return Material(
+    return Semantics(
+      selected: selected,
+      child: Material(
       color: Colors.transparent,
       child: Ink(
         decoration: BoxDecoration(
@@ -498,16 +545,22 @@ class _CustomTipChip extends StatelessWidget {
           child: Container(
             height: 48,
             alignment: Alignment.center,
-            child: Text(
-              'Custom',
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: selected
-                    ? AppColors.accent
-                    : (enabled ? theme.colorScheme.onSurface : null),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _ChipLabel(
+                text: 'Custom',
+                selected: selected,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: selected
+                      ? AppColors.accent
+                      : (enabled ? theme.colorScheme.onSurface : null),
+                ),
               ),
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -620,7 +673,8 @@ class _ComplimentTagsState extends State<_ComplimentTags> {
                 label: Text(tag),
                 selected: _selected.contains(tag),
                 onSelected: (_) => _toggle(tag),
-                showCheckmark: false,
+                // The check says "chosen" without relying on the tint.
+                showCheckmark: true,
                 selectedColor: AppColors.accentSoft,
                 side: BorderSide(
                   color: _selected.contains(tag)

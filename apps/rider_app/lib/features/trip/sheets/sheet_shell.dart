@@ -58,7 +58,9 @@ class RideSheetForPhase extends StatelessWidget {
     };
     // Cross-fade + slide between phases, and smoothly resize the sheet as each
     // phase's content changes height — so the flow feels like one continuous
-    // surface rather than a stack of hard-swapped cards.
+    // surface rather than a stack of hard-swapped cards. Under Reduce Motion
+    // it is a plain cross-fade: no slide, and the sheet snaps to its new size.
+    final reduced = AppMotion.reduced(context);
     return AppSheet(
       // Keep the routed map visible while choosing a ride: the options sheet
       // is otherwise tall enough to hide the route and both markers.
@@ -70,22 +72,24 @@ class RideSheetForPhase extends StatelessWidget {
               ? const CompletedDoneButton()
               : null,
       child: AnimatedSize(
-        duration: AppMotion.normal,
+        duration: reduced ? Duration.zero : AppMotion.slow,
         curve: AppMotion.standard,
         alignment: Alignment.bottomCenter,
         child: AnimatedSwitcher(
-          duration: AppMotion.normal,
-          switchInCurve: AppMotion.emphasized,
+          duration: AppMotion.slow,
+          switchInCurve: AppMotion.enter,
           switchOutCurve: AppMotion.exit,
           transitionBuilder: (child, anim) => FadeTransition(
             opacity: anim,
-            child: SlideTransition(
-              position: Tween(
-                begin: const Offset(0, 0.06),
-                end: Offset.zero,
-              ).animate(anim),
-              child: child,
-            ),
+            child: reduced
+                ? child
+                : SlideTransition(
+                    position: Tween(
+                      begin: const Offset(0, 0.06),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: child,
+                  ),
           ),
           layoutBuilder: (currentChild, previousChildren) => Stack(
             alignment: Alignment.bottomCenter,
@@ -224,19 +228,28 @@ class _RidePill extends StatelessWidget {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.only(top: 4, right: 6),
+      padding: const EdgeInsets.only(right: 6),
       child: Semantics(
         button: true,
         label: label,
+        onTap: onTap,
         excludeSemantics: true,
-        child: Material(
+        // The pill is drawn 40 tall, but the touch target is 48 (Android's
+        // minimum, above iOS's 44): the 4 pt band above and below it still
+        // takes the tap, without a ripple spilling past the pill.
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Material(
           color: dark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight,
           shape: const StadiumBorder(),
           child: InkWell(
             customBorder: const StadiumBorder(),
             onTap: onTap,
             child: ConstrainedBox(
-              // 44 pt tap target, per the icon rules.
               constraints: const BoxConstraints(minHeight: 40),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -251,6 +264,8 @@ class _RidePill extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
             ),
           ),
         ),

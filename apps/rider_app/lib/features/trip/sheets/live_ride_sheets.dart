@@ -52,11 +52,18 @@ class _FindingDriverState extends State<_FindingDriver> {
         Row(
           children: [
             // Animated radar sweeping for a nearby driver — reads as the system
-            // actively looking, not a generic spinner.
-            PulseRadar(
-              size: 56,
-              child: Icon(PhosphorIconsRegular.taxi,
-                  size: 20, color: AppColors.accent),
+            // actively looking, not a generic spinner. Under Reduce Motion the
+            // radar holds still (its ticker muted): the rings stay drawn, the
+            // "Finding your driver" headline says the rest.
+            TickerMode(
+              enabled: !AppMotion.reduced(context),
+              child: ExcludeSemantics(
+                child: PulseRadar(
+                  size: 56,
+                  child: Icon(PhosphorIconsRegular.taxi,
+                      size: 20, color: AppColors.accent),
+                ),
+              ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -407,7 +414,7 @@ class _RidePin extends StatelessWidget {
     final theme = Theme.of(context);
     final who = driverName == 'Your driver' ? 'your driver' : driverName;
     return Semantics(
-      label: 'Ride PIN ${pin.split('').join(' ')}. Tell $who when you get in.',
+      label: 'Ride PIN ${AppA11y.spell(pin)}. Tell $who when you get in.',
       excludeSemantics: true,
       child: Row(
         children: [
@@ -622,13 +629,18 @@ class _DriverVehicleCard extends StatelessWidget {
               children: [
                 // The plate is what the rider checks at the kerb, so it is the
                 // biggest thing on the card (Uber/Ola do the same).
+                // A screen reader spells it out, one character at a time —
+                // "M H 1 2…", not "MH twelve".
                 if (plate != null)
-                  Text(
-                    Market.current.formatPlate(plate),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800, letterSpacing: 1),
+                  Semantics(
+                    label: 'Number plate ${AppA11y.spell(Market.current.formatPlate(plate))}',
+                    excludeSemantics: true,
+                    child: Text(
+                      Market.current.formatPlate(plate),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.plate.copyWith(color: theme.colorScheme.onSurface),
+                    ),
                   ),
                 if (vehicle.isNotEmpty)
                   Text(
@@ -649,15 +661,26 @@ class _DriverVehicleCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
-                    const Icon(PhosphorIconsFill.star,
-                        size: 14, color: AppColors.star),
-                    const SizedBox(width: 2),
                     // No driver payload yet (e.g. restored after a cold
                     // start) — show "—" rather than inventing a 5.0.
-                    Text(
-                      d == null ? '—' : d.rating.toStringAsFixed(1),
-                      style: theme.textTheme.labelMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                    Semantics(
+                      label: d == null
+                          ? 'Rating not known yet'
+                          : 'Rated ${d.rating.toStringAsFixed(1)}',
+                      excludeSemantics: true,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(PhosphorIconsFill.star,
+                              size: 14, color: AppColors.star),
+                          const SizedBox(width: 2),
+                          Text(
+                            d == null ? '—' : d.rating.toStringAsFixed(1),
+                            style: theme.textTheme.labelMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

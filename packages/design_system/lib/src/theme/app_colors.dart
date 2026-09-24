@@ -131,6 +131,15 @@ class AppColors {
       planDark ? Color(0xFFA0A3A8) : Color(0xFFAFAFAF);
   static const Color textTertiaryDark = Color(0xFF8E8E8E);
 
+  // --- Icons -----------------------------------------------------------------
+  /// Neutral (non-semantic) icons: list-row leading glyphs, chevrons, inline
+  /// hints. Quieter than body text but above the 3:1 icon-contrast floor on
+  /// every surface of its mode (audit 3.1: icon.neutral #9A9DA3 on dark).
+  static const Color iconNeutralLight = Color(0xFF6B7078);
+  static const Color iconNeutralDark = Color(0xFF9A9DA3);
+  static Color iconNeutralFor(bool dark) =>
+      dark ? iconNeutralDark : iconNeutralLight;
+
   // --- Lines -----------------------------------------------------------------
   static const Color borderLight =
       planLight ? Color(0xFFE3E5E8) : Color(0xFFE8E8E8);
@@ -146,6 +155,17 @@ class AppColors {
   static const Color errorSoft = Color(0xFFFFEFED);
   static const Color errorSoftDark = Color(0xFF3A1510);
   static const Color info = Color(0xFF276EF1);
+
+  /// Danger and caution tuned for dark surfaces (audit 3.1): the light-mode
+  /// [error] #E11900 is only ~4.3:1 on black and [warning] #C67C00 ~6:1 but
+  /// muddy, so dark mode gets brighter equivalents. Used by the v2 theme
+  /// builds' dark scheme; the shipped turquoise default keeps [error] for now
+  /// (its dark screens were tuned with it) — widgets can opt in through
+  /// [dangerFor] / [warningFor].
+  static const Color dangerDark = Color(0xFFFF4D4F);
+  static const Color warningDark = Color(0xFFF5A623);
+  static Color dangerFor(bool dark) => dark ? dangerDark : error;
+  static Color warningFor(bool dark) => dark ? warningDark : warning;
   /// Rating stars.
   static const Color star = Color(0xFFFFC043);
 

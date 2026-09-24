@@ -31,6 +31,10 @@ class AppTheme {
     final ink = AppColors.inkFor(isDark);
     final onInk = AppColors.onInkFor(isDark);
     final soft = AppColors.softFor(isDark);
+    // The v2 builds use the audit's brighter dark-mode danger (#FF4D4F); the
+    // shipped turquoise default keeps the red its screens were tuned with.
+    final danger =
+        isDark && AppColors.v2 ? AppColors.dangerDark : AppColors.error;
 
     final colorScheme = ColorScheme(
       brightness: brightness,
@@ -46,7 +50,7 @@ class AppTheme {
       onSurfaceVariant: textSecondary,
       outline: border,
       outlineVariant: border,
-      error: AppColors.error,
+      error: danger,
       onError: Colors.white,
       surfaceTint: Colors.transparent,
     );
@@ -100,14 +104,16 @@ class AppTheme {
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.lg,
         ),
+        // Secondary, not tertiary, grey: tertiary is 4.6:1 on white but only
+        // ~4.1:1 on the muted field fill — under WCAG AA (audit 4.3).
         hintStyle: text.bodyLarge?.copyWith(
-          color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight,
+          color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
         ),
         border: inputBorder(Colors.transparent),
         enabledBorder: inputBorder(Colors.transparent),
         focusedBorder: inputBorder(ink, 1.6),
-        errorBorder: inputBorder(AppColors.error),
-        focusedErrorBorder: inputBorder(AppColors.error, 1.6),
+        errorBorder: inputBorder(danger),
+        focusedErrorBorder: inputBorder(danger, 1.6),
       ),
 
       filledButtonTheme: FilledButtonThemeData(
@@ -115,7 +121,7 @@ class AppTheme {
           backgroundColor: ink,
           foregroundColor: onInk,
           disabledBackgroundColor: ink.withValues(alpha: 0.3),
-          minimumSize: const Size(0, 56),
+          minimumSize: const Size(0, AppSpacing.buttonHeight),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           textStyle: text.labelLarge?.copyWith(fontSize: 16, fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(
@@ -127,7 +133,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: textPrimary,
-          minimumSize: const Size(0, 56),
+          minimumSize: const Size(0, AppSpacing.buttonHeight),
           side: BorderSide(color: border, width: 1.4),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           textStyle: text.labelLarge,
@@ -140,6 +146,9 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: ink,
+          // Tertiary actions: at least the 44 pt touch target.
+          minimumSize: const Size(AppSpacing.buttonHeightTertiary,
+              AppSpacing.buttonHeightTertiary),
           textStyle: text.labelLarge,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
@@ -191,8 +200,10 @@ class AppTheme {
       ),
 
       listTileTheme: ListTileThemeData(
-        iconColor: textSecondary,
-        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        iconColor:
+            AppColors.v2 ? AppColors.iconNeutralFor(isDark) : textSecondary,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: AppSpacing.screenMargin),
         titleTextStyle: text.titleMedium,
         subtitleTextStyle: text.bodyMedium,
         shape: RoundedRectangleBorder(

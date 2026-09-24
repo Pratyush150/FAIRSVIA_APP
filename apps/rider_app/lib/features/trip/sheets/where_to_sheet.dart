@@ -45,6 +45,7 @@ class _WhereToCard extends StatelessWidget {
         // One big pill is the whole call to action: "Where to?" on the left,
         // a "Later" chip on the right to book ahead.
         Semantics(
+          container: true,
           button: true,
           label: 'Where to?',
           child: Material(
@@ -61,10 +62,13 @@ class _WhereToCard extends StatelessWidget {
                     Icon(PhosphorIconsRegular.magnifyingGlass,
                         color: theme.colorScheme.onSurface, size: 24),
                     const SizedBox(width: AppSpacing.md),
+                    // Said once, by the pill's own label.
                     Expanded(
-                      child: Text('Where to?',
-                          style: theme.textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w600)),
+                      child: ExcludeSemantics(
+                        child: Text('Where to?',
+                            style: theme.textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w600)),
+                      ),
                     ),
                     if (onSchedule != null)
                       Padding(
@@ -109,7 +113,23 @@ class _LaterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
+    // Drawn ~34 tall inside the 56 pill, but it takes taps across a 48-tall
+    // band (Android's minimum target) without its ripple outgrowing it.
+    return Semantics(
+      container: true,
+      button: true,
+      label: 'Book for later',
+      onTap: onTap,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Center(
+            widthFactor: 1,
+            child: Material(
       color: theme.colorScheme.surface,
       shape: const StadiumBorder(),
       child: InkWell(
@@ -128,6 +148,10 @@ class _LaterChip extends StatelessWidget {
               Icon(PhosphorIconsRegular.caretDown,
                   size: 18, color: theme.colorScheme.onSurface),
             ],
+          ),
+        ),
+      ),
+            ),
           ),
         ),
       ),

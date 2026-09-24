@@ -84,7 +84,7 @@ class _NameSetupPageState extends State<NameSetupPage> {
               Text(
                 widget.subtitle,
                 style: theme.textTheme.bodyLarge
-                    ?.copyWith(color: AppColors.textSecondaryLight),
+                    ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: AppSpacing.xxl),
               TextField(

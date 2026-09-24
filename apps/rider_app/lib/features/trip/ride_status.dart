@@ -19,7 +19,9 @@ class RideStatus {
     required this.title,
     this.subtitle,
     this.tone = RideStatusTone.neutral,
-  });
+    String? moment,
+    this.momentDetail,
+  }) : moment = moment ?? title;
 
   /// The main line: what is happening ("Your driver is on the way").
   final String title;
@@ -28,6 +30,17 @@ class RideStatus {
   final String? subtitle;
 
   final RideStatusTone tone;
+
+  /// The headline without its ticking number, for screen readers: what they
+  /// announce when it changes. "Bekzod is on the way" while the headline
+  /// counts "Bekzod arriving in 4 min … 3 min" — so a reader hears each
+  /// real change of moment (on the way → arriving now → has arrived), not
+  /// every minute. Same as [title] when the title has no number in it.
+  final String moment;
+
+  /// The number [moment] leaves out ("arriving in 4 min"), read after it when
+  /// the headline is focused, so nothing on screen is hidden from a reader.
+  final String? momentDetail;
 
   /// At or below this ETA the driver counts as "almost here" — close enough
   /// that the rider should start walking out, not keep watching the map.
@@ -131,6 +144,8 @@ class RideStatus {
           title: almost
               ? '$who is arriving now'
               : '$who arriving in ${minuteLabel(eta)}',
+          moment: almost ? null : '$who is on the way',
+          momentDetail: almost ? null : 'arriving in ${minuteLabel(eta)}',
           subtitle: almost ? 'Head to your pickup spot' : 'Meet at your pickup spot',
           tone: almost ? RideStatusTone.success : RideStatusTone.accent,
         );

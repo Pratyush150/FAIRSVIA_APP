@@ -134,11 +134,15 @@ class _ChatPageState extends State<ChatPage> {
 
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
+      if (!_scroll.hasClients || !mounted) return;
+      // Reduce Motion: jump, don't scroll.
+      if (AppMotion.reduced(context)) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      } else {
         _scroll.animateTo(
           _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
+          duration: AppMotion.normal,
+          curve: AppMotion.standard,
         );
       }
     });
@@ -236,6 +240,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
             const SizedBox(width: AppSpacing.sm),
             IconButton.filled(
+              tooltip: 'Send message',
               onPressed: _sending ? null : _send,
               icon: const Icon(PhosphorIconsRegular.paperPlaneRight),
             ),
