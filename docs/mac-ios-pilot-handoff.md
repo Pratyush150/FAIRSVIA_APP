@@ -9,6 +9,45 @@ detail; where they disagree with this file, **this file wins**.
 
 ---
 
+## 0. UPDATE 2026-09-24 — read this before sections 1–10
+
+Since the v1.3.1 notes below, the UI audit (docs/plans/ui-10-audit-plan.md)
+Phases 2–3 and the theme variants landed. All Dart — **no Xcode project,
+Info.plist or native iOS change**. Android is verified on the emulator
+(Pune rides end to end); **iOS is still unbuilt** and must prove the same.
+
+**Build (Android numbers for reference: rider 1.5.x / 5015+):** same command
+as §5, with `--build-name=1.5.2 --build-number=5015`.
+
+**What the iPhone must now show (all verified on Android):**
+| Where | Expect |
+|---|---|
+| Sign in | "IN +91" chip inside the phone field, hint "98765 43210"; "Terms" and "Privacy Policy" are links (open a *Draft* page — no public URL yet). The code field offers the SMS code above the keyboard (iOS one-time-code autofill — **untested, please check**) |
+| Choose ride | Rows read "Pickup in 4 min · Drop 4:38 PM"; an ⓘ icon (not "Details") opens the fare breakdown; Cash/Add card sits right above Confirm; fares whole rupees (₹75) |
+| Finding driver | Rings spread from the pickup on the map; sheet says "Economy · ₹75 · Cash"; after 45 s "Still looking…" |
+| Driver on the way | Headline "Priya arriving in 9 min"; the **plate is the biggest text** on the card; PIN in four boxes; a grey **Safety** pill (labelled) |
+| Safety | Buttons **112 / Police 100 / Ambulance 108** (India) — if you see 102/103 the server's `EMERGENCY_NUMBERS` isn't set |
+| In trip | "On the way to <place>" once; "Arriving soon" under 500 m; Safety + Share pills |
+| Completed | One "Total ₹75" line with Details ⌄; tips ₹20/₹50/₹100/Custom; Done pinned at the bottom |
+| Pickup text | Landmark/road first: "Mote Mangal Karyalay Road, Dattwadi, Pune" |
+| Driver app | Before the location prompt, a RideVela screen explains why; deny → "Open Settings" banner. Account shows rating / trips (last 7 days) / plate |
+
+**Theme variants (owner comparison — Visual Direction v2):** build with
+`--dart-define=THEME=midnight` (Plan A), `daylight` (Plan B) or `daynight`
+(Plan C). On Android each is a separate app ("RideVela A · Midnight" etc.)
+so all sit on one phone. **On iOS they are NOT separate apps yet** — the
+bundle ID is the same, so each variant build replaces the last. Put one
+variant per iPhone, or add a bundle-ID suffix per variant in Xcode if you
+need them side by side (not done; say so if you do it).
+
+**SSH from the Linux server:** the server has a key for this Mac
+(`~/.ssh/id_ed25519_mac` on the server, comment "ubernav-server -> mac").
+Once its public key is in `~/.ssh/authorized_keys` here, the server can run
+`git pull` / `flutter build ios` over Tailscale (100.114.224.53). Installing
+on an iPhone still needs the phone cabled to this Mac.
+
+---
+
 ## 1. Where things stand (verified vs not)
 
 | | State |
