@@ -101,6 +101,8 @@ screenshot into `~/Desktop/ridevela-ui/<theme>/`, then the next.
 | `--dart-define=THEME=ink` | **E — Ink & Paper** | Thin **line-art icons** everywhere; serif headlines (Instrument Serif); **ink-drawn cars** in the list and on the map; receipt printed as a **ticket** (perforated edge, dotted leaders); hairline rules instead of cards; black buttons |
 | `--dart-define=THEME=glass` | **F — Map Glass** | No bottom sheet on home — a floating **frosted** "Where to?" pill; the ride card floats over the map and opens compact; **number-plate tag under the car on the map**; glossy icon beads; cards morph between steps. Check the blur is smooth on the iPhone |
 
+| `--dart-define=THEME=clay3d` | **G — 3D Clay** | **Every icon is a 3D clay image** (Airbnb-style), coloured by meaning; 3D cars; warm white page, deep teal buttons. Icons come from a colour bitmap font (sbix table for iOS) — **check the icons actually show in colour on the iPhone**; if they show as blank boxes, sbix isn't being used and we need an image fallback |
+
 The other `THEME=` flags in the code (indigo, lapis, marigold, copper, garnet)
 change colours only — the owner asked not to show those.
 
@@ -110,7 +112,7 @@ On Android the owner already has these as separate apps ("RideVela A ·
 Midnight", "B · Daylight", "C · Day&Night") — the APKs are on nova-pc in
 `~/ubernav/build-variants/`.
 
-## 5b. Put all seven looks on the owner's iPhone (the "IPAs")
+## 5b. Put all eight looks on the owner's iPhone (the "IPAs")
 
 iOS gives every build the same bundle ID, so by default each look replaces
 the last. To have **all four side by side on the iPhone** (as on Android),
@@ -119,7 +121,7 @@ commit the Xcode change:
 
 ```sh
 cd ~/ubernav/apps/rider_app
-for pair in ":RideVela" "midnight:RideVela A" "daylight:RideVela B" "daynight:RideVela C" "local:RideVela D" "ink:RideVela E" "glass:RideVela F"; do
+for pair in ":RideVela" "midnight:RideVela A" "daylight:RideVela B" "daynight:RideVela C" "local:RideVela D" "ink:RideVela E" "glass:RideVela F" "clay3d:RideVela G"; do
   t=${pair%%:*}; name=${pair#*:}
   SUF=${t:+.$t}
   flutter build ios --release \
