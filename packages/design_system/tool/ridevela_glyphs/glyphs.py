@@ -36,9 +36,18 @@ auto_fill = (
     + [("cut", circle(x, y, AUTO_WHEEL_R - 8)) for x, y in AUTO_WHEELS]
 )
 
+# Light weight (Plan E "Ink & Paper", THEME=ink): Phosphor Light draws on
+# the same grid with a 12-unit stroke, so the rings cut 6 in from the centre
+# line instead of 8.
+auto_light = (
+    [("stroke", AUTO_BODY, 12), ("stroke", AUTO_PANEL, 12), ("stroke", AUTO_BAR, 12)]
+    + [("stroke", circle(x, y, AUTO_WHEEL_R), 12) for x, y in AUTO_WHEELS]
+    + [("cut", circle(x, y, AUTO_WHEEL_R - 6)) for x, y in AUTO_WHEELS]
+)
+
 GLYPHS = [
     {"name": "autoRickshaw", "codepoint": 0xF8F0,
-     "regular": auto_regular, "fill": auto_fill},
+     "regular": auto_regular, "fill": auto_fill, "light": auto_light},
 ]
 
 # ------------------------------------------------------------------- bikeTaxi
@@ -82,5 +91,10 @@ def _cash(fill):
     return ops
 
 
+def _cash_light():
+    return [("stroke", NOTE, 12)] + [("stroke", d, 12) for d in RUPEE + CORNERS]
+
+
 GLYPHS.append({"name": "cashRupee", "codepoint": 0xF8F2,
-               "regular": _cash(False), "fill": _cash(True)})
+               "regular": _cash(False), "fill": _cash(True),
+               "light": _cash_light()})

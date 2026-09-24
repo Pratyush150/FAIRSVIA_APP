@@ -11,6 +11,7 @@ export 'src/theme/app_motion.dart';
 export 'src/theme/app_a11y.dart';
 export 'src/theme/app_variant.dart';
 export 'src/theme/app_glass.dart';
+export 'src/theme/app_ink.dart';
 
 export 'src/widgets/primary_button.dart';
 export 'src/widgets/secondary_button.dart';
@@ -40,6 +41,7 @@ export 'src/widgets/local_art.dart';
 export 'src/widgets/recenter_pill.dart';
 export 'src/widgets/blurred_scrim.dart';
 export 'src/widgets/brand_splash.dart';
+export 'src/widgets/ink_paper.dart';
 
 // Re-export flutter_animate so apps get the `.animate()` API (and our reveal
 // helpers) from a single design_system import.

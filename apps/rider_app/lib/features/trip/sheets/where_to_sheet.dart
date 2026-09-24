@@ -46,8 +46,13 @@ class _WhereToCard extends StatelessWidget {
           label: 'Where to?',
           child: Material(
             // Plan F: the pill *is* glass (drawn by _FloatingWhereTo).
-            color: AppGlass.enabled ? Colors.transparent : muted,
-            shape: const StadiumBorder(),
+            // THEME=ink: no filled box; the field is a line to write on
+            // (the outline token, 3.3:1, since it is the control's edge).
+            color: AppGlass.enabled || InkPaper.on ? Colors.transparent : muted,
+            shape: InkPaper.on
+                ? Border(
+                    bottom: BorderSide(color: InkPaper.outline(isDark)))
+                : const StadiumBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: onTap,
@@ -55,7 +60,7 @@ class _WhereToCard extends StatelessWidget {
                 height: 56,
                 child: Row(
                   children: [
-                    const SizedBox(width: AppSpacing.lg),
+                    SizedBox(width: InkPaper.on ? AppSpacing.xs : AppSpacing.lg),
                     Icon(PhosphorIconsRegular.magnifyingGlass,
                         color: theme.colorScheme.onSurface, size: 24),
                     const SizedBox(width: AppSpacing.md),
@@ -63,8 +68,9 @@ class _WhereToCard extends StatelessWidget {
                     Expanded(
                       child: ExcludeSemantics(
                         child: Text('Where to?',
-                            style: theme.textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w600)),
+                            style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: InkPaper.on ? 20 : null)),
                       ),
                     ),
                     if (onSchedule != null)
@@ -91,7 +97,9 @@ class _WhereToCard extends StatelessWidget {
         if (place != savedPlaces.last)
           Padding(
             padding: const EdgeInsets.only(left: 56),
-            child: Divider(height: 1, color: theme.dividerColor),
+            child: InkPaper.on
+                ? const InkRule()
+                : Divider(height: 1, color: theme.dividerColor),
           ),
       ],
     ];
@@ -148,8 +156,13 @@ class _LaterChip extends StatelessWidget {
           child: Center(
             widthFactor: 1,
             child: Material(
-      color: theme.colorScheme.surface,
-      shape: const StadiumBorder(),
+      color: InkPaper.on ? Colors.transparent : theme.colorScheme.surface,
+      shape: InkPaper.on
+          ? StadiumBorder(
+              side: BorderSide(
+                  color: InkPaper.outline(
+                      theme.brightness == Brightness.dark)))
+          : const StadiumBorder(),
       child: InkWell(
         onTap: onTap,
         customBorder: const StadiumBorder(),

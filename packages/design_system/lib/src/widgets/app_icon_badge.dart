@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_ink.dart';
 import '../theme/app_variant.dart';
 import '../theme/phosphor_fill_map.dart';
 
@@ -102,20 +103,35 @@ class AppIconBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final (fill, ink) = colorsFor(tone, dark);
+    // Plan E (THEME=ink): no tinted disc — a hairline circle, ink on paper.
+    // Plan D (THEME=local): the tint with a hairline warm ring, like a
+    // printed stamp's edge. Plan F (THEME=glass): a glossy bead.
+    final decoration = InkPaper.on
+        ? BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: tone == AppIconBadgeTone.brand ||
+                      tone == AppIconBadgeTone.neutral
+                  ? InkPaper.outline(dark)
+                  : ink,
+              width: 1,
+            ),
+          )
+        : BoxDecoration(
+            color: fill,
+            shape: BoxShape.circle,
+            border: AppVariant.local && tone == AppIconBadgeTone.brand
+                ? Border.all(
+                    color: LocalColour.marigold
+                        .withValues(alpha: dark ? 0.35 : 0.45))
+                : null,
+          );
     final badge = AppColors.glass
         ? _glassBadge(fill, ink, dark)
         : Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: fill,
-        shape: BoxShape.circle,
-        // Plan D: a hairline warm ring, like a printed stamp's edge.
-        border: AppVariant.local && tone == AppIconBadgeTone.brand
-            ? Border.all(
-                color: LocalColour.marigold.withValues(alpha: dark ? 0.35 : 0.45))
-            : null,
-      ),
+      decoration: decoration,
       alignment: Alignment.center,
       child: Icon(glyphFor(icon), size: iconSize, color: ink),
     );

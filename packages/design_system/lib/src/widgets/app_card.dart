@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_elevation.dart';
+import '../theme/app_ink.dart';
 import '../theme/app_spacing.dart';
 
 /// A rounded surface panel. Borderless by default — content is grouped by
@@ -34,6 +35,8 @@ class AppCard extends StatelessWidget {
     final border = isDark ? AppColors.borderDark : AppColors.borderLight;
     final radius = BorderRadius.circular(AppSpacing.radius);
 
+    if (InkPaper.on && !selected) return _ruled(context, isDark);
+
     final decoration = BoxDecoration(
       color: color ?? Theme.of(context).colorScheme.surface,
       borderRadius: radius,
@@ -60,6 +63,30 @@ class AppCard extends StatelessWidget {
           borderRadius: radius,
           child: content,
         ),
+      ),
+    );
+  }
+
+  /// Plan E (THEME=ink): no card. The content sits on the page under a
+  /// hairline rule, flush with the text around it, like a section of a
+  /// printed page. Selection keeps the ring (it is meaning, not decoration).
+  Widget _ruled(BuildContext context, bool isDark) {
+    final rule = BorderSide(color: InkPaper.rule(isDark));
+    final pad = padding == const EdgeInsets.all(AppSpacing.lg)
+        ? const EdgeInsets.symmetric(vertical: AppSpacing.x20)
+        : padding;
+    // A rule above only: stacked sections then share one line between them
+    // instead of doubling up.
+    final decoration = BoxDecoration(border: Border(top: rule));
+    final content = Padding(padding: pad, child: child);
+    if (onTap == null) {
+      return DecoratedBox(decoration: decoration, child: content);
+    }
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        decoration: decoration,
+        child: InkWell(onTap: onTap, child: content),
       ),
     );
   }

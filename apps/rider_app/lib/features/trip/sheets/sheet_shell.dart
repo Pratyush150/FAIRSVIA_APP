@@ -256,8 +256,16 @@ class _RidePill extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Material(
-          color: dark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight,
-          shape: const StadiumBorder(),
+          // THEME=ink: an ink-outline pill on the paper.
+          color: InkPaper.on
+              ? Colors.transparent
+              : dark
+              ? AppColors.surfaceMutedDark
+              : AppColors.surfaceMutedLight,
+          shape: InkPaper.on
+              ? StadiumBorder(
+                  side: BorderSide(color: InkPaper.outline(dark)))
+              : const StadiumBorder(),
           child: InkWell(
             customBorder: const StadiumBorder(),
             onTap: onTap,

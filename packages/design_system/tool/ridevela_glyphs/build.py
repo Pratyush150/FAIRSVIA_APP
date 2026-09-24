@@ -19,6 +19,7 @@ quadratics and written into both fonts at private-use code points.
 
   pip install --user fonttools skia-pathops
   python3 tool/ridevela_glyphs/build.py            # from packages/design_system
+  python3 tool/ridevela_glyphs/build.py light      # just the named weight(s)
 """
 import os
 import sys
@@ -41,6 +42,8 @@ PKG = os.path.dirname(os.path.dirname(HERE))
 FONTS = {
     "regular": os.path.join(PKG, "fonts", "Phosphor-Regular.ttf"),
     "fill": os.path.join(PKG, "fonts", "Phosphor-Fill.ttf"),
+    # Plan E (THEME=ink) — Phosphor Light, the 12-unit stroke weight.
+    "light": os.path.join(PKG, "fonts", "Phosphor-Light.ttf"),
 }
 
 
@@ -100,7 +103,10 @@ def tt_glyph(path):
 def main():
     out_svg = os.path.join(HERE, "svg")
     os.makedirs(out_svg, exist_ok=True)
+    only = set(sys.argv[1:]) or set(FONTS)
     for weight, font_path in FONTS.items():
+        if weight not in only:
+            continue
         # Phosphor stores padded glyph bboxes (xMin 0 = lsb 0). Recalculating
         # them would move xMin off the hmtx lsb and shift every existing icon
         # sideways in FreeType/Skia, so leave the existing bboxes alone.

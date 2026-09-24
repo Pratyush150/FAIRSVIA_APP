@@ -692,6 +692,11 @@ class _PaymentModeToggle extends StatelessWidget {
   }
 }
 
+/// What marks the chosen option: the ink, or teal in THEME=ink (Plan E keeps
+/// teal for the route and the selection).
+Color get _selectionInk =>
+    InkPaper.on ? AppColors.highlight : AppColors.accent;
+
 class _PayChip extends StatelessWidget {
   const _PayChip({
     required this.icon,
@@ -726,23 +731,29 @@ class _PayChip extends StatelessWidget {
         // 48 tall: Android's minimum touch target.
         constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        // THEME=ink: outlined on the paper; the chosen one in teal (the
+        // selection colour), 1.6 wide, with the check.
         decoration: BoxDecoration(
-          color: selected
+          color: selected && !InkPaper.on
               ? (theme.brightness == Brightness.dark
                   ? AppColors.accentSoftDark
                   : AppColors.accentSoft)
               : null,
           borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
           border: Border.all(
-            color: selected ? AppColors.accent : theme.dividerColor,
-            width: 2,
+            color: selected
+                ? _selectionInk
+                : (InkPaper.on
+                    ? InkPaper.outline(theme.brightness == Brightness.dark)
+                    : theme.dividerColor),
+            width: InkPaper.on ? (selected ? 1.6 : 1) : 2,
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(selected ? PhosphorIconsFill.checkCircle : icon,
-                size: 20, color: selected ? AppColors.accent : null),
+                size: 20, color: selected ? _selectionInk : null),
             const SizedBox(width: AppSpacing.sm),
             Flexible(
               child: Text(
@@ -750,13 +761,13 @@ class _PayChip extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  color: selected ? AppColors.accent : null,
+                  color: selected ? _selectionInk : null,
                 ),
               ),
             ),
             if (trailing != null)
               Icon(trailing,
-                  size: 20, color: selected ? AppColors.accent : null),
+                  size: 20, color: selected ? _selectionInk : null),
           ],
         ),
       ),
@@ -919,17 +930,25 @@ class _RideTierTile extends StatelessWidget {
       child: Opacity(
        opacity: onTap == null ? 0.4 : 1,
        child: Padding(
-        padding: const EdgeInsets.only(bottom: 4),
+        padding: EdgeInsets.only(bottom: InkPaper.on ? 0 : 4),
         child: Material(
           color: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSpacing.radius),
-            // The selected ride is outlined in ink; the rest have no box at all.
-            side: BorderSide(
-              color: selected ? AppColors.highlight : Colors.transparent,
-              width: 2,
-            ),
-          ),
+          // THEME=ink: ruled rows, no box; the selection is the teal marker
+          // under the name and a teal check (below).
+          shape: InkPaper.on
+              ? Border(
+                  bottom: BorderSide(
+                      color: InkPaper.rule(
+                          theme.brightness == Brightness.dark)))
+              : RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radius),
+                  // The selected ride is outlined in ink; the rest have no
+                  // box at all.
+                  side: BorderSide(
+                    color: selected ? AppColors.highlight : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
@@ -940,7 +959,24 @@ class _RideTierTile extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: 76,
-                    child: VehicleGlyph(tier: tier.tier, width: 76),
+                    child: InkPaper.on
+                        // THEME=ink: the teal check sits on the drawing's
+                        // corner, so selection is never the underline's
+                        // colour alone and the text column keeps its width.
+                        ? Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              VehicleGlyph(tier: tier.tier, width: 76),
+                              if (selected)
+                                Positioned(
+                                  left: -2,
+                                  top: -4,
+                                  child: Icon(PhosphorIconsRegular.check,
+                                      size: 20, color: AppColors.highlight),
+                                ),
+                            ],
+                          )
+                        : VehicleGlyph(tier: tier.tier, width: 76),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -950,11 +986,17 @@ class _RideTierTile extends StatelessWidget {
                         Row(
                           children: [
                             Flexible(
-                              child: Text(tier.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700)),
+                              child: MarkerUnderline(
+                                visible: InkPaper.on && selected,
+                                child: Text(tier.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                            fontWeight: InkPaper.on
+                                                ? FontWeight.w600
+                                                : FontWeight.w700)),
+                              ),
                             ),
                             const SizedBox(width: 6),
                             Icon(PhosphorIconsRegular.user,

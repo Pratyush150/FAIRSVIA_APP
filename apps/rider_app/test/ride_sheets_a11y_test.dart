@@ -137,6 +137,16 @@ void main() {
         await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
         await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
         await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+        if (AppGlass.enabled) {
+          // Plan F fades the last 32 px of a sheet that scrolls (the "more
+          // below" cue) — half-faded text there is the cue, not a contrast
+          // bug. Scroll to the end so every row is measured fully drawn.
+          for (final e in find.byType(Scrollable).evaluate()) {
+            final pos = (e as StatefulElement).state as ScrollableState;
+            pos.position.jumpTo(pos.position.maxScrollExtent);
+          }
+          await tester.pump();
+        }
         await expectLater(tester, meetsGuideline(textContrastGuideline));
         handle.dispose();
       });
