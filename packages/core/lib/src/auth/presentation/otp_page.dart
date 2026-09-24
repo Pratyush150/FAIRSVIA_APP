@@ -174,7 +174,7 @@ class _OtpPageState extends State<OtpPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.construction_rounded,
+                            const Icon(PhosphorIconsRegular.wrench,
                                 size: 16, color: AppColors.warning),
                             const SizedBox(width: AppSpacing.xs),
                             Text(

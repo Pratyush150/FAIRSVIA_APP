@@ -48,7 +48,7 @@ class _RideOptions extends StatelessWidget {
             padding: const EdgeInsets.only(top: AppSpacing.sm),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded,
+                const Icon(PhosphorIconsRegular.info,
                     size: 16, color: AppColors.warning),
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
@@ -130,7 +130,7 @@ class _BookForSomeoneElseRow extends StatelessWidget {
       return Align(
         alignment: Alignment.centerLeft,
         child: TextButton.icon(
-          icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+          icon: const Icon(PhosphorIconsRegular.userPlus, size: 18),
           label: const Text('Book for someone else'),
           onPressed: () async {
             final result = await _askPassenger(context, null);
@@ -142,7 +142,7 @@ class _BookForSomeoneElseRow extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(Icons.person_pin_circle_outlined,
+        Icon(PhosphorIconsRegular.userCircle,
             size: 18, color: AppColors.accent),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
@@ -165,7 +165,7 @@ class _BookForSomeoneElseRow extends StatelessWidget {
         ),
         IconButton(
           tooltip: 'Ride it myself',
-          icon: const Icon(Icons.close, size: 18),
+          icon: const Icon(PhosphorIconsRegular.x, size: 18),
           onPressed: () => cubit.setPassenger(null),
         ),
       ],
@@ -315,7 +315,7 @@ class _StopsSection extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: AppSpacing.xs),
             child: Row(
               children: [
-                const Icon(Icons.trip_origin, size: 16),
+                const Icon(PhosphorIconsRegular.record, size: 16),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -327,7 +327,7 @@ class _StopsSection extends StatelessWidget {
                 ),
                 InkWell(
                   onTap: () => cubit.removeStop(i),
-                  child: const Icon(Icons.close, size: 16),
+                  child: const Icon(PhosphorIconsRegular.x, size: 16),
                 ),
               ],
             ),
@@ -336,7 +336,7 @@ class _StopsSection extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
             onPressed: canAdd ? () => _addStop(context) : null,
-            icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+            icon: const Icon(PhosphorIconsRegular.mapPinPlus, size: 18),
             label: Text(canAdd ? 'Add stop' : 'Max 3 stops'),
           ),
         ),
@@ -489,7 +489,7 @@ class _ScheduleRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.schedule, size: 18),
+            const Icon(PhosphorIconsRegular.clock, size: 18),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -499,7 +499,7 @@ class _ScheduleRow extends StatelessWidget {
             ),
             if (when != null)
               IconButton(
-                icon: const Icon(Icons.close, size: 18),
+                icon: const Icon(PhosphorIconsRegular.x, size: 18),
                 tooltip: 'Ride now instead',
                 onPressed: () => cubit.setScheduledAt(null),
               )
@@ -528,7 +528,7 @@ class _ScheduledConfirmation extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(Icons.event_available, color: AppColors.accent, size: 48),
+        Icon(PhosphorIconsRegular.calendarCheck, color: AppColors.accent, size: 48),
         const SizedBox(height: AppSpacing.sm),
         Center(
           child: Text('Ride scheduled', style: theme.textTheme.headlineSmall),
@@ -592,10 +592,10 @@ class _PaymentModeToggle extends StatelessWidget {
       children: [
         Expanded(
           child: _PayChip(
-            icon: Icons.credit_card,
+            icon: PhosphorIconsRegular.creditCard,
             label: cardLabel,
             selected: cardSelected,
-            trailing: hasChoice ? Icons.expand_more : null,
+            trailing: hasChoice ? PhosphorIconsRegular.caretDown : null,
             onTap: () {
               if (card == null) {
                 _addCard(context, cubit);
@@ -610,7 +610,7 @@ class _PaymentModeToggle extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: _PayChip(
-            icon: Icons.payments_outlined,
+            icon: PhosphorIconsRegular.money,
             label: 'Cash',
             selected: state.paymentMode == 'cash',
             onTap: () => cubit.setPaymentMode('cash'),
@@ -658,10 +658,10 @@ class _PaymentModeToggle extends StatelessWidget {
               ),
               for (final c in cards)
                 ListTile(
-                  leading: const Icon(Icons.credit_card),
+                  leading: const Icon(PhosphorIconsRegular.creditCard),
                   title: Text(_cardLabel(c)),
                   trailing: c['id'] == activeId
-                      ? Icon(Icons.check, color: AppColors.accent)
+                      ? Icon(PhosphorIconsRegular.check, color: AppColors.accent)
                       : null,
                   onTap: () {
                     AppHaptics.selection();
@@ -801,7 +801,7 @@ class _PromoFieldState extends State<_PromoField> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.local_offer, size: 18, color: AppColors.success),
+            const Icon(PhosphorIconsRegular.tag, size: 18, color: AppColors.success),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -811,7 +811,7 @@ class _PromoFieldState extends State<_PromoField> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.close, size: 18),
+              icon: const Icon(PhosphorIconsRegular.x, size: 18),
               tooltip: 'Remove promo',
               onPressed: cubit.removePromo,
             ),
@@ -831,7 +831,7 @@ class _PromoFieldState extends State<_PromoField> {
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(
                   hintText: 'Promo code',
-                  prefixIcon: Icon(Icons.local_offer_outlined),
+                  prefixIcon: Icon(PhosphorIconsRegular.tag),
                   isDense: true,
                 ),
                 onSubmitted: (v) => cubit.applyPromo(v),
@@ -929,7 +929,7 @@ class _RideTierTile extends StatelessWidget {
                                       ?.copyWith(fontWeight: FontWeight.w700)),
                             ),
                             const SizedBox(width: 6),
-                            Icon(Icons.person_rounded,
+                            Icon(PhosphorIconsRegular.user,
                                 size: 14, color: theme.colorScheme.onSurface),
                             Text('${tier.capacity}',
                                 style: theme.textTheme.labelMedium),
@@ -1074,7 +1074,7 @@ class _PickupNoteFieldState extends State<_PickupNoteField> {
       maxLines: 2,
       decoration: const InputDecoration(
         hintText: 'Note for driver (e.g. "meet at the lobby")',
-        prefixIcon: Icon(Icons.sticky_note_2_outlined),
+        prefixIcon: Icon(PhosphorIconsRegular.note),
         isDense: true,
         counterText: '',
       ),

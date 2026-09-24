@@ -112,7 +112,7 @@ class _SheetWarning extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.info_outline_rounded,
+        const Icon(PhosphorIconsRegular.info,
             size: 16, color: AppColors.warning),
         const SizedBox(width: AppSpacing.xs),
         Expanded(
@@ -181,7 +181,7 @@ void _openSafety(BuildContext context, TripState state) {
 Widget _sosButton(BuildContext context, TripState state) {
   return IconButton(
     tooltip: 'Safety',
-    icon: const Icon(Icons.shield_outlined, color: AppColors.error),
+    icon: const Icon(PhosphorIconsRegular.shieldCheck, color: AppColors.error),
     onPressed: () => _openSafety(context, state),
   );
 }
@@ -261,7 +261,7 @@ class _ChatIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = const Icon(Icons.chat_bubble_outline);
+    final icon = const Icon(PhosphorIconsRegular.chatCircle);
     if (unread <= 0) return icon;
     return Badge.count(count: unread, child: icon);
   }

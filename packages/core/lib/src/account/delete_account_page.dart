@@ -98,7 +98,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                       color: dark ? AppColors.errorSoftDark : AppColors.errorSoft,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.person_off_rounded,
+                    child: const Icon(PhosphorIconsRegular.userMinus,
                         color: AppColors.error, size: 28),
                   ).animate().fadeIn(duration: AppMotion.normal).scale(
                       begin: const Offset(0.85, 0.85),
@@ -116,25 +116,25 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                     child: Column(
                       children: [
                         const _Fact(
-                          icon: Icons.delete_outline_rounded,
+                          icon: PhosphorIconsRegular.trash,
                           title: 'Erased',
                           body: 'Your name, email, photo, saved places, '
                               'cards, favourites, emergency contacts '
                               'and notifications.',
                         ),
                         const _Fact(
-                          icon: Icons.event_busy_rounded,
+                          icon: PhosphorIconsRegular.calendarX,
                           title: 'Cancelled',
                           body: 'Any rides you have scheduled for later.',
                         ),
                         const _Fact(
-                          icon: Icons.receipt_long_rounded,
+                          icon: PhosphorIconsRegular.receipt,
                           title: 'Kept, as the law requires',
                           body: 'Trip and payment records, no longer '
                               'linked to your name or number.',
                         ),
                         _Fact(
-                          icon: Icons.phone_iphone_rounded,
+                          icon: PhosphorIconsRegular.deviceMobile,
                           title: 'Your number is released',
                           body: 'You can sign up again with it later, '
                               'as a new account.',
@@ -142,7 +142,7 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                         ),
                         if (widget.isDriver)
                           const _Fact(
-                            icon: Icons.account_balance_wallet_rounded,
+                            icon: PhosphorIconsRegular.wallet,
                             title: 'Earnings first',
                             body: 'Withdraw any balance before you delete — '
                                 'it cannot be paid out afterwards.',
@@ -302,7 +302,7 @@ class _ErrorNotice extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.info_outline_rounded,
+            const Icon(PhosphorIconsRegular.info,
                 color: AppColors.error, size: 20),
             const SizedBox(width: AppSpacing.sm),
             Expanded(

@@ -35,13 +35,13 @@ Future<void> showAppearanceSheet(
                 for (final (m, icon, hint) in const [
                   (
                     ThemeMode.system,
-                    Icons.brightness_auto_rounded,
+                    PhosphorIconsRegular.circleHalf,
                     'Follows your phone\'s setting',
                   ),
-                  (ThemeMode.light, Icons.light_mode_rounded, 'Always light'),
+                  (ThemeMode.light, PhosphorIconsRegular.sun, 'Always light'),
                   (
                     ThemeMode.dark,
-                    Icons.dark_mode_rounded,
+                    PhosphorIconsRegular.moon,
                     'Always dark, easier at night',
                   ),
                 ])

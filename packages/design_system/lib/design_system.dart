@@ -40,3 +40,7 @@ export 'package:flutter_animate/flutter_animate.dart';
 
 // Re-export the geographic point type so apps get it via design_system.
 export 'package:latlong2/latlong.dart' show LatLng;
+
+// The one utility-icon family for every app (audit: Phosphor Regular by
+// default, Fill only for a state — a rated star, a favourite, a selection).
+export 'src/theme/phosphor_icons.dart';

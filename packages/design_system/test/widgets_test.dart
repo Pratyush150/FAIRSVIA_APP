@@ -225,7 +225,7 @@ void main() {
     testWidgets('PulseRadar paints and animates without throwing',
         (tester) async {
       await tester.pumpWidget(_wrap(
-        const PulseRadar(size: 64, child: Icon(Icons.local_taxi_rounded)),
+        const PulseRadar(size: 64, child: Icon(PhosphorIconsRegular.taxi)),
       ));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500)); // advance the loop

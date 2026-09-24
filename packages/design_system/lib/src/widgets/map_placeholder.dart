@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/phosphor_icons.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -28,7 +29,7 @@ class MapPlaceholder extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.map_outlined,
+              Icon(PhosphorIconsRegular.mapTrifold,
                   size: 48, color: AppColors.accent.withValues(alpha: 0.7)),
               const SizedBox(height: AppSpacing.sm),
               Padding(

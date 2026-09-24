@@ -215,7 +215,7 @@ class _SafetySheetState extends State<SafetySheet> {
         children: [
           Row(
             children: [
-              const Icon(Icons.shield_rounded, color: AppColors.error),
+              const Icon(PhosphorIconsRegular.shieldCheck, color: AppColors.error),
               const SizedBox(width: AppSpacing.sm),
               Text('Safety', style: theme.textTheme.headlineSmall),
             ],
@@ -254,7 +254,7 @@ class _SafetySheetState extends State<SafetySheet> {
                     children: [
                       PrimaryButton(
                         label: 'Send SOS alert',
-                        icon: Icons.sos_rounded,
+                        icon: PhosphorIconsRegular.siren,
                         destructive: true,
                         loading: _sending,
                         onPressed: _sending ? null : _sendSos,
@@ -270,7 +270,7 @@ class _SafetySheetState extends State<SafetySheet> {
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.md),
             _Notice(
-              icon: Icons.error_outline_rounded,
+              icon: PhosphorIconsRegular.warningCircle,
               color: AppColors.error,
               text: _error!,
             ),
@@ -278,7 +278,7 @@ class _SafetySheetState extends State<SafetySheet> {
           const SizedBox(height: AppSpacing.lg),
           OutlinedButton.icon(
             onPressed: _shareTrip,
-            icon: const Icon(Icons.ios_share_rounded),
+            icon: const Icon(PhosphorIconsRegular.export),
             label: const Text('Share trip status'),
           ),
         ],
@@ -379,7 +379,7 @@ class _SentPanel extends StatelessWidget {
     final r = result;
     final lines = <Widget>[
       _Notice(
-        icon: Icons.check_circle_rounded,
+        icon: PhosphorIconsFill.checkCircle,
         color: AppColors.success,
         text: r.repeat
             ? 'Your alert is still open with ${AppBrand.name} safety — '
@@ -389,7 +389,7 @@ class _SentPanel extends StatelessWidget {
     ];
     if (r.contactsTotal == 0) {
       lines.add(_Notice(
-        icon: Icons.person_add_alt_rounded,
+        icon: PhosphorIconsRegular.userPlus,
         color: AppColors.warning,
         text: 'No emergency contacts were texted — you have none saved.',
         action: TextButton(
@@ -397,7 +397,7 @@ class _SentPanel extends StatelessWidget {
       ));
     } else if (r.contactsNotified == r.contactsTotal) {
       lines.add(_Notice(
-        icon: Icons.sms_rounded,
+        icon: PhosphorIconsRegular.chatText,
         color: AppColors.success,
         text: r.repeat
             ? 'Your contacts were already texted a minute ago.'
@@ -406,7 +406,7 @@ class _SentPanel extends StatelessWidget {
     } else {
       final failed = r.contactsTotal - r.contactsNotified;
       lines.add(_Notice(
-        icon: Icons.sms_failed_rounded,
+        icon: PhosphorIconsRegular.chatCircleSlash,
         color: AppColors.warning,
         text: 'Texted ${r.contactsNotified} of ${r.contactsTotal} contacts — '
             "$failed couldn't be reached. Call them if you can.",

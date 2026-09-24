@@ -72,7 +72,7 @@ class ReceiptPage extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  r.isCash ? Icons.payments_outlined : Icons.credit_card,
+                  r.isCash ? PhosphorIconsRegular.money : PhosphorIconsRegular.creditCard,
                   size: 16,
                   color: AppColors.textSecondaryLight,
                 ),
@@ -185,9 +185,9 @@ class _Trip extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _point(theme, Icons.trip_origin, trip.pickup.address ?? 'Pickup'),
+        _point(theme, PhosphorIconsRegular.record, trip.pickup.address ?? 'Pickup'),
         const SizedBox(height: AppSpacing.xs),
-        _point(theme, Icons.location_on, trip.dropoff.address ?? 'Destination'),
+        _point(theme, PhosphorIconsRegular.mapPin, trip.dropoff.address ?? 'Destination'),
       ],
     );
   }

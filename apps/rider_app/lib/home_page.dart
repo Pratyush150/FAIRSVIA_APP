@@ -684,7 +684,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               AppCircleButton(
-                                icon: Icons.menu_rounded,
+                                icon: PhosphorIconsRegular.list,
                                 tooltip: 'Account menu',
                                 onPressed: () async {
                                   await Navigator.of(context).push(
@@ -707,8 +707,8 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                               // how riders learned not to trust it.
                               AppCircleButton(
                                 icon: _isLiveTracking(state)
-                                    ? Icons.gps_fixed_rounded
-                                    : Icons.my_location_rounded,
+                                    ? PhosphorIconsRegular.gpsFix
+                                    : PhosphorIconsRegular.gpsFix,
                                 tooltip: _isLiveTracking(state)
                                     ? 'Recenter on your driver'
                                     : 'Recenter on my location',

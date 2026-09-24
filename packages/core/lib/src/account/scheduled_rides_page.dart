@@ -76,7 +76,7 @@ class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
         key: ValueKey(_reloadKey),
         load: widget.trips.scheduled,
         isEmpty: (list) => list.isEmpty,
-        emptyIcon: Icons.event_available_outlined,
+        emptyIcon: PhosphorIconsRegular.calendarCheck,
         emptyTitle: 'No scheduled rides',
         emptyMessage: 'Rides you book for later will appear here.',
         builder: (context, list, _) => ListView.separated(
@@ -88,7 +88,7 @@ class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
             return ListTile(
               leading: CircleAvatar(
                 backgroundColor: AppColors.accent.withValues(alpha: 0.15),
-                child: Icon(Icons.schedule, color: AppColors.accent),
+                child: Icon(PhosphorIconsRegular.clock, color: AppColors.accent),
               ),
               title: Text(
                 trip.dropoff.address ?? 'Destination',

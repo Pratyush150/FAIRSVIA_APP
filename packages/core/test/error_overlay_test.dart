@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,7 +45,7 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.byIcon(Icons.error_outline), findsNothing);
+    expect(find.byIcon(PhosphorIconsRegular.warningCircle), findsNothing);
   });
 
   testWidgets('can be dismissed', (tester) async {
@@ -55,7 +56,7 @@ void main() {
     await tester.pump();
     expect(find.text('boom'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.close));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.x));
     await tester.pump();
     expect(find.text('boom'), findsNothing);
   });

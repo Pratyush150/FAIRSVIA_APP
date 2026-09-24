@@ -68,7 +68,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
                 labelText: 'Full name',
-                prefixIcon: Icon(Icons.person_outline),
+                prefixIcon: Icon(PhosphorIconsRegular.user),
               ),
               validator: (v) {
                 final t = (v ?? '').trim();
@@ -84,7 +84,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
                 labelText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined),
+                prefixIcon: Icon(PhosphorIconsRegular.envelopeSimple),
               ),
               validator: (v) {
                 final t = (v ?? '').trim();
@@ -121,7 +121,7 @@ class _PhoneField extends StatelessWidget {
       enabled: false,
       decoration: const InputDecoration(
         labelText: 'Phone (cannot be changed)',
-        prefixIcon: Icon(Icons.phone_outlined),
+        prefixIcon: Icon(PhosphorIconsRegular.phone),
       ),
     );
   }

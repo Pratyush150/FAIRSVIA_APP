@@ -175,12 +175,12 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
           const SizedBox(height: AppSpacing.xl),
           _group([
             _Item(
-              icon: Icons.notifications_none_rounded,
+              icon: PhosphorIconsRegular.bell,
               title: 'Notifications',
               onTap: () => _open(InboxPage(inbox: sl<InboxRemoteDataSource>())),
             ),
             _Item(
-              icon: Icons.receipt_long_rounded,
+              icon: PhosphorIconsRegular.receipt,
               title: 'Your trips',
               onTap: () => _open(
                 TripHistoryPage(
@@ -195,14 +195,14 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
           if (widget.isDriver)
             _group([
               _Item(
-                icon: Icons.account_balance_wallet_rounded,
+                icon: PhosphorIconsRegular.wallet,
                 title: 'Earnings',
                 onTap: () => _open(
                   DriverEarningsPage(driver: sl<DriverRemoteDataSource>()),
                 ),
               ),
               _Item(
-                icon: Icons.payments_rounded,
+                icon: PhosphorIconsRegular.money,
                 title: 'Payouts',
                 onTap: () => _open(
                   DriverPayoutsPage(driver: sl<DriverRemoteDataSource>()),
@@ -210,7 +210,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               ),
               if (widget.onVehicle != null)
                 _Item(
-                  icon: Icons.directions_car_rounded,
+                  icon: PhosphorIconsRegular.car,
                   title: 'Vehicle',
                   onTap: widget.onVehicle!,
                 ),
@@ -218,14 +218,14 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
           if (!widget.isDriver)
             _group([
               _Item(
-                icon: Icons.schedule_rounded,
+                icon: PhosphorIconsRegular.clock,
                 title: 'Scheduled rides',
                 onTap: () => _open(
                   ScheduledRidesPage(trips: sl<TripRemoteDataSource>()),
                 ),
               ),
               _Item(
-                icon: Icons.star_rounded,
+                icon: PhosphorIconsFill.star,
                 title: 'Saved places',
                 onTap: () => _open(
                   SavedPlacesPage(
@@ -235,7 +235,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 ),
               ),
               _Item(
-                icon: Icons.credit_card_rounded,
+                icon: PhosphorIconsRegular.creditCard,
                 title: 'Payment methods',
                 onTap: () => _open(
                   PaymentMethodsPage(
@@ -249,7 +249,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 ),
               ),
               _Item(
-                icon: Icons.favorite_rounded,
+                icon: PhosphorIconsFill.heart,
                 title: 'Favourite drivers',
                 onTap: () => _open(
                   FavoriteDriversPage(
@@ -261,19 +261,19 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
           const SizedBox(height: AppSpacing.lg),
           _group([
             _Item(
-              icon: Icons.contact_emergency_rounded,
+              icon: PhosphorIconsRegular.addressBook,
               title: 'Emergency contacts',
               onTap: () => _open(
                 EmergencyContactsPage(safety: sl<SafetyRemoteDataSource>()),
               ),
             ),
             _Item(
-              icon: Icons.contrast_rounded,
+              icon: PhosphorIconsRegular.circleHalf,
               title: 'Appearance',
               onTap: () => showAppearanceSheet(context, sl<ThemeController>()),
             ),
             _Item(
-              icon: Icons.support_agent_rounded,
+              icon: PhosphorIconsRegular.headset,
               title: 'Help & support',
               onTap: () => _open(
                 SupportPage(
@@ -286,7 +286,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
           const SizedBox(height: AppSpacing.lg),
           _group([
             _Item(
-              icon: Icons.logout_rounded,
+              icon: PhosphorIconsRegular.signOut,
               title: 'Sign out',
               danger: true,
               onTap: _confirmSignOut,
@@ -355,7 +355,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 ),
                 if (!item.danger)
                   const Icon(
-                    Icons.chevron_right_rounded,
+                    PhosphorIconsRegular.caretRight,
                     size: 22,
                     color: AppColors.textTertiaryLight,
                   ),
@@ -410,7 +410,7 @@ class _ProfileHeader extends StatelessWidget {
                     child: Row(
                       children: [
                         const Icon(
-                          Icons.star_rounded,
+                          PhosphorIconsFill.star,
                           size: 15,
                           color: AppColors.star,
                         ),
@@ -426,7 +426,7 @@ class _ProfileHeader extends StatelessWidget {
             ),
           ),
           const Icon(
-            Icons.edit_rounded,
+            PhosphorIconsRegular.pencilSimple,
             size: 20,
             color: AppColors.textTertiaryLight,
           ),

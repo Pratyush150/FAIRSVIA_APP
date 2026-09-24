@@ -238,9 +238,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
   }
 
   IconData _savedIcon(String label) => switch (label.toLowerCase()) {
-        'home' => Icons.home_rounded,
-        'work' => Icons.work_rounded,
-        _ => Icons.star_rounded,
+        'home' => PhosphorIconsRegular.house,
+        'work' => PhosphorIconsRegular.briefcase,
+        _ => PhosphorIconsFill.star,
       };
 
   /// Where the map picker should open for the field being edited. Prefer that
@@ -315,7 +315,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                   AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline_rounded,
+                  const Icon(PhosphorIconsRegular.warningCircle,
                       size: 18, color: AppColors.error),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
@@ -342,7 +342,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                       color: AppColors.accentSoft,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.map_rounded,
+                    child: Icon(PhosphorIconsRegular.mapTrifold,
                         size: 20, color: AppColors.accent),
                   ),
                   const SizedBox(width: AppSpacing.md),
@@ -350,7 +350,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                     child: Text('Set location on the map',
                         style: theme.textTheme.titleSmall),
                   ),
-                  Icon(Icons.chevron_right_rounded,
+                  Icon(PhosphorIconsRegular.caretRight,
                       color: theme.colorScheme.outline),
                 ],
               ),
@@ -384,7 +384,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
               children: [
                 if (_predictions.isEmpty && !_loading && _error == null)
                   EmptyState(
-                    icon: Icons.explore_outlined,
+                    icon: PhosphorIconsRegular.compass,
                     title: _active == _Field.pickup
                         ? 'Set your pickup'
                         : 'Search for a destination',
@@ -422,7 +422,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                                       theme.colorScheme.surfaceContainerHighest,
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(Icons.location_on_rounded,
+                                child: Icon(PhosphorIconsRegular.mapPin,
                                     size: 20,
                                     color: theme.colorScheme.onSurfaceVariant),
                               ),
@@ -456,7 +456,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                                   ),
                                 )
                               else
-                                Icon(Icons.north_east_rounded,
+                                Icon(PhosphorIconsRegular.arrowUpRight,
                                     size: 18,
                                     color: theme.colorScheme.outline),
                             ],
@@ -531,7 +531,7 @@ class _RouteFields extends StatelessWidget {
                 // Origin dot → rail → destination square.
                 Column(
                   children: [
-                    Icon(Icons.trip_origin,
+                    Icon(PhosphorIconsRegular.record,
                         size: 14, color: AppColors.accent),
                     Container(
                       width: 2,
@@ -539,7 +539,7 @@ class _RouteFields extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       color: theme.dividerColor,
                     ),
-                    Icon(Icons.square, size: 12, color: AppColors.accent),
+                    Icon(PhosphorIconsFill.square, size: 12, color: AppColors.accent),
                   ],
                 ),
                 const SizedBox(width: AppSpacing.md),

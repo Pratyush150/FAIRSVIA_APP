@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/phosphor_icons.dart';
 
 import '../theme/app_colors.dart';
 
@@ -51,7 +52,7 @@ class AppAvatar extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             )
-          : Icon(icon ?? Icons.person_rounded, color: color ?? AppColors.accent, size: size * 0.5),
+          : Icon(icon ?? PhosphorIconsRegular.user, color: color ?? AppColors.accent, size: size * 0.5),
     );
   }
 }

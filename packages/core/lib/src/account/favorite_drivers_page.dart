@@ -41,7 +41,7 @@ class _FavoriteDriversPageState extends State<FavoriteDriversPage> {
         key: ValueKey(_reloadKey),
         load: widget.favorites.list,
         isEmpty: (list) => list.isEmpty,
-        emptyIcon: Icons.favorite_border,
+        emptyIcon: PhosphorIconsRegular.heart,
         emptyTitle: 'No favourite drivers',
         emptyMessage:
             'Add a driver to favourites after a ride — we’ll try to match you '
@@ -57,11 +57,11 @@ class _FavoriteDriversPageState extends State<FavoriteDriversPage> {
               if (d.ratingAvg != null) '★ ${d.ratingAvg!.toStringAsFixed(1)}',
             ].whereType<String>().join(' · ');
             return ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.person)),
+              leading: const CircleAvatar(child: Icon(PhosphorIconsRegular.user)),
               title: Text(d.name ?? 'Driver'),
               subtitle: subtitle.isEmpty ? null : Text(subtitle),
               trailing: IconButton(
-                icon: const Icon(Icons.favorite, color: AppColors.error),
+                icon: const Icon(PhosphorIconsFill.heart, color: AppColors.error),
                 tooltip: 'Remove',
                 onPressed: () => _remove(context, d),
               ),

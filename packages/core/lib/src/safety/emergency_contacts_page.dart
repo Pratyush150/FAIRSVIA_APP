@@ -89,7 +89,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
       floatingActionButton: canAdd && contacts.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: _add,
-              icon: const Icon(Icons.person_add_alt_rounded),
+              icon: const Icon(PhosphorIconsRegular.userPlus),
               label: const Text('Add contact'),
             )
           : null,
@@ -105,7 +105,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
           const SizedBox(height: AppSpacing.xl),
           if (_loadError != null)
             EmptyState(
-              icon: Icons.cloud_off_rounded,
+              icon: PhosphorIconsRegular.cloudSlash,
               title: "Couldn't load your contacts",
               message: _loadError!,
               action: OutlinedButton(
@@ -119,13 +119,13 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
             ))
           else if (contacts.isEmpty)
             EmptyState(
-              icon: Icons.contact_emergency_rounded,
+              icon: PhosphorIconsRegular.addressBook,
               title: 'No emergency contacts yet',
               message: 'Add up to 3 people you trust — family, a partner, '
                   'a close friend.',
               action: FilledButton.icon(
                 onPressed: _add,
-                icon: const Icon(Icons.person_add_alt_rounded),
+                icon: const Icon(PhosphorIconsRegular.userPlus),
                 label: const Text('Add a contact'),
               ),
             )
@@ -144,7 +144,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                       subtitle: Text(contacts[i].phone),
                       trailing: IconButton(
                         tooltip: 'Remove ${contacts[i].name}',
-                        icon: const Icon(Icons.delete_outline_rounded),
+                        icon: const Icon(PhosphorIconsRegular.trash),
                         onPressed: () => _remove(contacts[i]),
                       ),
                     ),

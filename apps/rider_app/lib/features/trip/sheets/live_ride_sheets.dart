@@ -20,7 +20,7 @@ class _FindingDriver extends StatelessWidget {
             // actively looking, not a generic spinner.
             PulseRadar(
               size: 56,
-              child: Icon(Icons.local_taxi_rounded,
+              child: Icon(PhosphorIconsRegular.taxi,
                   size: 20, color: AppColors.accent),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -149,7 +149,7 @@ class CancelRideDialog extends StatelessWidget {
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   title: Text(r),
-                  trailing: const Icon(Icons.chevron_right_rounded),
+                  trailing: const Icon(PhosphorIconsRegular.caretRight),
                   onTap: () => Navigator.of(context).pop(r),
                 ),
             ],
@@ -273,7 +273,7 @@ class DriverInfoSheet extends StatelessWidget {
                 label: state.unreadMessages > 0
                     ? 'Message (${state.unreadMessages})'
                     : 'Message',
-                icon: Icons.chat_bubble_rounded,
+                icon: PhosphorIconsRegular.chatCircle,
                 onPressed: () => _openTripChat(context, state),
               ),
             ),
@@ -284,7 +284,7 @@ class DriverInfoSheet extends StatelessWidget {
               Expanded(
                 child: SecondaryButton(
                   label: 'Call',
-                  icon: Icons.call_rounded,
+                  icon: PhosphorIconsRegular.phone,
                   onPressed: () => _call(context, phone),
                 ),
               ),
@@ -405,7 +405,7 @@ class _PickupSummary extends StatelessWidget {
       children: [
         Padding(
           padding: EdgeInsets.only(top: 2),
-          child: Icon(Icons.trip_origin_rounded, size: 18, color: AppColors.accent),
+          child: Icon(PhosphorIconsRegular.record, size: 18, color: AppColors.accent),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
@@ -424,8 +424,8 @@ class _PickupSummary extends StatelessWidget {
                 spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xs,
                 children: [
-                  chip(Icons.directions_car_rounded, _tier),
-                  chip(cash ? Icons.payments_rounded : Icons.credit_card_rounded,
+                  chip(PhosphorIconsRegular.car, _tier),
+                  chip(cash ? PhosphorIconsRegular.money : PhosphorIconsRegular.creditCard,
                       cash ? 'Cash' : 'Card'),
                 ],
               ),
@@ -511,7 +511,7 @@ class _DriverVehicleCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.star_rounded,
+                        const Icon(PhosphorIconsFill.star,
                             size: 13, color: AppColors.star),
                         const SizedBox(width: 2),
                         // No driver payload yet (e.g. restored after a cold
@@ -591,7 +591,7 @@ class _DriverVehicleCard extends StatelessWidget {
                     color: dark ? AppColors.borderDark : AppColors.borderLight),
               ),
               child: Icon(
-                Icons.directions_car_filled_rounded,
+                PhosphorIconsRegular.car,
                 size: 30,
                 color: tint ??
                     (dark
@@ -646,7 +646,7 @@ class _OnMyWayButtonState extends State<_OnMyWayButton> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: AppColors.success),
+            const Icon(PhosphorIconsFill.checkCircle, color: AppColors.success),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -660,7 +660,7 @@ class _OnMyWayButtonState extends State<_OnMyWayButton> {
     }
     return PrimaryButton(
       label: "I'm on my way",
-      icon: Icons.directions_walk_rounded,
+      icon: PhosphorIconsRegular.personSimpleWalk,
       loading: _sending,
       onPressed: _sending ? null : _send,
     );
@@ -677,7 +677,7 @@ class _RideMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
       tooltip: 'More options',
-      icon: const Icon(Icons.more_horiz_rounded),
+      icon: const Icon(PhosphorIconsRegular.dotsThree),
       onSelected: (v) {
         switch (v) {
           case 'share':
@@ -705,21 +705,21 @@ class _RideMenuButton extends StatelessWidget {
         PopupMenuItem(
           value: 'share',
           child: ListTile(
-            leading: Icon(Icons.ios_share_rounded),
+            leading: Icon(PhosphorIconsRegular.export),
             title: Text('Share trip status'),
           ),
         ),
         PopupMenuItem(
           value: 'safety',
           child: ListTile(
-            leading: Icon(Icons.shield_outlined),
+            leading: Icon(PhosphorIconsRegular.shieldCheck),
             title: Text('Safety'),
           ),
         ),
         PopupMenuItem(
           value: 'help',
           child: ListTile(
-            leading: Icon(Icons.support_agent_rounded),
+            leading: Icon(PhosphorIconsRegular.headset),
             title: Text('Help'),
           ),
         ),
@@ -727,7 +727,7 @@ class _RideMenuButton extends StatelessWidget {
         PopupMenuItem(
           value: 'cancel',
           child: ListTile(
-            leading: Icon(Icons.close_rounded, color: AppColors.error),
+            leading: Icon(PhosphorIconsRegular.x, color: AppColors.error),
             title: Text('Cancel ride', style: TextStyle(color: AppColors.error)),
           ),
         ),
@@ -773,7 +773,7 @@ class _OnTripSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              Icon(Icons.schedule_rounded,
+              Icon(PhosphorIconsRegular.clock,
                   size: 18, color: AppColors.accent),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
@@ -818,7 +818,7 @@ class _RideStops extends StatelessWidget {
               children: [
                 const Padding(
                   padding: EdgeInsets.only(top: 2),
-                  child: Icon(Icons.flag_circle_rounded,
+                  child: Icon(PhosphorIconsRegular.flag,
                       size: 18, color: AppColors.warning),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -876,7 +876,7 @@ class _RideQuickActions extends StatelessWidget {
       children: [
         if (TripCubit.canAddStopTo(state)) ...[
           _QuickActionCard(
-            icon: Icons.add_location_alt_rounded,
+            icon: PhosphorIconsRegular.mapPinPlus,
             title: 'Add a stop',
             subtitle: 'See the new price before you confirm',
             onTap: () => _addStopToRide(context, state),
@@ -884,7 +884,7 @@ class _RideQuickActions extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
         ],
         _QuickActionCard(
-          icon: Icons.event_available_rounded,
+          icon: PhosphorIconsRegular.calendarCheck,
           title: 'Pre-book a ride',
           subtitle: 'Your ride back, or any trip later',
           onTap: () => _preBook(context),
@@ -939,7 +939,7 @@ class _QuickActionCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded),
+          const Icon(PhosphorIconsRegular.caretRight),
         ],
       ),
     );
@@ -1082,7 +1082,7 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.flag_circle_rounded, color: AppColors.warning),
+              const Icon(PhosphorIconsRegular.flag, color: AppColors.warning),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(widget.stop.address ?? 'Pinned location',
@@ -1241,7 +1241,7 @@ class _RideCardsSectionState extends State<RideCardsSection> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.local_offer_rounded, color: AppColors.accentInk),
+                  Icon(PhosphorIconsRegular.tag, color: AppColors.accentInk),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(

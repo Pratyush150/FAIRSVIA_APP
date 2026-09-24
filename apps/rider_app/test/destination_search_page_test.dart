@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,7 +73,7 @@ void main() {
     expect(find.text('0.4 mi'), findsOneWidget);
     // A row without a distance keeps the plain arrow, no label.
     expect(find.text('Somewhere unknown'), findsOneWidget);
-    expect(find.byIcon(Icons.north_east_rounded), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.arrowUpRight), findsOneWidget);
   });
 
   testWidgets('sends no position when the rider location is unknown', (
@@ -98,6 +99,6 @@ void main() {
       ),
     ).called(1);
     expect(find.text('Panther Coffee'), findsOneWidget);
-    expect(find.byIcon(Icons.north_east_rounded), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.arrowUpRight), findsOneWidget);
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/phosphor_icons.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../theme/app_colors.dart';
@@ -30,7 +31,7 @@ class StarRating extends StatelessWidget {
       children: List.generate(5, (i) {
         final filled = i < value;
         Widget star = Icon(
-          filled ? Icons.star_rounded : Icons.star_outline_rounded,
+          filled ? PhosphorIconsFill.star : PhosphorIconsRegular.star,
           size: size,
           color: filled ? color : muted,
         );

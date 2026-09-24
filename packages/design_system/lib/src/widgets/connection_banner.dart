@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/phosphor_icons.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -86,7 +87,7 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (widget.connected)
-                          const Icon(Icons.check_rounded,
+                          const Icon(PhosphorIconsRegular.check,
                               size: 15, color: Colors.white)
                         else
                           const SizedBox(

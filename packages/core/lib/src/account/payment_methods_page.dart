@@ -136,14 +136,14 @@ class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
                 height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : const Icon(Icons.add),
+            : const Icon(PhosphorIconsRegular.plus),
         label: const Text('Add card'),
       ),
       body: AsyncContent<List<Map<String, dynamic>>>(
         key: ValueKey(_reloadTick),
         load: widget.payments.methods,
         isEmpty: (list) => list.isEmpty,
-        emptyIcon: Icons.credit_card_off_outlined,
+        emptyIcon: PhosphorIconsRegular.creditCard,
         emptyTitle: 'No payment methods',
         emptyMessage: 'Add a card to pay for rides.',
         builder: (context, list, _) => ListView(
@@ -151,7 +151,7 @@ class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
           children: [
             for (final m in list)
               ListTile(
-                leading: const Icon(Icons.credit_card),
+                leading: const Icon(PhosphorIconsRegular.creditCard),
                 title: Text(_label(m)),
                 subtitle: (m['isDefault'] == true)
                     ? const Text('Default')

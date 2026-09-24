@@ -49,7 +49,7 @@ class _InboxPageState extends State<InboxPage> {
         actions: [
           if (_hasUnread)
             IconButton(
-              icon: const Icon(Icons.done_all),
+              icon: const Icon(PhosphorIconsRegular.checks),
               tooltip: 'Mark all read',
               onPressed: () => _markAll(context),
             ),
@@ -59,7 +59,7 @@ class _InboxPageState extends State<InboxPage> {
         key: ValueKey(_reloadKey),
         load: widget.inbox.list,
         isEmpty: (list) => list.isEmpty,
-        emptyIcon: Icons.notifications_none,
+        emptyIcon: PhosphorIconsRegular.bell,
         emptyTitle: 'No notifications',
         emptyMessage: 'Trip updates and alerts will show up here.',
         builder: (context, list, _) {
@@ -71,7 +71,7 @@ class _InboxPageState extends State<InboxPage> {
             final n = list[i];
             return ListTile(
               leading: Icon(
-                n.read ? Icons.notifications_none : Icons.notifications_active,
+                n.read ? PhosphorIconsRegular.bell : PhosphorIconsRegular.bellRinging,
                 color: n.read ? null : AppColors.accent,
               ),
               title: Text(

@@ -106,14 +106,14 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
       appBar: AppBar(title: const Text('Saved places')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addOrEdit(),
-        icon: const Icon(Icons.add),
+        icon: const Icon(PhosphorIconsRegular.plus),
         label: const Text('Add place'),
       ),
       body: AsyncContent<List<SavedPlace>>(
         key: ValueKey(_reloadTick),
         load: widget.users.listPlaces,
         isEmpty: (list) => list.isEmpty,
-        emptyIcon: Icons.star_border,
+        emptyIcon: PhosphorIconsRegular.star,
         emptyTitle: 'No saved places',
         emptyMessage: 'Save Home, Work, or anywhere you go often.',
         builder: (context, list, _) => ListView(
@@ -126,7 +126,7 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
                 subtitle: p.address == null ? null : Text(p.address!),
                 onTap: () => _addOrEdit(p),
                 trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const Icon(PhosphorIconsRegular.trash),
                   tooltip: 'Delete place',
                   onPressed: () => _delete(p),
                 ),
@@ -139,9 +139,9 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
 
   IconData _iconFor(String label) {
     final l = label.toLowerCase();
-    if (l == 'home') return Icons.home_outlined;
-    if (l == 'work') return Icons.work_outline;
-    return Icons.place_outlined;
+    if (l == 'home') return PhosphorIconsRegular.house;
+    if (l == 'work') return PhosphorIconsRegular.briefcase;
+    return PhosphorIconsRegular.mapPin;
   }
 }
 
@@ -281,7 +281,7 @@ class _PlaceEditorSheetState extends State<_PlaceEditorSheet> {
             controller: _searchCtrl,
             decoration: InputDecoration(
               labelText: 'Address',
-              prefixIcon: const Icon(Icons.search),
+              prefixIcon: const Icon(PhosphorIconsRegular.magnifyingGlass),
               suffixIcon: _searching
                   ? const Padding(
                       padding: EdgeInsets.all(12),
@@ -304,7 +304,7 @@ class _PlaceEditorSheetState extends State<_PlaceEditorSheet> {
                   for (final p in _results)
                     ListTile(
                       dense: true,
-                      leading: const Icon(Icons.location_on_outlined),
+                      leading: const Icon(PhosphorIconsRegular.mapPin),
                       title: Text(p.primaryText),
                       subtitle: p.secondaryText.isEmpty
                           ? null

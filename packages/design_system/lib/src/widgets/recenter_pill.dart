@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/phosphor_icons.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_elevation.dart';
@@ -62,7 +63,7 @@ class RecenterPill extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.gps_fixed_rounded,
+                        Icon(PhosphorIconsRegular.gpsFix,
                             size: 17, color: AppColors.accentInk),
                         const SizedBox(width: AppSpacing.sm),
                         Text(

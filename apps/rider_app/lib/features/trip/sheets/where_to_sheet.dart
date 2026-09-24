@@ -24,9 +24,9 @@ class _WhereToCard extends StatelessWidget {
 
   IconData _iconFor(String label) {
     final l = label.toLowerCase();
-    if (l == 'home') return Icons.home_outlined;
-    if (l == 'work') return Icons.work_outline;
-    return Icons.place_outlined;
+    if (l == 'home') return PhosphorIconsRegular.house;
+    if (l == 'work') return PhosphorIconsRegular.briefcase;
+    return PhosphorIconsRegular.mapPin;
   }
 
   @override
@@ -58,7 +58,7 @@ class _WhereToCard extends StatelessWidget {
                 child: Row(
                   children: [
                     const SizedBox(width: AppSpacing.lg),
-                    Icon(Icons.search_rounded,
+                    Icon(PhosphorIconsRegular.magnifyingGlass,
                         color: theme.colorScheme.onSurface, size: 24),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
@@ -121,11 +121,11 @@ class _LaterChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.schedule_rounded,
+              Icon(PhosphorIconsRegular.clock,
                   size: 18, color: theme.colorScheme.onSurface),
               const SizedBox(width: 6),
               Text('Later', style: theme.textTheme.labelMedium),
-              Icon(Icons.keyboard_arrow_down_rounded,
+              Icon(PhosphorIconsRegular.caretDown,
                   size: 18, color: theme.colorScheme.onSurface),
             ],
           ),
@@ -175,7 +175,7 @@ class _LocationRequiredGate extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.location_off_rounded,
+            const Icon(PhosphorIconsRegular.gpsSlash,
                 color: AppColors.warning, size: 24),
             const SizedBox(width: AppSpacing.md),
             Expanded(

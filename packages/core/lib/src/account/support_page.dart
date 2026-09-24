@@ -64,14 +64,14 @@ class _SupportPageState extends State<SupportPage> {
       appBar: AppBar(title: const Text('Help & support')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _newTicket,
-        icon: const Icon(Icons.add),
+        icon: const Icon(PhosphorIconsRegular.plus),
         label: const Text('New ticket'),
       ),
       body: AsyncContent<List<SupportTicket>>(
         key: ValueKey(_reloadKey),
         load: widget.support.listMine,
         isEmpty: (list) => list.isEmpty,
-        emptyIcon: Icons.support_agent,
+        emptyIcon: PhosphorIconsRegular.headset,
         emptyTitle: 'No support tickets',
         emptyMessage: widget.isDriver
             ? 'Have a problem with a trip, a rider or a payout? Open a '

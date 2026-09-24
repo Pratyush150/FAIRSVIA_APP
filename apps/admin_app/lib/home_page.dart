@@ -49,7 +49,7 @@ class _AdminScaffold extends StatelessWidget {
                 labelType: NavigationRailLabelType.all,
                 leading: Padding(
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                  child: Icon(Icons.local_taxi, color: AppColors.accent),
+                  child: Icon(PhosphorIconsRegular.taxi, color: AppColors.accent),
                 ),
                 trailing: Expanded(
                   child: Align(
@@ -66,13 +66,13 @@ class _AdminScaffold extends StatelessWidget {
                           // signpost so nobody goes looking for the old tab.
                           IconButton(
                             tooltip: 'Monitoring (Grafana)',
-                            icon: const Icon(Icons.monitor_heart_outlined),
+                            icon: const Icon(PhosphorIconsRegular.heartbeat),
                             onPressed: () => openExternalUrl(kGrafanaUrl),
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           IconButton(
                             tooltip: 'Sign out',
-                            icon: const Icon(Icons.logout),
+                            icon: const Icon(PhosphorIconsRegular.signOut),
                             onPressed: () => context
                                 .read<AuthBloc>()
                                 .add(const AuthSignedOut()),
@@ -84,71 +84,71 @@ class _AdminScaffold extends StatelessWidget {
                 ),
                 destinations: [
                   const NavigationRailDestination(
-                    icon: Icon(Icons.dashboard_outlined),
-                    selectedIcon: Icon(Icons.dashboard),
+                    icon: Icon(PhosphorIconsRegular.squaresFour),
+                    selectedIcon: Icon(PhosphorIconsRegular.squaresFour),
                     label: Text('Overview'),
                   ),
                   NavigationRailDestination(
                     icon: Badge(
                       isLabelVisible: state.openIncidents > 0,
                       label: Text('${state.openIncidents}'),
-                      child: const Icon(Icons.health_and_safety_outlined),
+                      child: const Icon(PhosphorIconsRegular.shieldCheck),
                     ),
                     selectedIcon: Badge(
                       isLabelVisible: state.openIncidents > 0,
                       label: Text('${state.openIncidents}'),
-                      child: const Icon(Icons.health_and_safety),
+                      child: const Icon(PhosphorIconsRegular.shieldCheck),
                     ),
                     label: const Text('Safety'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.route_outlined),
-                    selectedIcon: Icon(Icons.route),
+                    icon: Icon(PhosphorIconsRegular.path),
+                    selectedIcon: Icon(PhosphorIconsRegular.path),
                     label: Text('Trips'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.people_outline),
-                    selectedIcon: Icon(Icons.people),
+                    icon: Icon(PhosphorIconsRegular.users),
+                    selectedIcon: Icon(PhosphorIconsRegular.users),
                     label: Text('Users'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.directions_car_outlined),
-                    selectedIcon: Icon(Icons.directions_car),
+                    icon: Icon(PhosphorIconsRegular.car),
+                    selectedIcon: Icon(PhosphorIconsRegular.car),
                     label: Text('Drivers'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.map_outlined),
-                    selectedIcon: Icon(Icons.map),
+                    icon: Icon(PhosphorIconsRegular.mapTrifold),
+                    selectedIcon: Icon(PhosphorIconsRegular.mapTrifold),
                     label: Text('Live'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.support_agent_outlined),
-                    selectedIcon: Icon(Icons.support_agent),
+                    icon: Icon(PhosphorIconsRegular.headset),
+                    selectedIcon: Icon(PhosphorIconsRegular.headset),
                     label: Text('Support'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.local_offer_outlined),
-                    selectedIcon: Icon(Icons.local_offer),
+                    icon: Icon(PhosphorIconsRegular.tag),
+                    selectedIcon: Icon(PhosphorIconsRegular.tag),
                     label: Text('Promos'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.view_carousel_outlined),
-                    selectedIcon: Icon(Icons.view_carousel),
+                    icon: Icon(PhosphorIconsRegular.cards),
+                    selectedIcon: Icon(PhosphorIconsRegular.cards),
                     label: Text('Content'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.payments_outlined),
-                    selectedIcon: Icon(Icons.payments),
+                    icon: Icon(PhosphorIconsRegular.money),
+                    selectedIcon: Icon(PhosphorIconsRegular.money),
                     label: Text('Pricing'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.compare_arrows_outlined),
-                    selectedIcon: Icon(Icons.compare_arrows),
+                    icon: Icon(PhosphorIconsRegular.arrowsLeftRight),
+                    selectedIcon: Icon(PhosphorIconsRegular.arrowsLeftRight),
                     label: Text('Compare'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(Icons.toggle_off_outlined),
-                    selectedIcon: Icon(Icons.toggle_on),
+                    icon: Icon(PhosphorIconsRegular.toggleLeft),
+                    selectedIcon: Icon(PhosphorIconsFill.toggleRight),
                     label: Text('Controls'),
                   ),
                 ],
@@ -237,7 +237,7 @@ class _TopBar extends StatelessWidget {
           IconButton(
             tooltip: 'Refresh',
             onPressed: onRefresh,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(PhosphorIconsRegular.arrowClockwise),
           ),
         ],
       ),
@@ -357,7 +357,7 @@ class _TicketTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(ticket.category, style: theme.textTheme.bodySmall),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: const Icon(PhosphorIconsRegular.caretRight),
         onTap: () => showDialog<void>(
           context: context,
           builder: (_) => BlocProvider.value(
@@ -466,7 +466,7 @@ class _TicketDialogState extends State<_TicketDialog> {
                         style: theme.textTheme.titleLarge),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(PhosphorIconsRegular.x),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -750,33 +750,33 @@ class _OverviewView extends StatelessWidget {
           spacing: AppSpacing.lg,
           runSpacing: AppSpacing.lg,
           children: [
-            _StatCard(label: 'Users', value: '${s.users}', icon: Icons.people),
+            _StatCard(label: 'Users', value: '${s.users}', icon: PhosphorIconsRegular.users),
             _StatCard(
                 label: 'Drivers',
                 value: '${s.drivers}',
-                icon: Icons.directions_car),
+                icon: PhosphorIconsRegular.car),
             _StatCard(
                 label: 'Online now',
                 value: '${s.onlineDrivers}',
-                icon: Icons.wifi_tethering,
+                icon: PhosphorIconsRegular.broadcast,
                 color: AppColors.success),
             _StatCard(
                 label: 'Active trips',
                 value: '${s.activeTrips}',
-                icon: Icons.route,
+                icon: PhosphorIconsRegular.path,
                 color: AppColors.warning),
             _StatCard(
                 label: 'Completed',
                 value: '${s.completedTrips}',
-                icon: Icons.check_circle),
+                icon: PhosphorIconsFill.checkCircle),
             _StatCard(
                 label: 'Gross revenue',
                 value: Money.format(s.grossRevenue, wholeOnly: true),
-                icon: Icons.payments),
+                icon: PhosphorIconsRegular.money),
             _StatCard(
                 label: 'Platform fees',
                 value: Money.format(s.platformRevenue, wholeOnly: true),
-                icon: Icons.account_balance,
+                icon: PhosphorIconsRegular.bank,
                 color: AppColors.accent),
           ],
         ),
@@ -951,7 +951,7 @@ class _TripTile extends StatelessWidget {
             ),
             if (_refundable)
               IconButton(
-                icon: const Icon(Icons.currency_exchange, size: 20),
+                icon: const Icon(PhosphorIconsRegular.coins, size: 20),
                 tooltip: 'Refund',
                 onPressed: () => _refund(context),
               ),
@@ -978,7 +978,7 @@ class _UsersView extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
               child: TextField(
                 decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
+                  prefixIcon: Icon(PhosphorIconsRegular.magnifyingGlass),
                   hintText: 'Search by phone or name',
                 ),
                 onChanged: cubit.setUserQuery,
@@ -1106,7 +1106,7 @@ class _DriverCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           children: [
-            Icon(Icons.circle,
+            Icon(PhosphorIconsFill.circle,
                 size: 12,
                 color: online ? AppColors.success : theme.disabledColor),
             const SizedBox(width: AppSpacing.md),
@@ -1197,7 +1197,7 @@ class _PromosView extends StatelessWidget {
               const Spacer(),
               FilledButton.icon(
                 onPressed: () => _showCreatePromo(context, cubit),
-                icon: const Icon(Icons.add),
+                icon: const Icon(PhosphorIconsRegular.plus),
                 label: const Text('New promo'),
               ),
             ],
@@ -1549,7 +1549,7 @@ class _ErrorBanner extends StatelessWidget {
             horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error, size: 18),
+            const Icon(PhosphorIconsRegular.warningCircle, color: AppColors.error, size: 18),
             const SizedBox(width: AppSpacing.sm),
             Expanded(child: Text(message)),
             TextButton(onPressed: onRetry, child: const Text('Retry')),
@@ -1585,7 +1585,7 @@ class _ComparisonView extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: FilledButton.icon(
             onPressed: () => _showRecordSample(context, cubit, models),
-            icon: const Icon(Icons.add_chart_outlined, size: 18),
+            icon: const Icon(PhosphorIconsRegular.chartLineUp, size: 18),
             label: const Text('Record observed fare'),
           ),
         ),
@@ -1796,7 +1796,7 @@ class _ControlsView extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, color: _activeTone),
+                const Icon(PhosphorIconsRegular.warning, color: _activeTone),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -1831,7 +1831,7 @@ class _ControlsView extends StatelessWidget {
                 ),
               ),
               secondary: Icon(
-                flag.on ? Icons.toggle_on : Icons.toggle_off_outlined,
+                flag.on ? PhosphorIconsFill.toggleRight : PhosphorIconsRegular.toggleLeft,
                 color: flag.on ? _activeTone : null,
               ),
               onChanged: (next) => _confirm(context, flag, next),
@@ -1892,7 +1892,7 @@ class _SosBanner extends StatelessWidget {
                 horizontal: AppSpacing.xl, vertical: AppSpacing.md),
             child: Row(
               children: [
-                const Icon(Icons.sos_rounded, color: Colors.white),
+                const Icon(PhosphorIconsRegular.siren, color: Colors.white),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
@@ -1906,7 +1906,7 @@ class _SosBanner extends StatelessWidget {
                 const Text('Open Safety',
                     style: TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w700)),
-                const Icon(Icons.chevron_right_rounded, color: Colors.white),
+                const Icon(PhosphorIconsRegular.caretRight, color: Colors.white),
               ],
             ),
           ),
@@ -1925,7 +1925,7 @@ class _SafetyView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (incidents.isEmpty) {
       return const EmptyState(
-        icon: Icons.health_and_safety_outlined,
+        icon: PhosphorIconsRegular.shieldCheck,
         title: 'No SOS incidents',
         message: 'When a rider or driver presses SOS during a ride it appears '
             'here within seconds, and a banner shows on every tab until '
@@ -2074,7 +2074,7 @@ class _IncidentCard extends StatelessWidget {
               if (i.mapUrl != null)
                 OutlinedButton.icon(
                   onPressed: () => openExternalUrl(i.mapUrl!),
-                  icon: const Icon(Icons.map_outlined, size: 18),
+                  icon: const Icon(PhosphorIconsRegular.mapTrifold, size: 18),
                   label: const Text('Location'),
                 ),
               const SizedBox(height: AppSpacing.sm),
@@ -2137,7 +2137,7 @@ class _ContentView extends StatelessWidget {
             ),
             FilledButton.icon(
               onPressed: () => _edit(context),
-              icon: const Icon(Icons.add),
+              icon: const Icon(PhosphorIconsRegular.plus),
               label: const Text('New card'),
             ),
           ],
@@ -2145,7 +2145,7 @@ class _ContentView extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         if (cards.isEmpty)
           const EmptyState(
-            icon: Icons.view_carousel_outlined,
+            icon: PhosphorIconsRegular.cards,
             title: 'No cards yet',
             message: 'A card is a short offer or tip shown under the ride '
                 'details while a rider waits — optionally with a promo code '
@@ -2189,12 +2189,12 @@ class _ContentView extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: 'Edit',
-                  icon: const Icon(Icons.edit_outlined),
+                  icon: const Icon(PhosphorIconsRegular.pencilSimple),
                   onPressed: () => _edit(context, c),
                 ),
                 IconButton(
                   tooltip: 'Delete',
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const Icon(PhosphorIconsRegular.trash),
                   onPressed: () => context.read<AdminCubit>().deleteRideCard(c.id),
                 ),
               ],

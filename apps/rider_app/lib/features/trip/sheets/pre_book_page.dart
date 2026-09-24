@@ -178,7 +178,7 @@ class _PreBookPageState extends State<PreBookPage> {
                     child: Column(
                       children: [
                         _PreBookRow(
-                          icon: Icons.trip_origin_rounded,
+                          icon: PhosphorIconsRegular.record,
                           iconColor: AppColors.accent,
                           label: 'Pickup',
                           value: _pickupAddr ?? 'Choose a pickup',
@@ -186,7 +186,7 @@ class _PreBookPageState extends State<PreBookPage> {
                         ),
                         const Divider(height: 1, indent: 52),
                         _PreBookRow(
-                          icon: Icons.square_rounded,
+                          icon: PhosphorIconsFill.square,
                           iconColor: AppColors.accent,
                           label: 'Destination',
                           value: _dropoffAddr ?? 'Where to?',
@@ -195,7 +195,7 @@ class _PreBookPageState extends State<PreBookPage> {
                         ),
                         const Divider(height: 1, indent: 52),
                         _PreBookRow(
-                          icon: Icons.event_rounded,
+                          icon: PhosphorIconsRegular.calendarBlank,
                           iconColor: AppColors.accentInk,
                           label: 'When',
                           value: _when == null
@@ -315,7 +315,7 @@ class _PreBookRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded),
+            const Icon(PhosphorIconsRegular.caretRight),
           ],
         ),
       ),

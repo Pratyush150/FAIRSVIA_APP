@@ -44,7 +44,7 @@ class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
     return OutlinedButton.icon(
       onPressed: _busy ? null : _toggle,
       icon: Icon(
-        _favorited ? Icons.favorite : Icons.favorite_border,
+        _favorited ? PhosphorIconsFill.heart : PhosphorIconsRegular.heart,
         color: _favorited ? AppColors.error : null,
         size: 18,
       ),
@@ -124,7 +124,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
                 color: AppColors.accentSoft,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.check_rounded,
+              child: Icon(PhosphorIconsRegular.check,
                   color: AppColors.accent, size: 36),
             ),
           ),
@@ -180,7 +180,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
               padding: const EdgeInsets.only(top: AppSpacing.md),
               child: Row(
                 children: [
-                  const Icon(Icons.payments_outlined,
+                  const Icon(PhosphorIconsRegular.money,
                       size: 16, color: AppColors.warning),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
@@ -350,8 +350,8 @@ class _FareDetailsState extends State<_FareDetails> {
                 const Spacer(),
                 Icon(
                   _open
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
+                      ? PhosphorIconsRegular.caretUp
+                      : PhosphorIconsRegular.caretDown,
                   size: 20,
                   color: AppColors.accent,
                 ),

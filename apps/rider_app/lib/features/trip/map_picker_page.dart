@@ -155,8 +155,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
             child: SafeArea(
               child: AppCircleButton(
                 icon: _locating
-                    ? Icons.hourglass_bottom_rounded
-                    : Icons.my_location_rounded,
+                    ? PhosphorIconsRegular.hourglass
+                    : PhosphorIconsRegular.gpsFix,
                 tooltip: 'My location',
                 onPressed: _locateMe,
               ),
@@ -187,7 +187,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.location_on_rounded,
+                          Icon(PhosphorIconsRegular.mapPin,
                               size: 20, color: AppColors.accent),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
@@ -240,7 +240,7 @@ class _CenterPin extends StatelessWidget {
     Theme.of(context);
     return Transform.translate(
       offset: const Offset(0, -20),
-      child: Icon(Icons.location_on, size: 44, color: AppColors.accent),
+      child: Icon(PhosphorIconsRegular.mapPin, size: 44, color: AppColors.accent),
     );
   }
 }

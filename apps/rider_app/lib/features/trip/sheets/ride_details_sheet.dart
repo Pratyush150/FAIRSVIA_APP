@@ -133,7 +133,7 @@ class RideDetailsContent extends StatelessWidget {
                             const SizedBox(height: 2),
                             Row(
                               children: [
-                                const Icon(Icons.star_rounded,
+                                const Icon(PhosphorIconsFill.star,
                                     size: 15, color: AppColors.star),
                                 const SizedBox(width: 3),
                                 Text(driver.rating.toStringAsFixed(1),
@@ -147,14 +147,14 @@ class RideDetailsContent extends StatelessWidget {
                   ),
                   if (vehicle != null)
                     _RideDetailRow(
-                      icon: Icons.directions_car_rounded,
+                      icon: PhosphorIconsRegular.car,
                       label: 'Vehicle',
                       value: vehicle,
                     ),
                   if (driver.plate case final plate?
                       when plate.trim().isNotEmpty)
                     _RideDetailRow(
-                      icon: Icons.confirmation_number_outlined,
+                      icon: PhosphorIconsRegular.ticket,
                       label: 'Plate',
                       value: plate,
                     ),
@@ -173,33 +173,33 @@ class RideDetailsContent extends StatelessWidget {
             child: Column(
               children: [
                 _RideDetailRow(
-                  icon: Icons.trip_origin,
+                  icon: PhosphorIconsRegular.record,
                   label: 'Pickup',
                   // After a cold start mid-ride the cubit's own addresses may
                   // not be populated; the trip row always has them.
                   value: state.pickupAddr ?? trip?.pickup.address ?? '—',
                 ),
                 _RideDetailRow(
-                  icon: Icons.place_rounded,
+                  icon: PhosphorIconsRegular.mapPin,
                   label: 'Dropoff',
                   value: state.dropoffAddr ?? trip?.dropoff.address ?? '—',
                 ),
                 if (distanceM != null)
                   _RideDetailRow(
-                    icon: Icons.straighten_rounded,
+                    icon: PhosphorIconsRegular.ruler,
                     label: 'Distance',
                     value: Fmt.distance(distanceM),
                   ),
                 if (_tripEtaLine(state) case final eta?)
                   _RideDetailRow(
-                    icon: Icons.schedule_rounded,
+                    icon: PhosphorIconsRegular.clock,
                     label: 'Arrival',
                     value: eta,
                   ),
                 _RideDetailRow(
                   icon: paymentMode == 'cash'
-                      ? Icons.payments_outlined
-                      : Icons.credit_card_rounded,
+                      ? PhosphorIconsRegular.money
+                      : PhosphorIconsRegular.creditCard,
                   label: 'Payment',
                   value: paymentMode == 'cash'
                       ? 'Cash to your driver'
@@ -207,13 +207,13 @@ class RideDetailsContent extends StatelessWidget {
                 ),
                 if (surge > 1.0)
                   _RideDetailRow(
-                    icon: Icons.trending_up_rounded,
+                    icon: PhosphorIconsRegular.trendUp,
                     label: 'Surge',
                     value: Fmt.surge(surge),
                   ),
                 if (trip?.promoCode case final code? when code.isNotEmpty)
                   _RideDetailRow(
-                    icon: Icons.local_offer_outlined,
+                    icon: PhosphorIconsRegular.tag,
                     label: 'Promo',
                     value: code,
                   ),
@@ -273,7 +273,7 @@ class RideDetailsButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SecondaryButton(
       label: 'Details',
-      icon: Icons.receipt_long_rounded,
+      icon: PhosphorIconsRegular.receipt,
       onPressed: () => showRideDetailsSheet(context, state),
     );
   }

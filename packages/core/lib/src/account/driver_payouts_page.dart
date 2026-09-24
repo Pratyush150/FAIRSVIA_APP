@@ -228,7 +228,7 @@ class _ConnectPayoutSetupState extends State<_ConnectPayoutSetup> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.verified, color: AppColors.success, size: 20),
+            const Icon(PhosphorIconsFill.sealCheck, color: AppColors.success, size: 20),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -250,7 +250,7 @@ class _ConnectPayoutSetupState extends State<_ConnectPayoutSetup> {
         children: [
           Row(
             children: [
-              const Icon(Icons.account_balance_outlined, size: 20),
+              const Icon(PhosphorIconsRegular.bank, size: 20),
               const SizedBox(width: AppSpacing.sm),
               Text('Set up direct deposit', style: theme.textTheme.titleMedium),
             ],
@@ -314,15 +314,15 @@ class _LedgerTile extends StatelessWidget {
   IconData _icon(String type) {
     switch (type) {
       case 'earning':
-        return Icons.directions_car;
+        return PhosphorIconsRegular.car;
       case 'tip':
-        return Icons.volunteer_activism;
+        return PhosphorIconsRegular.handHeart;
       case 'withdrawal':
-        return Icons.account_balance;
+        return PhosphorIconsRegular.bank;
       case 'commission':
-        return Icons.percent;
+        return PhosphorIconsRegular.percent;
       default:
-        return Icons.receipt_long;
+        return PhosphorIconsRegular.receipt;
     }
   }
 

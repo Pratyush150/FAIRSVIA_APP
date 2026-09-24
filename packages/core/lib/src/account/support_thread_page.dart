@@ -146,7 +146,7 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, color: AppColors.error, size: 40),
+              const Icon(PhosphorIconsRegular.warningCircle, color: AppColors.error, size: 40),
               const SizedBox(height: AppSpacing.md),
               Text(
                 _error is ApiException
@@ -157,7 +157,7 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
               const SizedBox(height: AppSpacing.lg),
               OutlinedButton.icon(
                 onPressed: _load,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(PhosphorIconsRegular.arrowClockwise),
                 label: const Text('Try again'),
               ),
             ],
@@ -205,7 +205,7 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.send),
+                  : const Icon(PhosphorIconsRegular.paperPlaneRight),
             ),
           ],
         ),

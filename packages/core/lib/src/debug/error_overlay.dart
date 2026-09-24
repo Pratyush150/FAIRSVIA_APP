@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:design_system/design_system.dart';
 
 import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
@@ -132,7 +133,7 @@ class ErrorOverlay extends StatelessWidget {
                       children: [
                         const Padding(
                           padding: EdgeInsets.only(top: 2, right: 8),
-                          child: Icon(Icons.error_outline,
+                          child: Icon(PhosphorIconsRegular.warningCircle,
                               color: Colors.white, size: 18),
                         ),
                         Expanded(
@@ -166,7 +167,7 @@ class ErrorOverlay extends StatelessWidget {
                           label: 'Copy error',
                           button: true,
                           child: IconButton(
-                            icon: const Icon(Icons.copy, color: Colors.white),
+                            icon: const Icon(PhosphorIconsRegular.copy, color: Colors.white),
                             onPressed: () =>
                                 Clipboard.setData(ClipboardData(text: err)),
                           ),
@@ -175,7 +176,7 @@ class ErrorOverlay extends StatelessWidget {
                           label: 'Dismiss error',
                           button: true,
                           child: IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
+                            icon: const Icon(PhosphorIconsRegular.x, color: Colors.white),
                             onPressed: () => lastCaughtError.value = null,
                           ),
                         ),

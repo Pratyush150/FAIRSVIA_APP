@@ -29,7 +29,7 @@ class TripHistoryPage extends StatelessWidget {
       body: AsyncContent<List<Trip>>(
         load: trips.history,
         isEmpty: (list) => list.isEmpty,
-        emptyIcon: Icons.receipt_long_outlined,
+        emptyIcon: PhosphorIconsRegular.receipt,
         emptyTitle: 'No trips yet',
         emptyMessage: isDriver
             ? 'Trips you complete will show up here.'
@@ -128,13 +128,13 @@ class _TripTile extends StatelessWidget {
   IconData _statusIcon(TripStatus s) {
     switch (s) {
       case TripStatus.completed:
-        return Icons.check;
+        return PhosphorIconsRegular.check;
       case TripStatus.cancelled:
       case TripStatus.expired:
       case TripStatus.noDrivers:
-        return Icons.close;
+        return PhosphorIconsRegular.x;
       default:
-        return Icons.directions_car;
+        return PhosphorIconsRegular.car;
     }
   }
 

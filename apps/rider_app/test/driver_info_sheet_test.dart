@@ -1,3 +1,4 @@
+import 'package:design_system/design_system.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -148,7 +149,7 @@ void main() {
       ),
     );
     expect(find.text('YD'), findsNothing);
-    expect(find.byIcon(Icons.person_rounded), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.user), findsOneWidget);
   });
 
   testWidgets('fresh pings hide the waiting line', (tester) async {

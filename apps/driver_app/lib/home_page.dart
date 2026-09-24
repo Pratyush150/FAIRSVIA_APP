@@ -564,7 +564,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                             _StatusPill(online: state.isOnline),
                             const Spacer(),
                             AppCircleButton(
-                              icon: Icons.menu_rounded,
+                              icon: PhosphorIconsRegular.list,
                               tooltip: 'Account menu',
                               onPressed: () {
                                 final cubit = context.read<DriverCubit>();
@@ -717,7 +717,7 @@ class _BottomSheet extends StatelessWidget {
                         : AppColors.surfaceMutedLight,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.bedtime_rounded,
+                  child: Icon(PhosphorIconsRegular.moonStars,
                       color: theme.brightness == Brightness.dark
                           ? AppColors.textTertiaryDark
                           : AppColors.textTertiaryLight,
@@ -765,7 +765,7 @@ class _BottomSheet extends StatelessWidget {
                     color: AppColors.accentSoft,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.wifi_tethering_rounded,
+                  child: Icon(PhosphorIconsRegular.broadcast,
                       color: AppColors.accent, size: 24),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -881,7 +881,7 @@ class _RiderComingBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.directions_walk_rounded, color: AppColors.accentInk),
+            Icon(PhosphorIconsRegular.personSimpleWalk, color: AppColors.accentInk),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -917,7 +917,7 @@ class _CompletedSheet extends StatelessWidget {
               color: AppColors.accentSoft,
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.check_rounded,
+            child: Icon(PhosphorIconsRegular.check,
                 color: AppColors.accent, size: 34),
           ),
         ),
@@ -943,7 +943,7 @@ class _CompletedSheet extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.payments_rounded, color: AppColors.warning),
+                const Icon(PhosphorIconsRegular.money, color: AppColors.warning),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -1045,7 +1045,7 @@ class _LifecycleSheet extends StatelessWidget {
             if (tripId != null) ...[
               IconButton(
                 tooltip: 'Safety',
-                icon: const Icon(Icons.shield_outlined, color: AppColors.error),
+                icon: const Icon(PhosphorIconsRegular.shieldCheck, color: AppColors.error),
                 onPressed: () => openDriverSafety(context, tripId!),
               ),
               IconButton(
@@ -1063,7 +1063,7 @@ class _LifecycleSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Row(
             children: [
-              Icon(Icons.near_me_rounded,
+              Icon(PhosphorIconsRegular.navigationArrow,
                   size: 16, color: AppColors.accent),
               const SizedBox(width: AppSpacing.xs),
               Text(distanceLabel!, style: theme.textTheme.titleSmall),
@@ -1080,7 +1080,7 @@ class _LifecycleSheet extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.add_location_alt_rounded,
+                const Icon(PhosphorIconsRegular.mapPinPlus,
                     color: AppColors.warning),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -1107,7 +1107,7 @@ class _LifecycleSheet extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.flag_circle_rounded,
+                    Icon(PhosphorIconsRegular.flag,
                         size: 18,
                         color: i == 0 ? AppColors.warning : AppColors.textTertiaryLight),
                     const SizedBox(width: AppSpacing.sm),
@@ -1143,7 +1143,7 @@ class _LifecycleSheet extends StatelessWidget {
               Expanded(
                 child: SecondaryButton(
                   label: 'Navigate',
-                  icon: Icons.navigation_rounded,
+                  icon: PhosphorIconsRegular.navigationArrow,
                   onPressed: () => _navigate(context, navigateTo!),
                 ),
               ),
@@ -1217,7 +1217,7 @@ class _PassengerBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.person_pin_circle_outlined,
+          Icon(PhosphorIconsRegular.userCircle,
               size: 18, color: AppColors.accent),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -1237,7 +1237,7 @@ class _PassengerBanner extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Call passenger',
-            icon: Icon(Icons.call_outlined, color: AppColors.accent),
+            icon: Icon(PhosphorIconsRegular.phone, color: AppColors.accent),
             onPressed: () async {
               final ok = await dialPhone(passenger.phone);
               if (!ok && context.mounted) {
@@ -1272,7 +1272,7 @@ class _PickupNoteBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.sticky_note_2_outlined,
+          Icon(PhosphorIconsRegular.note,
               size: 18, color: AppColors.accent),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -1386,7 +1386,7 @@ class _StartTripSheetState extends State<_StartTripSheet> {
             if (widget.tripId != null) ...[
               IconButton(
                 tooltip: 'Safety',
-                icon: const Icon(Icons.shield_outlined, color: AppColors.error),
+                icon: const Icon(PhosphorIconsRegular.shieldCheck, color: AppColors.error),
                 onPressed: () => openDriverSafety(context, widget.tripId!),
               ),
               IconButton(
@@ -1413,7 +1413,7 @@ class _StartTripSheetState extends State<_StartTripSheet> {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              const Icon(Icons.error_outline_rounded,
+              const Icon(PhosphorIconsRegular.warningCircle,
                   size: 16, color: AppColors.error),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
@@ -1593,7 +1593,7 @@ class _OfferOverlayState extends State<OfferOverlay> {
                   const SizedBox(height: AppSpacing.xs),
                   Row(
                     children: [
-                      Icon(Icons.person_rounded,
+                      Icon(PhosphorIconsRegular.user,
                           size: 16, color: theme.colorScheme.onSurfaceVariant),
                       const SizedBox(width: 4),
                       Flexible(
@@ -1603,7 +1603,7 @@ class _OfferOverlayState extends State<OfferOverlay> {
                       ),
                       if (offer.riderRating != null) ...[
                         const SizedBox(width: 6),
-                        const Icon(Icons.star_rounded,
+                        const Icon(PhosphorIconsFill.star,
                             size: 14, color: AppColors.star),
                         const SizedBox(width: 2),
                         Text(offer.riderRating!.toStringAsFixed(1),
@@ -1629,7 +1629,7 @@ class _OfferOverlayState extends State<OfferOverlay> {
                           color: AppColors.accentSoft,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(Icons.trip_origin_rounded,
+                        child: Icon(PhosphorIconsRegular.record,
                             size: 18, color: AppColors.accent),
                       ),
                       const SizedBox(width: AppSpacing.md),
@@ -1912,7 +1912,7 @@ class _ChatBadgeIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const icon = Icon(Icons.chat_bubble_rounded);
+    const icon = Icon(PhosphorIconsRegular.chatCircle);
     if (unread <= 0) return icon;
     return Badge.count(count: unread, child: icon);
   }

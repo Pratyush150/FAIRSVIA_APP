@@ -22,20 +22,20 @@ class PriceComparisonCard extends StatelessWidget {
     final Widget headline;
     if (c.ourIsCheapest && c.maxSavings > 0) {
       headline = _Headline(
-        icon: Icons.savings_rounded,
+        icon: PhosphorIconsRegular.piggyBank,
         color: AppColors.accent,
         text: 'Cheapest option — save up to ${_money(c.maxSavings)} vs others',
       );
     } else if (c.ourIsCheapest) {
       headline = _Headline(
-        icon: Icons.verified_rounded,
+        icon: PhosphorIconsFill.sealCheck,
         color: AppColors.accent,
         text: 'Cheapest option for this trip',
       );
     } else {
       final cheapest = c.quotes.first;
       headline = _Headline(
-        icon: Icons.info_outline_rounded,
+        icon: PhosphorIconsRegular.info,
         color: theme.colorScheme.onSurfaceVariant,
         text:
             'Lowest right now: ${cheapest.displayName} ${_money(cheapest.price)}',
@@ -61,7 +61,7 @@ class PriceComparisonCard extends StatelessWidget {
                 triggerMode: TooltipTriggerMode.tap,
                 showDuration: const Duration(seconds: 6),
                 child: Icon(
-                  Icons.help_outline_rounded,
+                  PhosphorIconsRegular.question,
                   size: 16,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -73,7 +73,7 @@ class PriceComparisonCard extends StatelessWidget {
           if (c.demandHigh) ...[
             const SizedBox(height: AppSpacing.xs),
             const _Headline(
-              icon: Icons.bolt_rounded,
+              icon: PhosphorIconsRegular.lightning,
               color: AppColors.warning,
               text: 'High demand — competitor prices may be higher',
             ),
@@ -133,10 +133,10 @@ class _QuoteRow extends StatelessWidget {
       child: Row(
         children: [
           if (isOurs)
-            Icon(Icons.local_taxi_rounded,
+            Icon(PhosphorIconsRegular.taxi,
                 size: 16, color: AppColors.accent)
           else
-            Icon(Icons.circle_outlined,
+            Icon(PhosphorIconsRegular.circle,
                 size: 16, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: AppSpacing.sm),
           Text(

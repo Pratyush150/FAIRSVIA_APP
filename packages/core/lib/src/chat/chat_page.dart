@@ -237,7 +237,7 @@ class _ChatPageState extends State<ChatPage> {
             const SizedBox(width: AppSpacing.sm),
             IconButton.filled(
               onPressed: _sending ? null : _send,
-              icon: const Icon(Icons.send),
+              icon: const Icon(PhosphorIconsRegular.paperPlaneRight),
             ),
           ],
         ),

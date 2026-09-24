@@ -12,7 +12,7 @@ class AsyncContent<T> extends StatefulWidget {
     required this.load,
     required this.builder,
     this.isEmpty,
-    this.emptyIcon = Icons.inbox_outlined,
+    this.emptyIcon = PhosphorIconsRegular.tray,
     this.emptyTitle = 'Nothing here yet',
     this.emptyMessage,
     this.skeleton,
@@ -115,13 +115,13 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error, size: 40),
+            const Icon(PhosphorIconsRegular.warningCircle, color: AppColors.error, size: 40),
             const SizedBox(height: AppSpacing.md),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: AppSpacing.lg),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(PhosphorIconsRegular.arrowClockwise),
               label: const Text('Try again'),
             ),
           ],

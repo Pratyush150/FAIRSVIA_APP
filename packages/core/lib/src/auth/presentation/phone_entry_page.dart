@@ -122,7 +122,7 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                             ],
                             decoration: InputDecoration(
                               hintText: Market.current.examplePhone,
-                              prefixIcon: const Icon(Icons.phone_rounded),
+                              prefixIcon: const Icon(PhosphorIconsRegular.phone),
                             ),
                             onChanged: (v) => setState(
                               // A local number gets the market's country code; one
