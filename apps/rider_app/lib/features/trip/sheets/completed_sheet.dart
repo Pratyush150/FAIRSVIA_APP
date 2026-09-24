@@ -116,6 +116,11 @@ class _CompletedSheetState extends State<CompletedSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (LocalArt.on)
+            // Plan D: the check pops on a marigold flower (still under
+            // Reduce Motion).
+            const Center(child: LocalDoneArt(size: 104))
+          else
           Center(
             child: _HeroIcon(
               asset: 'done',
@@ -157,7 +162,16 @@ class _CompletedSheetState extends State<CompletedSheet> {
               currency: state.receipt?.currency,
             ),
           ),
-          if (state.receipt?.isCash ?? false)
+          if ((state.receipt?.isCash ?? false) && LocalArt.on)
+            // Plan D's signature: one amber strip says who to pay, and how.
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.md),
+              child: PayDriverStrip(
+                amount: Fmt.money(fare + tip, state.receipt?.currency),
+                driverName: _payee(state),
+              ),
+            )
+          else if (state.receipt?.isCash ?? false)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.md),
               child: Row(

@@ -8,6 +8,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:latlong2/latlong.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_variant.dart';
+import 'kolam.dart';
 import 'map_styles.dart';
 import 'route_progress.dart';
 
@@ -109,6 +111,33 @@ class AppMap extends StatefulWidget {
             return (pulseMinM + (pulseMaxM - pulseMinM) * p, (1 - p) * 0.55);
           }(),
       ];
+
+  /// Plan D (`THEME=local`): the pickup radar is a kolam, not rings — the
+  /// [Kolam] dot grid laid out on the ground at [kolamUnitM] metres a step.
+  static const double kolamUnitM = 42;
+  static const double kolamDotM = 8;
+
+  /// The kolam's dots at loop time [t] (0..1): (east m, north m, radius m,
+  /// opacity). A dot not yet drawn has radius 0. With [still] (Reduce
+  /// Motion) the finished pattern. Pure, like [pulseRings].
+  @visibleForTesting
+  static List<(double, double, double, double)> kolamDots(double t,
+      {bool still = false}) {
+    final fade = still ? 1.0 : Kolam.fade(t);
+    return [
+      for (final d in Kolam.dots)
+        () {
+          final ring = Kolam.ringOf(d);
+          final s = still ? 1.0 : Kolam.dotScale(ring, t).clamp(0.0, 1.2);
+          return (
+            d.dx * kolamUnitM,
+            -d.dy * kolamUnitM,
+            kolamDotM * s,
+            ((1.0 - ring * 0.12) * fade).clamp(0.0, 1.0),
+          );
+        }(),
+    ];
+  }
 
   final LatLng initialCenter;
   final double initialZoom;
@@ -398,12 +427,31 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   Set<gmaps.Circle> _buildPulse(bool reduceMotion) {
     final at = widget.pulseAt;
     if (at == null) return const {};
-    final period = AppMap.pulsePeriod.inMilliseconds;
+    final period = AppVariant.local
+        ? Kolam.period.inMilliseconds
+        : AppMap.pulsePeriod.inMilliseconds;
     // Reduce Motion: a still frame with the rings evenly spread.
     final t = reduceMotion
         ? 0.0
         : (_pulseClock.elapsedMilliseconds % period) / period;
     final colour = AppColors.highlight;
+    if (AppVariant.local) {
+      final metresPerLng = 111320 * math.cos(at.latitude * math.pi / 180);
+      return {
+        for (final (i, (east, north, radius, opacity))
+            in AppMap.kolamDots(t, still: reduceMotion).indexed)
+          if (radius > 0)
+            gmaps.Circle(
+              circleId: gmaps.CircleId('kolam$i'),
+              center: gmaps.LatLng(at.latitude + north / 111320,
+                  at.longitude + east / metresPerLng),
+              radius: radius,
+              strokeWidth: 0,
+              fillColor: AppColors.accent.withValues(alpha: opacity),
+              zIndex: 1,
+            ),
+      };
+    }
     return {
       for (final (i, (radius, opacity)) in AppMap.pulseRings(t).indexed)
         gmaps.Circle(
@@ -415,6 +463,45 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           fillColor: colour.withValues(alpha: opacity * 0.25),
           zIndex: 0,
         ),
+    };
+  }
+
+  /// Plan D: the kolam's marigold line, traced round the pickup as the dots
+  /// land (the whole loop, still, under Reduce Motion).
+  Set<gmaps.Polyline> _withKolamLine(bool reduceMotion) {
+    final at = widget.pulseAt;
+    if (!AppVariant.local || at == null) return _polylines;
+    final period = Kolam.period.inMilliseconds;
+    final t = reduceMotion
+        ? 0.8
+        : (_pulseClock.elapsedMilliseconds % period) / period;
+    final lp = reduceMotion ? 1.0 : Kolam.lineProgress(t);
+    final fade = reduceMotion ? 1.0 : Kolam.fade(t);
+    if (lp <= 0 || fade <= 0) return _polylines;
+    final metresPerLng = 111320 * math.cos(at.latitude * math.pi / 180);
+    final points = <gmaps.LatLng>[];
+    for (final m in Kolam.linePath(AppMap.kolamUnitM, Offset.zero)
+        .computeMetrics()) {
+      final end = m.length * lp;
+      for (var d = 0.0; d <= end; d += 6) {
+        final p = m.getTangentForOffset(d)!.position;
+        points.add(gmaps.LatLng(
+            at.latitude - p.dy / 111320, at.longitude + p.dx / metresPerLng));
+      }
+    }
+    if (points.length < 2) return _polylines;
+    return {
+      ..._polylines,
+      gmaps.Polyline(
+        polylineId: const gmaps.PolylineId('kolam_line'),
+        points: points,
+        color: LocalColour.marigold.withValues(alpha: fade),
+        width: 3,
+        startCap: _roundCap,
+        endCap: _roundCap,
+        jointType: gmaps.JointType.round,
+        zIndex: 0,
+      ),
     };
   }
 
@@ -1098,9 +1185,11 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       ),
       // Themed basemap: a night style in dark mode (so the map doesn't glow
       // white under light status-bar icons) and a de-cluttered light style.
-      style: dark ? mapNightStyle : mapLightStyle,
+      style: dark
+          ? mapNightStyle
+          : (AppVariant.local ? mapLightStyleWarm : mapLightStyle),
       markers: _buildMarkers(),
-      polylines: _polylines,
+      polylines: _withKolamLine(reduceMotion),
       circles: _buildPulse(reduceMotion),
       padding: widget.boundsPadding,
       myLocationEnabled: false,

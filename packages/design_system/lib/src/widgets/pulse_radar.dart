@@ -3,11 +3,17 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_variant.dart';
+import 'kolam.dart';
 
 /// An animated "searching" radar — concentric rings that expand and fade out,
 /// with a soft rotating sweep and a steady centre dot. Replaces a bland spinner
 /// on the rider's "finding your driver" state with something that reads as the
 /// system actively looking around the map.
+///
+/// Plan D (`THEME=local`) draws the kolam-dot loader instead ([Kolam]): dots
+/// that build into a kolam at the centre, wrapped by a marigold line. Under
+/// Reduce Motion it shows the finished kolam, still.
 class PulseRadar extends StatefulWidget {
   const PulseRadar({
     super.key,
@@ -28,14 +34,17 @@ class PulseRadar extends StatefulWidget {
 
 class _PulseRadarState extends State<PulseRadar>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(seconds: 3));
+  late final AnimationController _c = AnimationController(
+      vsync: this,
+      duration: AppVariant.local ? Kolam.period : const Duration(seconds: 3));
+  bool _still = false;
 
   // Reduce Motion / Remove animations: the rings hold still (audit 4.2).
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+    _still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (_still) {
       _c
         ..stop()
         ..value = 0;
@@ -62,7 +71,14 @@ class _PulseRadarState extends State<PulseRadar>
       child: AnimatedBuilder(
         animation: _c,
         builder: (context, child) => CustomPaint(
-          painter: _RadarPainter(progress: _c.value, color: color),
+          painter: AppVariant.local
+              ? KolamRadarPainter(
+                  progress: _c.value,
+                  color: color,
+                  still: _still,
+                  hollowCentre: widget.child != null,
+                )
+              : _RadarPainter(progress: _c.value, color: color),
           child: child,
         ),
         child: widget.child == null

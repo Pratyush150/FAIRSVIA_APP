@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_variant.dart';
+
 /// Type scale on Inter (bundled in this package): a neutral grotesk. The
 /// hierarchy comes from size and weight, not colour.
 ///
@@ -21,8 +23,22 @@ import 'package:flutter/material.dart';
 class AppTypography {
   AppTypography._();
 
-  /// Package-qualified family name so apps pick it up without re-declaring.
-  static const String fontFamily = 'packages/design_system/Inter';
+  /// Inter, package-qualified: the numbers face in every build (plate,
+  /// fares, ETAs — tabular figures, already bundled).
+  static const String interFamily = 'packages/design_system/Inter';
+
+  /// Anek Latin (Ek Type, OFL — fonts/AnekLatin-LICENSE.txt): Plan D's UI
+  /// and heading face, drawn to sit with Anek Devanagari.
+  static const String anekFamily = 'packages/design_system/AnekLatin';
+
+  /// The UI face of this build. Package-qualified so apps pick it up without
+  /// re-declaring. Inter, except Plan D (`THEME=local`), which sets headings
+  /// and body in Anek Latin.
+  static const String fontFamily = AppVariant.local ? anekFamily : interFamily;
+
+  /// The face for numbers: Inter in every build, so fares and plates keep
+  /// their tabular figures even where [fontFamily] is Anek.
+  static const String numericFamily = interFamily;
 
   /// Tabular (monospaced) figures — every digit takes the same width so
   /// live-updating fares, ETAs, countdowns, and ratings don't jitter as digits
@@ -35,7 +51,7 @@ class AppTypography {
   /// figures, tracked out 4 % so "MH 12 AB 1234" separates cleanly. No colour —
   /// give it one from the theme: `AppTypography.plate.copyWith(color: …)`.
   static const TextStyle plate = TextStyle(
-    fontFamily: fontFamily,
+    fontFamily: numericFamily,
     fontSize: 22,
     height: 28 / 22,
     fontWeight: FontWeight.w700,
@@ -87,6 +103,11 @@ class AppTypography {
 /// Ergonomic tabular-figures application: `theme.textTheme.titleMedium?.tabular()`.
 extension NumericTextStyle on TextStyle {
   /// This style with tabular (monospaced) figures — for fares, ETAs, ratings.
-  TextStyle tabular() =>
-      copyWith(fontFeatures: AppTypography.tabularFigures);
+  /// In Plan D the figures are also set in Inter (the UI face is Anek).
+  TextStyle tabular() => AppVariant.local
+      ? copyWith(
+          fontFamily: AppTypography.numericFamily,
+          fontFeatures: AppTypography.tabularFigures,
+        )
+      : copyWith(fontFeatures: AppTypography.tabularFigures);
 }

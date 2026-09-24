@@ -71,7 +71,7 @@ class _RideOptions extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: [
-              for (final (i, tier) in estimate.tiers.indexed)
+              for (final (i, tier) in _listOrder(estimate.tiers).indexed)
                 _RideTierTile(
                   tier: tier,
                   tripDurationS: estimate.durationS,
@@ -114,6 +114,20 @@ class _RideOptions extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The order the ride list shows: the server's, except that Plan D
+/// (`THEME=local`) leads with India's own vehicles — auto-rickshaw, then
+/// bike taxi — when the server offers them. Stable for everything else.
+List<FareTier> _listOrder(List<FareTier> tiers) {
+  if (!AppVariant.local) return tiers;
+  int rank(FareTier t) => switch (t.tier) { 'auto' => 0, 'bike' => 1, _ => 2 };
+  final indexed = tiers.indexed.toList()
+    ..sort((a, b) {
+      final r = rank(a.$2).compareTo(rank(b.$2));
+      return r != 0 ? r : a.$1.compareTo(b.$1);
+    });
+  return [for (final (_, t) in indexed) t];
 }
 
 /// "Riding yourself, or booking for someone else?" The booker still pays and
@@ -904,6 +918,7 @@ class _RideTierTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (AppVariant.local) return _buildLocal(context);
     final theme = Theme.of(context);
     final eta = tier.etaSeconds;
     return Semantics(
@@ -1007,6 +1022,138 @@ class _RideTierTile extends StatelessWidget {
         ),
       ),
      ),
+    );
+  }
+
+  /// Plan D's row: a warm card on the paper sheet. Selected = brand.tint
+  /// fill with a 2 px brand border (5.2:1 brand text on the tint). The
+  /// vehicle sits on a soft marigold ground; seats and the fare's make-up
+  /// are warm chips, the latter a "Rate card" chip (48 dp target).
+  Widget _buildLocal(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final eta = tier.etaSeconds;
+    final ink = AppColors.inkFor(dark);
+    return Semantics(
+      selected: selected,
+      button: true,
+      enabled: onTap != null,
+      child: Opacity(
+        opacity: onTap == null ? 0.45 : 1,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Material(
+            color: selected
+                ? AppColors.softFor(dark)
+                : (dark ? AppColors.surfaceDark : AppColors.surfaceLight),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+              side: BorderSide(
+                color: selected
+                    ? ink
+                    : (dark ? AppColors.borderDark : AppColors.borderLight),
+                width: selected ? 2 : 1,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.sm, AppSpacing.sm, AppSpacing.md, 0),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 80,
+                      height: 60,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // A marigold ground under the vehicle (art only).
+                          Positioned(
+                            bottom: 6,
+                            child: Container(
+                              width: 66,
+                              height: 14,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(40),
+                                color: LocalColour.marigold
+                                    .withValues(alpha: dark ? 0.22 : 0.28),
+                              ),
+                            ),
+                          ),
+                          VehicleGlyph(tier: tier.tier, width: 76),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Expanded(
+                                child: Text(tier.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: selected ? ink : null)),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Text(
+                                Fmt.money(tier.fare, tier.currency),
+                                style: theme.textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700)
+                                    .tabular(),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            eta == null
+                                ? 'No cars nearby'
+                                : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          Row(
+                            children: [
+                              Semantics(
+                                label: '${tier.capacity} seats',
+                                excludeSemantics: true,
+                                child: LocalChip(
+                                  label: '${tier.capacity}',
+                                  icon: PhosphorIconsRegular.user,
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              if (tier.breakdown != null)
+                                LocalChip(
+                                  label: 'Rate card',
+                                  icon: PhosphorIconsRegular.receipt,
+                                  semanticLabel:
+                                      'Fare details for ${tier.label}',
+                                  onTap: () =>
+                                      showFareDetailsSheet(context, tier),
+                                )
+                              else
+                                const SizedBox(height: 48),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

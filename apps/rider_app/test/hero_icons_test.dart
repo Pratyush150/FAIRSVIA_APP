@@ -66,21 +66,24 @@ void main() {
     await pump(tester, onTrip, AppTheme.light);
     expect(hero('add_stop'), light ? findsOneWidget : findsNothing);
     expect(hero('prebook'), light ? findsOneWidget : findsNothing);
-    expect(find.byIcon(PhosphorIconsRegular.mapPinPlus),
+    expect(find.byIcon(AppIconBadge.glyphFor(PhosphorIconsRegular.mapPinPlus)),
         light ? findsNothing : findsOneWidget);
-    expect(find.byIcon(PhosphorIconsRegular.calendarCheck),
+    expect(find.byIcon(AppIconBadge.glyphFor(PhosphorIconsRegular.calendarCheck)),
         light ? findsNothing : findsOneWidget);
 
     await pump(tester, completed, AppTheme.light);
     expect(hero('done'), light ? findsOneWidget : findsNothing);
+    // Plan D (THEME=local) draws its own check art in place of the glyph.
     expect(find.byIcon(PhosphorIconsRegular.check),
-        light ? findsNothing : findsOneWidget);
+        light || AppVariant.local ? findsNothing : findsOneWidget);
+    expect(find.byType(LocalDoneArt),
+        AppVariant.local ? findsOneWidget : findsNothing);
   });
 
   testWidgets('a dark theme never gets the light-lit 3D art', (tester) async {
     await pump(tester, onTrip, AppTheme.dark);
     expect(hero('add_stop'), findsNothing);
     expect(hero('prebook'), findsNothing);
-    expect(find.byIcon(PhosphorIconsRegular.mapPinPlus), findsOneWidget);
+    expect(find.byIcon(AppIconBadge.glyphFor(PhosphorIconsRegular.mapPinPlus)), findsOneWidget);
   });
 }
