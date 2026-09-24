@@ -13,6 +13,7 @@ export 'src/widgets/primary_button.dart';
 export 'src/widgets/secondary_button.dart';
 export 'src/widgets/app_card.dart';
 export 'src/widgets/vehicle_glyph.dart';
+export 'src/widgets/ridevela_mark.dart';
 export 'src/widgets/app_sheet.dart';
 export 'src/widgets/app_circle_button.dart';
 export 'src/widgets/app_status_chip.dart';

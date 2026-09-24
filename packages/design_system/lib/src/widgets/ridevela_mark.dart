@@ -1,0 +1,71 @@
+import 'package:flutter/material.dart';
+
+/// The RideVela logomark ("Road-V"): a V drawn as a road running away from
+/// you, with a lane line — V for Vela, a road for the ride. The same drawing
+/// as the app icon and `docs/brand/`, painted here so it stays sharp at any
+/// size with no image assets.
+///
+/// [driver] swaps to the driver app's colourway (navy tile, turquoise V) so
+/// the two apps never look alike.
+class RideVelaMark extends StatelessWidget {
+  const RideVelaMark({super.key, this.size = 64, this.driver = false});
+
+  final double size;
+  final bool driver;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: driver ? 'RideVela Driver' : 'RideVela',
+      image: true,
+      child: CustomPaint(size: Size.square(size), painter: _MarkPainter(driver)),
+    );
+  }
+}
+
+class _MarkPainter extends CustomPainter {
+  _MarkPainter(this.driver);
+
+  final bool driver;
+
+  static const _navy = Color(0xFF0B3C49);
+  static const _teal = Color(0xFF0FA3A8);
+  static const _turq = Color(0xFF2EC4C6);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 512, size.height / 512);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, 512, 512), const Radius.circular(116)),
+      Paint()..color = driver ? _navy : _teal,
+    );
+    final v = Path()
+      ..moveTo(96, 118)
+      ..lineTo(216, 118)
+      ..lineTo(256, 262)
+      ..lineTo(296, 118)
+      ..lineTo(416, 118)
+      ..lineTo(300, 410)
+      ..lineTo(212, 410)
+      ..close();
+    canvas.drawPath(v, Paint()..color = driver ? _turq : _navy);
+    final lane = Paint()
+      ..color = driver ? Colors.white : _turq
+      ..strokeWidth = 12
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(const Offset(256, 300), const Offset(256, 336), lane);
+    canvas.drawLine(const Offset(256, 356), const Offset(256, 384), lane);
+    canvas.drawPath(
+      Path()
+        ..moveTo(296, 118)
+        ..lineTo(416, 118)
+        ..lineTo(300, 410)
+        ..lineTo(276, 410)
+        ..close(),
+      Paint()..color = Colors.white.withValues(alpha: 0.14),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MarkPainter old) => old.driver != driver;
+}

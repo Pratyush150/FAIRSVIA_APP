@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get_it/get_it.dart';
 
+import '../theme/theme_controller.dart';
+
 import '../auth/auth_remote_data_source.dart';
 import '../auth/auth_repository.dart';
 import '../auth/bloc/auth_bloc.dart';
@@ -34,12 +36,17 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
   // is unavailable behind plain-HTTP/IP), and shared_preferences' web method
   // channel throws MissingPluginException here — so talk to window.localStorage
   // directly on web (see kv_local_web.dart).
-  final KeyValueStore store =
-      kIsWeb ? createLocalStore() : SecureKeyValueStore();
-  final cfg = config ?? await _pilotOverride(store) ?? AppConfig.fromEnvironment();
+  final KeyValueStore store = kIsWeb
+      ? createLocalStore()
+      : SecureKeyValueStore();
+  final cfg =
+      config ?? await _pilotOverride(store) ?? AppConfig.fromEnvironment();
+
+  final theme = await ThemeController.load(store);
 
   sl
     ..registerSingleton<AppConfig>(cfg)
+    ..registerSingleton<ThemeController>(theme)
     ..registerSingleton<KeyValueStore>(store)
     ..registerSingleton<TokenStorage>(TokenStorage(sl<KeyValueStore>()))
     ..registerSingleton<DioClient>(
@@ -68,9 +75,7 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
       TripRepository(sl<PlacesRemoteDataSource>(), sl<TripRemoteDataSource>()),
     )
     // Realtime transport (Phase 2): shared Socket.IO client.
-    ..registerSingleton<RealtimeClient>(
-      SocketIoRealtimeClient(cfg.wsUrl),
-    )
+    ..registerSingleton<RealtimeClient>(SocketIoRealtimeClient(cfg.wsUrl))
     ..registerSingleton<DriverRemoteDataSource>(
       DriverRemoteDataSource(sl<DioClient>().authenticatedDio),
     )

@@ -57,7 +57,7 @@ override default behavior. Established by the project owner (Sai Kishore).
   assumed, and the corrections made to this repo's own documentation — two docs
   here were confidently wrong and were believed before being checked.
 - **On a Mac (iOS):** `docs/mac-ios-pilot-handoff.md` — build + iPhone checklist.
-- UI roadmap to 10/10: `docs/ui-10-plan.md` (from the owner's audit, each point checked in code).
+- UI roadmap to 10/10: `docs/plans/ui-10-audit-plan.md` (from the owner's audit, each point checked in code).
 - Then `docs/remaining-work-plan.md` for what is left, and
   `docs/field-testing-plan.md` for on-road verification.
 

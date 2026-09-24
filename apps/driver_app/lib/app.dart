@@ -39,24 +39,30 @@ class _DriverAppState extends State<DriverApp> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _authBloc,
-      child: MaterialApp.router(
-        title: AppBrand.driverTitle,
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        themeMode: ThemeMode.system,
-        routerConfig: _router,
-        // The brand signature covers the router's first frame — auth gate,
-        // home, or a ride restored from a cold start — so no screen has to
-        // know it exists. It hands over on a fixed timer, not on a load
-        // event: it is a signature, not a loading screen.
-        builder: (context, child) {
-          // Ink colours (black on light, white on dark) follow the theme.
-          AppColors.syncBrightness(Theme.of(context).brightness);
-          return BrandSplashGate(
-            child: ErrorOverlay(child: child ?? const SizedBox.shrink()),
-          );
-        },
+      // Light / Dark / Same as phone, chosen in Account → Appearance.
+      child: ValueListenableBuilder<ThemeMode>(
+        valueListenable: sl.isRegistered<ThemeController>()
+            ? sl<ThemeController>()
+            : ValueNotifier(ThemeMode.system),
+        builder: (context, mode, _) => MaterialApp.router(
+          title: AppBrand.driverTitle,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: mode,
+          routerConfig: _router,
+          // The brand signature covers the router's first frame — auth gate,
+          // home, or a ride restored from a cold start — so no screen has to
+          // know it exists. It hands over on a fixed timer, not on a load
+          // event: it is a signature, not a loading screen.
+          builder: (context, child) {
+            // Ink colours (black on light, white on dark) follow the theme.
+            AppColors.syncBrightness(Theme.of(context).brightness);
+            return BrandSplashGate(
+              child: ErrorOverlay(child: child ?? const SizedBox.shrink()),
+            );
+          },
+        ),
       ),
     );
   }

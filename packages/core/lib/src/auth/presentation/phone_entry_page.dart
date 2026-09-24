@@ -57,81 +57,95 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                 Expanded(
                   child: SingleChildScrollView(
                     child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: AppSpacing.huge),
-                  GestureDetector(
-                    // Pilot builds: long-press the logo to change the server
-                    // address (see ServerAddressPage). Nothing in store builds.
-                    onLongPress: AppConfig.allowServerOverride
-                        ? () => Navigator.of(context).push(MaterialPageRoute<void>(
-                              builder: (_) => ServerAddressPage(
-                                store: sl<KeyValueStore>(),
-                                current: sl<AppConfig>().apiBaseUrl,
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl,
+                        AppSpacing.xl,
+                        AppSpacing.xl,
+                        0,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: AppSpacing.huge),
+                          GestureDetector(
+                            // Pilot builds: long-press the logo to change the server
+                            // address (see ServerAddressPage). Nothing in store builds.
+                            onLongPress: AppConfig.allowServerOverride
+                                ? () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ServerAddressPage(
+                                        store: sl<KeyValueStore>(),
+                                        current: sl<AppConfig>().apiBaseUrl,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: RideVelaMark(
+                                size: 64,
+                                driver: widget.title.toLowerCase().contains(
+                                  'driver',
+                                ),
                               ),
-                            ))
-                        : null,
-                    child: Container(
-                      height: 64,
-                      width: 64,
-                      decoration: BoxDecoration(
-                        color: AppColors.accentSoft,
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+                          Text(
+                            'Welcome to ${widget.title}',
+                            style: theme.textTheme.displaySmall,
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            'Enter your phone number and we\'ll text you a code to sign in.',
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: AppColors.textSecondaryLight,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xxl),
+                          Text(
+                            'Phone number',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: AppColors.textSecondaryLight,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          TextField(
+                            controller: _controller,
+                            keyboardType: TextInputType.phone,
+                            autofocus: true,
+                            style: theme.textTheme.titleMedium,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9+ ]'),
+                              ),
+                            ],
+                            decoration: InputDecoration(
+                              hintText: Market.current.examplePhone,
+                              prefixIcon: const Icon(Icons.phone_rounded),
+                            ),
+                            onChanged: (v) => setState(
+                              // A local number gets the market's country code; one
+                              // typed with '+' is taken as international.
+                              () => _valid = Market.current.toE164(v) != null,
+                            ),
+                            onSubmitted: _valid
+                                ? (_) => _submit(context)
+                                : null,
+                          ),
+                          if (_controller.text.trim().isNotEmpty &&
+                              !_valid) ...[
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              'Enter a mobile number, e.g. ${Market.current.examplePhone}.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: AppSpacing.xl),
+                        ],
                       ),
-                      child: Icon(
-                        Icons.navigation_rounded,
-                        color: AppColors.accent,
-                        size: 30,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  Text('Welcome to ${widget.title}',
-                      style: theme.textTheme.displaySmall),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'Enter your phone number and we\'ll text you a\ncode to sign in.',
-                    style: theme.textTheme.bodyLarge
-                        ?.copyWith(color: AppColors.textSecondaryLight),
-                  ),
-                  const SizedBox(height: AppSpacing.xxl),
-                  Text('Phone number',
-                      style: theme.textTheme.labelLarge
-                          ?.copyWith(color: AppColors.textSecondaryLight)),
-                  const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: _controller,
-                    keyboardType: TextInputType.phone,
-                    autofocus: true,
-                    style: theme.textTheme.titleMedium,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
-                    ],
-                    decoration: InputDecoration(
-                      hintText: Market.current.examplePhone,
-                      prefixIcon: const Icon(Icons.phone_rounded),
-                    ),
-                    onChanged: (v) => setState(
-                      // A local number gets the market's country code; one
-                      // typed with '+' is taken as international.
-                      () => _valid = Market.current.toE164(v) != null,
-                    ),
-                    onSubmitted: _valid ? (_) => _submit(context) : null,
-                  ),
-                  if (_controller.text.trim().isNotEmpty && !_valid) ...[
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Enter a mobile number, e.g. ${Market.current.examplePhone}.',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.error),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.xl),
-                ],
-              ),
                     ),
                   ),
                 ),
@@ -140,7 +154,11 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                 // fold with no way to reach it but a blind scroll).
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.md),
+                    AppSpacing.xl,
+                    0,
+                    AppSpacing.xl,
+                    AppSpacing.md,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -148,8 +166,9 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                         'By continuing you agree to our Terms and Privacy '
                         'Policy.',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: AppColors.textTertiaryLight),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.textTertiaryLight,
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       PrimaryButton(

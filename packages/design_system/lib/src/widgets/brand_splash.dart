@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
+import 'ridevela_mark.dart';
 
 /// The app's opening frame: the wordmark on the brand canvas, nothing else.
 ///
@@ -19,7 +20,11 @@ import '../theme/app_typography.dart';
 ///
 /// Timing follows the brand spec: fade in, settle, hand over.
 class BrandSplash extends StatefulWidget {
-  const BrandSplash({super.key, required this.onDone, this.name = AppBrand.name});
+  const BrandSplash({
+    super.key,
+    required this.onDone,
+    this.name = AppBrand.name,
+  });
 
   /// Called once, after the full animation, on the frame the app takes over.
   final VoidCallback onDone;
@@ -86,8 +91,9 @@ class _BrandSplashState extends State<BrandSplash>
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = dark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     return Scaffold(
-      backgroundColor:
-          dark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor: dark
+          ? AppColors.backgroundDark
+          : AppColors.backgroundLight,
       body: Center(
         child: FadeTransition(
           opacity: _fade,
@@ -96,26 +102,37 @@ class _BrandSplashState extends State<BrandSplash>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  widget.name,
-                  style: TextStyle(
-                    fontFamily: AppTypography.fontFamily,
-                    fontSize: 34,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.8,
-                    color: ink,
-                  ),
+                // The lockup: mark + wordmark, the same on every screen.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RideVelaMark(
+                      size: 48,
+                      driver: widget.name.toLowerCase().contains('driver'),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Text(
+                      widget.name,
+                      style: TextStyle(
+                        fontFamily: AppTypography.fontFamily,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.8,
+                        color: ink,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: AppSpacing.md),
-                // A short emerald rule that draws itself out under the
-                // wordmark — the one piece of brand colour on the screen.
+                const SizedBox(height: AppSpacing.lg),
+                // A short brand rule that draws itself out under the lockup,
+                // doubling as the loading indicator.
                 AnimatedBuilder(
                   animation: _rule,
                   builder: (_, _) => Container(
                     width: 56 * _rule.value,
                     height: 3,
                     decoration: BoxDecoration(
-                      color: AppColors.accent,
+                      color: AppColors.highlightFor(dark),
                       borderRadius: BorderRadius.circular(AppSpacing.pill),
                     ),
                   ),

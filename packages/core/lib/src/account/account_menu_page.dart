@@ -26,6 +26,8 @@ import 'support_page.dart';
 import 'support_remote_data_source.dart';
 import 'trip_history_page.dart';
 import 'users_remote_data_source.dart';
+import '../theme/appearance_sheet.dart';
+import '../theme/theme_controller.dart';
 
 /// Account hub reached from the rider/driver home menu. Shows a profile header
 /// and navigates to history, places, payments, earnings, and profile editing.
@@ -70,10 +72,8 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
     if (user == null) return;
     final updated = await Navigator.of(context).push<AppUser>(
       MaterialPageRoute(
-        builder: (_) => ProfileEditPage(
-          users: sl<UsersRemoteDataSource>(),
-          user: user,
-        ),
+        builder: (_) =>
+            ProfileEditPage(users: sl<UsersRemoteDataSource>(), user: user),
       ),
     );
     if (updated == null || !mounted) return;
@@ -98,9 +98,11 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Sign out?'),
-        content: Text(widget.isDriver
-            ? "You'll go offline and stop receiving trip requests."
-            : "You'll need a new code to sign back in."),
+        content: Text(
+          widget.isDriver
+              ? "You'll go offline and stop receiving trip requests."
+              : "You'll need a new code to sign back in.",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -134,24 +136,26 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
     final bloc = context.read<AuthBloc>();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    _open(DeleteAccountPage(
-      users: sl<UsersRemoteDataSource>(),
-      isDriver: widget.isDriver,
-      onBeforeDelete: widget.onBeforeSignOut,
-      onDeleted: () {
-        navigator.popUntil((r) => r.isFirst);
-        messenger
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-              const SnackBar(content: Text('Your account has been deleted.')));
-        bloc.add(const AuthSignedOut());
-      },
-    ));
+    _open(
+      DeleteAccountPage(
+        users: sl<UsersRemoteDataSource>(),
+        isDriver: widget.isDriver,
+        onBeforeDelete: widget.onBeforeSignOut,
+        onDeleted: () {
+          navigator.popUntil((r) => r.isFirst);
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(content: Text('Your account has been deleted.')),
+            );
+          bloc.add(const AuthSignedOut());
+        },
+      ),
+    );
   }
 
   void _open(Widget page) {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => page));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
   @override
@@ -161,7 +165,11 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
       appBar: AppBar(title: const Text('Account')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xxl),
+          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.lg,
+          AppSpacing.xxl,
+        ),
         children: [
           _ProfileHeader(user: user, onEdit: _editProfile),
           const SizedBox(height: AppSpacing.xl),
@@ -169,17 +177,18 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
             _Item(
               icon: Icons.notifications_none_rounded,
               title: 'Notifications',
-              onTap: () =>
-                  _open(InboxPage(inbox: sl<InboxRemoteDataSource>())),
+              onTap: () => _open(InboxPage(inbox: sl<InboxRemoteDataSource>())),
             ),
             _Item(
               icon: Icons.receipt_long_rounded,
               title: 'Your trips',
-              onTap: () => _open(TripHistoryPage(
-                trips: sl<TripRemoteDataSource>(),
-                payments: sl<PaymentsRemoteDataSource>(),
-                isDriver: widget.isDriver,
-              )),
+              onTap: () => _open(
+                TripHistoryPage(
+                  trips: sl<TripRemoteDataSource>(),
+                  payments: sl<PaymentsRemoteDataSource>(),
+                  isDriver: widget.isDriver,
+                ),
+              ),
             ),
           ]),
           const SizedBox(height: AppSpacing.lg),
@@ -189,13 +198,15 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 icon: Icons.account_balance_wallet_rounded,
                 title: 'Earnings',
                 onTap: () => _open(
-                    DriverEarningsPage(driver: sl<DriverRemoteDataSource>())),
+                  DriverEarningsPage(driver: sl<DriverRemoteDataSource>()),
+                ),
               ),
               _Item(
                 icon: Icons.payments_rounded,
                 title: 'Payouts',
                 onTap: () => _open(
-                    DriverPayoutsPage(driver: sl<DriverRemoteDataSource>())),
+                  DriverPayoutsPage(driver: sl<DriverRemoteDataSource>()),
+                ),
               ),
               if (widget.onVehicle != null)
                 _Item(
@@ -209,36 +220,42 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               _Item(
                 icon: Icons.schedule_rounded,
                 title: 'Scheduled rides',
-                onTap: () => _open(ScheduledRidesPage(
-                  trips: sl<TripRemoteDataSource>(),
-                )),
+                onTap: () => _open(
+                  ScheduledRidesPage(trips: sl<TripRemoteDataSource>()),
+                ),
               ),
               _Item(
                 icon: Icons.star_rounded,
                 title: 'Saved places',
-                onTap: () => _open(SavedPlacesPage(
-                  users: sl<UsersRemoteDataSource>(),
-                  places: sl<PlacesRemoteDataSource>(),
-                )),
+                onTap: () => _open(
+                  SavedPlacesPage(
+                    users: sl<UsersRemoteDataSource>(),
+                    places: sl<PlacesRemoteDataSource>(),
+                  ),
+                ),
               ),
               _Item(
                 icon: Icons.credit_card_rounded,
                 title: 'Payment methods',
-                onTap: () => _open(PaymentMethodsPage(
-                  payments: sl<PaymentsRemoteDataSource>(),
-                  // Real Stripe PaymentSheet if the app registered one, else the
-                  // mock add-card sheet.
-                  stripeCardAdder: sl.isRegistered<StripeCardAdder>()
-                      ? sl<StripeCardAdder>()
-                      : null,
-                )),
+                onTap: () => _open(
+                  PaymentMethodsPage(
+                    payments: sl<PaymentsRemoteDataSource>(),
+                    // Real Stripe PaymentSheet if the app registered one, else the
+                    // mock add-card sheet.
+                    stripeCardAdder: sl.isRegistered<StripeCardAdder>()
+                        ? sl<StripeCardAdder>()
+                        : null,
+                  ),
+                ),
               ),
               _Item(
                 icon: Icons.favorite_rounded,
                 title: 'Favourite drivers',
-                onTap: () => _open(FavoriteDriversPage(
-                  favorites: sl<FavoritesRemoteDataSource>(),
-                )),
+                onTap: () => _open(
+                  FavoriteDriversPage(
+                    favorites: sl<FavoritesRemoteDataSource>(),
+                  ),
+                ),
               ),
             ]),
           const SizedBox(height: AppSpacing.lg),
@@ -246,17 +263,24 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
             _Item(
               icon: Icons.contact_emergency_rounded,
               title: 'Emergency contacts',
-              onTap: () => _open(EmergencyContactsPage(
-                safety: sl<SafetyRemoteDataSource>(),
-              )),
+              onTap: () => _open(
+                EmergencyContactsPage(safety: sl<SafetyRemoteDataSource>()),
+              ),
+            ),
+            _Item(
+              icon: Icons.contrast_rounded,
+              title: 'Appearance',
+              onTap: () => showAppearanceSheet(context, sl<ThemeController>()),
             ),
             _Item(
               icon: Icons.support_agent_rounded,
               title: 'Help & support',
-              onTap: () => _open(SupportPage(
-                support: sl<SupportRemoteDataSource>(),
-                isDriver: widget.isDriver,
-              )),
+              onTap: () => _open(
+                SupportPage(
+                  support: sl<SupportRemoteDataSource>(),
+                  isDriver: widget.isDriver,
+                ),
+              ),
             ),
           ]),
           const SizedBox(height: AppSpacing.lg),
@@ -304,36 +328,43 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
 
   Widget _tile(_Item item) {
     final color = item.danger ? AppColors.error : null;
-    return Builder(builder: (context) {
-      final theme = Theme.of(context);
-      return InkWell(
-        onTap: item.onTap,
-        borderRadius: BorderRadius.circular(AppSpacing.radius),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.md,
-          ),
-          child: Row(
-            children: [
-              Icon(item.icon,
+    return Builder(
+      builder: (context) {
+        final theme = Theme.of(context);
+        return InkWell(
+          onTap: item.onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.md,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  item.icon,
                   size: 22,
-                  color: color ?? AppColors.textSecondaryLight),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Text(
-                  item.title,
-                  style: theme.textTheme.titleSmall?.copyWith(color: color),
+                  color: color ?? AppColors.textSecondaryLight,
                 ),
-              ),
-              if (!item.danger)
-                const Icon(Icons.chevron_right_rounded,
-                    size: 22, color: AppColors.textTertiaryLight),
-            ],
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    item.title,
+                    style: theme.textTheme.titleSmall?.copyWith(color: color),
+                  ),
+                ),
+                if (!item.danger)
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 22,
+                    color: AppColors.textTertiaryLight,
+                  ),
+              ],
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 }
 
@@ -372,26 +403,33 @@ class _ProfileHeader extends StatelessWidget {
               children: [
                 Text(name, style: theme.textTheme.titleLarge),
                 const SizedBox(height: 2),
-                Text(user?.phone ?? '',
-                    style: theme.textTheme.bodyMedium),
+                Text(user?.phone ?? '', style: theme.textTheme.bodyMedium),
                 if ((user?.ratingCount ?? 0) > 0)
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.xs),
                     child: Row(
                       children: [
-                        const Icon(Icons.star_rounded,
-                            size: 15, color: AppColors.star),
+                        const Icon(
+                          Icons.star_rounded,
+                          size: 15,
+                          color: AppColors.star,
+                        ),
                         const SizedBox(width: 3),
-                        Text(user!.ratingAvg.toStringAsFixed(1),
-                            style: theme.textTheme.labelLarge),
+                        Text(
+                          user!.ratingAvg.toStringAsFixed(1),
+                          style: theme.textTheme.labelLarge,
+                        ),
                       ],
                     ),
                   ),
               ],
             ),
           ),
-          const Icon(Icons.edit_rounded,
-              size: 20, color: AppColors.textTertiaryLight),
+          const Icon(
+            Icons.edit_rounded,
+            size: 20,
+            color: AppColors.textTertiaryLight,
+          ),
         ],
       ),
     );

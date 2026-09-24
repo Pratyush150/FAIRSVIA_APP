@@ -3,6 +3,8 @@
 library;
 
 export 'src/config/app_config.dart';
+export 'src/theme/theme_controller.dart';
+export 'src/theme/appearance_sheet.dart';
 export 'src/config/server_address_page.dart';
 export 'src/network/api_exception.dart';
 export 'src/network/token_storage.dart';
