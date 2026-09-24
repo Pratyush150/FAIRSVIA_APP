@@ -35,7 +35,7 @@ cd ~/ubernav/apps/rider_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM \
   --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
   --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=1.5.2 --build-number=5015
+  --build-name=1.7.0 --build-number=5030
 ```
 (Release on a simulator not supported by your Flutter? use `--profile`.)
 Screenshot command for every SHOW step:
@@ -72,7 +72,7 @@ If slow-ride leaves a trip open: `ssh nova-pc "docker exec ubernav_postgres psql
 cd ~/ubernav/apps/driver_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
   --dart-define=MARKET=in --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=1.5.2 --build-number=5015
+  --build-name=1.7.0 --build-number=5030
 ```
 | # | SHOW |
 |---|---|
@@ -101,6 +101,41 @@ them until this file lists them again.
 On Android the owner already has these as separate apps ("RideVela A ·
 Midnight", "B · Daylight", "C · Day&Night") — the APKs are on nova-pc in
 `~/ubernav/build-variants/`.
+
+## 5b. Put all four looks on the owner's iPhone (the "IPAs")
+
+iOS gives every build the same bundle ID, so by default each look replaces
+the last. To have **all four side by side on the iPhone** (as on Android),
+give each its own bundle ID and name — only in your local build, don't
+commit the Xcode change:
+
+```sh
+cd ~/ubernav/apps/rider_app
+for pair in ":RideVela" "midnight:RideVela A" "daylight:RideVela B" "daynight:RideVela C"; do
+  t=${pair%%:*}; name=${pair#*:}
+  SUF=${t:+.$t}
+  flutter build ios --release \
+    --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
+    --dart-define=ALLOW_SERVER_OVERRIDE=true ${t:+--dart-define=THEME=$t} \
+    --build-name=1.7.0 --build-number=5030
+  # per-look bundle id + name, then install on the cabled iPhone
+  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier in.novarobotics.ubernav.rider$SUF" build/ios/iphoneos/Runner.app/Info.plist
+  /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $name" build/ios/iphoneos/Runner.app/Info.plist
+  codesign --force --sign "Apple Development" --entitlements ios/Runner/Runner.entitlements build/ios/iphoneos/Runner.app 2>/dev/null \
+    || codesign --force --sign "Apple Development" build/ios/iphoneos/Runner.app
+  xcrun devicectl device install app --device <iphone-udid> build/ios/iphoneos/Runner.app
+done
+```
+If re-signing after changing the bundle ID fails (free Apple ID: each new
+bundle ID needs its own provisioning profile), instead set the bundle ID in
+Xcode (Runner → Signing & Capabilities) per look and `flutter run --release`
+each one — slower but reliable. Free-account installs expire after 7 days.
+Also install the driver app (section 4) once.
+
+**What's new in 1.7.0 to point out:** real 3D cars in the ride list (the
+current look, B and C; A keeps flat silver cars), the booked car shown
+top-down on the map and turning with the road, the driver card shows the
+driver over their 3D car, and a new auto-rickshaw icon.
 
 ## 6. Report back
 
