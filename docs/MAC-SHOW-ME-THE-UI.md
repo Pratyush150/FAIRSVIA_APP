@@ -93,21 +93,10 @@ screenshot into `~/Desktop/ridevela-ui/<theme>/`, then the next.
 | `--dart-define=THEME=daylight` | **B — Daylight 3D** | Light grey page, white sheets, deep teal #0A7C7C buttons, **3D cars** (teal/slate/sand/graphite), 3D Add-a-stop / Pre-book / check / cash icons |
 | `--dart-define=THEME=daynight` | **C — Day & Night** | B by day, A by night (follows the phone); the theme **doesn't switch mid-ride** — test: start a ride, switch the simulator to Dark (Settings → Developer → Dark Appearance, or `xcrun simctl ui $SIM appearance dark`), the app stays light until the ride ends |
 
-**More options (added 2026-09-24, same tour, one flag each):**
-
-| Theme flag | Option | Look |
-|---|---|---|
-| `THEME=local` | **D — Local Colour** | Warm paper #FBF7F0, deep teal #0A6E6E buttons |
-| `THEME=ink` | **E — Ink & Paper** | Near-black ink buttons on paper #FAFAF7; teal only for the route/selection |
-| `THEME=glass` | **F — Map Glass** (solid fallback) | Cool grey sheets, teal #007A7A. **The frosted-glass sheets are not built yet** — this shows F's colours only |
-| `THEME=indigo` | Palette **Ikat Indigo** (top pick) | Indigo #4B32C3 buttons, violet route |
-| `THEME=lapis` | Palette **Registan Lapis & Gold** | Lapis blue #1D3F9E; gold route in dark mode |
-| `THEME=marigold` | Palette **Marigold** | Burnt orange #B8430A |
-| `THEME=copper` | Palette **Bukhara Copper** | Graphite buttons, copper route |
-| `THEME=garnet` | Palette **Anor Garnet** | Pomegranate #9B1B45 |
-
-Layout and copy are identical in every option; only tokens change. The car
-art in these is still the silver/teal-stripe set.
+**Only the looks above (default, A, B, C).** Other `THEME=` flags exist in the
+code (local, ink, glass, indigo, lapis, marigold, copper, garnet) but they
+change colours only — the owner asked not to show those. Do not build or show
+them until this file lists them again.
 
 On Android the owner already has these as separate apps ("RideVela A ·
 Midnight", "B · Daylight", "C · Day&Night") — the APKs are on nova-pc in
