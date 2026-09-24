@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'app_clay3d.dart';
 import 'app_colors.dart';
+import 'phosphor_icons.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
 import 'app_variant.dart';
@@ -78,7 +80,22 @@ class AppTheme {
       dividerColor: border,
       // 24 = the utility size (audit 2.1 rule 2: 24 / 20 / 16 only). Was 22,
       // which made every unsized icon off-scale.
-      iconTheme: IconThemeData(color: textPrimary, size: 24),
+      iconTheme: IconThemeData(color: textPrimary, size: AppIconSize.utility),
+
+      // THEME=clay3d: Material's back / close / drawer glyphs are the only
+      // icons not drawn from Phosphor, so they would stay flat line art;
+      // route them through the 3D font like every other icon.
+      actionIconTheme: AppClay3D.on
+          ? ActionIconThemeData(
+              backButtonIconBuilder: (_) =>
+                  const Icon(PhosphorIconsRegular.arrowLeft),
+              closeButtonIconBuilder: (_) => const Icon(PhosphorIconsRegular.x),
+              drawerButtonIconBuilder: (_) =>
+                  const Icon(PhosphorIconsRegular.list),
+              endDrawerButtonIconBuilder: (_) =>
+                  const Icon(PhosphorIconsRegular.list),
+            )
+          : null,
 
       appBarTheme: AppBarTheme(
         backgroundColor: background,
@@ -199,7 +216,7 @@ class AppTheme {
             ?.copyWith(color: ink),
         shape: const StadiumBorder(),
         // Chip glyphs on the 20 step (Material's default is 18).
-        iconTheme: const IconThemeData(size: 20),
+        iconTheme: const IconThemeData(size: AppIconSize.chip),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.sm,

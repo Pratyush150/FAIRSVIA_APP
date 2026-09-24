@@ -1829,10 +1829,9 @@ class _ControlsView extends StatelessWidget {
                   color: flag.on ? _activeTone : null,
                 ),
               ),
-              secondary: Icon(
-                flag.on ? PhosphorIconsFill.toggleRight : PhosphorIconsRegular.toggleLeft,
-                color: flag.on ? _activeTone : null,
-              ),
+              secondary: flag.on
+                  ? const Icon(PhosphorIconsFill.toggleRight, color: _activeTone)
+                  : AppClay3D.off(const Icon(PhosphorIconsRegular.toggleLeft)),
               onChanged: (next) => _confirm(context, flag, next),
             ),
           ),

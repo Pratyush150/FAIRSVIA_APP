@@ -47,6 +47,12 @@ flutter:
     - assets/vehicles/ink_dark/
     - assets/vehicles/ink_top/
     - assets/heroes/daylight/
+    # Plan G "3D Clay" (THEME=clay3d): hero-size copies of the 3D icon renders
+    # (tool/icons3d/build.py HEROES), light and dark.
+    - assets/heroes/clay3d/
+    - assets/heroes/clay3d_dark/
+    # The dark-mode 3D icon font, registered at run time (AppClay3D).
+    - assets/icons3d/
   # skeletonizer (and our icons) rely on the Material icon font.
   uses-material-design: true
   fonts:
@@ -80,6 +86,12 @@ flutter:
     - family: PhosphorLight
       fonts:
         - asset: fonts/Phosphor-Light.ttf
+    # Plan G "3D Clay" (THEME=clay3d) only: a colour-bitmap font (CBDT/CBLC
+    # + sbix, 128 ppem) whose glyphs at Phosphor's code points are the
+    # Blender-rendered 3D icons (docs/brand/icons3d; tool/icons3d/build.py).
+    - family: Phosphor3D
+      fonts:
+        - asset: fonts/Phosphor3D.ttf
     # Instrument Serif (SIL OFL 1.1, fonts/InstrumentSerif-LICENSE.txt): the
     # three serif moments of THEME=ink. One weight; never below 22 pt.
     - family: InstrumentSerif

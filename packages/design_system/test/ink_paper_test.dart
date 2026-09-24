@@ -34,7 +34,11 @@ void main() {
 
     test('utility icons: Phosphor Light under ink, Regular elsewhere', () {
       expect(PhosphorIconsRegular.car.fontFamily,
-          InkPaper.on ? 'PhosphorLight' : 'PhosphorRegular');
+          InkPaper.on
+              ? 'PhosphorLight'
+              : AppClay3D.on
+              ? 'Phosphor3D'
+              : 'PhosphorRegular');
       // Same code points in both classes.
       expect(PhosphorIconsLight.car.codePoint, PhosphorIconsRegular.car.codePoint);
       expect(PhosphorIconsLight.autoRickshaw.codePoint,
@@ -215,8 +219,10 @@ void main() {
       } else {
         expect(deco.color, isNotNull);
       }
-      // Still 40 px (rule 5) and decorative.
-      expect(tester.getSize(find.byType(AppIconBadge)), const Size(40, 40));
+      // Still 40 px (rule 5; 44 under clay3d) and decorative.
+      expect(tester.getSize(find.byType(AppIconBadge)),
+          const Size.square(AppIconBadge.size));
+      expect(AppIconBadge.size, AppClay3D.on ? 44 : 40);
       expect(
           tester.getSemantics(find.byType(AppIconBadge)).label, isEmpty);
     });

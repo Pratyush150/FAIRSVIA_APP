@@ -62,7 +62,8 @@ class _WhereToCard extends StatelessWidget {
                   children: [
                     SizedBox(width: InkPaper.on ? AppSpacing.xs : AppSpacing.lg),
                     Icon(PhosphorIconsRegular.magnifyingGlass,
-                        color: theme.colorScheme.onSurface, size: 24),
+                        color: theme.colorScheme.onSurface,
+                        size: AppIconSize.row),
                     const SizedBox(width: AppSpacing.md),
                     // Said once, by the pill's own label.
                     Expanded(
@@ -173,7 +174,8 @@ class _LaterChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(PhosphorIconsRegular.clock,
-                  size: 16, color: theme.colorScheme.onSurface),
+                  size: AppIconSize.inline,
+                  color: theme.colorScheme.onSurface),
               const SizedBox(width: 6),
               Text('Later', style: theme.textTheme.labelMedium),
               Icon(PhosphorIconsRegular.caretDown,

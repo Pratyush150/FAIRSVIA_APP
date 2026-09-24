@@ -10,13 +10,28 @@ import 'package:flutter/widgets.dart';
 /// drawn in Phosphor Light — the same code points, a 12-unit stroke instead
 /// of 16 — so every screen reads as line art without touching call sites.
 /// Build-time, so the icon font tree-shaker still sees constants.
-const String _regularFamily =
-    String.fromEnvironment('THEME') == 'ink' ? 'PhosphorLight' : 'PhosphorRegular';
+///
+/// Plan G "3D Clay" (`THEME=clay3d`) swaps both Regular and Fill for
+/// 'Phosphor3D': a colour-bitmap font (CBDT/CBLC for Android, sbix for iOS;
+/// tool/icons3d/build.py) whose glyph at each of these code points is the
+/// Blender-rendered 3D icon of the same name. Colour bitmaps ignore
+/// `Icon.color`, so every icon keeps its own rendered colours.
+const String _theme = String.fromEnvironment('THEME');
+const String _regularFamily = _theme == 'ink'
+    ? 'PhosphorLight'
+    : _theme == 'clay3d'
+    ? 'Phosphor3D'
+    : 'PhosphorRegular';
+
+/// The font behind [PhosphorIconsFill]: Fill, or the 3D font under clay3d.
+const String _fillFamily = _theme == 'clay3d' ? 'Phosphor3D' : 'PhosphorFill';
 
 /// Phosphor Regular — the default weight (Light under THEME=ink, see above).
 abstract final class PhosphorIconsRegular {
   static const IconData addressBook = IconData(0xe6f8, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData arrowClockwise = IconData(0xe036, fontFamily: _regularFamily, fontPackage: 'design_system');
+  static const IconData arrowLeft = IconData(0xe058, fontFamily: _regularFamily, fontPackage: 'design_system');
+  static const IconData arrowRight = IconData(0xe06c, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData arrowUpRight = IconData(0xe092, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData arrowsLeftRight = IconData(0xe0a0, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData bank = IconData(0xe0b4, fontFamily: _regularFamily, fontPackage: 'design_system');
@@ -30,6 +45,7 @@ abstract final class PhosphorIconsRegular {
   static const IconData car = IconData(0xe112, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData cards = IconData(0xe0f8, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData caretDown = IconData(0xe136, fontFamily: _regularFamily, fontPackage: 'design_system');
+  static const IconData caretLeft = IconData(0xe138, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData caretRight = IconData(0xe13a, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData caretUp = IconData(0xe13c, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData chartLineUp = IconData(0xe156, fontFamily: _regularFamily, fontPackage: 'design_system');
@@ -122,19 +138,19 @@ abstract final class PhosphorIconsRegular {
 
 /// Phosphor Fill — for states only: rated, favourited, selected.
 abstract final class PhosphorIconsFill {
-  static const IconData checkCircle = IconData(0xe184, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
-  static const IconData circle = IconData(0xe18a, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
-  static const IconData heart = IconData(0xe2a8, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
-  static const IconData sealCheck = IconData(0xe606, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
-  static const IconData shieldCheck = IconData(0xe40c, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
-  static const IconData square = IconData(0xe45e, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
-  static const IconData star = IconData(0xe46a, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
-  static const IconData toggleRight = IconData(0xe676, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
-  static const IconData motorcycle = IconData(0xe80a, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
+  static const IconData checkCircle = IconData(0xe184, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData circle = IconData(0xe18a, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData heart = IconData(0xe2a8, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData sealCheck = IconData(0xe606, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData shieldCheck = IconData(0xe40c, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData square = IconData(0xe45e, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData star = IconData(0xe46a, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData toggleRight = IconData(0xe676, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData motorcycle = IconData(0xe80a, fontFamily: _fillFamily, fontPackage: 'design_system');
 
   // RideVela additions (see PhosphorIconsRegular) — Fill weights of our paths.
-  static const IconData autoRickshaw = IconData(0xf8f0, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
-  static const IconData cashRupee = IconData(0xf8f2, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
+  static const IconData autoRickshaw = IconData(0xf8f0, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData cashRupee = IconData(0xf8f2, fontFamily: _fillFamily, fontPackage: 'design_system');
 }
 
 /// Phosphor Light (MIT, fonts/Phosphor-LICENSE.txt; vendored from

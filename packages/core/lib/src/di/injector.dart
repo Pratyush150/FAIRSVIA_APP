@@ -1,4 +1,8 @@
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:design_system/design_system.dart' show AppClay3D;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart' show Brightness, ThemeMode;
 import 'package:get_it/get_it.dart';
 
 import '../theme/theme_controller.dart';
@@ -43,6 +47,13 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
       config ?? await _pilotOverride(store) ?? AppConfig.fromEnvironment();
 
   final theme = await ThemeController.load(store);
+  // THEME=clay3d: register the dark 3D icon set before the first frame if
+  // the app will start dark, so no light icon ever flashes (no-op otherwise).
+  await AppClay3D.useIconSetFor(switch (theme.value) {
+    ThemeMode.dark => Brightness.dark,
+    ThemeMode.light => Brightness.light,
+    ThemeMode.system => PlatformDispatcher.instance.platformBrightness,
+  });
 
   sl
     ..registerSingleton<AppConfig>(cfg)

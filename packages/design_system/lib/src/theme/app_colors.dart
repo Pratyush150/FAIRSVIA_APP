@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_clay3d.dart';
+
 /// RideVela palette — "Samarkand Turquoise": the calm white / black canvases
 /// and tight grey ramp of the best ride-hailing apps, with the primary action
 /// in the brand "ink" (deep teal-navy on light, turquoise on dark) and
@@ -45,7 +47,8 @@ class AppColors {
       variant == 'garnet' ||
       variant == 'local' ||
       variant == 'ink' ||
-      variant == 'glass';
+      variant == 'glass' ||
+      variant == 'clay3d';
 
   /// Any of the v2/v3 option builds rather than the original palettes.
   static const bool v2 = planDark || planLight || v3;
@@ -53,6 +56,13 @@ class AppColors {
   /// Plan F "Map Glass" (`THEME=glass`): besides its tokens, this build turns
   /// the floating map chrome into frosted glass (see [AppGlass]).
   static const bool glass = variant == 'glass';
+
+  /// Plan G "3D Clay" (`THEME=clay3d`): warm soft-white page, deep teal
+  /// #0B7A7B for anything you tap (5.1:1 with white; the brand teal #1FA7A8
+  /// is only 2.9:1, so it is the route/selection/art highlight), and every
+  /// icon a Blender-rendered 3D picture (the Phosphor3D colour font, see
+  /// phosphor_icons.dart and [AppClay3D]).
+  static const bool clay3d = variant == 'clay3d';
 
   // Samarkand Turquoise: deep teal-navy ink on light, bright turquoise ink on
   // dark; turquoise highlights (route, selection) in both.
@@ -77,6 +87,8 @@ class AppColors {
       ? Color(0xFF0B0B0C)
       : variant == 'glass'
       ? Color(0xFF007A7A)
+      : variant == 'clay3d'
+      ? Color(0xFF0B7A7B)
       : planLight ? Color(0xFF0A7C7C) : Color(0xFF0B3C49);
   static const Color _turquoise =
       variant == 'indigo'
@@ -95,6 +107,8 @@ class AppColors {
       ? Color(0xFF0A7C7C)
       : variant == 'glass'
       ? Color(0xFF007A7A)
+      : variant == 'clay3d'
+      ? Color(0xFF1FA7A8)
       : planLight ? Color(0xFF2BC4C4) : Color(0xFF0FA3A8);
   static const Color _turquoiseBright =
       variant == 'indigo'
@@ -113,6 +127,8 @@ class AppColors {
       ? Color(0xFF3FC9C9)
       : variant == 'glass'
       ? Color(0xFF35D0D0)
+      : variant == 'clay3d'
+      ? Color(0xFF4FD6D2)
       : planDark ? Color(0xFF2BC4C4) : Color(0xFF2EC4C6);
   static const Color _onTurquoise =
       variant == 'indigo'
@@ -131,6 +147,8 @@ class AppColors {
       ? Color(0xFF0A0A0A)
       : variant == 'glass'
       ? Color(0xFF0E1114)
+      : variant == 'clay3d'
+      ? Color(0xFF0E1011)
       : planDark ? Color(0xFF0E0F11) : Color(0xFF00181B);
 
   /// Dark-mode ink (buttons). Same as the dark highlight except where a
@@ -151,11 +169,17 @@ class AppColors {
       ? Color(0xFFF4F3EE)
       : variant == 'glass'
       ? Color(0xFF35D0D0)
+      : variant == 'clay3d'
+      ? Color(0xFF3CC6C6)
       : _turquoiseBright;
 
   /// Called once per build from each app's `MaterialApp.builder`.
-  static void syncBrightness(Brightness brightness) =>
-      _dark = brightness == Brightness.dark;
+  /// Under THEME=clay3d it also swaps in the dark 3D icon set when the app
+  /// turns dark (AppClay3D.useIconSetFor).
+  static void syncBrightness(Brightness brightness) {
+    _dark = brightness == Brightness.dark;
+    if (clay3d) AppClay3D.useIconSetFor(brightness);
+  }
 
   // --- Ink (the primary action colour) ---------------------------------------
   static const Color black = Color(0xFF000000);
@@ -210,6 +234,8 @@ class AppColors {
       ? Color(0xFF1D1D1B)
       : variant == 'glass'
       ? Color(0xFF1E2328)
+      : variant == 'clay3d'
+      ? Color(0xFF2A2724)
       : planDark ? Color(0xFF1F2024) : Color(0xFF282828);
 
   /// Text/icons drawn on an [accent] fill.
@@ -239,6 +265,8 @@ class AppColors {
       ? const Color(0xFF16302F)
       : variant == 'glass'
       ? const Color(0xFF123032)
+      : variant == 'clay3d'
+      ? const Color(0xFF143130)
       : (planDark ? const Color(0xFF12302F) : const Color(0xFF0E2E31))
           : variant == 'indigo'
       ? const Color(0xFFEEEAFD)
@@ -256,6 +284,8 @@ class AppColors {
       ? const Color(0xFFE6F2F1)
       : variant == 'glass'
       ? const Color(0xFFE3F3F3)
+      : variant == 'clay3d'
+      ? const Color(0xFFE6F4F3)
       : const Color(0xFFE6F6F6))
       : (dark ? accentSoftDark : const Color(0xFFF3F3F3));
 
@@ -281,6 +311,8 @@ class AppColors {
       ? Color(0xFFFFFFFF)
       : variant == 'glass'
       ? Color(0xFFFFFFFF)
+      : variant == 'clay3d'
+      ? Color(0xFFFFFFFF)
       : Color(0xFFFFFFFF);
   /// Inputs, chips, inset rows on light.
   static const Color surfaceMutedLight =
@@ -300,6 +332,8 @@ class AppColors {
       ? Color(0xFFF0F0EC)
       : variant == 'glass'
       ? Color(0xFFEEF1F3)
+      : variant == 'clay3d'
+      ? Color(0xFFF2EEE9)
       : planLight ? Color(0xFFEEF0F2) : Color(0xFFF3F3F3);
   static const Color backgroundLight =
       variant == 'indigo'
@@ -318,6 +352,8 @@ class AppColors {
       ? Color(0xFFFAFAF7)
       : variant == 'glass'
       ? Color(0xFFF7F8F9)
+      : variant == 'clay3d'
+      ? Color(0xFFFAF8F5)
       : planLight ? Color(0xFFF5F6F7) : Color(0xFFFFFFFF);
 
   static const Color surfaceDark =
@@ -337,6 +373,8 @@ class AppColors {
       ? Color(0xFF141413)
       : variant == 'glass'
       ? Color(0xFF15191D)
+      : variant == 'clay3d'
+      ? Color(0xFF1E1C1A)
       : planDark ? Color(0xFF17181B) : Color(0xFF141414);
   static const Color surfaceMutedDark =
       variant == 'indigo'
@@ -355,6 +393,8 @@ class AppColors {
       ? Color(0xFF1D1D1B)
       : variant == 'glass'
       ? Color(0xFF1E2328)
+      : variant == 'clay3d'
+      ? Color(0xFF2A2724)
       : planDark ? Color(0xFF1F2024) : Color(0xFF282828);
   static const Color backgroundDark =
       variant == 'indigo'
@@ -373,6 +413,8 @@ class AppColors {
       ? Color(0xFF0A0A0A)
       : variant == 'glass'
       ? Color(0xFF0E1114)
+      : variant == 'clay3d'
+      ? Color(0xFF141312)
       : planDark ? Color(0xFF0E0F11) : Color(0xFF000000);
 
   // --- Text ------------------------------------------------------------------
@@ -393,6 +435,8 @@ class AppColors {
       ? Color(0xFF0B0B0C)
       : variant == 'glass'
       ? Color(0xFF0F1417)
+      : variant == 'clay3d'
+      ? Color(0xFF1D1F22)
       : planLight ? Color(0xFF111315) : Color(0xFF000000);
   static const Color textSecondaryLight =
       variant == 'indigo'
@@ -411,6 +455,8 @@ class AppColors {
       ? Color(0xFF55554F)
       : variant == 'glass'
       ? Color(0xFF4A545C)
+      : variant == 'clay3d'
+      ? Color(0xFF5E6167)
       : planLight ? Color(0xFF5F646B) : Color(0xFF545454);
   /// 4.6:1 on white — the lightest grey that still passes WCAG AA.
   static const Color textTertiaryLight = Color(0xFF757575);
@@ -430,6 +476,8 @@ class AppColors {
       ? Color(0xFFF4F3EE)
       : variant == 'glass'
       ? Color(0xFFF2F5F7)
+      : variant == 'clay3d'
+      ? Color(0xFFF5F2EE)
       : Color(0xFFFFFFFF);
   static const Color textSecondaryDark =
       variant == 'indigo'
@@ -448,6 +496,8 @@ class AppColors {
       ? Color(0xFFA3A29B)
       : variant == 'glass'
       ? Color(0xFFA7B0B8)
+      : variant == 'clay3d'
+      ? Color(0xFFADA79F)
       : planDark ? Color(0xFFA0A3A8) : Color(0xFFAFAFAF);
   static const Color textTertiaryDark = Color(0xFF8E8E8E);
 
@@ -478,6 +528,8 @@ class AppColors {
       ? Color(0xFFDAD9D3)
       : variant == 'glass'
       ? Color(0xFFDDE2E6)
+      : variant == 'clay3d'
+      ? Color(0xFFE8E2DA)
       : planLight ? Color(0xFFE3E5E8) : Color(0xFFE8E8E8);
   static const Color borderDark =
       variant == 'indigo'
@@ -496,6 +548,8 @@ class AppColors {
       ? Color(0xFF2E2E2B)
       : variant == 'glass'
       ? Color(0xFF2C3238)
+      : variant == 'clay3d'
+      ? Color(0xFF37332E)
       : planDark ? Color(0xFF2A2C31) : Color(0xFF333333);
 
   // --- Semantic --------------------------------------------------------------

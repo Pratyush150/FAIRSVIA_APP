@@ -1,0 +1,547 @@
+{
+ "roles": {
+  "brand": {
+   "light": "#1FA7A8",
+   "dark": "#2CC0C1"
+  },
+  "chrome": {
+   "light": "#A8A29B",
+   "dark": "#8A8580"
+  },
+  "neutral": {
+   "light": "#3C4046",
+   "dark": "#A9AFB8"
+  },
+  "danger": {
+   "light": "#E5484D",
+   "dark": "#F0605F"
+  },
+  "success": {
+   "light": "#2BAA6B",
+   "dark": "#38C27F"
+  },
+  "warning": {
+   "light": "#F2A93B",
+   "dark": "#F6B84F"
+  },
+  "rating": {
+   "light": "#F5C542",
+   "dark": "#F7CF5A"
+  },
+  "love": {
+   "light": "#E8577A",
+   "dark": "#F06E8D"
+  },
+  "money": {
+   "light": "#3DBE8B",
+   "dark": "#4CD39C"
+  }
+ },
+ "icons": {
+  "addressBook": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "arrowClockwise": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "arrowLeft": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "arrowRight": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "arrowUpRight": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "arrowsLeftRight": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "autoRickshaw": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "bank": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "bell": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "bellRinging": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "briefcase": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "broadcast": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "calendarBlank": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "calendarCheck": {
+   "role": "success",
+   "hex": "#2BAA6B",
+   "hex_dark": "#38C27F"
+  },
+  "calendarX": {
+   "role": "danger",
+   "hex": "#E5484D",
+   "hex_dark": "#F0605F"
+  },
+  "car": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "cards": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "caretDown": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "caretLeft": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "caretRight": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "caretUp": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "cashRupee": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "chartLineUp": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "chatCircle": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "chatCircleSlash": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "chatText": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "check": {
+   "role": "success",
+   "hex": "#2BAA6B",
+   "hex_dark": "#38C27F"
+  },
+  "checkCircle": {
+   "role": "success",
+   "hex": "#2BAA6B",
+   "hex_dark": "#38C27F"
+  },
+  "checks": {
+   "role": "success",
+   "hex": "#2BAA6B",
+   "hex_dark": "#38C27F"
+  },
+  "circle": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "circleHalf": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "clock": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "cloudSlash": {
+   "role": "warning",
+   "hex": "#F2A93B",
+   "hex_dark": "#F6B84F"
+  },
+  "coins": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "compass": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "copy": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "creditCard": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "deviceMobile": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "dotsThree": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "envelopeSimple": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "export": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "flag": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "gpsFix": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "gpsSlash": {
+   "role": "warning",
+   "hex": "#F2A93B",
+   "hex_dark": "#F6B84F"
+  },
+  "handHeart": {
+   "role": "love",
+   "hex": "#E8577A",
+   "hex_dark": "#F06E8D"
+  },
+  "headset": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "heart": {
+   "role": "love",
+   "hex": "#E8577A",
+   "hex_dark": "#F06E8D"
+  },
+  "heartbeat": {
+   "role": "love",
+   "hex": "#E8577A",
+   "hex_dark": "#F06E8D"
+  },
+  "hourglass": {
+   "role": "warning",
+   "hex": "#F2A93B",
+   "hex_dark": "#F6B84F"
+  },
+  "house": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "info": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "lightning": {
+   "role": "warning",
+   "hex": "#F2A93B",
+   "hex_dark": "#F6B84F"
+  },
+  "list": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "magnifyingGlass": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "mapPin": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "mapPinPlus": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "mapTrifold": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "money": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "moon": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "moonStars": {
+   "role": "rating",
+   "hex": "#F5C542",
+   "hex_dark": "#F7CF5A"
+  },
+  "motorcycle": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "navigationArrow": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "note": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "paperPlaneRight": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "path": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "pencilSimple": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "percent": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "personSimpleWalk": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "phone": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "piggyBank": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "plus": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  },
+  "question": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "receipt": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "record": {
+   "role": "danger",
+   "hex": "#E5484D",
+   "hex_dark": "#F0605F"
+  },
+  "ruler": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "sealCheck": {
+   "role": "success",
+   "hex": "#2BAA6B",
+   "hex_dark": "#38C27F"
+  },
+  "shieldCheck": {
+   "role": "success",
+   "hex": "#2BAA6B",
+   "hex_dark": "#38C27F"
+  },
+  "signOut": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "siren": {
+   "role": "danger",
+   "hex": "#E5484D",
+   "hex_dark": "#F0605F"
+  },
+  "square": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "squaresFour": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "star": {
+   "role": "rating",
+   "hex": "#F5C542",
+   "hex_dark": "#F7CF5A"
+  },
+  "sun": {
+   "role": "rating",
+   "hex": "#F5C542",
+   "hex_dark": "#F7CF5A"
+  },
+  "tag": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "taxi": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "ticket": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "toggleLeft": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "toggleRight": {
+   "role": "success",
+   "hex": "#2BAA6B",
+   "hex_dark": "#38C27F"
+  },
+  "trash": {
+   "role": "danger",
+   "hex": "#E5484D",
+   "hex_dark": "#F0605F"
+  },
+  "tray": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "trendUp": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "user": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "userCircle": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "userMinus": {
+   "role": "danger",
+   "hex": "#E5484D",
+   "hex_dark": "#F0605F"
+  },
+  "userPlus": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "users": {
+   "role": "brand",
+   "hex": "#1FA7A8",
+   "hex_dark": "#2CC0C1"
+  },
+  "wallet": {
+   "role": "money",
+   "hex": "#3DBE8B",
+   "hex_dark": "#4CD39C"
+  },
+  "warning": {
+   "role": "warning",
+   "hex": "#F2A93B",
+   "hex_dark": "#F6B84F"
+  },
+  "warningCircle": {
+   "role": "danger",
+   "hex": "#E5484D",
+   "hex_dark": "#F0605F"
+  },
+  "wrench": {
+   "role": "neutral",
+   "hex": "#3C4046",
+   "hex_dark": "#A9AFB8"
+  },
+  "x": {
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
+  }
+ }
+}

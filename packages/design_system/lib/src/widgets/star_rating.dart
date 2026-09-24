@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/phosphor_icons.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../theme/app_clay3d.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_ink.dart';
 import '../theme/app_motion.dart';
@@ -41,6 +42,8 @@ class StarRating extends StatelessWidget {
           size: size,
           color: filled ? color : muted,
         );
+        // THEME=clay3d: Fill and Regular are one 3D star, so grey the empties.
+        if (!filled) star = AppClay3D.off(star);
         // A filled star springs in; re-keying on `value` re-triggers the pop
         // each time the rating changes, so tapping cascades the stars. Under
         // Reduce Motion the fill alone says it.

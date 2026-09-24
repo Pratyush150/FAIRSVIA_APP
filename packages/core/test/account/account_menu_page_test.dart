@@ -106,6 +106,14 @@ void main() {
     expect(find.text('Saved places'), findsOneWidget);
     // Menu rows are navigation, not state: Regular (audit 2.1 rule 3). The
     // one Fill star left is the rating line — a real state.
+    if (AppClay3D.on) {
+      // THEME=clay3d: Regular and Fill are one 3D glyph (same IconData), so
+      // the menu star and the rating star are both found either way.
+      expect(PhosphorIconsFill.star, PhosphorIconsRegular.star);
+      expect(find.byIcon(PhosphorIconsRegular.star), findsNWidgets(2));
+      expect(find.byIcon(PhosphorIconsRegular.heart), findsOneWidget);
+      return;
+    }
     expect(find.byIcon(PhosphorIconsRegular.star), findsOneWidget);
     expect(find.byIcon(PhosphorIconsRegular.heart), findsOneWidget);
     expect(find.byIcon(PhosphorIconsFill.star), findsOneWidget);
@@ -155,6 +163,6 @@ void main() {
       find.byIcon(PhosphorIconsRegular.caretRight).first,
     );
     expect(chevron.color, AppColors.iconNeutralDark);
-    expect(chevron.size, 20);
+    expect(chevron.size, AppIconSize.trailing);
   });
 }

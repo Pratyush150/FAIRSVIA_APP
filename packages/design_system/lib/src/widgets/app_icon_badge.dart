@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_clay3d.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_ink.dart';
 import '../theme/app_variant.dart';
@@ -49,10 +50,11 @@ class AppIconBadge extends StatelessWidget {
   }) : tone = AppIconBadgeTone.danger;
 
   /// Container diameter — one size everywhere.
-  static const double size = 40;
+  static const double size = AppClay3D.on ? 44 : 40;
 
-  /// Glyph size inside the container.
-  static const double iconSize = 20;
+  /// Glyph size inside the container. THEME=clay3d: 28 in a 44 disc — a 3D
+  /// render has its own shading and reads as a smudge at 20.
+  static const double iconSize = AppClay3D.on ? 28 : 20;
 
   final IconData icon;
   final AppIconBadgeTone tone;

@@ -304,8 +304,11 @@ void main() {
     await tester.pumpWidget(const MaterialApp(
       home: Center(child: AppIconBadge(icon: PhosphorIconsRegular.car)),
     ));
-    expect(tester.getSize(find.byType(AppIconBadge)), const Size(40, 40));
-    expect(tester.widget<Icon>(find.byType(Icon)).size, 20);
+    // THEME=clay3d: a 28 px 3D render in a 44 px disc (AppIconBadge).
+    expect(tester.getSize(find.byType(AppIconBadge)),
+        AppClay3D.on ? const Size(44, 44) : const Size(40, 40));
+    expect(tester.widget<Icon>(find.byType(Icon)).size,
+        AppClay3D.on ? 28 : 20);
   });
 
   testWidgets('renders the icon system sheet', (tester) async {

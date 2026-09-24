@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_clay3d.dart';
 import '../theme/app_elevation.dart';
 import '../theme/app_glass.dart';
 import 'glass_surface.dart';
@@ -37,7 +38,7 @@ class AppCircleButton extends StatelessWidget {
           shape: const CircleBorder(),
           clipBehavior: Clip.antiAlias,
           child: IconButton(
-            icon: Icon(icon, size: 24),
+            icon: Icon(icon, size: AppIconSize.mapButton),
             color: foreground ?? scheme.onSurface,
             tooltip: tooltip,
             onPressed: onPressed,
@@ -57,7 +58,7 @@ class AppCircleButton extends StatelessWidget {
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: IconButton(
-          icon: Icon(icon, size: 24),
+          icon: Icon(icon, size: AppIconSize.mapButton),
           color: foreground ?? scheme.onSurface,
           tooltip: tooltip,
           onPressed: onPressed,

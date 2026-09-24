@@ -43,11 +43,11 @@ class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: _busy ? null : _toggle,
-      icon: Icon(
-        _favorited ? PhosphorIconsFill.heart : PhosphorIconsRegular.heart,
-        color: _favorited ? AppColors.error : null,
-        size: 20,
-      ),
+      icon: _favorited
+          ? const Icon(PhosphorIconsFill.heart,
+              color: AppColors.error, size: 20)
+          // THEME=clay3d: one 3D heart for both states, so grey the off one.
+          : AppClay3D.off(const Icon(PhosphorIconsRegular.heart, size: 20)),
       label: Text(_favorited ? 'Favourited' : 'Add to favourites'),
     );
   }

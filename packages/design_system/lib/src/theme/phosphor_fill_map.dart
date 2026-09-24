@@ -11,6 +11,8 @@ IconData phosphorFillTwin(IconData icon) {
   return switch (icon.codePoint) {
     0xe6f8 => const IconData(0xe6f8, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // addressBook
     0xe036 => const IconData(0xe036, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // arrowClockwise
+    0xe058 => const IconData(0xe058, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // arrowLeft
+    0xe06c => const IconData(0xe06c, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // arrowRight
     0xe092 => const IconData(0xe092, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // arrowUpRight
     0xe0a0 => const IconData(0xe0a0, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // arrowsLeftRight
     0xe0b4 => const IconData(0xe0b4, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // bank
@@ -24,6 +26,7 @@ IconData phosphorFillTwin(IconData icon) {
     0xe112 => const IconData(0xe112, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // car
     0xe0f8 => const IconData(0xe0f8, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // cards
     0xe136 => const IconData(0xe136, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // caretDown
+    0xe138 => const IconData(0xe138, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // caretLeft
     0xe13a => const IconData(0xe13a, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // caretRight
     0xe13c => const IconData(0xe13c, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // caretUp
     0xe156 => const IconData(0xe156, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // chartLineUp

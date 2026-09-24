@@ -266,7 +266,7 @@ jobs:
         working-directory: packages/design_system
         run: |
           set -e
-          for t in midnight daylight daynight mono indigo lapis marigold copper garnet local ink glass; do
+          for t in midnight daylight daynight mono indigo lapis marigold copper garnet local ink glass clay3d; do
             echo "::group::THEME=$t"
             flutter test test/theme_variant_test.dart --dart-define=THEME=$t
             echo "::endgroup::"
@@ -296,6 +296,20 @@ jobs:
             test/live_ride_sheets_test.dart test/completed_sheet_tip_test.dart \
             test/driver_info_sheet_test.dart test/ride_sheet_layout_test.dart \
             test/ride_map_layer_test.dart test/ride_cards_test.dart)
+
+      - name: Plan G "3D Clay" build (THEME=clay3d)
+        # Plan G swaps every Phosphor icon for the Phosphor3D colour-bitmap
+        # font (CBDT/CBLC + sbix) and adds 3D hero art, so the whole suites
+        # run in that build — including clay3d_icons_test, which renders the
+        # real font and asserts coloured pixels. (Price-comparison goldens
+        # skip themselves under any THEME.)
+        run: |
+          set -e
+          for d in packages/design_system packages/core apps/rider_app apps/driver_app; do
+            echo "::group::THEME=clay3d flutter test $d"
+            (cd "$d" && flutter test --dart-define=THEME=clay3d)
+            echo "::endgroup::"
+          done
 
   # ---------------------------------------------------------------------------
   # Android build: the rider and driver apps ship on phones, so a web build is

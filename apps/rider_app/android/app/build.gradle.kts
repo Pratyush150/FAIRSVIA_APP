@@ -33,6 +33,7 @@ val variantLabel: String? = mapOf(
     "local" to "RideVela D · Local",
     "ink" to "RideVela E · Ink",
     "glass" to "RideVela F · Glass",
+    "clay3d" to "RideVela G · 3D",
     "indigo" to "RideVela · Indigo",
     "lapis" to "RideVela · Lapis",
     "marigold" to "RideVela · Marigold",

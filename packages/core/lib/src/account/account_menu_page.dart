@@ -364,7 +364,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               children: [
                 Icon(
                   item.icon,
-                  size: 24,
+                  size: AppIconSize.row,
                   // Neutral glyph colour (audit 2.1 rule 4): colour only
                   // when it means something — here, danger.
                   color: color ?? AppColors.iconNeutralFor(dark),
@@ -383,7 +383,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 if (!item.danger)
                   Icon(
                     PhosphorIconsRegular.caretRight,
-                    size: 20,
+                    size: AppIconSize.trailing,
                     color: AppColors.iconNeutralFor(dark),
                   ),
               ],

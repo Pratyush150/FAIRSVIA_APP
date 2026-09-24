@@ -534,18 +534,19 @@ class _PickupSummary extends StatelessWidget {
                 spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xs,
                 children: [
-                  chip(const Icon(PhosphorIconsRegular.car, size: 16),
+                  chip(const Icon(PhosphorIconsRegular.car,
+                          size: AppIconSize.inline),
                       _tierLabel(state)),
                   chip(
                       cash
                           ? _HeroIcon(
                               asset: 'cash',
-                              size: 16,
+                              size: AppIconSize.inline,
                               fallback: const Icon(PhosphorIconsRegular.money,
-                                  size: 16),
+                                  size: AppIconSize.inline),
                             )
                           : const Icon(PhosphorIconsRegular.creditCard,
-                              size: 16),
+                              size: AppIconSize.inline),
                       cash ? 'Cash' : 'Card'),
                 ],
               ),
@@ -1023,16 +1024,19 @@ class _QuickActionCard extends StatelessWidget {
           // Plan B/C: the 3D hero art on a plain disc. Everywhere else (and
           // if the art fails to load): the one shared icon container.
           if (hero != null && _HeroIcon.enabled(context))
+            // Plan G (clay3d): the render sits inside a 48 px disc with
+            // room to breathe — at 40 on 40 its edges touched the rim.
             Container(
-              width: 40,
-              height: 40,
+              width: AppClay3D.on ? 48 : 40,
+              height: AppClay3D.on ? 48 : 40,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
                 shape: BoxShape.circle,
               ),
               child: _HeroIcon(
                 asset: hero,
-                size: 40,
+                size: AppClay3D.on ? 36 : 40,
                 fallback: AppIconBadge(icon: icon),
               ),
             )
@@ -1058,8 +1062,8 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-/// A Plan B/C ("daylight"/"daynight") 3D hero icon, or [fallback] everywhere
-/// else. Only in a light-themed Plan B/C build: the art is lit for a light
+/// A Plan B/C ("daylight"/"daynight") or Plan G ("clay3d") 3D hero icon, or
+/// [fallback] everywhere else. Only in a light-themed Plan B/C build: the art is lit for a light
 /// background, and every other build must look exactly as before — which the
 /// const [AppColors.planLight] guarantees at compile time. A missing or broken
 /// asset falls back to the Phosphor glyph rather than an empty box.
@@ -1097,16 +1101,22 @@ class _HeroIcon extends StatelessWidget {
   final double size;
   final Widget fallback;
 
+  /// Plan B/C in a light theme, or Plan G (THEME=clay3d) in either theme —
+  /// its 3D renders come in a light and a dark set.
   static bool enabled(BuildContext context) =>
-      AppColors.planLight &&
-      Theme.of(context).brightness == Brightness.light;
+      AppClay3D.on ||
+      (AppColors.planLight &&
+          Theme.of(context).brightness == Brightness.light);
 
   @override
   Widget build(BuildContext context) {
     final name = asset;
     if (name == null || !enabled(context)) return fallback;
     return Image.asset(
-      'assets/heroes/daylight/$name.png',
+      AppClay3D.on
+          ? AppClay3D.heroAsset(
+              name, Theme.of(context).brightness == Brightness.dark)
+          : 'assets/heroes/daylight/$name.png',
       package: 'design_system',
       width: size,
       height: size,

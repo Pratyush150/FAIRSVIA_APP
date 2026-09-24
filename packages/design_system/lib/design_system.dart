@@ -12,6 +12,7 @@ export 'src/theme/app_a11y.dart';
 export 'src/theme/app_variant.dart';
 export 'src/theme/app_glass.dart';
 export 'src/theme/app_ink.dart';
+export 'src/theme/app_clay3d.dart';
 
 export 'src/widgets/primary_button.dart';
 export 'src/widgets/secondary_button.dart';

@@ -37,11 +37,12 @@ void main() {
     }
   }
 
-  Finder hero(String name) => find.byWidgetPredicate((w) =>
+  Finder heroAt(String path) => find.byWidgetPredicate((w) =>
       w is Image &&
       w.image is AssetImage &&
-      (w.image as AssetImage).assetName == 'assets/heroes/daylight/$name.png' &&
+      (w.image as AssetImage).assetName == path &&
       (w.image as AssetImage).package == 'design_system');
+  Finder hero(String name) => heroAt('assets/heroes/daylight/$name.png');
 
   final onTrip = TripState(
     phase: TripPhase.onTrip,
@@ -58,6 +59,22 @@ void main() {
   const completed = TripState(phase: TripPhase.completed, fareFinal: 75);
 
   final light = AppColors.planLight;
+
+  if (AppClay3D.on) {
+    // Plan G: the 3D renders in both themes, each its own lit set.
+    for (final dark in [false, true]) {
+      testWidgets('clay3d: 3D hero art, dark=$dark', (tester) async {
+        final theme = dark ? AppTheme.dark : AppTheme.light;
+        await pump(tester, onTrip, theme);
+        expect(heroAt(AppClay3D.heroAsset('add_stop', dark)), findsOneWidget);
+        expect(heroAt(AppClay3D.heroAsset('prebook', dark)), findsOneWidget);
+        await pump(tester, completed, theme);
+        expect(heroAt(AppClay3D.heroAsset('done', dark)), findsOneWidget);
+        expect(hero('done'), findsNothing);
+      });
+    }
+    return;
+  }
 
   testWidgets(
       light
