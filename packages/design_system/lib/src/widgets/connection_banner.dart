@@ -89,7 +89,7 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
                       children: [
                         if (widget.connected)
                           const Icon(PhosphorIconsRegular.check,
-                              size: 15, color: Colors.white)
+                              size: 16, color: Colors.white)
                         else
                           const SizedBox(
                             width: 14,

@@ -46,7 +46,7 @@ class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
       icon: Icon(
         _favorited ? PhosphorIconsFill.heart : PhosphorIconsRegular.heart,
         color: _favorited ? AppColors.error : null,
-        size: 18,
+        size: 20,
       ),
       label: Text(_favorited ? 'Favourited' : 'Add to favourites'),
     );
@@ -128,7 +128,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(PhosphorIconsRegular.check,
-                    color: AppColors.accent, size: 36),
+                    color: AppColors.accent, size: 32),
               ),
             ),
           ),

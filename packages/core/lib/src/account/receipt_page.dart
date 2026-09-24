@@ -74,7 +74,8 @@ class ReceiptPage extends StatelessWidget {
                 Icon(
                   r.isCash ? PhosphorIconsRegular.money : PhosphorIconsRegular.creditCard,
                   size: 16,
-                  color: AppColors.textSecondaryLight,
+                  color: AppColors.iconNeutralFor(
+                      theme.brightness == Brightness.dark),
                 ),
                 const SizedBox(width: AppSpacing.xs),
                 Text(
@@ -196,7 +197,7 @@ class _Trip extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: AppColors.accent),
+        Icon(icon, size: 20, color: AppColors.accent),
         const SizedBox(width: AppSpacing.sm),
         Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
       ],

@@ -134,7 +134,7 @@ class ErrorOverlay extends StatelessWidget {
                         const Padding(
                           padding: EdgeInsets.only(top: 2, right: 8),
                           child: Icon(PhosphorIconsRegular.warningCircle,
-                              color: Colors.white, size: 18),
+                              color: Colors.white, size: 20),
                         ),
                         Expanded(
                           child: ConstrainedBox(

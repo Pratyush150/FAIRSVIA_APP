@@ -105,7 +105,7 @@ class _Headline extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
-        Icon(icon, size: 18, color: color),
+        Icon(icon, size: 20, color: color),
         const SizedBox(width: AppSpacing.xs),
         Expanded(
           child: Text(

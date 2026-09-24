@@ -73,7 +73,9 @@ class AppTheme {
       // Quiet press feedback: a flat highlight, not a sparkle.
       splashFactory: InkRipple.splashFactory,
       dividerColor: border,
-      iconTheme: IconThemeData(color: textPrimary, size: 22),
+      // 24 = the utility size (audit 2.1 rule 2: 24 / 20 / 16 only). Was 22,
+      // which made every unsized icon off-scale.
+      iconTheme: IconThemeData(color: textPrimary, size: 24),
 
       appBarTheme: AppBarTheme(
         backgroundColor: background,
@@ -122,6 +124,8 @@ class AppTheme {
           foregroundColor: onInk,
           disabledBackgroundColor: ink.withValues(alpha: 0.3),
           minimumSize: const Size(0, AppSpacing.buttonHeight),
+          // Button glyphs are 20 (Material's default 18 is off-scale).
+          iconSize: 20,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           textStyle: text.labelLarge?.copyWith(fontSize: 16, fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(
@@ -134,6 +138,7 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: textPrimary,
           minimumSize: const Size(0, AppSpacing.buttonHeight),
+          iconSize: 20,
           side: BorderSide(color: border, width: 1.4),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           textStyle: text.labelLarge,
@@ -149,6 +154,7 @@ class AppTheme {
           // Tertiary actions: at least the 44 pt touch target.
           minimumSize: const Size(AppSpacing.buttonHeightTertiary,
               AppSpacing.buttonHeightTertiary),
+          iconSize: 20,
           textStyle: text.labelLarge,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
@@ -187,6 +193,8 @@ class AppTheme {
         secondaryLabelStyle: text.labelMedium
             ?.copyWith(color: ink),
         shape: const StadiumBorder(),
+        // Chip glyphs on the 20 step (Material's default is 18).
+        iconTheme: const IconThemeData(size: 20),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.sm,

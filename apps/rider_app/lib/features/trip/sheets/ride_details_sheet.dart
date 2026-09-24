@@ -134,7 +134,7 @@ class RideDetailsContent extends StatelessWidget {
                             Row(
                               children: [
                                 const Icon(PhosphorIconsFill.star,
-                                    size: 15, color: AppColors.star),
+                                    size: 16, color: AppColors.star),
                                 const SizedBox(width: 3),
                                 Text(driver.rating.toStringAsFixed(1),
                                     style: theme.textTheme.labelLarge),
@@ -251,7 +251,11 @@ class _RideDetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: AppColors.accent),
+          // Label glyphs, not meaning: neutral, 20 px (audit 2.1 rules 2/4).
+          Icon(icon,
+              size: 20,
+              color: AppColors.iconNeutralFor(
+                  theme.brightness == Brightness.dark)),
           const SizedBox(width: AppSpacing.sm),
           Text(label, style: theme.textTheme.bodyMedium),
           const SizedBox(width: AppSpacing.md),

@@ -142,29 +142,10 @@ class _EmptyState extends StatelessWidget {
   final String title;
   final String? message;
 
+  // The shared empty state (soft 72 px medallion, 32 px brand glyph) rather
+  // than a bare 48 px icon in the theme's disabled grey — which sat under the
+  // 3:1 icon-contrast floor (audit 2.1 rules 5 and 7).
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: theme.disabledColor),
-            const SizedBox(height: AppSpacing.md),
-            Text(title, style: theme.textTheme.titleMedium),
-            if (message != null) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                message!,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      EmptyState(icon: icon, title: title, message: message);
 }

@@ -350,7 +350,8 @@ class DriverInfoSheet extends StatelessWidget {
           _SheetWarning(message: state.error!),
         ],
         const SizedBox(height: AppSpacing.md),
-        _DriverVehicleCard(driver: driver),
+        _DriverVehicleCard(
+            driver: driver, tier: state.trip?.tier ?? state.selectedTier),
         if (otp != null) ...[
           const SizedBox(height: AppSpacing.md),
           _RidePin(pin: otp, driverName: RideStatus.driverName(state)),
@@ -486,7 +487,7 @@ class _PickupSummary extends StatelessWidget {
       children: [
         Padding(
           padding: EdgeInsets.only(top: 2),
-          child: Icon(PhosphorIconsRegular.record, size: 18, color: AppColors.accent),
+          child: Icon(PhosphorIconsRegular.record, size: 20, color: AppColors.accent),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
@@ -505,7 +506,7 @@ class _PickupSummary extends StatelessWidget {
                 spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xs,
                 children: [
-                  chip(const Icon(PhosphorIconsRegular.car, size: 14),
+                  chip(const Icon(PhosphorIconsRegular.car, size: 16),
                       _tierLabel(state)),
                   chip(
                       cash
@@ -513,10 +514,10 @@ class _PickupSummary extends StatelessWidget {
                               asset: 'cash',
                               size: 16,
                               fallback: const Icon(PhosphorIconsRegular.money,
-                                  size: 14),
+                                  size: 16),
                             )
                           : const Icon(PhosphorIconsRegular.creditCard,
-                              size: 14),
+                              size: 16),
                       cash ? 'Cash' : 'Card'),
                 ],
               ),
@@ -560,9 +561,12 @@ Color? vehicleTint(String? colorName) {
 }
 
 class _DriverVehicleCard extends StatelessWidget {
-  const _DriverVehicleCard({required this.driver});
+  const _DriverVehicleCard({required this.driver, this.tier});
 
   final AssignedDriver? driver;
+
+  /// The booked ride type, for the vehicle art beside the driver.
+  final String? tier;
 
   @override
   Widget build(BuildContext context) {
@@ -575,51 +579,43 @@ class _DriverVehicleCard extends StatelessWidget {
         (d == null || d.name.trim().isEmpty || d.name == 'Your driver')
             ? null
             : d.name.trim();
-    final tint = vehicleTint(d?.vehicleColor);
-    final lightCar = tint != null && tint.computeLuminance() > 0.6;
     final vehicle = d?.vehicleLabel ?? '';
     final plate = d?.plate;
     final muted = dark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     return AppCard(
       child: Row(
         children: [
-          // The driver's face first, with the car's colour as a badge on it:
-          // the rider matches a person and a car, in that order.
-          SizedBox(
-            width: 64,
-            height: 60,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                AppAvatar(name: realName, size: 56),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Semantics(
-                    label: vehicle.isEmpty ? 'Car' : vehicle,
-                    excludeSemantics: true,
+          // The driver's face over the vehicle they are bringing (the booked
+          // ride type's 3D art), like the big apps: the rider matches a
+          // person and a car at a glance.
+          Semantics(
+            label: vehicle.isEmpty ? 'Car' : vehicle,
+            excludeSemantics: true,
+            child: SizedBox(
+              width: 104,
+              height: 64,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: VehicleGlyph(tier: tier ?? 'comfort', width: 80),
+                  ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
                     child: Container(
-                      width: 28,
-                      height: 28,
                       decoration: BoxDecoration(
-                        // A white/silver car on a light disc disappears — give
-                        // light cars a dark disc so the colour still reads.
-                        color: lightCar
-                            ? AppColors.primaryElevated
-                            : theme.colorScheme.surface,
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: dark
-                                ? AppColors.borderDark
-                                : AppColors.borderLight),
-                        boxShadow: AppElevation.sm,
+                            color: theme.colorScheme.surface, width: 2),
                       ),
-                      child: Icon(PhosphorIconsRegular.car,
-                          size: 16, color: tint ?? muted),
+                      child: AppAvatar(name: realName, size: 48),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -672,7 +668,7 @@ class _DriverVehicleCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(PhosphorIconsFill.star,
-                              size: 14, color: AppColors.star),
+                              size: 16, color: AppColors.star),
                           const SizedBox(width: 2),
                           Text(
                             d == null ? '—' : d.rating.toStringAsFixed(1),
@@ -733,7 +729,8 @@ class _OnMyWayButtonState extends State<_OnMyWayButton> {
         ),
         child: Row(
           children: [
-            const Icon(PhosphorIconsFill.checkCircle, color: AppColors.success),
+            const Icon(PhosphorIconsFill.checkCircle,
+                size: 20, color: AppColors.success),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -843,7 +840,7 @@ class _OnTripSheet extends StatelessWidget {
           Row(
             children: [
               Icon(PhosphorIconsRegular.clock,
-                  size: 18, color: AppColors.accent),
+                  size: 20, color: AppColors.accent),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
                 child: Text(eta,
@@ -888,7 +885,7 @@ class _RideStops extends StatelessWidget {
                 const Padding(
                   padding: EdgeInsets.only(top: 2),
                   child: Icon(PhosphorIconsRegular.flag,
-                      size: 18, color: AppColors.warning),
+                      size: 20, color: AppColors.warning),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -993,19 +990,24 @@ class _QuickActionCard extends StatelessWidget {
       color: dark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight,
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              shape: BoxShape.circle,
-            ),
-            child: _HeroIcon(
-              asset: hero,
-              size: 40,
-              fallback: Icon(icon, color: AppColors.accentInk, size: 22),
-            ),
-          ),
+          // Plan B/C: the 3D hero art on a plain disc. Everywhere else (and
+          // if the art fails to load): the one shared icon container.
+          if (hero != null && _HeroIcon.enabled(context))
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                shape: BoxShape.circle,
+              ),
+              child: _HeroIcon(
+                asset: hero,
+                size: 40,
+                fallback: AppIconBadge(icon: icon),
+              ),
+            )
+          else
+            AppIconBadge(icon: icon),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(

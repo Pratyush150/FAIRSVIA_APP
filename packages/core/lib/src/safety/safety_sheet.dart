@@ -215,8 +215,8 @@ class _SafetySheetState extends State<SafetySheet> {
         children: [
           Row(
             children: [
-              const Icon(PhosphorIconsRegular.shieldCheck, color: AppColors.error),
-              const SizedBox(width: AppSpacing.sm),
+              const AppIconBadge.danger(icon: PhosphorIconsRegular.shieldCheck),
+              const SizedBox(width: AppSpacing.md),
               Text('Safety', style: theme.textTheme.headlineSmall),
             ],
           ),
@@ -450,7 +450,8 @@ class _Notice extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, color: color),
+            // Inline with body text: 20 px (audit 2.1 rule 2).
+            Icon(icon, size: 20, color: color),
             const SizedBox(width: AppSpacing.sm),
             Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
             ?action,

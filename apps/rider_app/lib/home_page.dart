@@ -662,6 +662,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                 markers: layer.markers,
                 route: layer.route,
                 pulseAt: layer.searchPulse,
+                driverCarAsset: layer.driverCarAsset,
                 fitBounds: layer.cameraFitBounds,
                 recenter: _recenter,
                 recenterSeq: _recenterSeq,

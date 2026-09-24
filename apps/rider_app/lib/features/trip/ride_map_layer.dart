@@ -121,6 +121,15 @@ class RideMapLayer {
     return planned;
   }
 
+  /// Top-down art of the booked vehicle for the car on the map, so the map
+  /// shows the same car the rider picked in the ride list.
+  String get driverCarAsset {
+    final tier = state.trip?.tier ?? state.selectedTier;
+    const known = {'economy', 'comfort', 'xl', 'premium', 'auto', 'bike'};
+    final name = known.contains(tier) ? tier : 'driver';
+    return 'packages/design_system/assets/vehicles/top/$name.png';
+  }
+
   /// Where the "finding your driver" radar spreads from: the pickup pin
   /// (on the routed road end, like the marker), only while searching.
   LatLng? get searchPulse {

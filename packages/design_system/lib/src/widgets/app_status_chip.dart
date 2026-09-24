@@ -53,7 +53,7 @@ class AppStatusChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 13, color: c),
+            Icon(icon, size: 16, color: c),
             const SizedBox(width: 5),
           ],
           Text(

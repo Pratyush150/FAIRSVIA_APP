@@ -104,6 +104,12 @@ void main() {
     expect(find.text('+91 98765 43210'), findsOneWidget);
     expect(find.text('4.8'), findsOneWidget);
     expect(find.text('Saved places'), findsOneWidget);
+    // Menu rows are navigation, not state: Regular (audit 2.1 rule 3). The
+    // one Fill star left is the rating line — a real state.
+    expect(find.byIcon(PhosphorIconsRegular.star), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.heart), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsFill.star), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsFill.heart), findsNothing);
   });
 
   testWidgets('driver details slot renders inside the profile card and '
@@ -143,11 +149,12 @@ void main() {
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
     expect(scaffold.backgroundColor, isNull);
     expect(AppTheme.dark.scaffoldBackgroundColor, AppColors.backgroundDark);
-    // Row icons follow the theme in dark mode (they were light-mode grey).
+    // Row icons follow the theme in dark mode (they were light-mode grey),
+    // on the shared neutral icon token (audit 2.1 rule 4).
     final chevron = tester.widget<Icon>(
       find.byIcon(PhosphorIconsRegular.caretRight).first,
     );
-    expect(chevron.color, AppColors.textTertiaryDark);
+    expect(chevron.color, AppColors.iconNeutralDark);
     expect(chevron.size, 20);
   });
 }

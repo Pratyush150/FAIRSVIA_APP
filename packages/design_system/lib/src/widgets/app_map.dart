@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:latlong2/latlong.dart';
 
@@ -74,7 +75,17 @@ class AppMap extends StatefulWidget {
     this.cameraMode = MapCameraMode.fit,
     this.onFollowingChanged,
     this.pulseAt,
+    this.driverCarAsset,
   });
+
+  /// Top-down car image for the driver marker (nose pointing up; the map
+  /// rotates it to the heading) — the same vehicle the rider booked, from
+  /// `packages/design_system/assets/vehicles/top/`. Null, or an image that
+  /// fails to load, keeps the drawn car.
+  final String? driverCarAsset;
+
+  /// Logical width the car image is drawn at on the map.
+  static const double carMarkerWidth = 44;
 
   /// Draws the "finding your driver" radar here: three rings spreading from
   /// the pickup every [pulsePeriod] (audit 3.8). Null draws nothing. With the
@@ -273,6 +284,29 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   double _driverBearing = 0;
   double _driverBearingFrom = 0;
   gmaps.BitmapDescriptor? _driverIcon; // custom car puck, generated once
+  gmaps.BitmapDescriptor? _driverAssetIcon; // the booked vehicle, if art exists
+  String? _driverAssetLoaded;
+
+  Future<void> _loadDriverAsset() async {
+    final path = widget.driverCarAsset;
+    if (path == _driverAssetLoaded) return;
+    _driverAssetLoaded = path;
+    if (path == null) {
+      if (mounted) setState(() => _driverAssetIcon = null);
+      return;
+    }
+    try {
+      final data = await rootBundle.load(path);
+      final icon = gmaps.BitmapDescriptor.bytes(data.buffer.asUint8List(),
+          width: AppMap.carMarkerWidth);
+      if (mounted && widget.driverCarAsset == path) {
+        setState(() => _driverAssetIcon = icon);
+      }
+    } catch (_) {
+      // No art for this vehicle: the drawn car stays.
+      if (mounted) setState(() => _driverAssetIcon = null);
+    }
+  }
   gmaps.BitmapDescriptor? _meIcon; // rider's blue "you are here" dot
   gmaps.BitmapDescriptor? _pickupIcon; // black ring, white centre
   gmaps.BitmapDescriptor? _dropoffIcon; // black square, white centre
@@ -326,6 +360,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     _driverFrom = initialDriver;
     _driverTo = initialDriver;
     _makeDriverIcon();
+    _loadDriverAsset();
     _makeMeIcon();
     _makeStopIcons();
   }
@@ -420,6 +455,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(AppMap old) {
     super.didUpdateWidget(old);
+    if (old.driverCarAsset != widget.driverCarAsset) _loadDriverAsset();
     final paddingMoved =
         (old.boundsPadding.bottom - widget.boundsPadding.bottom).abs() > 24 ||
             (old.boundsPadding.top - widget.boundsPadding.top).abs() > 24;
@@ -730,8 +766,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       // everything else is static.
       final point = isDriver ? (_currentDriverPoint() ?? m.point) : m.point;
       final isMe = m.kind == MapMarkerKind.me;
-      final icon = isDriver && _driverIcon != null
-          ? _driverIcon!
+      final icon = isDriver && (_driverAssetIcon ?? _driverIcon) != null
+          ? (_driverAssetIcon ?? _driverIcon)!
           : isMe && _meIcon != null
               ? _meIcon!
               : m.kind == MapMarkerKind.pickup && _pickupIcon != null

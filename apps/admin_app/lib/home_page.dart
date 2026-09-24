@@ -466,6 +466,8 @@ class _TicketDialogState extends State<_TicketDialog> {
                         style: theme.textTheme.titleLarge),
                   ),
                   IconButton(
+                    // Every icon-only control is labelled (audit 2.1 rule 6).
+                    tooltip: 'Close',
                     icon: const Icon(PhosphorIconsRegular.x),
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -759,16 +761,17 @@ class _OverviewView extends StatelessWidget {
                 label: 'Online now',
                 value: '${s.onlineDrivers}',
                 icon: PhosphorIconsRegular.broadcast,
-                color: AppColors.success),
+                tone: AppIconBadgeTone.success),
             _StatCard(
                 label: 'Active trips',
                 value: '${s.activeTrips}',
                 icon: PhosphorIconsRegular.path,
-                color: AppColors.warning),
+                tone: AppIconBadgeTone.warning),
             _StatCard(
                 label: 'Completed',
                 value: '${s.completedTrips}',
-                icon: PhosphorIconsFill.checkCircle),
+                icon: PhosphorIconsRegular.check,
+                tone: AppIconBadgeTone.success),
             _StatCard(
                 label: 'Gross revenue',
                 value: Money.format(s.grossRevenue, wholeOnly: true),
@@ -776,8 +779,7 @@ class _OverviewView extends StatelessWidget {
             _StatCard(
                 label: 'Platform fees',
                 value: Money.format(s.platformRevenue, wholeOnly: true),
-                icon: PhosphorIconsRegular.bank,
-                color: AppColors.accent),
+                icon: PhosphorIconsRegular.bank),
           ],
         ),
         const SizedBox(height: AppSpacing.xl),
@@ -797,18 +799,17 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
-    this.color,
+    this.tone = AppIconBadgeTone.brand,
   });
 
   final String label;
   final String value;
   final IconData icon;
-  final Color? color;
+  final AppIconBadgeTone tone;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tint = color ?? AppColors.accent;
     return Container(
       width: 208,
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -820,15 +821,7 @@ class _StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            height: 40,
-            width: 40,
-            decoration: BoxDecoration(
-              color: tint.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-            ),
-            child: Icon(icon, color: tint, size: 22),
-          ),
+          AppIconBadge(icon: icon, tone: tone),
           const SizedBox(height: AppSpacing.lg),
           Text(value, style: theme.textTheme.displaySmall),
           const SizedBox(height: 2),
@@ -1106,9 +1099,14 @@ class _DriverCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           children: [
+            // A status dot, not an icon: 12 px by design. Offline uses the
+            // neutral icon grey — the theme's disabled grey was under 3:1.
             Icon(PhosphorIconsFill.circle,
                 size: 12,
-                color: online ? AppColors.success : theme.disabledColor),
+                color: online
+                    ? AppColors.success
+                    : AppColors.iconNeutralFor(
+                        theme.brightness == Brightness.dark)),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -1549,7 +1547,7 @@ class _ErrorBanner extends StatelessWidget {
             horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
         child: Row(
           children: [
-            const Icon(PhosphorIconsRegular.warningCircle, color: AppColors.error, size: 18),
+            const Icon(PhosphorIconsRegular.warningCircle, color: AppColors.error, size: 20),
             const SizedBox(width: AppSpacing.sm),
             Expanded(child: Text(message)),
             TextButton(onPressed: onRetry, child: const Text('Retry')),
@@ -1585,7 +1583,7 @@ class _ComparisonView extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: FilledButton.icon(
             onPressed: () => _showRecordSample(context, cubit, models),
-            icon: const Icon(PhosphorIconsRegular.chartLineUp, size: 18),
+            icon: const Icon(PhosphorIconsRegular.chartLineUp, size: 20),
             label: const Text('Record observed fare'),
           ),
         ),
@@ -1796,7 +1794,8 @@ class _ControlsView extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(PhosphorIconsRegular.warning, color: _activeTone),
+                const Icon(PhosphorIconsRegular.warning,
+                    size: 20, color: _activeTone),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -2074,7 +2073,7 @@ class _IncidentCard extends StatelessWidget {
               if (i.mapUrl != null)
                 OutlinedButton.icon(
                   onPressed: () => openExternalUrl(i.mapUrl!),
-                  icon: const Icon(PhosphorIconsRegular.mapTrifold, size: 18),
+                  icon: const Icon(PhosphorIconsRegular.mapTrifold, size: 20),
                   label: const Text('Location'),
                 ),
               const SizedBox(height: AppSpacing.sm),

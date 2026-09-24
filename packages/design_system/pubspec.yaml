@@ -37,6 +37,9 @@ flutter:
   # and docs/brand/). 2.0x/ folders are picked up as resolution variants.
   assets:
     - assets/vehicles/midnight/
+    - assets/vehicles/clay/
+    - assets/vehicles/clay_dark/
+    - assets/vehicles/top/
     - assets/vehicles/daylight/
     - assets/heroes/daylight/
   # skeletonizer (and our icons) rely on the Material icon font.

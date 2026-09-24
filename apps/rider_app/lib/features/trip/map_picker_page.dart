@@ -272,8 +272,10 @@ class _CenterPin extends StatelessWidget {
     // switch made while the app is open.
     Theme.of(context);
     return Transform.translate(
-      offset: const Offset(0, -20),
-      child: Icon(PhosphorIconsRegular.mapPin, size: 44, color: AppColors.accent),
+      // Hero pin: 48 (audit 2.1 — 24/20/16 utility, 32/40/48 hero); lifted
+      // by just under half its height so the tip sits on the map centre.
+      offset: const Offset(0, -22),
+      child: Icon(PhosphorIconsRegular.mapPin, size: 48, color: AppColors.accent),
     );
   }
 }

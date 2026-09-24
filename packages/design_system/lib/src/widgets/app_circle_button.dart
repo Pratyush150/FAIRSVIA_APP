@@ -36,7 +36,7 @@ class AppCircleButton extends StatelessWidget {
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: IconButton(
-          icon: Icon(icon, size: 22),
+          icon: Icon(icon, size: 24),
           color: foreground ?? scheme.onSurface,
           tooltip: tooltip,
           onPressed: onPressed,

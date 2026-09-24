@@ -133,7 +133,7 @@ class _BookForSomeoneElseRow extends StatelessWidget {
       return Align(
         alignment: Alignment.centerLeft,
         child: TextButton.icon(
-          icon: const Icon(PhosphorIconsRegular.userPlus, size: 18),
+          icon: const Icon(PhosphorIconsRegular.userPlus, size: 20),
           label: const Text('Book for someone else'),
           onPressed: () async {
             final result = await _askPassenger(context, null);
@@ -146,7 +146,7 @@ class _BookForSomeoneElseRow extends StatelessWidget {
     return Row(
       children: [
         Icon(PhosphorIconsRegular.userCircle,
-            size: 18, color: AppColors.accent),
+            size: 20, color: AppColors.accent),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
@@ -168,7 +168,7 @@ class _BookForSomeoneElseRow extends StatelessWidget {
         ),
         IconButton(
           tooltip: 'Ride it myself',
-          icon: const Icon(PhosphorIconsRegular.x, size: 18),
+          icon: const Icon(PhosphorIconsRegular.x, size: 20),
           onPressed: () => cubit.setPassenger(null),
         ),
       ],
@@ -321,7 +321,7 @@ class _StopsSection extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: AppSpacing.xs),
             child: Row(
               children: [
-                const Icon(PhosphorIconsRegular.record, size: 16),
+                const Icon(PhosphorIconsRegular.record, size: 20),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -334,7 +334,7 @@ class _StopsSection extends StatelessWidget {
                 IconButton(
                   tooltip: 'Remove stop ${i + 1}',
                   onPressed: () => cubit.removeStop(i),
-                  icon: const Icon(PhosphorIconsRegular.x, size: 16),
+                  icon: const Icon(PhosphorIconsRegular.x, size: 20),
                 ),
               ],
             ),
@@ -343,7 +343,7 @@ class _StopsSection extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
             onPressed: canAdd ? () => _addStop(context) : null,
-            icon: const Icon(PhosphorIconsRegular.mapPinPlus, size: 18),
+            icon: const Icon(PhosphorIconsRegular.mapPinPlus, size: 20),
             label: Text(canAdd ? 'Add stop' : 'Max 3 stops'),
           ),
         ),
@@ -498,7 +498,7 @@ class _ScheduleRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(PhosphorIconsRegular.clock, size: 18),
+            const Icon(PhosphorIconsRegular.clock, size: 20),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -508,7 +508,7 @@ class _ScheduleRow extends StatelessWidget {
             ),
             if (when != null)
               IconButton(
-                icon: const Icon(PhosphorIconsRegular.x, size: 18),
+                icon: const Icon(PhosphorIconsRegular.x, size: 20),
                 tooltip: 'Ride now instead',
                 onPressed: () => cubit.setScheduledAt(null),
               )
@@ -737,7 +737,7 @@ class _PayChip extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(selected ? PhosphorIconsFill.checkCircle : icon,
-                size: 18, color: selected ? AppColors.accent : null),
+                size: 20, color: selected ? AppColors.accent : null),
             const SizedBox(width: AppSpacing.sm),
             Flexible(
               child: Text(
@@ -751,7 +751,7 @@ class _PayChip extends StatelessWidget {
             ),
             if (trailing != null)
               Icon(trailing,
-                  size: 18, color: selected ? AppColors.accent : null),
+                  size: 20, color: selected ? AppColors.accent : null),
           ],
         ),
       ),
@@ -818,7 +818,7 @@ class _PromoFieldState extends State<_PromoField> {
         ),
         child: Row(
           children: [
-            const Icon(PhosphorIconsRegular.tag, size: 18, color: AppColors.success),
+            const Icon(PhosphorIconsRegular.tag, size: 20, color: AppColors.success),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -829,7 +829,7 @@ class _PromoFieldState extends State<_PromoField> {
               ),
             ),
             IconButton(
-              icon: const Icon(PhosphorIconsRegular.x, size: 18),
+              icon: const Icon(PhosphorIconsRegular.x, size: 20),
               tooltip: 'Remove promo',
               onPressed: cubit.removePromo,
             ),
@@ -933,8 +933,8 @@ class _RideTierTile extends StatelessWidget {
               child: Row(
                 children: [
                   SizedBox(
-                    width: 64,
-                    child: VehicleGlyph(tier: tier.tier),
+                    width: 76,
+                    child: VehicleGlyph(tier: tier.tier, width: 76),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -952,7 +952,7 @@ class _RideTierTile extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                             Icon(PhosphorIconsRegular.user,
-                                size: 14, color: theme.colorScheme.onSurface),
+                                size: 16, color: theme.colorScheme.onSurface),
                             Text('${tier.capacity}',
                                 style: theme.textTheme.labelMedium),
                           ],

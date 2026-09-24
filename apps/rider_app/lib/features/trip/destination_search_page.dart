@@ -240,7 +240,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
   IconData _savedIcon(String label) => switch (label.toLowerCase()) {
         'home' => PhosphorIconsRegular.house,
         'work' => PhosphorIconsRegular.briefcase,
-        _ => PhosphorIconsFill.star,
+        // Same glyph as the Saved places page and the Where-to rows; was a
+        // Fill star with no state behind it (audit 2.1 rule 3).
+        _ => PhosphorIconsRegular.mapPin,
       };
 
   /// Where the map picker should open for the field being edited. Prefer that
@@ -316,7 +318,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
               child: Row(
                 children: [
                   const Icon(PhosphorIconsRegular.warningCircle,
-                      size: 18, color: AppColors.error),
+                      size: 20, color: AppColors.error),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(_error!,
@@ -335,16 +337,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                   horizontal: AppSpacing.lg, vertical: AppSpacing.md),
               child: Row(
                 children: [
-                  Container(
-                    height: 40,
-                    width: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.accentSoft,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(PhosphorIconsRegular.mapTrifold,
-                        size: 20, color: AppColors.accent),
-                  ),
+                  const AppIconBadge(icon: PhosphorIconsRegular.mapTrifold),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Text('Set location on the map',
@@ -371,7 +364,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                     Padding(
                       padding: const EdgeInsets.only(right: AppSpacing.sm),
                       child: ActionChip(
-                        avatar: Icon(_savedIcon(p.label), size: 18),
+                        avatar: Icon(_savedIcon(p.label), size: 20),
                         label: Text(p.label),
                         onPressed: _resolving ? null : () => _useSaved(p),
                       ),
@@ -414,18 +407,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                           ),
                           child: Row(
                             children: [
-                              Container(
-                                height: 40,
-                                width: 40,
-                                decoration: BoxDecoration(
-                                  color:
-                                      theme.colorScheme.surfaceContainerHighest,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(PhosphorIconsRegular.mapPin,
-                                    size: 20,
-                                    color: theme.colorScheme.onSurfaceVariant),
-                              ),
+                              const AppIconBadge(
+                                  icon: PhosphorIconsRegular.mapPin,
+                                  tone: AppIconBadgeTone.neutral),
                               const SizedBox(width: AppSpacing.md),
                               Expanded(
                                 child: Column(
@@ -457,7 +441,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                                 )
                               else
                                 Icon(PhosphorIconsRegular.arrowUpRight,
-                                    size: 18,
+                                    size: 20,
                                     color: theme.colorScheme.outline),
                             ],
                           ),
@@ -532,14 +516,14 @@ class _RouteFields extends StatelessWidget {
                 Column(
                   children: [
                     Icon(PhosphorIconsRegular.record,
-                        size: 14, color: AppColors.accent),
+                        size: 16, color: AppColors.accent),
                     Container(
                       width: 2,
                       height: 26,
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       color: theme.dividerColor,
                     ),
-                    Icon(PhosphorIconsFill.square, size: 12, color: AppColors.accent),
+                    Icon(PhosphorIconsFill.square, size: 16, color: AppColors.accent),
                   ],
                 ),
                 const SizedBox(width: AppSpacing.md),

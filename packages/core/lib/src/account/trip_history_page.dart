@@ -79,10 +79,8 @@ class _TripTile extends StatelessWidget {
         : trip.fareDisplay;
     return ListTile(
       onTap: completed ? onTap : null,
-      leading: CircleAvatar(
-        backgroundColor: _statusColor(trip.status).withValues(alpha: 0.15),
-        child: Icon(_statusIcon(trip.status), color: _statusColor(trip.status)),
-      ),
+      leading: AppIconBadge(
+          icon: _statusIcon(trip.status), tone: _statusTone(trip.status)),
       title: Text(
         trip.dropoff.address ?? 'Destination',
         maxLines: 1,
@@ -138,17 +136,17 @@ class _TripTile extends StatelessWidget {
     }
   }
 
-  Color _statusColor(TripStatus s) {
+  AppIconBadgeTone _statusTone(TripStatus s) {
     switch (s) {
       case TripStatus.completed:
-        return AppColors.success;
+        return AppIconBadgeTone.success;
       case TripStatus.cancelled:
       case TripStatus.expired:
       case TripStatus.noDrivers:
       case TripStatus.paymentFailed:
-        return AppColors.error;
+        return AppIconBadgeTone.danger;
       default:
-        return AppColors.warning;
+        return AppIconBadgeTone.warning;
     }
   }
 }

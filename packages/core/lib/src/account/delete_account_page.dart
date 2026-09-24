@@ -90,16 +90,17 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
                 padding: const EdgeInsets.fromLTRB(
                     AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
                 children: [
+                  // Hero medallion: 64 disc, 32 glyph (audit 2.1).
                   Container(
-                    width: 56,
-                    height: 56,
+                    width: 64,
+                    height: 64,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: dark ? AppColors.errorSoftDark : AppColors.errorSoft,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(PhosphorIconsRegular.userMinus,
-                        color: AppColors.error, size: 28),
+                        color: AppColors.error, size: 32),
                   ).motion((w) => w
                       .animate()
                       .fadeIn(duration: AppMotion.normal)
@@ -224,11 +225,7 @@ class _Fact extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon,
-              size: 22,
-              color: dark
-                  ? AppColors.textSecondaryDark
-                  : AppColors.textSecondaryLight),
+          Icon(icon, size: 24, color: AppColors.iconNeutralFor(dark)),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(

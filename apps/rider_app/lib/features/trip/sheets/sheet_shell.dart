@@ -187,7 +187,8 @@ void _openSafety(BuildContext context, TripState state) {
 /// shield icon — riders looking for help should not have to guess what an
 /// icon means. Neutral at rest; the sheet it opens carries the red.
 Widget _sosButton(BuildContext context, TripState state) => _RidePill(
-      icon: PhosphorIconsFill.shieldCheck,
+      // Regular: nothing is "on" at rest (audit 2.1 rule 3 — Fill is state).
+      icon: PhosphorIconsRegular.shieldCheck,
       label: 'Safety',
       onTap: () => _openSafety(context, state),
     );

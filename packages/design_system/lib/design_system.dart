@@ -17,6 +17,7 @@ export 'src/widgets/vehicle_glyph.dart';
 export 'src/widgets/ridevela_mark.dart';
 export 'src/widgets/app_sheet.dart';
 export 'src/widgets/app_circle_button.dart';
+export 'src/widgets/app_icon_badge.dart';
 export 'src/widgets/app_status_chip.dart';
 export 'src/widgets/app_avatar.dart';
 export 'src/widgets/star_rating.dart';

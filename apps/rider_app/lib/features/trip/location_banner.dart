@@ -99,7 +99,7 @@ class LocationBanner extends StatelessWidget {
                         children: [
                           const Icon(
                             PhosphorIconsRegular.gpsSlash,
-                            size: 18,
+                            size: 20,
                             color: Colors.white,
                           ),
                           const SizedBox(width: AppSpacing.sm),
@@ -112,7 +112,7 @@ class LocationBanner extends StatelessWidget {
                           ),
                           const Icon(
                             PhosphorIconsRegular.caretRight,
-                            size: 18,
+                            size: 20,
                             color: Colors.white,
                           ),
                         ],

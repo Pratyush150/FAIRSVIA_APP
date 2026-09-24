@@ -98,6 +98,18 @@ abstract final class PhosphorIconsRegular {
   static const IconData warningCircle = IconData(0xe4e2, fontFamily: 'PhosphorRegular', fontPackage: 'design_system');
   static const IconData wrench = IconData(0xe5d4, fontFamily: 'PhosphorRegular', fontPackage: 'design_system');
   static const IconData x = IconData(0xe4f6, fontFamily: 'PhosphorRegular', fontPackage: 'design_system');
+
+  /// Phosphor's own motorcycle — the bike-taxi glyph (a rider/helmet cue was
+  /// tried and turns to a blob at 20-24 px).
+  static const IconData motorcycle = IconData(0xe80a, fontFamily: 'PhosphorRegular', fontPackage: 'design_system');
+
+  // RideVela additions — not part of Phosphor. Our own paths on Phosphor's
+  // 256 grid and 16-unit stroke (the font itself is MIT), added to the
+  // vendored fonts at private-use code points by tool/ridevela_glyphs/build.py.
+  /// Indian auto-rickshaw, side-on (Phosphor has none).
+  static const IconData autoRickshaw = IconData(0xf8f0, fontFamily: 'PhosphorRegular', fontPackage: 'design_system');
+  /// Banknote with ₹ — cash payment (Phosphor `money` has no currency mark).
+  static const IconData cashRupee = IconData(0xf8f2, fontFamily: 'PhosphorRegular', fontPackage: 'design_system');
 }
 
 /// Phosphor Fill — for states only: rated, favourited, selected.
@@ -110,4 +122,9 @@ abstract final class PhosphorIconsFill {
   static const IconData square = IconData(0xe45e, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
   static const IconData star = IconData(0xe46a, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
   static const IconData toggleRight = IconData(0xe676, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
+  static const IconData motorcycle = IconData(0xe80a, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
+
+  // RideVela additions (see PhosphorIconsRegular) — Fill weights of our paths.
+  static const IconData autoRickshaw = IconData(0xf8f0, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
+  static const IconData cashRupee = IconData(0xf8f2, fontFamily: 'PhosphorFill', fontPackage: 'design_system');
 }

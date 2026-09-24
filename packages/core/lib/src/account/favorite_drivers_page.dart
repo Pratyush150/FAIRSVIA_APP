@@ -57,7 +57,7 @@ class _FavoriteDriversPageState extends State<FavoriteDriversPage> {
               if (d.ratingAvg != null) '★ ${d.ratingAvg!.toStringAsFixed(1)}',
             ].whereType<String>().join(' · ');
             return ListTile(
-              leading: const CircleAvatar(child: Icon(PhosphorIconsRegular.user)),
+              leading: AppAvatar(name: d.name, size: 40),
               title: Text(d.name ?? 'Driver'),
               subtitle: subtitle.isEmpty ? null : Text(subtitle),
               trailing: IconButton(

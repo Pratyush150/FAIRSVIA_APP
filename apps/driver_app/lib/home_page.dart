@@ -753,16 +753,7 @@ class _BottomSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  height: 46,
-                  width: 46,
-                  decoration: BoxDecoration(
-                    color: AppColors.accentSoft,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(PhosphorIconsRegular.broadcast,
-                      color: AppColors.accent, size: 24),
-                ),
+                const AppIconBadge(icon: PhosphorIconsRegular.broadcast),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
@@ -878,28 +869,15 @@ class DriverOfflineSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            Container(
-              height: 46,
-              width: 46,
-              decoration: BoxDecoration(
-                color: dark
-                    ? AppColors.surfaceMutedDark
-                    : AppColors.surfaceMutedLight,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(PhosphorIconsRegular.moonStars,
-                  color: dark
-                      ? AppColors.textTertiaryDark
-                      : AppColors.textTertiaryLight,
-                  size: 24),
-            ),
+            const AppIconBadge(
+                icon: PhosphorIconsRegular.moonStars,
+                tone: AppIconBadgeTone.neutral),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -964,7 +942,8 @@ class _RiderComingBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(PhosphorIconsRegular.personSimpleWalk, color: AppColors.accentInk),
+            Icon(PhosphorIconsRegular.personSimpleWalk,
+                size: 20, color: AppColors.accentInk),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -994,15 +973,16 @@ class _CompletedSheet extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Center(
+          // Hero medallion: 64 disc, 32 glyph — same as the rider's.
           child: Container(
-            width: 60,
-            height: 60,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
               color: AppColors.accentSoft,
               shape: BoxShape.circle,
             ),
             child: Icon(PhosphorIconsRegular.check,
-                color: AppColors.accent, size: 34),
+                color: AppColors.accent, size: 32),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -1032,7 +1012,8 @@ class _CompletedSheet extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(PhosphorIconsRegular.money, color: AppColors.warning),
+                const Icon(PhosphorIconsRegular.money,
+                    size: 20, color: AppColors.warning),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
@@ -1158,7 +1139,7 @@ class _LifecycleSheet extends StatelessWidget {
           Row(
             children: [
               Icon(PhosphorIconsRegular.navigationArrow,
-                  size: 16, color: AppColors.accent),
+                  size: 20, color: AppColors.accent),
               const SizedBox(width: AppSpacing.xs),
               Text(distanceLabel!, style: theme.textTheme.titleSmall),
             ],
@@ -1175,7 +1156,7 @@ class _LifecycleSheet extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(PhosphorIconsRegular.mapPinPlus,
-                    color: AppColors.warning),
+                    size: 20, color: AppColors.warning),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text('The rider added a stop',
@@ -1202,8 +1183,11 @@ class _LifecycleSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(PhosphorIconsRegular.flag,
-                        size: 18,
-                        color: i == 0 ? AppColors.warning : AppColors.textTertiaryLight),
+                        size: 20,
+                        color: i == 0
+                            ? AppColors.warning
+                            : AppColors.iconNeutralFor(
+                                theme.brightness == Brightness.dark)),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
@@ -1312,7 +1296,7 @@ class _PassengerBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(PhosphorIconsRegular.userCircle,
-              size: 18, color: AppColors.accent),
+              size: 20, color: AppColors.accent),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -1367,7 +1351,7 @@ class _PickupNoteBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(PhosphorIconsRegular.note,
-              size: 18, color: AppColors.accent),
+              size: 20, color: AppColors.accent),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -1703,7 +1687,7 @@ class _OfferOverlayState extends State<OfferOverlay> {
                       if (offer.riderRating != null) ...[
                         const SizedBox(width: 6),
                         const Icon(PhosphorIconsFill.star,
-                            size: 14, color: AppColors.star),
+                            size: 16, color: AppColors.star),
                         const SizedBox(width: 2),
                         Text(offer.riderRating!.toStringAsFixed(1),
                             style: theme.textTheme.labelLarge),
@@ -1721,16 +1705,7 @@ class _OfferOverlayState extends State<OfferOverlay> {
                 AppCard(
                   child: Row(
                     children: [
-                      Container(
-                        height: 36,
-                        width: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.accentSoft,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(PhosphorIconsRegular.record,
-                            size: 18, color: AppColors.accent),
-                      ),
+                      const AppIconBadge(icon: PhosphorIconsRegular.record),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(

@@ -105,6 +105,16 @@ void main() {
     }
   });
 
+  test('the car on the map is the vehicle the rider booked', () {
+    const booked = TripState(
+        phase: TripPhase.driverEnRoute, selectedTier: 'xl', pickup: pickup);
+    expect(layer(booked).driverCarAsset,
+        'packages/design_system/assets/vehicles/top/xl.png');
+    const unknown = TripState(
+        phase: TripPhase.driverEnRoute, selectedTier: 'rocket', pickup: pickup);
+    expect(layer(unknown).driverCarAsset, endsWith('/top/driver.png'));
+  });
+
   test('radar rings spread out and fade, evenly spaced', () {
     final rings = AppMap.pulseRings(0);
     expect(rings, hasLength(3));

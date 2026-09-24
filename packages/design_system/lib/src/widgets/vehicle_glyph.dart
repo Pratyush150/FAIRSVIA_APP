@@ -16,19 +16,22 @@ class VehicleGlyph extends StatelessWidget {
   final double width;
 
   /// Which illustrated set the build uses, or null for the drawn glyphs:
-  /// the flat silver 3/4-view cars (audit 2.7) for the shipped turquoise
-  /// build and Plan A (midnight), Plan B's 3D cars (daylight), and for Plan C
-  /// (daynight) whichever matches the current mode. The black-and-white
-  /// `mono` build keeps the drawn glyphs (the art has a teal stripe).
+  /// - the shipped turquoise build, Plan B (daylight) and Plan C (daynight):
+  ///   the Blender clay 3D set (docs/brand/vehicles/clay), with its dark-mode
+  ///   render in dark mode;
+  /// - Plan A (midnight): the flat silver 3/4-view cars, so A stays visibly
+  ///   its own look;
+  /// - `mono`: the drawn glyphs (the art is in colour).
   static String? artSet(bool dark) => switch (AppColors.variant) {
-        'daylight' => 'daylight',
-        'daynight' => dark ? 'midnight' : 'daylight',
         'mono' => null,
-        _ => 'midnight',
+        'midnight' => 'midnight',
+        _ => dark ? 'clay_dark' : 'clay',
       };
 
   static String _file(String tier) => switch (tier) {
         'economy' || 'comfort' || 'xl' || 'premium' => tier,
+        // The clay set also has India's auto-rickshaw and bike taxi.
+        'auto' || 'bike' when AppColors.variant != 'midnight' => tier,
         _ => 'comfort',
       };
 
@@ -48,7 +51,9 @@ class VehicleGlyph extends StatelessWidget {
               'packages/design_system/assets/vehicles/$set/${_file(tier)}.png',
               width: width,
               height: width * 0.625,
-              fit: BoxFit.contain,
+              // The clay renders are square with room above the roof; cover
+              // crops that to the 16:10 slot so the car itself fills the row.
+              fit: BoxFit.cover,
               // A missing asset must never blank the ride list.
               errorBuilder: (_, _, _) => painted,
             ),

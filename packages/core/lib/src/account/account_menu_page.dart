@@ -236,7 +236,9 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 ),
               ),
               _Item(
-                icon: PhosphorIconsFill.star,
+                // Regular, not Fill: nothing is "on" here — Fill is for a
+                // state (a rated star, a favourited driver). Audit 2.1 rule 3.
+                icon: PhosphorIconsRegular.star,
                 title: 'Saved places',
                 onTap: () => _open(
                   SavedPlacesPage(
@@ -260,7 +262,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 ),
               ),
               _Item(
-                icon: PhosphorIconsFill.heart,
+                icon: PhosphorIconsRegular.heart,
                 title: 'Favourite drivers',
                 onTap: () => _open(
                   FavoriteDriversPage(
@@ -339,11 +341,11 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
   }
 
   Widget _tile(_Item item) {
-    final color = item.danger ? AppColors.error : null;
     return Builder(
       builder: (context) {
         final theme = Theme.of(context);
         final dark = theme.brightness == Brightness.dark;
+        final color = item.danger ? AppColors.dangerFor(dark) : null;
         return InkWell(
           onTap: item.onTap,
           borderRadius: BorderRadius.circular(AppSpacing.radius),
@@ -363,10 +365,9 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 Icon(
                   item.icon,
                   size: 24,
-                  color: color ??
-                      (dark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight),
+                  // Neutral glyph colour (audit 2.1 rule 4): colour only
+                  // when it means something — here, danger.
+                  color: color ?? AppColors.iconNeutralFor(dark),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -383,9 +384,7 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                   Icon(
                     PhosphorIconsRegular.caretRight,
                     size: 20,
-                    color: dark
-                        ? AppColors.textTertiaryDark
-                        : AppColors.textTertiaryLight,
+                    color: AppColors.iconNeutralFor(dark),
                   ),
               ],
             ),
@@ -463,7 +462,7 @@ class _ProfileHeader extends StatelessWidget {
         Icon(
           PhosphorIconsRegular.pencilSimple,
           size: 20,
-          color: dark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight,
+          color: AppColors.iconNeutralFor(dark),
         ),
       ],
     );

@@ -142,11 +142,11 @@ class _LaterChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(PhosphorIconsRegular.clock,
-                  size: 18, color: theme.colorScheme.onSurface),
+                  size: 16, color: theme.colorScheme.onSurface),
               const SizedBox(width: 6),
               Text('Later', style: theme.textTheme.labelMedium),
               Icon(PhosphorIconsRegular.caretDown,
-                  size: 18, color: theme.colorScheme.onSurface),
+                  size: 16, color: theme.colorScheme.onSurface),
             ],
           ),
         ),
@@ -234,24 +234,13 @@ class _QuickDestination extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.surfaceMutedDark
-                    : AppColors.surfaceMutedLight,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 20, color: theme.colorScheme.onSurface),
-            ),
+            AppIconBadge(icon: icon, tone: AppIconBadgeTone.neutral),
             const SizedBox(width: AppSpacing.lg),
             Expanded(
               child: Column(

@@ -65,7 +65,7 @@ class RecenterPill extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(PhosphorIconsRegular.gpsFix,
-                            size: 17, color: AppColors.accentInk),
+                            size: 20, color: AppColors.accentInk),
                         const SizedBox(width: AppSpacing.sm),
                         Text(
                           label,

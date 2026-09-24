@@ -220,15 +220,7 @@ class _Reason extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // The one 40 px icon container (audit 2.1).
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.accentSoft,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 24, color: AppColors.accent),
-          ),
+          AppIconBadge(icon: icon),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(

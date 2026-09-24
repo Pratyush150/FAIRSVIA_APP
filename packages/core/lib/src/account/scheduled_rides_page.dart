@@ -86,10 +86,7 @@ class _ScheduledRidesPageState extends State<ScheduledRidesPage> {
           itemBuilder: (context, i) {
             final trip = list[i];
             return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: AppColors.accent.withValues(alpha: 0.15),
-                child: Icon(PhosphorIconsRegular.clock, color: AppColors.accent),
-              ),
+              leading: const AppIconBadge(icon: PhosphorIconsRegular.clock),
               title: Text(
                 trip.dropoff.address ?? 'Destination',
                 maxLines: 1,

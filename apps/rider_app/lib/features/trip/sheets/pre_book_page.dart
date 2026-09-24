@@ -186,7 +186,9 @@ class _PreBookPageState extends State<PreBookPage> {
                         ),
                         const Divider(height: 1, indent: 52),
                         _PreBookRow(
-                          icon: PhosphorIconsFill.square,
+                          // mapPin, as on Ride details and the receipt: a
+                          // 24 px filled square read as a heavy block here.
+                          icon: PhosphorIconsRegular.mapPin,
                           iconColor: AppColors.accent,
                           label: 'Destination',
                           value: _dropoffAddr ?? 'Where to?',
@@ -293,7 +295,7 @@ class _PreBookRow extends StatelessWidget {
             horizontal: AppSpacing.md, vertical: AppSpacing.md),
         child: Row(
           children: [
-            Icon(icon, color: iconColor, size: 22),
+            Icon(icon, color: iconColor, size: 24),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
