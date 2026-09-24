@@ -208,10 +208,32 @@ class Money {
     var n = abs.toStringAsFixed(whole || decimals == 0 ? 0 : decimals);
     if ((spec?.$3 ?? 2) == 0) {
       n = n.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ' ');
+    } else {
+      n = _group(n, indian: code == 'INR');
     }
     final sign = amount < 0 ? '-' : '';
     if (spec == null) return '$sign$code $n';
     return spec.$2 ? '$sign${spec.$1}$n' : '$sign$n ${spec.$1}';
+  }
+
+  /// Thousands separators on the whole part: "1,234.50"; for rupees the
+  /// Indian lakh/crore grouping, "1,25,000" (not "125,000").
+  static String _group(String n, {required bool indian}) {
+    final dot = n.indexOf('.');
+    var whole = dot < 0 ? n : n.substring(0, dot);
+    final frac = dot < 0 ? '' : n.substring(dot);
+    if (whole.length <= 3) return n;
+    final last3 = whole.substring(whole.length - 3);
+    var head = whole.substring(0, whole.length - 3);
+    final step = indian ? 2 : 3;
+    final parts = <String>[];
+    while (head.length > step) {
+      parts.insert(0, head.substring(head.length - step));
+      head = head.substring(0, head.length - step);
+    }
+    parts.insert(0, head);
+    whole = '${parts.join(',')},$last3';
+    return '$whole$frac';
   }
 
   /// The bare symbol for input prefixes: "₹", "\$", "so'm".

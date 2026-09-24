@@ -62,6 +62,16 @@ void main() {
       expect(Market.uzbekistan.cityCenter.$1, closeTo(41.31, 0.01)); // Tashkent
     });
 
+    test('money groups digits the local way', () {
+      expect(Money.format(125000, currency: 'INR'), '₹1,25,000');
+      expect(Money.format(12500000, currency: 'INR'), '₹1,25,00,000');
+      expect(Money.format(1234.5, currency: 'INR'), '₹1,234.50');
+      expect(Money.format(999, currency: 'INR'), '₹999');
+      expect(Money.format(-102, currency: 'INR'), '-₹102');
+      expect(Money.format(1234567.25, currency: 'USD'), '\$1,234,567.25');
+      expect(Money.format(18500, currency: 'UZS'), "18 500 so'm");
+    });
+
     test('SOS numbers are the market\'s own, never another country\'s', () {
       expect(Market.india.emergencyNumbers,
           [('Emergency', '112'), ('Police', '100'), ('Ambulance', '108')]);
