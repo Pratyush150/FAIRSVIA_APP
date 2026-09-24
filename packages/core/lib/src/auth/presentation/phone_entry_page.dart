@@ -1,4 +1,5 @@
 import 'package:design_system/design_system.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,6 +10,16 @@ import '../../config/app_config.dart';
 import '../../config/server_address_page.dart';
 import '../../di/injector.dart';
 import '../../network/token_storage.dart';
+import 'legal_page.dart';
+
+/// The market's example number without its country code, for the field's
+/// hint ("+91 98765 43210" → "98765 43210"); the code is on the prefix chip.
+String localExamplePhone(Market market) {
+  final ex = market.examplePhone;
+  return ex.startsWith(market.dialCode)
+      ? ex.substring(market.dialCode.length).trim()
+      : ex;
+}
 
 /// Phone number entry — step 1 of the OTP login flow. Shared across apps.
 class PhoneEntryPage extends StatefulWidget {
@@ -24,9 +35,17 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
   final _controller = TextEditingController();
   bool _valid = false;
 
+  // Span recognizers must outlive build and be disposed with the state.
+  late final _termsTap = TapGestureRecognizer()
+    ..onTap = () => openLegalDocument(context, LegalDocument.terms);
+  late final _privacyTap = TapGestureRecognizer()
+    ..onTap = () => openLegalDocument(context, LegalDocument.privacy);
+
   @override
   void dispose() {
     _controller.dispose();
+    _termsTap.dispose();
+    _privacyTap.dispose();
     super.dispose();
   }
 
@@ -111,9 +130,13 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           TextField(
+                            key: const Key('phone-field'),
                             controller: _controller,
                             keyboardType: TextInputType.phone,
                             autofocus: true,
+                            autofillHints: const [
+                              AutofillHints.telephoneNumberNational,
+                            ],
                             style: theme.textTheme.titleMedium,
                             inputFormatters: [
                               FilteringTextInputFormatter.allow(
@@ -121,8 +144,11 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                               ),
                             ],
                             decoration: InputDecoration(
-                              hintText: Market.current.examplePhone,
-                              prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                              hintText: localExamplePhone(Market.current),
+                              // Fixed, not editable: the build's market decides
+                              // the country code (toE164 adds it on submit).
+                              prefixIcon: const _DialCodeChip(),
+                              prefixIconConstraints: const BoxConstraints(),
                             ),
                             onChanged: (v) => setState(
                               // A local number gets the market's country code; one
@@ -137,7 +163,8 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                               !_valid) ...[
                             const SizedBox(height: AppSpacing.xs),
                             Text(
-                              'Enter a mobile number, e.g. ${Market.current.examplePhone}.',
+                              'Enter a mobile number, e.g. '
+                              '${localExamplePhone(Market.current)}.',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: AppColors.error,
                               ),
@@ -162,9 +189,27 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        'By continuing you agree to our Terms and Privacy '
-                        'Policy.',
+                      Text.rich(
+                        key: const Key('legal-notice'),
+                        TextSpan(
+                          children: [
+                            const TextSpan(
+                              text: 'By continuing you agree to our ',
+                            ),
+                            TextSpan(
+                              text: 'Terms',
+                              style: _linkStyle(theme),
+                              recognizer: _termsTap,
+                            ),
+                            const TextSpan(text: ' and '),
+                            TextSpan(
+                              text: 'Privacy Policy',
+                              style: _linkStyle(theme),
+                              recognizer: _privacyTap,
+                            ),
+                            const TextSpan(text: '.'),
+                          ],
+                        ),
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: AppColors.textTertiaryLight,
@@ -184,6 +229,49 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+TextStyle _linkStyle(ThemeData theme) => TextStyle(
+  color: theme.colorScheme.onSurface,
+  fontWeight: FontWeight.w600,
+  decoration: TextDecoration.underline,
+);
+
+/// The non-editable country prefix at the start of the phone field, e.g.
+/// "IN +91", from the build's [Market].
+class _DialCodeChip extends StatelessWidget {
+  const _DialCodeChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final market = Market.current;
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: AppSpacing.sm,
+        right: AppSpacing.sm,
+      ),
+      child: Container(
+        key: const Key('dial-code-chip'),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm + 2,
+          vertical: AppSpacing.xs + 2,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.accentSoft,
+          borderRadius: BorderRadius.circular(AppSpacing.pill),
+        ),
+        child: Text(
+          '${market.code.toUpperCase()} ${market.dialCode}',
+          semanticsLabel: 'Country code ${market.dialCode}',
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

@@ -15,6 +15,7 @@ export 'src/auth/bloc/auth_bloc.dart';
 export 'src/auth/presentation/phone_entry_page.dart';
 export 'src/auth/presentation/otp_page.dart';
 export 'src/auth/presentation/name_setup_page.dart';
+export 'src/auth/presentation/legal_page.dart';
 export 'src/realtime/realtime_client.dart';
 export 'src/driver/driver_remote_data_source.dart';
 export 'src/trip/places_remote_data_source.dart';

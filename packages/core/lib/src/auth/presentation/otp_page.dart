@@ -127,10 +127,15 @@ class _OtpPageState extends State<OtpPage> {
                   // (the segmented boxes' focus auto-advance is flaky in
                   // browsers). Auto-submits when all digits are entered.
                   TextField(
+                    key: const Key('otp-field'),
                     enabled: !state.busy,
                     autofocus: true,
                     textAlign: TextAlign.center,
                     keyboardType: TextInputType.number,
+                    // iOS offers the code from Messages above the keyboard;
+                    // Android autofill services that support OTP use it too.
+                    // Paste still works: the formatters keep the digits.
+                    autofillHints: const [AutofillHints.oneTimeCode],
                     maxLength: _otpLength,
                     style: const TextStyle(
                       fontSize: 28,
