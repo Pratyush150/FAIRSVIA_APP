@@ -9,7 +9,7 @@ import {
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
-import { TIER_KEYS } from '../../pricing/fare-config';
+import { OFFERED_TIERS } from '../../pricing/fare-config';
 
 export class OnboardingDto {
   @Transform(trim) @IsString() @IsNotEmpty() @MaxLength(60)
@@ -24,7 +24,7 @@ export class OnboardingDto {
   @Transform(trim) @IsString() @IsNotEmpty() @MaxLength(20)
   plateNumber!: string;
 
-  @IsIn(TIER_KEYS)
+  @IsIn(OFFERED_TIERS)
   vehicleTier!: string;
 
   @IsOptional() @IsString() @MaxLength(60)

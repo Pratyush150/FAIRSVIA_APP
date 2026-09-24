@@ -8,6 +8,7 @@ import { roundFare } from '../common/money';
 import { PrismaService } from '../common/prisma/prisma.service';
 import {
   CURRENCY,
+  OFFERED_TIERS,
   FARE_CONFIG,
   defaultFareConfig,
   METERS_PER_MILE,
@@ -48,7 +49,7 @@ export class PricingService implements OnModuleInit {
   private cache: Record<string, TierFareConfig> = {
     ...defaultFareConfig(CURRENCY),
   };
-  private order: string[] = Object.keys(FARE_CONFIG);
+  private order: string[] = OFFERED_TIERS.slice();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -110,7 +111,8 @@ export class PricingService implements OnModuleInit {
       }
       this.cache = next;
       // Preserve the canonical tier ordering (cheapest first: bike → premium).
-      this.order = Object.keys(FARE_CONFIG).filter((t) => next[t]);
+      // Only the offered tiers (auto/bike stay hidden unless EXTRA_TIERS).
+      this.order = OFFERED_TIERS.filter((t) => next[t]);
     } catch (e) {
       this.logger.warn(`fare_config refresh failed, keeping cache: ${String(e)}`);
     }

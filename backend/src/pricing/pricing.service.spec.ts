@@ -237,3 +237,19 @@ describe('PricingService', () => {
     });
   });
 });
+
+describe('optional tiers (auto / bike)', () => {
+  it('are hidden unless EXTRA_TIERS switches them on', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { enabledTiers } = require('./fare-config');
+    expect(enabledTiers({})).not.toContain('auto');
+    expect(enabledTiers({})).not.toContain('bike');
+    expect(enabledTiers({})).toEqual(
+      expect.arrayContaining(['economy', 'comfort', 'xl', 'premium']),
+    );
+    expect(enabledTiers({ EXTRA_TIERS: 'auto' })).toContain('auto');
+    expect(enabledTiers({ EXTRA_TIERS: 'auto, bike' })).toEqual(
+      expect.arrayContaining(['auto', 'bike']),
+    );
+  });
+});

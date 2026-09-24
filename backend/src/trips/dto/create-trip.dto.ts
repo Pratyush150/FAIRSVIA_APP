@@ -13,7 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TIER_KEYS } from '../../pricing/fare-config';
+import { OFFERED_TIERS } from '../../pricing/fare-config';
 import { MAX_STOPS, StopDto } from './stop.dto';
 
 export class CreateTripDto {
@@ -29,7 +29,7 @@ export class CreateTripDto {
   @IsNumber() @Min(-180) @Max(180)
   dropoffLng!: number;
 
-  @IsIn(TIER_KEYS)
+  @IsIn(OFFERED_TIERS)
   tier!: string;
 
   @IsOptional() @IsString() @MaxLength(200)

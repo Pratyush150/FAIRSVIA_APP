@@ -101,6 +101,27 @@ export const FARE_CONFIG: Record<string, TierFareConfig> = {
 
 export const TIER_KEYS = Object.keys(FARE_CONFIG);
 
+/**
+ * Ride types that exist (pricing, dispatch, stored trips) but are only
+ * OFFERED when switched on: auto-rickshaw and bike taxi are held back by the
+ * owner (2026-09-24). `EXTRA_TIERS=auto,bike` turns them on again.
+ * Hidden tiers are left out of estimates and refused for new trips and
+ * driver sign-ups; old rows keep reading fine.
+ */
+export const OPTIONAL_TIERS = ['auto', 'bike'];
+export function enabledTiers(env: NodeJS.ProcessEnv = process.env): string[] {
+  const extra = (env.EXTRA_TIERS ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return TIER_KEYS.filter(
+    (t) => !OPTIONAL_TIERS.includes(t) || extra.includes(t),
+  );
+}
+
+/** The tiers riders can book and drivers can sign up for right now. */
+export const OFFERED_TIERS = enabledTiers();
+
 /** Kilometres → miles for the per-mile columns: ₹/km × this = ₹/mile. */
 const KM_PER_MILE = METERS_PER_MILE / 1000;
 const perKm = (rupeesPerKm: number) => Math.round(rupeesPerKm * KM_PER_MILE * 100) / 100;

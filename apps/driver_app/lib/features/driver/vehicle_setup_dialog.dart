@@ -35,11 +35,16 @@ class _VehicleSetupDialogState extends State<VehicleSetupDialog> {
   late String _tier = widget.initial?.vehicleTier ?? 'economy';
   bool _saving = false;
 
+  /// Auto-rickshaw and bike taxi are built but held back by the owner
+  /// (2026-09-24); `--dart-define=EXTRA_TIERS=true` offers them again, in
+  /// step with the server's EXTRA_TIERS.
+  static const bool extraTiers = bool.fromEnvironment('EXTRA_TIERS');
+
   /// What the driver drives, in the order riders see ride types (cheapest
-  /// first). Auto and Bike are India's auto-rickshaw and bike taxi.
+  /// first).
   static const _vehicleTypes = [
-    ('bike', 'Bike (bike taxi, 1 rider)'),
-    ('auto', 'Auto (auto-rickshaw, 3 riders)'),
+    if (extraTiers) ('bike', 'Bike (bike taxi, 1 rider)'),
+    if (extraTiers) ('auto', 'Auto (auto-rickshaw, 3 riders)'),
     ('economy', 'Economy'),
     ('comfort', 'Comfort'),
     ('xl', 'XL'),

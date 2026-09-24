@@ -14,6 +14,9 @@ process.env.STRIPE_SECRET_KEY = '';
 // for a pilot market): suites assert on dollar amounts and the default fee,
 // exactly as CI runs them.
 process.env.MARKET_CURRENCY = 'USD';
+// Auto / bike are hidden in the product for now (EXTRA_TIERS); suites keep
+// exercising them so they stay ready to switch on.
+process.env.EXTRA_TIERS = 'auto,bike';
 process.env.CANCELLATION_FEE = '5';
 process.env.BUSINESS_TZ = 'Asia/Tashkent';
 // The SOS list the suites assert (the code default); a pilot box sets its own.

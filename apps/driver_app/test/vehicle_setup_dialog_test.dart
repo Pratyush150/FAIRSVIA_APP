@@ -52,7 +52,22 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('offers Bike and Auto first, then the car tiers', (tester) async {
+  const extra = bool.fromEnvironment('EXTRA_TIERS');
+
+  testWidgets('offers only the car tiers while auto/bike are held back',
+      (tester) async {
+    await pump(tester);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Bike (bike taxi, 1 rider)'), findsNothing);
+    expect(find.text('Auto (auto-rickshaw, 3 riders)'), findsNothing);
+    for (final label in ['Comfort', 'XL', 'Premium']) {
+      expect(find.text(label), findsWidgets, reason: label);
+    }
+  }, skip: extra);
+
+  testWidgets('offers Bike and Auto first, then the car tiers', skip: !extra,
+      (tester) async {
     await pump(tester);
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
@@ -73,7 +88,7 @@ void main() {
     expect(autoY, lessThan(xlY));
   });
 
-  testWidgets('registers an auto with an Indian plate', (tester) async {
+  testWidgets('registers an auto with an Indian plate', skip: !extra, (tester) async {
     await pump(tester);
     await fill(tester, 'mh 12 ab 1234');
     await pick(tester, 'Auto (auto-rickshaw, 3 riders)');
@@ -89,7 +104,7 @@ void main() {
         )).called(1);
   });
 
-  testWidgets('registers a bike', (tester) async {
+  testWidgets('registers a bike', skip: !extra, (tester) async {
     await pump(tester);
     await fill(tester, 'MH12XY9876');
     await pick(tester, 'Bike (bike taxi, 1 rider)');
@@ -105,7 +120,7 @@ void main() {
         )).called(1);
   });
 
-  testWidgets('an auto still needs a valid plate', (tester) async {
+  testWidgets('an auto still needs a valid plate', skip: !extra, (tester) async {
     await pump(tester);
     await fill(tester, 'AUTO1');
     await pick(tester, 'Auto (auto-rickshaw, 3 riders)');
@@ -123,7 +138,7 @@ void main() {
         ));
   });
 
-  testWidgets('hints an auto make when it is missing', (tester) async {
+  testWidgets('hints an auto make when it is missing', skip: !extra, (tester) async {
     await pump(tester);
     await pick(tester, 'Auto (auto-rickshaw, 3 riders)');
     await tester.tap(find.text('Save & go online'));
