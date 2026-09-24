@@ -36,9 +36,7 @@ class ReceiptPage extends StatelessWidget {
 
   Widget _body(BuildContext context, Receipt r) {
     final theme = Theme.of(context);
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      children: [
+    final children = <Widget>[
         Text(Fmt.dateTime(trip.completedAt ?? trip.requestedAt),
             style: theme.textTheme.bodyMedium),
         const SizedBox(height: AppSpacing.xs),
@@ -64,7 +62,13 @@ class ReceiptPage extends StatelessWidget {
             'Refunded',
             '- ${Fmt.money(r.refundedAmount, r.currency)}',
           ),
-        const Divider(height: AppSpacing.xl),
+        if (InkPaper.on)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+            child: TearLine(),
+          )
+        else
+          const Divider(height: AppSpacing.xl),
         _row(context, 'Total', Fmt.money(r.total, r.currency), bold: true),
         if (r.isCash || r.cardLabel != null)
           Padding(
@@ -101,12 +105,33 @@ class ReceiptPage extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Chip(label: Text('Payment: ${Fmt.status(r.status!)}')),
           ),
-      ],
+    ];
+    // THEME=ink (Plan E): the receipt is printed on a paper ticket.
+    if (InkPaper.on) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.lg),
+        children: [
+          TicketPaper(
+            // White on the paper page (the sheet version is paper on white).
+            fill: theme.colorScheme.surface,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          ),
+        ],
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: children,
     );
   }
 
   Widget _row(BuildContext context, String label, String value,
       {bool bold = false}) {
+    if (InkPaper.on) return _inkRow(context, label, value, bold: bold);
     final style = bold
         ? Theme.of(context).textTheme.titleMedium
         : Theme.of(context).textTheme.bodyLarge;
@@ -118,6 +143,31 @@ class ReceiptPage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// THEME=ink (Plan E): receipt lines with dotted leaders; the bold row (the
+/// total, the payout) as a small-caps label and a serif amount.
+Widget _inkRow(BuildContext context, String label, String value,
+    {bool bold = false}) {
+  final theme = Theme.of(context);
+  if (!bold) {
+    return LeaderLine(
+        label: label, value: value, style: theme.textTheme.bodyLarge);
+  }
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Expanded(
+            child: Text(label, style: inkSectionLabel(context, null)
+                ?.copyWith(fontSize: 13))),
+        Text.rich(inkAmountSpan(value,
+            size: 44, color: theme.colorScheme.onSurface)),
+      ],
+    ),
+  );
 }
 
 /// The itemised lines of a [FareBreakdown]: Base fare, Distance, Time,
@@ -164,7 +214,10 @@ class FareBreakdownRows extends StatelessWidget {
     );
   }
 
-  Widget _line(String label, String value, TextStyle? style) => Padding(
+  Widget _line(String label, String value, TextStyle? style) => InkPaper.on
+      // THEME=ink: a printed receipt line with a dotted leader.
+      ? LeaderLine(label: label, value: value, style: style)
+      : Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

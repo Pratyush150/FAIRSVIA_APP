@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_brand.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_ink.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -122,13 +123,17 @@ class _BrandSplashState extends State<BrandSplash>
                     const SizedBox(width: AppSpacing.md),
                     Text(
                       widget.name,
-                      style: TextStyle(
-                        fontFamily: AppTypography.fontFamily,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.8,
-                        color: ink,
-                      ),
+                      // Plan E (THEME=ink): the wordmark is one of the three
+                      // serif moments.
+                      style: InkPaper.on
+                          ? InkPaper.serif(44, color: ink)
+                          : TextStyle(
+                              fontFamily: AppTypography.fontFamily,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.8,
+                              color: ink,
+                            ),
                     ),
                     if (driver) ...[
                       const SizedBox(width: AppSpacing.sm),

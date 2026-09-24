@@ -67,6 +67,10 @@ SnackBar _completionSnackBar(String text) => SnackBar(
       ),
     );
 
+/// The chosen tip's colour: the ink, or teal in THEME=ink, where teal is
+/// kept for the selection.
+Color get _chosen => InkPaper.on ? AppColors.highlight : AppColors.accent;
+
 /// Bottom margin that clears the Done button (button + sheet padding).
 const double _kCompletionSnackBarLift = 96;
 
@@ -123,10 +127,18 @@ class _CompletedSheetState extends State<CompletedSheet> {
               fallback: Container(
                 width: 64,
                 height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.accentSoft,
-                  shape: BoxShape.circle,
-                ),
+                // THEME=ink: a hairline ring, not a tinted disc.
+                decoration: InkPaper.on
+                    ? BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: InkPaper.outline(
+                                theme.brightness == Brightness.dark)),
+                      )
+                    : BoxDecoration(
+                        color: AppColors.accentSoft,
+                        shape: BoxShape.circle,
+                      ),
                 child: Icon(PhosphorIconsRegular.check,
                     color: AppColors.accent, size: 32),
               ),
@@ -139,24 +151,39 @@ class _CompletedSheetState extends State<CompletedSheet> {
               liveRegion: true,
               header: true,
               child: Text(RideStatus.of(state).title,
-                  style: theme.textTheme.headlineSmall),
+                  // THEME=ink: the status headline is a serif moment.
+                  style: theme.textTheme.headlineSmall?.serifMoment(32)),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
           // One line — "Total ₹75" — with everything that makes it up folded
           // under it (audit 3.11). The total is said once, here.
-          AppCard(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
+          // THEME=ink: printed as a ticket (perforated top, dotted leaders,
+          // the total in serif) instead of a card.
+          if (InkPaper.on)
+            TicketPaper(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.x20, AppSpacing.lg, AppSpacing.md, AppSpacing.md),
+              child: _TotalWithBreakdown(
+                fare: fare,
+                tip: tip,
+                breakdown: state.fareBreakdown,
+                currency: state.receipt?.currency,
+              ),
+            )
+          else
+            AppCard(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              child: _TotalWithBreakdown(
+                fare: fare,
+                tip: tip,
+                breakdown: state.fareBreakdown,
+                currency: state.receipt?.currency,
+              ),
             ),
-            child: _TotalWithBreakdown(
-              fare: fare,
-              tip: tip,
-              breakdown: state.fareBreakdown,
-              currency: state.receipt?.currency,
-            ),
-          ),
           if (state.receipt?.isCash ?? false)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.md),
@@ -176,11 +203,11 @@ class _CompletedSheetState extends State<CompletedSheet> {
                 ],
               ),
             ),
-          const SizedBox(height: AppSpacing.xl),
+          SizedBox(height: InkPaper.on ? AppSpacing.xxxl : AppSpacing.xl),
           // Rating
           Center(
               child: Text('Rate your driver',
-                  style: theme.textTheme.titleMedium)),
+                  style: inkSectionLabel(context, theme.textTheme.titleMedium))),
           const SizedBox(height: AppSpacing.sm),
           // Always tappable: the backend stores one rating per trip and
           // recomputes the driver's average from it, so tapping again is a
@@ -213,10 +240,15 @@ class _CompletedSheetState extends State<CompletedSheet> {
               driverName: state.driver!.name,
             ),
           ],
-          const SizedBox(height: AppSpacing.xl),
+          SizedBox(height: InkPaper.on ? AppSpacing.xxxl : AppSpacing.xl),
+          if (InkPaper.on) ...[
+            const InkRule(),
+            const SizedBox(height: AppSpacing.xl),
+          ],
           // Tips
-          Text('Add a tip', style: theme.textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.sm),
+          Text('Add a tip',
+              style: inkSectionLabel(context, theme.textTheme.titleMedium)),
+          SizedBox(height: InkPaper.on ? AppSpacing.md : AppSpacing.sm),
           Row(
             children: [
               for (final amt in Market.current.tipPresets)
@@ -353,10 +385,28 @@ class _TotalWithBreakdownState extends State<_TotalWithBreakdown> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      'Total ${Fmt.money(widget.fare + widget.tip, widget.currency)}',
-                      style: theme.textTheme.titleMedium?.tabular(),
-                    ),
+                    child: InkPaper.on
+                        // One string still ("Total ₹75"): a small-caps
+                        // label and the amount in serif, on one baseline.
+                        ? Text.rich(
+                            TextSpan(children: [
+                              TextSpan(
+                                text: 'Total ',
+                                style: inkSectionLabel(context, null)
+                                    ?.copyWith(fontSize: 13),
+                              ),
+                              inkAmountSpan(
+                                Fmt.money(
+                                    widget.fare + widget.tip, widget.currency),
+                                size: 44,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ]),
+                          )
+                        : Text(
+                            'Total ${Fmt.money(widget.fare + widget.tip, widget.currency)}',
+                            style: theme.textTheme.titleMedium?.tabular(),
+                          ),
                   ),
                   Text(_open ? 'Hide' : 'Details',
                       style: theme.textTheme.bodyMedium
@@ -375,7 +425,14 @@ class _TotalWithBreakdownState extends State<_TotalWithBreakdown> {
           ),
         ),
         if (_open) ...[
-          Divider(height: AppSpacing.md, color: theme.dividerColor),
+          if (InkPaper.on)
+            const Padding(
+              padding: EdgeInsets.only(
+                  top: AppSpacing.sm, bottom: AppSpacing.md, right: AppSpacing.sm),
+              child: TearLine(),
+            )
+          else
+            Divider(height: AppSpacing.md, color: theme.dividerColor),
           if (breakdown != null)
             FareBreakdownRows(
               breakdown: breakdown,
@@ -413,6 +470,14 @@ class _ReceiptRow extends StatelessWidget {
     final theme = Theme.of(context);
     // Same size as the itemised lines it sits among in the expander.
     final style = theme.textTheme.bodyMedium;
+    // THEME=ink: a printed line with a dotted leader, like the fare lines.
+    if (InkPaper.on) {
+      return Padding(
+        padding: const EdgeInsets.only(right: AppSpacing.sm),
+        child: LeaderLine(
+            label: label, value: Fmt.money(value, currency), style: style),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
@@ -443,12 +508,19 @@ class _TipChip extends StatelessWidget {
       color: Colors.transparent,
       child: Ink(
         decoration: BoxDecoration(
-          color: selected
+          // THEME=ink: outlined chips on the paper, teal once chosen.
+          color: InkPaper.on
+              ? Colors.transparent
+              : selected
               ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
               : theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(AppSpacing.radius),
           border: Border.all(
-            color: selected ? AppColors.accent : theme.dividerColor,
+            color: selected
+                ? _chosen
+                : (InkPaper.on
+                    ? InkPaper.outline(isDark)
+                    : theme.dividerColor),
             width: selected ? 1.6 : 1,
           ),
         ),
@@ -473,7 +545,7 @@ class _TipChip extends StatelessWidget {
                 selected: selected,
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: selected
-                      ? AppColors.accent
+                      ? _chosen
                       : (enabled ? theme.colorScheme.onSurface : null),
                 ),
               ),
@@ -504,7 +576,7 @@ class _ChipLabel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (selected) ...[
-          Icon(PhosphorIconsRegular.check, size: 16, color: AppColors.accent),
+          Icon(PhosphorIconsRegular.check, size: 16, color: _chosen),
           const SizedBox(width: 4),
         ],
         Text(text, maxLines: 1, style: style),
@@ -530,12 +602,19 @@ class _CustomTipChip extends StatelessWidget {
       color: Colors.transparent,
       child: Ink(
         decoration: BoxDecoration(
-          color: selected
+          // THEME=ink: outlined chips on the paper, teal once chosen.
+          color: InkPaper.on
+              ? Colors.transparent
+              : selected
               ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
               : theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(AppSpacing.radius),
           border: Border.all(
-            color: selected ? AppColors.accent : theme.dividerColor,
+            color: selected
+                ? _chosen
+                : (InkPaper.on
+                    ? InkPaper.outline(isDark)
+                    : theme.dividerColor),
             width: selected ? 1.6 : 1,
           ),
         ),
@@ -553,7 +632,7 @@ class _CustomTipChip extends StatelessWidget {
                 selected: selected,
                 style: theme.textTheme.titleSmall?.copyWith(
                   color: selected
-                      ? AppColors.accent
+                      ? _chosen
                       : (enabled ? theme.colorScheme.onSurface : null),
                 ),
               ),
@@ -659,7 +738,8 @@ class _ComplimentTagsState extends State<_ComplimentTags> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('What went well?', style: theme.textTheme.titleSmall),
+        Text('What went well?',
+            style: inkSectionLabel(context, theme.textTheme.titleSmall)),
         const SizedBox(height: AppSpacing.sm),
         // One left-aligned wrap: a centred wrap left the last, shorter row
         // centred under rows that read as left-aligned.

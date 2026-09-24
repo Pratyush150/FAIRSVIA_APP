@@ -423,7 +423,8 @@ class _RidePin extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Ride PIN', style: theme.textTheme.titleMedium),
+                Text('Ride PIN',
+                    style: inkSectionLabel(context, theme.textTheme.titleMedium)),
                 const SizedBox(height: 2),
                 Text('Tell $who when you get in',
                     style: theme.textTheme.bodySmall),
@@ -438,11 +439,17 @@ class _RidePin extends StatelessWidget {
               width: 38,
               height: 46,
               alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.accent.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                border: Border.all(color: AppColors.accent, width: 1.5),
-              ),
+              // THEME=ink: plain surface.2 boxes with ink digits.
+              decoration: InkPaper.on
+                  ? BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                    )
+                  : BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                      border: Border.all(color: AppColors.accent, width: 1.5),
+                    ),
               child: Text(d,
                   style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700, letterSpacing: 0)),
@@ -494,7 +501,8 @@ class _PickupSummary extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Pickup', style: theme.textTheme.labelMedium),
+              Text('Pickup',
+                  style: inkSectionLabel(context, theme.textTheme.labelMedium)),
               Text(
                 pickup ?? 'Your pickup point',
                 style: theme.textTheme.bodyMedium,
@@ -631,11 +639,13 @@ class _DriverVehicleCard extends StatelessWidget {
                   Semantics(
                     label: 'Number plate ${AppA11y.spell(Market.current.formatPlate(plate))}',
                     excludeSemantics: true,
-                    child: Text(
-                      Market.current.formatPlate(plate),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.plate.copyWith(color: theme.colorScheme.onSurface),
+                    child: _InkPlate(
+                      child: Text(
+                        Market.current.formatPlate(plate),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.plate.copyWith(color: theme.colorScheme.onSurface),
+                      ),
                     ),
                   ),
                 if (vehicle.isNotEmpty)
@@ -1033,6 +1043,28 @@ class _QuickActionCard extends StatelessWidget {
 /// background, and every other build must look exactly as before — which the
 /// const [AppColors.planLight] guarantees at compile time. A missing or broken
 /// asset falls back to the Phosphor glyph rather than an empty box.
+/// THEME=ink: the plate drawn like a plate, the number inside a 1.5 px ink
+/// border. Other builds: the text alone.
+class _InkPlate extends StatelessWidget {
+  const _InkPlate({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!InkPaper.on) return child;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.onSurface, width: 1.5),
+      ),
+      child: child,
+    );
+  }
+}
+
 class _HeroIcon extends StatelessWidget {
   const _HeroIcon({
     required this.asset,

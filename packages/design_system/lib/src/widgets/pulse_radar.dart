@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_ink.dart';
 
 /// An animated "searching" radar — concentric rings that expand and fade out,
 /// with a soft rotating sweep and a steady centre dot. Replaces a bland spinner
@@ -55,7 +56,9 @@ class _PulseRadarState extends State<PulseRadar>
     // Depend on the theme: the ink colours below must follow a light/dark
     // switch made while the app is open.
     Theme.of(context);
-    final color = widget.color ?? AppColors.accent;
+    // THEME=ink: teal, the colour kept for the one live thing on screen.
+    final color = widget.color ??
+        (InkPaper.on ? AppColors.highlight : AppColors.accent);
     return SizedBox(
       width: widget.size,
       height: widget.size,
@@ -85,6 +88,22 @@ class _RadarPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final maxR = size.shortestSide / 2;
+
+    // Plan E (THEME=ink): three thin teal circles, no fill, no sweep.
+    if (InkPaper.on) {
+      for (var i = 0; i < _rings; i++) {
+        final t = (progress + i / _rings) % 1.0;
+        canvas.drawCircle(
+          center,
+          maxR * (0.25 + 0.75 * t),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1
+            ..color = color.withValues(alpha: 1 - t * 0.85),
+        );
+      }
+      return;
+    }
 
     // Expanding, fading concentric rings, phase-staggered so one is always
     // near the centre as the outer one dissolves.

@@ -21,12 +21,23 @@ class VehicleGlyph extends StatelessWidget {
   ///   render in dark mode;
   /// - Plan A (midnight): the flat silver 3/4-view cars, so A stays visibly
   ///   its own look;
-  /// - `mono`: the drawn glyphs (the art is in colour).
+  /// - `mono`: the drawn glyphs (the art is in colour);
+  /// - `ink` (Plan E): monochrome pen line drawings of the same Blender
+  ///   models (docs/brand/vehicles/clay/render_ink.py), light and dark.
   static String? artSet(bool dark) => switch (AppColors.variant) {
         'mono' => null,
         'midnight' => 'midnight',
+        'ink' => dark ? 'ink_dark' : 'ink',
         _ => dark ? 'clay_dark' : 'clay',
       };
+
+  /// The map-marker (top-down) art for [asset], a path under
+  /// `packages/design_system/assets/vehicles/top/`. Callers name the shared
+  /// top-down set; the build picks its drawing style here, so under
+  /// THEME=ink the car on the map is the line-art marker (ink_top/).
+  static String markerAsset(String asset) => AppColors.variant == 'ink'
+      ? asset.replaceFirst('/vehicles/top/', '/vehicles/ink_top/')
+      : asset;
 
   static String _file(String tier) => switch (tier) {
         'economy' || 'comfort' || 'xl' || 'premium' => tier,

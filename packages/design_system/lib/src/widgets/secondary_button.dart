@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_ink.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -28,7 +29,11 @@ class SecondaryButton extends StatelessWidget {
         ? AppColors.error
         : (isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight);
     // Uber-style secondary action: a quiet grey fill, no outline.
-    final fill = danger
+    // Plan E (THEME=ink): no fill — an ink outline on the paper (the
+    // outline token, 3.3:1, since it is the control's only edge).
+    final fill = InkPaper.on
+        ? Colors.transparent
+        : danger
         ? (isDark ? AppColors.errorSoftDark : AppColors.errorSoft)
         : (isDark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight);
     return SizedBox(
@@ -41,6 +46,10 @@ class SecondaryButton extends StatelessWidget {
           disabledForegroundColor: fg.withValues(alpha: 0.4),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radius),
+            side: InkPaper.on
+                ? BorderSide(
+                    color: danger ? fg : InkPaper.outline(isDark), width: 1)
+                : BorderSide.none,
           ),
           // The family must be named here: a button's textStyle replaces the
           // theme's, and without it the label fell back to the platform font.

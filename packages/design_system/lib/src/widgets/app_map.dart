@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import '../theme/app_colors.dart';
 import 'map_styles.dart';
 import 'route_progress.dart';
+import 'vehicle_glyph.dart';
 
 /// What a marker represents — drives its icon + colour.
 /// [me] is the rider's own position (blue dot), [driver] the gliding car.
@@ -296,7 +297,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       return;
     }
     try {
-      final data = await rootBundle.load(path);
+      // The build's drawing style of that vehicle (THEME=ink: line art).
+      final data = await rootBundle.load(VehicleGlyph.markerAsset(path));
       final icon = gmaps.BitmapDescriptor.bytes(data.buffer.asUint8List(),
           width: AppMap.carMarkerWidth);
       if (mounted && widget.driverCarAsset == path) {
@@ -823,6 +825,10 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   // cleared entirely, so it vanishes exactly on arrival rather than leaving a stub.
   static const double _arrivedMeters = 12;
 
+  /// Route stroke: 6, or a precise 4 in Plan E (THEME=ink), where the route
+  /// is a thin teal pen line.
+  static const int _routeWidth = AppColors.variant == 'ink' ? 4 : 6;
+
   /// The route line. When a live driver marker is present we **split the route
   /// at the car** and draw only the part *ahead* of it in bold — so the active
   /// line shrinks behind the car as it drives and vanishes on arrival (Uber
@@ -858,7 +864,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           polylineId: const gmaps.PolylineId('route'),
           points: [for (final p in route) _g(p)],
           color: AppColors.highlight,
-          width: 6,
+          width: _routeWidth,
           startCap: _roundCap,
           endCap: _roundCap,
           jointType: gmaps.JointType.round,
@@ -888,7 +894,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         polylineId: const gmaps.PolylineId('route'),
         points: [for (final p in split.remaining) _g(p)],
         color: AppColors.highlight,
-        width: 6,
+        width: _routeWidth,
         startCap: _roundCap,
         endCap: _roundCap,
         jointType: gmaps.JointType.round,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_ink.dart';
 
 /// What an [AppIconBadge] means — the only thing that changes its colour
 /// (audit 2.1, rule 4: colour by meaning).
@@ -88,10 +89,25 @@ class AppIconBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final (fill, ink) = colorsFor(tone, dark);
+    // Plan E (THEME=ink): no tinted disc — a hairline circle, ink on paper.
+    // The glyph keeps its tone colour (it carries the meaning, ≥3:1); the
+    // ring is the outline token for plain badges and the tone for the rest.
+    final decoration = InkPaper.on
+        ? BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: tone == AppIconBadgeTone.brand ||
+                      tone == AppIconBadgeTone.neutral
+                  ? InkPaper.outline(dark)
+                  : ink,
+              width: 1,
+            ),
+          )
+        : BoxDecoration(color: fill, shape: BoxShape.circle);
     final badge = Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
+      decoration: decoration,
       alignment: Alignment.center,
       child: Icon(icon, size: iconSize, color: ink),
     );

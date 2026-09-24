@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_ink.dart';
+
 /// A section title with an optional trailing action (e.g. "See all").
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
@@ -23,7 +25,8 @@ class SectionHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: text.titleLarge),
+              // THEME=ink: a small-caps label, not a title.
+              Text(title, style: inkSectionLabel(context, text.titleLarge)),
               if (subtitle != null)
                 Text(subtitle!, style: text.bodyMedium),
             ],

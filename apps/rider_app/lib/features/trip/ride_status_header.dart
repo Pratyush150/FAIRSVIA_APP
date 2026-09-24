@@ -59,14 +59,23 @@ class RideStatusHeader extends StatelessWidget {
                   duration: AppMotion.normal,
                   switchInCurve: AppMotion.enter,
                   switchOutCurve: AppMotion.exit,
-                  child: Text(
-                    status.title,
-                    // Keyed on the text so the switcher animates when the
-                    // wording changes ("on the way" → "almost here") and
-                    // stays put when only the minute count moves.
-                    key: ValueKey(status.title),
-                    style: theme.textTheme.headlineSmall,
-                  ),
+                  // Keyed on the text so the switcher animates when the
+                  // wording changes ("on the way" → "almost here") and
+                  // stays put when only the minute count moves.
+                  child: InkPaper.on
+                      // THEME=ink: the status headline is a serif moment,
+                      // with balanced lines ("Rahul arriving / in 3 min").
+                      ? BalancedText(
+                          status.title,
+                          key: ValueKey(status.title),
+                          style:
+                              theme.textTheme.headlineSmall?.serifMoment(32),
+                        )
+                      : Text(
+                          status.title,
+                          key: ValueKey(status.title),
+                          style: theme.textTheme.headlineSmall,
+                        ),
                 ),
               ),
               if (status.subtitle case final sub?) ...[

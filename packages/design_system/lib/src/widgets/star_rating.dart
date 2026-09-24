@@ -3,6 +3,7 @@ import '../theme/phosphor_icons.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_ink.dart';
 import '../theme/app_motion.dart';
 
 /// Five-star rating. Read-only when [onRate] is null; tappable otherwise.
@@ -23,7 +24,12 @@ class StarRating extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = Theme.of(context).brightness == Brightness.dark
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    // THEME=ink: the empty stars are drawn in the outline token (3.3:1) —
+    // hairline grey is too faint for a control at Light weight.
+    final muted = InkPaper.on
+        ? InkPaper.outline(dark)
+        : dark
         ? AppColors.borderDark
         : AppColors.borderLight;
     final row = Row(

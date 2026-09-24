@@ -271,6 +271,21 @@ jobs:
             flutter test test/theme_variant_test.dart --dart-define=THEME=$t
             echo "::endgroup::"
           done
+      - name: Plan E "Ink & Paper" build (THEME=ink)
+        # Plan E changes drawing, not just tokens (Light icons, serif moments,
+        # ruled sheets, the ticket receipt), so its widgets and the rider
+        # sheets that use them are tested in the ink build itself. (The
+        # price-comparison goldens are palette-specific and only match the
+        # default build, so the rider suite is not run whole here.)
+        run: |
+          set -e
+          (cd packages/design_system && flutter test --dart-define=THEME=ink)
+          (cd packages/core && flutter test --dart-define=THEME=ink)
+          (cd apps/rider_app && flutter test --dart-define=THEME=ink \
+            test/plan_e_screens_test.dart test/ride_sheets_a11y_test.dart \
+            test/live_ride_sheets_test.dart test/completed_sheet_tip_test.dart \
+            test/driver_info_sheet_test.dart test/ride_sheet_layout_test.dart \
+            test/ride_map_layer_test.dart test/ride_cards_test.dart)
 
   # ---------------------------------------------------------------------------
   # Android build: the rider and driver apps ship on phones, so a web build is
