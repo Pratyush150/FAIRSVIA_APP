@@ -275,12 +275,12 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
       _error = null;
       if (field == _Field.pickup) {
         _pickup = result.location;
-        _pickupLabel = result.address;
-        _pickupCtrl.text = result.address;
+        _pickupLabel = result.shortAddress;
+        _pickupCtrl.text = result.title;
       } else {
         _dropoff = result.location;
-        _dropoffLabel = result.address;
-        _dropoffCtrl.text = result.address;
+        _dropoffLabel = result.shortAddress;
+        _dropoffCtrl.text = result.title;
       }
     });
     _finishOrFocusMissing();

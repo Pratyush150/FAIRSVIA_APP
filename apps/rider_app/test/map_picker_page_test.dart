@@ -85,4 +85,55 @@ void main() {
       expect(result!.location.lng, closeTo(73.7153, 0.0005));
     },
   );
+
+  testWidgets(
+    'shows the short label as the main line and locality + city as caption',
+    (tester) async {
+      const full = '204, Mote Mangal Karyalay Rd, Dattwadi, Shobhapur, '
+          'Dattwadi, Kasba Peth, Pune, Maharashtra 411011, India';
+      when(() => repo.reverseGeocode(any(), any())).thenAnswer(
+        (_) async => const PlaceDetails(
+          placeId: 'ChIJ',
+          address: full,
+          location: GeoPoint(18.5074, 73.8553),
+          label: 'Mote Mangal Karyalay Rd',
+          detail: 'Dattwadi, Pune',
+        ),
+      );
+
+      PlaceDetails? result;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  result = await Navigator.of(context).push<PlaceDetails>(
+                    MaterialPageRoute(
+                      builder: (_) => MapPickerPage(
+                        initial: const GeoPoint(18.5074, 73.8553),
+                        tileProvider: _OfflineTileProvider(),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mote Mangal Karyalay Rd'), findsOneWidget);
+      expect(find.text('Dattwadi, Pune'), findsOneWidget);
+      expect(find.text(full), findsNothing); // raw address never shown
+
+      await tester.tap(find.text('Confirm location'));
+      await tester.pumpAndSettle();
+      expect(result!.address, full); // full address still returned
+      expect(result!.shortAddress, 'Mote Mangal Karyalay Rd, Dattwadi, Pune');
+    },
+  );
 }

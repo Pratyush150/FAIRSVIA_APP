@@ -7,6 +7,7 @@ import {
   PLACES_BIAS_RADIUS_M,
   RouteResult,
 } from './geo-provider.interface';
+import { formatFreeTextAddress, formatGoogleReverse } from './place-label';
 
 /**
  * Real Google Maps Platform provider. Requires GOOGLE_MAPS_API_KEY with
@@ -79,10 +80,14 @@ export class GoogleGeoProvider implements GeoProvider {
     const data = await this.getJson(url);
     const result = (data.results ?? [])[0];
     const address = result?.formatted_address ?? 'Current location';
+    const short =
+      formatGoogleReverse(data.results) ?? formatFreeTextAddress(address);
     return {
       placeId: result?.place_id ?? `latlng:${location.lat},${location.lng}`,
       address,
       location,
+      label: short.label,
+      detail: short.detail,
     };
   }
 

@@ -85,3 +85,45 @@ describe('PlacesController.route', () => {
     );
   });
 });
+
+describe('PlacesController.reverse (label/detail)', () => {
+  function ctrlWith(details: unknown) {
+    const geo = {
+      reverse: jest.fn(async () => details),
+    } as unknown as GeoProvider;
+    return new PlacesController(geo);
+  }
+
+  it('passes provider label/detail through and keeps the full address', async () => {
+    const res = await ctrlWith({
+      placeId: 'p',
+      address: '204, Mote Mangal Karyalay Rd, Dattwadi, Pune, Maharashtra 411011, India',
+      location: { lat: 18.5, lng: 73.8 },
+      label: 'Mote Mangal Karyalay Rd',
+      detail: 'Dattwadi, Pune',
+    }).reverse('18.5', '73.8');
+    expect(res).toEqual({
+      placeId: 'p',
+      address: '204, Mote Mangal Karyalay Rd, Dattwadi, Pune, Maharashtra 411011, India',
+      location: { lat: 18.5, lng: 73.8 },
+      label: 'Mote Mangal Karyalay Rd',
+      detail: 'Dattwadi, Pune',
+    });
+  });
+
+  it('derives label/detail from the address when the provider set none', async () => {
+    const res = await ctrlWith({
+      placeId: 'p',
+      address: '192, Sathe Colony, Shukrawar Peth, Pune, Maharashtra 411002, India',
+      location: { lat: 18.5, lng: 73.8 },
+    }).reverse('18.5', '73.8');
+    expect(res.label).toBe('Sathe Colony');
+    expect(res.detail).toBe('Shukrawar Peth, Pune');
+    expect(res.address).toContain('192, Sathe Colony');
+  });
+
+  it('bad coordinates → generic label without calling the provider', async () => {
+    const res = await ctrlWith(null).reverse('x', '73.8');
+    expect(res).toMatchObject({ address: 'Current location', label: 'Current location', detail: '' });
+  });
+});

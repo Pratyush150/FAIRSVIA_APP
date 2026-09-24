@@ -42,6 +42,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
 
   Timer? _debounce;
   String? _address; // live label under the pin (null while resolving)
+  String _caption = ''; // locality + city under the label, when known
   bool _confirming = false;
   bool _locating = false;
 
@@ -88,7 +89,10 @@ class _MapPickerPageState extends State<MapPickerPage> {
       return;
     }
     _center = c;
-    setState(() => _address = null); // "Locating…" until the debounce resolves
+    setState(() {
+      _address = null; // "Locating…" until the debounce resolves
+      _caption = '';
+    });
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 450), () => _resolve(c));
   }
@@ -97,7 +101,12 @@ class _MapPickerPageState extends State<MapPickerPage> {
     try {
       final details = await _repo.reverseGeocode(c.latitude, c.longitude);
       if (!mounted || c != _center) return; // moved again — ignore stale result
-      setState(() => _address = details.address);
+      // Landmark / road first, locality + city as the caption — not the raw
+      // postal address (house number first, localities repeated).
+      setState(() {
+        _address = details.title;
+        _caption = details.caption;
+      });
     } on ApiException {
       if (!mounted || c != _center) return;
       setState(() => _address = 'Dropped pin');
@@ -111,10 +120,14 @@ class _MapPickerPageState extends State<MapPickerPage> {
     // it away — the rider chose this spot).
     String address;
     String placeId = '';
+    String? label;
+    String? detail;
     try {
       final d = await _repo.reverseGeocode(_center.latitude, _center.longitude);
       address = d.address;
       placeId = d.placeId;
+      label = d.label;
+      detail = d.detail;
     } on ApiException {
       address = _address ?? 'Dropped pin';
     }
@@ -123,6 +136,8 @@ class _MapPickerPageState extends State<MapPickerPage> {
       placeId: placeId,
       address: address,
       location: GeoPoint(_center.latitude, _center.longitude),
+      label: label,
+      detail: detail,
     ));
   }
 
@@ -203,10 +218,28 @@ class _MapPickerPageState extends State<MapPickerPage> {
                                     Text('Locating…',
                                         style: theme.textTheme.bodyMedium),
                                   ])
-                                : Text(_address!,
-                                    style: theme.textTheme.titleSmall,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis),
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(_address!,
+                                          key: const Key('map-picker-label'),
+                                          style: theme.textTheme.titleSmall,
+                                          maxLines: _caption.isEmpty ? 2 : 1,
+                                          overflow: TextOverflow.ellipsis),
+                                      if (_caption.isNotEmpty)
+                                        Text(_caption,
+                                            key: const Key(
+                                                'map-picker-caption'),
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                    color: theme.colorScheme
+                                                        .onSurfaceVariant),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis),
+                                    ],
+                                  ),
                           ),
                         ],
                       ),

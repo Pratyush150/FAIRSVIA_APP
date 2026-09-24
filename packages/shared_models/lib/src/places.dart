@@ -50,23 +50,56 @@ class PlacePrediction extends Equatable {
 }
 
 /// Resolved place details: address + coordinates.
+///
+/// Reverse-geocode responses also carry a short [label] (landmark / building /
+/// road, never a house number or plus code — "Mote Mangal Karyalay Rd") and a
+/// [detail] caption (locality + city — "Dattwadi, Pune"). Both are optional:
+/// older backends and place-details lookups send only [address]. Display code
+/// should use [title] / [caption] / [shortAddress], which fall back to
+/// [address] when there is no label.
 class PlaceDetails extends Equatable {
   const PlaceDetails({
     required this.placeId,
     required this.address,
     required this.location,
+    this.label,
+    this.detail,
   });
 
   final String placeId;
+
+  /// The provider's full address. Kept as-is for backwards compatibility.
   final String address;
   final GeoPoint location;
 
+  /// Short name for the main line, when the backend supplied one.
+  final String? label;
+
+  /// Short caption under [label], when the backend supplied one.
+  final String? detail;
+
+  bool get _hasLabel => label != null && label!.trim().isNotEmpty;
+
+  /// Main line: the short label, else the full address.
+  String get title => _hasLabel ? label!.trim() : address;
+
+  /// Caption under [title]; empty when there is no label (the title is then
+  /// already the full address) or no detail.
+  String get caption => _hasLabel ? (detail ?? '').trim() : '';
+
+  /// One-line form for places that hold a single string (trip pickup/dropoff,
+  /// text fields): "Mote Mangal Karyalay Rd, Dattwadi, Pune".
+  String get shortAddress =>
+      caption.isEmpty ? title : '$title, $caption';
+
   factory PlaceDetails.fromJson(Map<String, dynamic> json) => PlaceDetails(
-        placeId: json['placeId'] as String,
+        placeId: json['placeId'] as String? ?? '',
         address: json['address'] as String? ?? '',
         location: GeoPoint.fromJson(json['location'] as Map<String, dynamic>),
+        label: json['label'] as String?,
+        detail: json['detail'] as String?,
       );
 
   @override
-  List<Object?> get props => [placeId, address, location];
+  List<Object?> get props => [placeId, address, location, label, detail];
 }

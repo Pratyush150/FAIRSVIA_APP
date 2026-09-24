@@ -7,6 +7,7 @@ import {
   RouteResult,
 } from './geo-provider.interface';
 import { haversineMeters } from './geo.util';
+import { formatFreeTextAddress, formatNominatimReverse } from './place-label';
 import { BRAND_NAME } from '../common/brand';
 
 /**
@@ -83,10 +84,13 @@ export class OsmGeoProvider implements GeoProvider {
     const r = (await this.getJson(url)) as any;
     const display = String(r?.display_name ?? '');
     const address = display || 'Current location';
+    const short = formatNominatimReverse(r) ?? formatFreeTextAddress(address);
     return {
       placeId: this.encodePlaceId(location, address),
       address,
       location,
+      label: short.label,
+      detail: short.detail,
     };
   }
 

@@ -65,6 +65,8 @@ export class StubGeoProvider implements GeoProvider {
       placeId: this.encodePlaceId(location),
       address: `Stub location (${location.lat.toFixed(5)}, ${location.lng.toFixed(5)})`,
       location,
+      label: 'Stub location',
+      detail: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`,
     };
   }
 

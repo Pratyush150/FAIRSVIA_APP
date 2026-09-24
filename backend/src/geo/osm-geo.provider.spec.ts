@@ -95,4 +95,14 @@ describe('OsmGeoProvider', () => {
     (global as any).fetch = fakeFetch({}, false, 503);
     await expect(geo.autocomplete('x')).rejects.toThrow();
   });
+
+  it('reverse returns display_name as address plus a short label/detail', async () => {
+    const { NOMINATIM_SHANIWAR_WADA } = await import('./place-label.fixtures');
+    (global as any).fetch = fakeFetch(NOMINATIM_SHANIWAR_WADA);
+    const r = await geo.reverse({ lat: 18.5196, lng: 73.8553 });
+    expect(lastUrl).toContain('/reverse');
+    expect(r.address).toBe(NOMINATIM_SHANIWAR_WADA.display_name);
+    expect(r.label).toBe('Shaniwar Wada');
+    expect(r.detail).toBe('Kasba Peth, Pune');
+  });
 });

@@ -636,6 +636,22 @@ describe('Ride App API (e2e)', () => {
     expect(after.body.some((p: { id: string }) => p.id === id)).toBe(false);
   });
 
+  it('places/reverse returns the full address plus a short label/detail', async () => {
+    // Provider depends on env (stub in CI, Google/OSM in dev): assert the
+    // contract, not the words. Content is covered by place-label.spec.ts.
+    const res = await request(server)
+      .get('/api/v1/places/reverse?lat=18.5074&lng=73.8553')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(typeof res.body.address).toBe('string');
+    expect(res.body.address.length).toBeGreaterThan(0);
+    expect(typeof res.body.label).toBe('string');
+    expect(res.body.label.length).toBeGreaterThan(0);
+    expect(res.body.label).not.toMatch(/^\d/);
+    expect(typeof res.body.detail).toBe('string');
+    expect(res.body.location).toEqual({ lat: 18.5074, lng: 73.8553 });
+  });
+
   it("forbids editing another user's saved place", async () => {
     const mine = await request(server)
       .post('/api/v1/users/me/places')

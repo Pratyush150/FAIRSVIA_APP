@@ -20,8 +20,14 @@ export const PLACES_BIAS_RADIUS_M = 20000;
 
 export interface PlaceDetails {
   placeId: string;
+  /** Full provider address — unchanged, kept for existing clients. */
   address: string;
   location: LatLng;
+  /** Short display name: landmark / building / road, never a house number,
+   *  postcode or plus code ("Mote Mangal Karyalay Rd"). Set by `reverse`. */
+  label?: string;
+  /** Short caption under the label: locality + city ("Dattwadi, Pune"). */
+  detail?: string;
 }
 
 export interface RouteResult {

@@ -58,3 +58,22 @@ describe('GoogleGeoProvider.autocomplete', () => {
     expect(lastUrl!.searchParams.has('origin')).toBe(false);
   });
 });
+
+describe('GoogleGeoProvider.reverse', () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('returns the full address plus a short label/detail', async () => {
+    const { GOOGLE_KASBA_PETH } = await import('./place-label.fixtures');
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({ status: 'OK', results: GOOGLE_KASBA_PETH }),
+    })) as unknown as typeof fetch;
+    const r = await new GoogleGeoProvider('key').reverse({ lat: 18.5, lng: 73.85 });
+    expect(r.address).toBe(GOOGLE_KASBA_PETH[0].formatted_address);
+    expect(r.label).toBe('Mote Mangal Karyalay Rd');
+    expect(r.detail).toBe('Dattwadi, Pune');
+  });
+});

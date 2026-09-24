@@ -7,7 +7,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { GEO_PROVIDER, GeoProvider, LatLng } from './geo-provider.interface';
+import {
+  GEO_PROVIDER,
+  GeoProvider,
+  LatLng,
+  PlaceDetails,
+} from './geo-provider.interface';
+import { formatFreeTextAddress } from './place-label';
 
 /**
  * Proxies Google Places through the backend so the API key stays server-side,
@@ -56,15 +62,35 @@ export class PlacesController {
     return this.geo.placeDetails(placeId);
   }
 
-  /** Reverse-geocode the rider's GPS to a human address for the pickup label. */
+  /**
+   * Reverse-geocode the rider's GPS for the pickup line. Returns the full
+   * `address` (unchanged, for existing clients) plus a short `label`
+   * (landmark / road) and `detail` caption (locality, city). Every response
+   * carries label/detail: providers that don't set them get the free-text
+   * fallback here, so clients can rely on the fields.
+   */
   @Get('reverse')
-  reverse(@Query('lat') lat: string, @Query('lng') lng: string) {
+  async reverse(@Query('lat') lat: string, @Query('lng') lng: string) {
     const latN = Number(lat);
     const lngN = Number(lng);
     if (Number.isNaN(latN) || Number.isNaN(lngN)) {
-      return { address: 'Current location', location: { lat: latN, lng: lngN } };
+      return {
+        address: 'Current location',
+        location: { lat: latN, lng: lngN },
+        label: 'Current location',
+        detail: '',
+      };
     }
-    return this.geo.reverse({ lat: latN, lng: lngN });
+    return PlacesController.withLabel(
+      await this.geo.reverse({ lat: latN, lng: lngN }),
+    );
+  }
+
+  /** Fill label/detail from the address when the provider didn't. */
+  static withLabel(p: PlaceDetails): PlaceDetails {
+    if (p.label) return { ...p, detail: p.detail ?? '' };
+    const short = formatFreeTextAddress(p.address ?? '');
+    return { ...p, label: short.label || p.address, detail: short.detail };
   }
 
   /**
