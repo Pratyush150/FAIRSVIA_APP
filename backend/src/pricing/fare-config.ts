@@ -22,10 +22,41 @@ export interface TierFareConfig {
 /**
  * Per-tier fare configuration in USD (target market: Florida, US). These are the
  * seed defaults; the live values live in the `fare_config` DB table so pricing
- * can be tuned per market without a deploy (see PricingService.seedIfEmpty).
+ * can be tuned per market without a deploy (see PricingService.seedMissing).
  * Rates are per-mile for distance and per-minute for time.
+ *
+ * Key order is the order riders see the tiers in, cheapest first: bike, auto,
+ * then the cars. (Bike and auto are cheaper than economy per km in every market
+ * we price — Pune: bike ₹10.27/km, auto ₹20/km vs the regulated ₹25/km cab
+ * rate — and India's ride apps list them first the same way.)
+ *
+ * `bike` (bike taxi) and `auto` (auto-rickshaw) are India products with no US
+ * equivalent; their USD defaults are only there so every tier has a value in
+ * every market. They are economy scaled by Pune's own ratios to the regulated
+ * cab per-km rate (auto 20/25 = 0.8, bike 10.27/25 ≈ 0.41). The rupee values
+ * that matter are in INR_FARE_CONFIG below.
  */
 export const FARE_CONFIG: Record<string, TierFareConfig> = {
+  bike: {
+    tier: 'bike',
+    label: 'Bike',
+    baseFare: 1.0,
+    perMile: 0.5,
+    perMin: 0.1,
+    bookingFee: 1.0,
+    minFare: 3.0,
+    capacity: 1,
+  },
+  auto: {
+    tier: 'auto',
+    label: 'Auto',
+    baseFare: 2.0,
+    perMile: 0.95,
+    perMin: 0.2,
+    bookingFee: 1.5,
+    minFare: 5.0,
+    capacity: 3,
+  },
   economy: {
     tier: 'economy',
     label: 'Economy',
@@ -69,3 +100,102 @@ export const FARE_CONFIG: Record<string, TierFareConfig> = {
 };
 
 export const TIER_KEYS = Object.keys(FARE_CONFIG);
+
+/** Kilometres → miles for the per-mile columns: ₹/km × this = ₹/mile. */
+const KM_PER_MILE = METERS_PER_MILE / 1000;
+const perKm = (rupeesPerKm: number) => Math.round(rupeesPerKm * KM_PER_MILE * 100) / 100;
+
+/**
+ * Seed defaults for an INR market (the Pune pilot). The table is still
+ * per-mile internally; the admin console shows per-km in metric markets.
+ *
+ * Car tiers: the pilot's own admin-set values (economy ₹12/km, comfort ₹15/km,
+ * xl ₹20/km, premium ₹28/km), so a fresh INR database starts where the pilot
+ * already is instead of seeding dollar numbers as rupees.
+ *
+ * Auto — the Pune RTA meter tariff, effective 1 Sep 2026: ₹30 for the first
+ * 1.5 km, then ₹20 per km (up from ₹25 / ₹17). Modelled as ₹20/km from zero
+ * with a ₹30 minimum, which reproduces the meter exactly (1.5 km × ₹20 = ₹30);
+ * no base, time or booking line, so the app never quotes above the meter.
+ * Source: Pune District RTA decision, reported by Pune Pulse, 1 Sep 2026
+ * (mypunepulse.com, "Pune Auto Fare Hike ... Minimum Fare Increased To ₹30")
+ * and The Bridge Chronicle ("Pune, PCMC Auto Rickshaw Fares to Rise from
+ * September 1 as Base Fare Hiked to ₹30").
+ *
+ * Bike — the Maharashtra Bike Taxi Rules 2025 fare (Khatua-panel formula):
+ * ₹15 for the first 1.5 km, then ₹10.27 per km. Modelled the same way:
+ * ₹10.27/km from zero, ₹15 minimum (1.5 × 10.27 = ₹15.4, so the floor only
+ * bites on the shortest trips). Source: Maharashtra STA provisional aggregator
+ * licences, 16 Sep 2025 (Business Today, "Maharashtra STA approves bike taxi
+ * services for Ola, Uber, Rapido under new rules"). Those licences name MMR;
+ * the state fare is the only published rule and is what Pune aggregators quote.
+ */
+export const INR_FARE_CONFIG: Record<string, TierFareConfig> = {
+  bike: {
+    tier: 'bike',
+    label: 'Bike',
+    baseFare: 0,
+    perMile: perKm(10.27), // 16.53
+    perMin: 0,
+    bookingFee: 0,
+    minFare: 15,
+    capacity: 1,
+  },
+  auto: {
+    tier: 'auto',
+    label: 'Auto',
+    baseFare: 0,
+    perMile: perKm(20), // 32.19
+    perMin: 0,
+    bookingFee: 0,
+    minFare: 30,
+    capacity: 3,
+  },
+  economy: {
+    tier: 'economy',
+    label: 'Economy',
+    baseFare: 40,
+    perMile: perKm(12), // 19.31
+    perMin: 1,
+    bookingFee: 10,
+    minFare: 75,
+    capacity: 4,
+  },
+  comfort: {
+    tier: 'comfort',
+    label: 'Comfort',
+    baseFare: 55,
+    perMile: perKm(15), // 24.14
+    perMin: 1.5,
+    bookingFee: 15,
+    minFare: 100,
+    capacity: 4,
+  },
+  xl: {
+    tier: 'xl',
+    label: 'XL',
+    baseFare: 80,
+    perMile: perKm(20), // 32.19
+    perMin: 2,
+    bookingFee: 20,
+    minFare: 150,
+    capacity: 6,
+  },
+  premium: {
+    tier: 'premium',
+    label: 'Premium',
+    baseFare: 120,
+    perMile: perKm(28), // 45.06
+    perMin: 3,
+    bookingFee: 25,
+    minFare: 200,
+    capacity: 4,
+  },
+};
+
+/** The seed defaults for a market currency: rupee values in INR, else USD. */
+export function defaultFareConfig(
+  currency: string = CURRENCY,
+): Record<string, TierFareConfig> {
+  return currency.toUpperCase() === 'INR' ? INR_FARE_CONFIG : FARE_CONFIG;
+}

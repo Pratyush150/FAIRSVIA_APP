@@ -81,6 +81,15 @@ export function phone(prefix = '9') {
 // plate, so screens and demos never show "Driver" with a US plate. Drivers
 // need a name before they can go online.
 const NAMES = ['Rahul Patil', 'Amit Deshmukh', 'Sneha Kulkarni', 'Vikram Joshi', 'Priya Shinde', 'Sagar Pawar'];
+// A vehicle that fits the tier: an auto-rickshaw for 'auto', a scooter for
+// 'bike' (Pune's bike taxis are mostly Activas), a sedan for the car tiers.
+const VEHICLES = {
+  auto: { vehicleMake: 'Bajaj', vehicleModel: 'RE Compact', vehicleColor: 'Green/Yellow' },
+  bike: { vehicleMake: 'Honda', vehicleModel: 'Activa 6G', vehicleColor: 'Black' },
+};
+const CAR = { vehicleMake: 'Maruti Suzuki', vehicleModel: 'Dzire', vehicleColor: 'White' };
+/** Onboard [token]'s user as a driver of [tier]: economy, comfort, xl,
+ *  premium, auto or bike. */
 export async function onboardDriver(token, tier = 'economy') {
   const n = Date.now();
   await api('/users/me', { method: 'PATCH', token, body: { fullName: NAMES[n % NAMES.length] } });
@@ -89,9 +98,7 @@ export async function onboardDriver(token, tier = 'economy') {
     method: 'POST',
     token,
     body: {
-      vehicleMake: 'Maruti Suzuki',
-      vehicleModel: 'Dzire',
-      vehicleColor: 'White',
+      ...(VEHICLES[tier] ?? CAR),
       plateNumber: `MH12${letters}${String(1000 + (n % 9000))}`,
       vehicleTier: tier,
       licenseNo: 'MH12-' + (n % 100000),

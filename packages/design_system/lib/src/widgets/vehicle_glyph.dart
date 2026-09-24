@@ -11,7 +11,9 @@ import '../theme/app_colors.dart';
 class VehicleGlyph extends StatelessWidget {
   const VehicleGlyph({super.key, required this.tier, this.width = 64});
 
-  /// `economy`, `comfort`, `xl` or `premium` (anything else draws a sedan).
+  /// `economy`, `comfort`, `xl`, `premium`, or India's `auto` (rickshaw) and
+  /// `bike` (bike taxi) — those two have art in the clay set only; the drawn
+  /// fallback and Plan A (midnight) show a sedan for them.
   final String tier;
   final double width;
 
@@ -44,7 +46,11 @@ class VehicleGlyph extends StatelessWidget {
     );
     final set = artSet(dark);
     return Semantics(
-      label: '$tier car',
+      label: switch (tier) {
+        'auto' => 'auto-rickshaw',
+        'bike' => 'bike taxi',
+        _ => '$tier car',
+      },
       child: set == null
           ? painted
           : Image.asset(

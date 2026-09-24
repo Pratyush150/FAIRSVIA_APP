@@ -149,7 +149,19 @@ describe('Ride App API (e2e)', () => {
         dropoffLng: -80.1937,
       });
     expect(res.status).toBe(200);
-    expect(res.body.tiers).toHaveLength(4);
+    // Cheapest first: bike and auto (India's two-/three-wheelers), then cars.
+    expect(res.body.tiers.map((t: { tier: string }) => t.tier)).toEqual([
+      'bike',
+      'auto',
+      'economy',
+      'comfort',
+      'xl',
+      'premium',
+    ]);
+    const cap = (t: string) =>
+      res.body.tiers.find((x: { tier: string }) => x.tier === t).capacity;
+    expect(cap('bike')).toBe(1);
+    expect(cap('auto')).toBe(3);
     expect(res.body.distanceM).toBeGreaterThan(0);
     expect(typeof res.body.polyline).toBe('string');
   });
@@ -965,12 +977,16 @@ describe('Ride App API (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`);
       expect(list.status).toBe(200);
       expect(list.body.map((f: { tier: string }) => f.tier)).toEqual([
+        'bike',
+        'auto',
         'economy',
         'comfort',
         'xl',
         'premium',
       ]);
-      const original = list.body[0].baseFare as number;
+      const original = list.body.find(
+        (f: { tier: string }) => f.tier === 'economy',
+      ).baseFare as number;
 
       const bumped = await request(server)
         .patch('/api/v1/admin/fares/economy')
@@ -1010,7 +1026,9 @@ describe('Ride App API (e2e)', () => {
         .post('/api/v1/trips/estimate')
         .set('Authorization', `Bearer ${token}`)
         .send(orlando);
-      const baseFare = base.body.tiers[0].fare;
+      const economyOf = (b: { tiers: { tier: string; fare: number }[] }) =>
+        b.tiers.find((t) => t.tier === 'economy')!.fare;
+      const baseFare = economyOf(base.body);
       expect(base.body.surge).toBe(1);
 
       // Admin forces a 1.5x surge floor.
@@ -1026,7 +1044,7 @@ describe('Ride App API (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send(orlando);
       expect(surged.body.surge).toBe(1.5);
-      expect(surged.body.tiers[0].fare).toBeGreaterThan(baseFare);
+      expect(economyOf(surged.body)).toBeGreaterThan(baseFare);
 
       // Snapshot is visible to admins.
       const snap = await request(server)
@@ -1075,7 +1093,9 @@ describe('Ride App API (e2e)', () => {
         .post('/api/v1/trips/estimate')
         .set('Authorization', `Bearer ${token}`)
         .send(route);
-      const grossFare = gross.body.tiers[0].fare as number;
+      const grossFare = gross.body.tiers.find(
+        (t: { tier: string }) => t.tier === 'economy',
+      ).fare as number;
 
       // Rider requests the ride with the code; the stored estimate is discounted.
       // Own rider: the suite's `token` already has a trip in flight, and a

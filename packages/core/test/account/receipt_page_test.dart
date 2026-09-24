@@ -194,6 +194,29 @@ void main() {
     });
   });
 
+  testWidgets('a metered auto fare shows distance only, no ₹0 lines',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: FareBreakdownRows(
+          currency: 'INR',
+          breakdown: FareBreakdown(
+            baseFare: 0,
+            distanceFare: 100,
+            timeFare: 0,
+            bookingFee: 0,
+            surgeMultiplier: 1,
+          ),
+        ),
+      ),
+    ));
+    expect(find.text('Distance'), findsOneWidget);
+    expect(find.text('₹100'), findsOneWidget);
+    expect(find.text('Base fare'), findsNothing);
+    expect(find.text('Time'), findsNothing);
+    expect(find.text('Booking fee'), findsNothing);
+  });
+
   testWidgets('a cash trip says so', (tester) async {
     await show(
       tester,

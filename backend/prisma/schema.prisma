@@ -119,6 +119,9 @@ enum RideTier {
   comfort
   xl
   premium
+  /// India: auto-rickshaw (3 seats) and bike taxi (1 seat), Pune pilot.
+  auto
+  bike
 }
 
 /// A ride. Pickup/dropoff are stored as lat/lng floats in Phase 1; a PostGIS

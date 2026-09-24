@@ -960,7 +960,11 @@ class _RideTierTile extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           eta == null
-                              ? 'No cars nearby'
+                              ? switch (tier.tier) {
+                                  'auto' => 'No autos nearby',
+                                  'bike' => 'No bikes nearby',
+                                  _ => 'No cars nearby',
+                                }
                               // When the car comes, and when the rider gets
                               // there: the two numbers people compare tiers on.
                               : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',

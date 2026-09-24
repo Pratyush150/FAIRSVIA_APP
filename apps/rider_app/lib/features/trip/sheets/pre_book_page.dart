@@ -105,7 +105,16 @@ class _PreBookPageState extends State<PreBookPage> {
       setState(() {
         _estimate = e;
         final stillOffered = e.tiers.any((t) => t.tier == _tier);
-        if (!stillOffered) _tier = e.tiers.isEmpty ? null : e.tiers.first.tier;
+        // Availability now says nothing about a later pickup, so pre-pick by
+        // seats alone: the cheapest ride with room for more than one (the
+        // one-seat bike leads the list), as FareTier.defaultTier does.
+        if (!stillOffered) {
+          _tier = e.tiers.isEmpty
+              ? null
+              : e.tiers
+                  .firstWhere((t) => t.capacity > 1, orElse: () => e.tiers.first)
+                  .tier;
+        }
       });
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -364,7 +373,10 @@ class _PreBookTier extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(tier.label, style: theme.textTheme.titleMedium),
-                      Text('${tier.capacity} seats',
+                      Text(
+                          tier.capacity == 1
+                              ? '1 seat'
+                              : '${tier.capacity} seats',
                           style: theme.textTheme.bodySmall),
                     ],
                   ),

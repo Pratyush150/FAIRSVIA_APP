@@ -6,6 +6,7 @@
   "description": "Simulated drivers + a scripted full-ride verification for Ride App dispatch/realtime.",
   "scripts": {
     "full-ride": "node full-ride.mjs",
+    "tier-ride": "node tier-ride.mjs",
     "simulate": "node simulate.mjs"
   },
   "dependencies": {

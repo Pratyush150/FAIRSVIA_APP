@@ -13,6 +13,7 @@ import 'features/account/driver_profile_stats.dart';
 import 'features/driver/driver_cubit.dart';
 import 'features/driver/location_priming_page.dart';
 import 'features/driver/location_stream.dart';
+import 'features/driver/vehicle_setup_dialog.dart';
 
 /// Driver home: map + online toggle, interrupting offer modal, and the
 /// en-route → arrived → on-trip lifecycle sheets.
@@ -664,7 +665,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
     try {
       await showDialog<bool>(
         context: context,
-        builder: (_) => _OnboardingDialog(cubit: cubit),
+        builder: (_) => VehicleSetupDialog(cubit: cubit),
       );
     } finally {
       _onboardingShowing = false;
@@ -688,7 +689,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
     if (!context.mounted) return;
     final saved = await showDialog<bool>(
       context: context,
-      builder: (_) => _OnboardingDialog(
+      builder: (_) => VehicleSetupDialog(
         cubit: cubit,
         initial: profile,
         goOnlineAfter: false,
@@ -1774,173 +1775,6 @@ class _OfferOverlayState extends State<OfferOverlay> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _OnboardingDialog extends StatefulWidget {
-  const _OnboardingDialog({
-    required this.cubit,
-    this.initial,
-    this.goOnlineAfter = true,
-  });
-  final DriverCubit cubit;
-
-  /// Existing vehicle when editing (null on first-time setup).
-  final DriverProfile? initial;
-  final bool goOnlineAfter;
-
-  @override
-  State<_OnboardingDialog> createState() => _OnboardingDialogState();
-}
-
-class _OnboardingDialogState extends State<_OnboardingDialog> {
-  late final _make = TextEditingController(text: widget.initial?.vehicleMake);
-  late final _model =
-      TextEditingController(text: widget.initial?.vehicleModel);
-  late final _color =
-      TextEditingController(text: widget.initial?.vehicleColor);
-  late final _plate = TextEditingController(text: widget.initial?.plateNumber);
-  late String _tier = widget.initial?.vehicleTier ?? 'economy';
-  bool _saving = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _make.dispose();
-    _model.dispose();
-    _color.dispose();
-    _plate.dispose();
-    super.dispose();
-  }
-
-  String? _validate() {
-    final make = _make.text.trim();
-    final model = _model.text.trim();
-    final plate = _plate.text.trim();
-    if (make.isEmpty) return 'Enter the vehicle make (e.g. Toyota).';
-    if (model.isEmpty) return 'Enter the vehicle model (e.g. Camry).';
-    // Same rule as the server: riders match this plate before getting in.
-    if (!Market.current.isValidPlate(plate)) {
-      return 'Enter the number plate as it is on the car, e.g. '
-          '${Market.current.examplePlate}.';
-    }
-    return null;
-  }
-
-  Future<void> _save() async {
-    final problem = _validate();
-    if (problem != null) {
-      setState(() => _error = problem);
-      return;
-    }
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    final navigator = Navigator.of(context);
-    final color = _color.text.trim();
-    // The dialog stays up until the server has accepted the vehicle, so a
-    // rejected save is shown here instead of vanishing behind the map.
-    final ok = await widget.cubit.onboard(
-      make: _make.text.trim(),
-      model: _model.text.trim(),
-      plate: _plate.text.trim().toUpperCase(),
-      tier: _tier,
-      color: color.isEmpty ? null : color,
-      goOnlineAfter: widget.goOnlineAfter,
-    );
-    if (!mounted) return;
-    if (ok) {
-      navigator.pop(true);
-    } else {
-      setState(() {
-        _saving = false;
-        _error = widget.cubit.state.error ?? 'Could not save the vehicle.';
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final editing = widget.initial != null;
-    return AlertDialog(
-      title: Text(editing ? 'Your vehicle' : 'Set up your vehicle'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _make,
-              enabled: !_saving,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Make'),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: _model,
-              enabled: !_saving,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Model'),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: _color,
-              enabled: !_saving,
-              textCapitalization: TextCapitalization.words,
-              decoration:
-                  const InputDecoration(labelText: 'Colour (optional)'),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: _plate,
-              enabled: !_saving,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(labelText: 'Plate number'),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            DropdownButtonFormField<String>(
-              initialValue: _tier,
-              decoration: const InputDecoration(labelText: 'Tier'),
-              items: const [
-                DropdownMenuItem(value: 'economy', child: Text('Economy')),
-                DropdownMenuItem(value: 'comfort', child: Text('Comfort')),
-                DropdownMenuItem(value: 'xl', child: Text('XL')),
-                DropdownMenuItem(value: 'premium', child: Text('Premium')),
-              ],
-              onChanged: _saving
-                  ? null
-                  : (v) => setState(() => _tier = v ?? 'economy'),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                _error!,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: AppColors.error),
-              ),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(editing ? 'Save' : 'Save & go online'),
-        ),
-      ],
     );
   }
 }

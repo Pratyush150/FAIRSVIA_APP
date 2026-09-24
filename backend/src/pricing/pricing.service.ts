@@ -9,6 +9,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import {
   CURRENCY,
   FARE_CONFIG,
+  defaultFareConfig,
   METERS_PER_MILE,
   TierFareConfig,
 } from './fare-config';
@@ -44,22 +45,35 @@ export class PricingService implements OnModuleInit {
   // In-memory cache of the DB fare config so the estimate methods stay
   // synchronous (they're on the hot path). Refreshed on admin edits; falls back
   // to the hardcoded defaults if the DB is somehow empty.
-  private cache: Record<string, TierFareConfig> = { ...FARE_CONFIG };
+  private cache: Record<string, TierFareConfig> = {
+    ...defaultFareConfig(CURRENCY),
+  };
   private order: string[] = Object.keys(FARE_CONFIG);
 
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
-    await this.seedIfEmpty();
+    await this.seedMissing();
     await this.refresh();
   }
 
-  /** Seed the fare_config table from the code defaults on first boot. */
-  private async seedIfEmpty() {
-    const count = await this.prisma.fareConfig.count();
-    if (count > 0) return;
+  /**
+   * Insert a default row for every tier the table doesn't have yet, in the
+   * market's currency (defaultFareConfig). On first boot that is all of them;
+   * after a new tier ships (auto, bike) it is just the new ones. Existing rows
+   * — the admin's tuned prices — are never touched (skipDuplicates).
+   */
+  private async seedMissing() {
+    const defaults = defaultFareConfig(CURRENCY);
+    const have = new Set(
+      (await this.prisma.fareConfig.findMany({ select: { tier: true } })).map(
+        (r) => r.tier,
+      ),
+    );
+    const missing = Object.values(defaults).filter((c) => !have.has(c.tier));
+    if (missing.length === 0) return;
     await this.prisma.fareConfig.createMany({
-      data: Object.values(FARE_CONFIG).map((c) => ({
+      data: missing.map((c) => ({
         tier: c.tier,
         label: c.label,
         baseFare: c.baseFare,
@@ -71,7 +85,9 @@ export class PricingService implements OnModuleInit {
       })),
       skipDuplicates: true,
     });
-    this.logger.log('Seeded fare_config from defaults');
+    this.logger.log(
+      `Seeded fare_config (${CURRENCY}) for: ${missing.map((c) => c.tier).join(', ')}`,
+    );
   }
 
   /** Reload the cache from the DB. */
@@ -93,7 +109,7 @@ export class PricingService implements OnModuleInit {
         };
       }
       this.cache = next;
-      // Preserve the canonical tier ordering (cheapest → premium).
+      // Preserve the canonical tier ordering (cheapest first: bike → premium).
       this.order = Object.keys(FARE_CONFIG).filter((t) => next[t]);
     } catch (e) {
       this.logger.warn(`fare_config refresh failed, keeping cache: ${String(e)}`);

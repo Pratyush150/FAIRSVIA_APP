@@ -122,7 +122,9 @@ class ReceiptPage extends StatelessWidget {
 
 /// The itemised lines of a [FareBreakdown]: Base fare, Distance, Time,
 /// Booking fee, then Surge (only when > 1×), Promo (−, only when > 0) and Tip
-/// (only when > 0 and [showTip]). Shared by the receipt page and the rider's
+/// (only when > 0 and [showTip]). Base fare, Time and Booking fee are left out
+/// when they are zero — a metered auto or bike fare is distance only, and
+/// three "₹0" lines above it would only be noise. Shared by the receipt page and the rider's
 /// trip-complete sheet so both read the same way.
 class FareBreakdownRows extends StatelessWidget {
   const FareBreakdownRows({
@@ -149,10 +151,13 @@ class FareBreakdownRows extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _line('Base fare', Fmt.money(b.baseFare, currency), textStyle),
+        if (b.baseFare != 0)
+          _line('Base fare', Fmt.money(b.baseFare, currency), textStyle),
         _line('Distance', Fmt.money(b.distanceFare, currency), textStyle),
-        _line('Time', Fmt.money(b.timeFare, currency), textStyle),
-        _line('Booking fee', Fmt.money(b.bookingFee, currency), textStyle),
+        if (b.timeFare != 0)
+          _line('Time', Fmt.money(b.timeFare, currency), textStyle),
+        if (b.bookingFee != 0)
+          _line('Booking fee', Fmt.money(b.bookingFee, currency), textStyle),
         if (b.hasMinimumFare)
           _line('Minimum fare', Fmt.money(b.minimumFareAdjustment, currency),
               textStyle),

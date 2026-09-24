@@ -30,11 +30,19 @@ class FareTier extends Equatable {
 
   /// The ride to pre-select: the first one a car can actually do (the list is
   /// cheapest-first), or null when no car of any type is nearby.
+  ///
+  /// A one-seat ride (a bike taxi) is skipped when anything roomier is
+  /// available: it heads the cheapest-first list, but pre-picking it would
+  /// book a pillion seat for a rider with a companion or luggage who didn't
+  /// look. It is still one tap away, and chosen when it is all there is.
   static String? defaultTier(List<FareTier> tiers) {
+    String? single;
     for (final t in tiers) {
-      if (t.available) return t.tier;
+      if (!t.available) continue;
+      if (t.capacity > 1) return t.tier;
+      single ??= t.tier;
     }
-    return null;
+    return single;
   }
 
   /// What makes up [fare] — base, distance, time, booking fee, plus surge and

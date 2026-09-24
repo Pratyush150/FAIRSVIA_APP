@@ -188,4 +188,129 @@ void main() {
     }
     tester.view.reset();
   });
+
+  /// Pune pilot: six ride types, bike and auto first (cheapest first), in
+  /// rupees. The list must still lay out on a small phone and at large text,
+  /// keep Confirm reachable, and show every row once scrolled to.
+  testWidgets('six ride types (bike, auto + four cars) never overflow', (tester) async {
+    final estimate = TripEstimate(
+      distanceM: 5200,
+      durationS: 900,
+      polyline: '',
+      surge: 1,
+      currency: 'INR',
+      pickup: const GeoPoint(18.53, 73.8475),
+      dropoff: const GeoPoint(18.56, 73.81),
+      tiers: const [
+        FareTier(tier: 'bike', label: 'Bike', capacity: 1, fare: 53, currency: 'INR', etaSeconds: 120),
+        FareTier(tier: 'auto', label: 'Auto', capacity: 3, fare: 104, currency: 'INR', etaSeconds: 180),
+        FareTier(tier: 'economy', label: 'Economy', capacity: 4, fare: 127, currency: 'INR', etaSeconds: 240),
+        FareTier(tier: 'comfort', label: 'Comfort', capacity: 4, fare: 162, currency: 'INR', etaSeconds: null),
+        FareTier(tier: 'xl', label: 'XL', capacity: 6, fare: 234, currency: 'INR', etaSeconds: 420),
+        FareTier(tier: 'premium', label: 'Premium', capacity: 4, fare: 335, currency: 'INR', etaSeconds: null),
+      ],
+    );
+    for (final (size, scale) in const [
+      (Size(411, 914), 1.0),
+      (Size(360, 640), 1.0),
+      (Size(360, 640), 1.3),
+    ]) {
+      tester.view.physicalSize = size * 2.625;
+      tester.view.devicePixelRatio = 2.625;
+      final cubit = MockTripCubit();
+      final state = trip.copyWith(
+          phase: TripPhase.choosingRide,
+          estimate: estimate,
+          selectedTier: FareTier.defaultTier(estimate.tiers));
+      // The one-seat bike leads the list but is not what gets pre-picked.
+      expect(state.selectedTier, 'auto');
+      whenListen(cubit, const Stream<TripState>.empty(), initialState: state);
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        home: MediaQuery(
+          data: MediaQueryData(
+            size: size,
+            padding: const EdgeInsets.only(top: 24, bottom: 24),
+            textScaler: TextScaler.linear(scale),
+          ),
+          child: Scaffold(
+            body: BlocProvider<TripCubit>.value(
+              value: cubit,
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: RideSheetForPhase(state: state, onSearch: () {}, onPickSaved: (_) {}),
+              ),
+            ),
+          ),
+        ),
+      ));
+      for (var i = 0; i < 30; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      final at = 'at $size x$scale';
+      expect(tester.takeException(), isNull, reason: at);
+      // Cheapest first: the bike row sits above the auto row, above economy.
+      expect(find.text('Bike'), findsOneWidget, reason: at);
+      expect(find.text('Auto'), findsOneWidget, reason: at);
+      expect(tester.getTopLeft(find.text('Bike')).dy,
+          lessThan(tester.getTopLeft(find.text('Auto')).dy), reason: at);
+      expect(find.text('₹53'), findsOneWidget, reason: at);
+      // The footer (payment choice above Confirm) stays on screen.
+      expect(find.text('Cash'), findsWidgets, reason: at);
+      // Seats: 1 on the bike, 3 in the auto.
+      final bikeRow = find.ancestor(of: find.text('Bike'), matching: find.byType(Row)).first;
+      expect(find.descendant(of: bikeRow, matching: find.text('1')), findsOneWidget, reason: at);
+      final autoRow = find.ancestor(of: find.text('Auto'), matching: find.byType(Row)).first;
+      expect(find.descendant(of: autoRow, matching: find.text('3')), findsOneWidget, reason: at);
+      // Comfort has no car nearby; the premium row is further down the list.
+      await tester.scrollUntilVisible(find.text('Premium'), 80,
+          scrollable: find.byType(Scrollable).first);
+      await tester.pump();
+      expect(find.text('Premium'), findsOneWidget, reason: at);
+      expect(tester.takeException(), isNull, reason: at);
+    }
+    tester.view.reset();
+  });
+
+  testWidgets('an auto or bike with none nearby says so in its own words', (tester) async {
+    final estimate = TripEstimate(
+      distanceM: 2000,
+      durationS: 400,
+      polyline: '',
+      surge: 1,
+      currency: 'INR',
+      pickup: const GeoPoint(18.53, 73.8475),
+      dropoff: const GeoPoint(18.54, 73.84),
+      tiers: const [
+        FareTier(tier: 'bike', label: 'Bike', capacity: 1, fare: 21, currency: 'INR', etaSeconds: null),
+        FareTier(tier: 'auto', label: 'Auto', capacity: 3, fare: 40, currency: 'INR', etaSeconds: null),
+        FareTier(tier: 'economy', label: 'Economy', capacity: 4, fare: 81, currency: 'INR', etaSeconds: 200),
+      ],
+    );
+    tester.view.physicalSize = const Size(411, 914) * 2.625;
+    tester.view.devicePixelRatio = 2.625;
+    addTearDown(tester.view.reset);
+    final cubit = MockTripCubit();
+    final state = trip.copyWith(
+        phase: TripPhase.choosingRide, estimate: estimate, selectedTier: 'economy');
+    whenListen(cubit, const Stream<TripState>.empty(), initialState: state);
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light,
+      home: Scaffold(
+        body: BlocProvider<TripCubit>.value(
+          value: cubit,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: RideSheetForPhase(state: state, onSearch: () {}, onPickSaved: (_) {}),
+          ),
+        ),
+      ),
+    ));
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(find.text('No bikes nearby'), findsOneWidget);
+    expect(find.text('No autos nearby'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

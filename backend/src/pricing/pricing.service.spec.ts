@@ -1,5 +1,5 @@
 import { PricingService } from './pricing.service';
-import { FARE_CONFIG } from './fare-config';
+import { FARE_CONFIG, INR_FARE_CONFIG, defaultFareConfig } from './fare-config';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 describe('PricingService', () => {
@@ -58,7 +58,7 @@ describe('PricingService', () => {
       ['a surged minimum-fare trip', 100, 60, 1.3],
       ['a zero-distance trip', 0, 0, 1],
     ])('%s', (_label, distanceM, durationS, surge) => {
-      for (const tier of ['economy', 'comfort', 'xl', 'premium']) {
+      for (const tier of ['bike', 'auto', 'economy', 'comfort', 'xl', 'premium']) {
         const est = pricing.estimateForTier(tier, distanceM, durationS, surge);
         expect(sum(est.breakdown)).toBe(est.fare);
       }
@@ -79,14 +79,23 @@ describe('PricingService', () => {
 
   it('returns an estimate for every tier', () => {
     const all = pricing.estimateAllTiers(5000, 600, 1);
+    // Cheapest first: bike and auto lead, then the cars.
     expect(all.map((t) => t.tier)).toEqual([
+      'bike',
+      'auto',
       'economy',
       'comfort',
       'xl',
       'premium',
     ]);
+    const fare = (t: string) => all.find((e) => e.tier === t)!.fare;
+    expect(fare('bike')).toBeLessThan(fare('auto'));
+    expect(fare('auto')).toBeLessThan(fare('economy'));
     // Premium should cost more than economy for the same trip.
-    expect(all[3].fare).toBeGreaterThan(all[0].fare);
+    expect(fare('premium')).toBeGreaterThan(fare('economy'));
+    // Seats: a bike carries one, an auto three.
+    expect(all.find((e) => e.tier === 'bike')!.capacity).toBe(1);
+    expect(all.find((e) => e.tier === 'auto')!.capacity).toBe(3);
   });
 
   it('rejects an unknown tier', () => {
@@ -126,6 +135,105 @@ describe('PricingService', () => {
         if (prev === undefined) delete process.env.MARKET_CURRENCY;
         else process.env.MARKET_CURRENCY = prev;
       }
+    });
+  });
+
+  /** Pune pilot: auto and bike quote the government meter, to the rupee. */
+  describe('Pune auto and bike tariffs (INR defaults)', () => {
+    const withInr = (fn: (inr: PricingService) => void) =>
+      jest.isolateModules(() => {
+        const prev = process.env.MARKET_CURRENCY;
+        process.env.MARKET_CURRENCY = 'INR';
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { PricingService: InrPricing } = require('./pricing.service');
+          fn(new InrPricing({} as unknown as PrismaService));
+        } finally {
+          if (prev === undefined) delete process.env.MARKET_CURRENCY;
+          else process.env.MARKET_CURRENCY = prev;
+        }
+      });
+
+    it('auto: ₹30 for the first 1.5 km, then ₹20/km (Pune RTA, Sep 2026)', () => {
+      withInr((inr) => {
+        // Anything up to 1.5 km is the ₹30 minimum.
+        expect(inr.estimateForTier('auto', 800, 180).fare).toBe(30);
+        expect(inr.estimateForTier('auto', 1500, 300).fare).toBe(30);
+        // 5 km on the meter: 5 × ₹20 = ₹100. Time is not charged.
+        const five = inr.estimateForTier('auto', 5000, 900);
+        expect(five.fare).toBe(100);
+        expect(five.currency).toBe('INR');
+        expect(five.breakdown.baseFare).toBe(0);
+        expect(five.breakdown.timeFare).toBe(0);
+        expect(five.breakdown.bookingFee).toBe(0);
+        expect(five.capacity).toBe(3);
+      });
+    });
+
+    it('bike: ₹15 for the first 1.5 km, then ₹10.27/km (Maharashtra Bike Taxi Rules 2025)', () => {
+      withInr((inr) => {
+        expect(inr.estimateForTier('bike', 1000, 240).fare).toBe(15);
+        // 5 km: 5 × 10.27 = 51.35 → ₹51.
+        expect(inr.estimateForTier('bike', 5000, 900).fare).toBe(51);
+        expect(inr.estimateForTier('bike', 5000, 900).capacity).toBe(1);
+      });
+    });
+
+    it('lists bike and auto before the cars in INR too', () => {
+      withInr((inr) => {
+        expect(inr.listConfig().map((c) => c.tier)).toEqual([
+          'bike', 'auto', 'economy', 'comfort', 'xl', 'premium',
+        ]);
+      });
+    });
+  });
+
+  describe('defaults per market', () => {
+    it('uses the rupee table in INR and the dollar table otherwise', () => {
+      expect(defaultFareConfig('INR')).toBe(INR_FARE_CONFIG);
+      expect(defaultFareConfig('inr')).toBe(INR_FARE_CONFIG);
+      expect(defaultFareConfig('USD')).toBe(FARE_CONFIG);
+    });
+
+    it('both tables cover the same tiers', () => {
+      expect(Object.keys(INR_FARE_CONFIG).sort()).toEqual(
+        Object.keys(FARE_CONFIG).sort(),
+      );
+    });
+
+    it('seeds only the tiers the table is missing, never touching tuned rows', async () => {
+      const createMany = jest.fn().mockResolvedValue({ count: 2 });
+      const prisma = {
+        fareConfig: {
+          // An existing deployment: the four car tiers, admin-tuned.
+          findMany: jest
+            .fn()
+            .mockResolvedValueOnce(
+              ['economy', 'comfort', 'xl', 'premium'].map((tier) => ({ tier })),
+            )
+            .mockResolvedValue([]),
+          createMany,
+        },
+      } as unknown as PrismaService;
+      await new PricingService(prisma).onModuleInit();
+      expect(createMany).toHaveBeenCalledTimes(1);
+      const rows = createMany.mock.calls[0][0].data as { tier: string }[];
+      expect(rows.map((r) => r.tier)).toEqual(['bike', 'auto']);
+      expect(createMany.mock.calls[0][0].skipDuplicates).toBe(true);
+    });
+
+    it('seeds nothing when every tier already has a row', async () => {
+      const createMany = jest.fn();
+      const prisma = {
+        fareConfig: {
+          findMany: jest
+            .fn()
+            .mockResolvedValue(Object.keys(FARE_CONFIG).map((tier) => ({ tier }))),
+          createMany,
+        },
+      } as unknown as PrismaService;
+      await new PricingService(prisma).onModuleInit();
+      expect(createMany).not.toHaveBeenCalled();
     });
   });
 });
