@@ -35,7 +35,7 @@ cd ~/ubernav/apps/rider_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM \
   --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
   --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=1.7.0 --build-number=5030
+  --build-name=1.8.0 --build-number=5040
 ```
 (Release on a simulator not supported by your Flutter? use `--profile`.)
 Screenshot command for every SHOW step:
@@ -72,7 +72,7 @@ If slow-ride leaves a trip open: `ssh nova-pc "docker exec ubernav_postgres psql
 cd ~/ubernav/apps/driver_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
   --dart-define=MARKET=in --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=1.7.0 --build-number=5030
+  --build-name=1.8.0 --build-number=5040
 ```
 | # | SHOW |
 |---|---|
@@ -93,16 +93,27 @@ screenshot into `~/Desktop/ridevela-ui/<theme>/`, then the next.
 | `--dart-define=THEME=daylight` | **B — Daylight 3D** | Light grey page, white sheets, deep teal #0A7C7C buttons, **3D cars** (teal/slate/sand/graphite), 3D Add-a-stop / Pre-book / check / cash icons |
 | `--dart-define=THEME=daynight` | **C — Day & Night** | B by day, A by night (follows the phone); the theme **doesn't switch mid-ride** — test: start a ride, switch the simulator to Dark (Settings → Developer → Dark Appearance, or `xcrun simctl ui $SIM appearance dark`), the app stays light until the ride ends |
 
-**Only the looks above (default, A, B, C).** Other `THEME=` flags exist in the
-code (local, ink, glass, indigo, lapis, marigold, copper, garnet) but they
-change colours only — the owner asked not to show those. Do not build or show
-them until this file lists them again.
+**Three more looks, each with its own icons and art (not just colour):**
+
+| Theme flag | Plan | What's different — point these out |
+|---|---|---|
+| `--dart-define=THEME=local` | **D — Local Colour** | Anek font; Pune skyline art (Shaniwar Wada, auto, marigold sun) on the home sheet; **kolam-dot radar** when finding a driver (sheet and map); warm paper cards with "Rate card" chips; marigold completion badge; "Pay ₹X to <driver>: cash or UPI" strip |
+| `--dart-define=THEME=ink` | **E — Ink & Paper** | Thin **line-art icons** everywhere; serif headlines (Instrument Serif); **ink-drawn cars** in the list and on the map; receipt printed as a **ticket** (perforated edge, dotted leaders); hairline rules instead of cards; black buttons |
+| `--dart-define=THEME=glass` | **F — Map Glass** | No bottom sheet on home — a floating **frosted** "Where to?" pill; the ride card floats over the map and opens compact; **number-plate tag under the car on the map**; glossy icon beads; cards morph between steps. Check the blur is smooth on the iPhone |
+
+The other `THEME=` flags in the code (indigo, lapis, marigold, copper, garnet)
+change colours only — the owner asked not to show those.
+
+**New for everyone (1.8.0):** **Auto** and **Bike** ride types in Pune —
+listed first (cheapest), with 3D auto-rickshaw and bike art, Pune meter fares
+(auto ₹30 first 1.5 km then ₹20/km). To see one offered, run on nova-pc:
+`ssh nova-pc "cd ~/ubernav/tools/fake-driver-simulator && node tier-ride.mjs auto"`.
 
 On Android the owner already has these as separate apps ("RideVela A ·
 Midnight", "B · Daylight", "C · Day&Night") — the APKs are on nova-pc in
 `~/ubernav/build-variants/`.
 
-## 5b. Put all four looks on the owner's iPhone (the "IPAs")
+## 5b. Put all seven looks on the owner's iPhone (the "IPAs")
 
 iOS gives every build the same bundle ID, so by default each look replaces
 the last. To have **all four side by side on the iPhone** (as on Android),
@@ -111,13 +122,13 @@ commit the Xcode change:
 
 ```sh
 cd ~/ubernav/apps/rider_app
-for pair in ":RideVela" "midnight:RideVela A" "daylight:RideVela B" "daynight:RideVela C"; do
+for pair in ":RideVela" "midnight:RideVela A" "daylight:RideVela B" "daynight:RideVela C" "local:RideVela D" "ink:RideVela E" "glass:RideVela F"; do
   t=${pair%%:*}; name=${pair#*:}
   SUF=${t:+.$t}
   flutter build ios --release \
     --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
     --dart-define=ALLOW_SERVER_OVERRIDE=true ${t:+--dart-define=THEME=$t} \
-    --build-name=1.7.0 --build-number=5030
+    --build-name=1.8.0 --build-number=5040
   # per-look bundle id + name, then install on the cabled iPhone
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier in.novarobotics.ubernav.rider$SUF" build/ios/iphoneos/Runner.app/Info.plist
   /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $name" build/ios/iphoneos/Runner.app/Info.plist
