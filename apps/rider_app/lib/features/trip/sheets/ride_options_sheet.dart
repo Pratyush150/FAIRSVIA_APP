@@ -116,19 +116,10 @@ class _RideOptions extends StatelessWidget {
   }
 }
 
-/// The order the ride list shows: the server's, except that Plan D
-/// (`THEME=local`) leads with India's own vehicles — auto-rickshaw, then
-/// bike taxi — when the server offers them. Stable for everything else.
-List<FareTier> _listOrder(List<FareTier> tiers) {
-  if (!AppVariant.local) return tiers;
-  int rank(FareTier t) => switch (t.tier) { 'auto' => 0, 'bike' => 1, _ => 2 };
-  final indexed = tiers.indexed.toList()
-    ..sort((a, b) {
-      final r = rank(a.$2).compareTo(rank(b.$2));
-      return r != 0 ? r : a.$1.compareTo(b.$1);
-    });
-  return [for (final (_, t) in indexed) t];
-}
+/// The order the ride list shows: the server's. It already leads with
+/// India's own vehicles for the Pune market (cheapest first: bike, auto,
+/// then the cars), so every look — Plan D included — keeps it.
+List<FareTier> _listOrder(List<FareTier> tiers) => tiers;
 
 /// "Riding yourself, or booking for someone else?" The booker still pays and
 /// still tracks the ride; the passenger is who the driver collects, and who
@@ -529,7 +520,7 @@ class _ScheduleRow extends StatelessWidget {
             else
               Text('Schedule',
                   style: theme.textTheme.labelLarge
-                      ?.copyWith(color: AppColors.accent)),
+                      ?.copyWith(color: AppColors.accentText)),
           ],
         ),
       ),
@@ -1120,7 +1111,11 @@ class _RideTierTile extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             eta == null
-                                ? 'No cars nearby'
+                                ? switch (tier.tier) {
+                                    'auto' => 'No autos nearby',
+                                    'bike' => 'No bikes nearby',
+                                    _ => 'No cars nearby',
+                                  }
                                 : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
                             style: theme.textTheme.bodySmall,
                           ),

@@ -272,10 +272,9 @@ void main() {
             case 'choose-ride':
               expect(find.bySemanticsLabel('Fare details for Auto'),
                   findsOneWidget);
-              // D leads with the Indian vehicles.
-              final autoY = tester.getTopLeft(find.text('Auto')).dy;
-              final ecoY = tester.getTopLeft(find.text('Economy')).dy;
-              expect(autoY, lessThan(ecoY));
+              // Order comes from the server (cheapest first: bike, auto,
+              // cars), the same in every look.
+              expect(find.text('Auto'), findsOneWidget);
             case 'finding-driver':
               expect(find.byType(PulseRadar), findsOneWidget);
             case 'arrived':

@@ -38,27 +38,15 @@ class _WhereToCard extends StatelessWidget {
       return _LocationRequiredGate(issue: issue, onFix: onFixLocation);
     }
     final muted = isDark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Plan D: the Pune skyline heads the sheet — marigold art only, no
-        // meaning, hidden from screen readers.
-        if (LocalArt.on) ...[
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-            child: LocalCityscape(),
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-        // One big pill is the whole call to action: "Where to?" on the left,
-        // a "Later" chip on the right to book ahead.
-        Semantics(
+    // One big pill is the whole call to action: "Where to?" on the left,
+    // a "Later" chip on the right to book ahead.
+    final pill = Semantics(
           container: true,
           button: true,
           label: 'Where to?',
           child: Material(
-            color: muted,
+            // Plan F: the pill *is* glass (drawn by _FloatingWhereTo).
+            color: AppGlass.enabled ? Colors.transparent : muted,
             shape: const StadiumBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
@@ -91,22 +79,43 @@ class _WhereToCard extends StatelessWidget {
               ),
             ),
           ),
+        );
+    final saved = [
+      for (final place in savedPlaces) ...[
+        _QuickDestination(
+          icon: _iconFor(place.label),
+          label: place.label,
+          subtitle: place.address,
+          onTap: () => onPickSaved(place),
         ),
+        if (place != savedPlaces.last)
+          Padding(
+            padding: const EdgeInsets.only(left: 56),
+            child: Divider(height: 1, color: theme.dividerColor),
+          ),
+      ],
+    ];
+    // Plan F: the pill floats over the map by itself.
+    if (AppGlass.enabled) {
+      return _FloatingWhereTo(pill: pill, savedPlaces: saved);
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Plan D: the Pune skyline heads the sheet — marigold art only, no
+        // meaning, hidden from screen readers.
+        if (LocalArt.on) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+            child: LocalCityscape(),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        pill,
         if (savedPlaces.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
-          for (final place in savedPlaces) ...[
-            _QuickDestination(
-              icon: _iconFor(place.label),
-              label: place.label,
-              subtitle: place.address,
-              onTap: () => onPickSaved(place),
-            ),
-            if (place != savedPlaces.last)
-              Padding(
-                padding: const EdgeInsets.only(left: 56),
-                child: Divider(height: 1, color: theme.dividerColor),
-              ),
-          ],
+          ...saved,
         ],
       ],
     );

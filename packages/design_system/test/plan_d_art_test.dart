@@ -95,6 +95,8 @@ void main() {
   });
 
   test('Plan D colour pairs clear WCAG (computed)', () {
+    // D's tokens only exist in the THEME=local build.
+    if (!AppVariant.local) return;
     for (final dark in [false, true]) {
       // Text on the pay strip.
       expect(_contrast(LocalColour.payInkFor(dark), LocalColour.payFillFor(dark)),

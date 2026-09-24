@@ -50,6 +50,10 @@ class AppColors {
   /// Any of the v2/v3 option builds rather than the original palettes.
   static const bool v2 = planDark || planLight || v3;
 
+  /// Plan F "Map Glass" (`THEME=glass`): besides its tokens, this build turns
+  /// the floating map chrome into frosted glass (see [AppGlass]).
+  static const bool glass = variant == 'glass';
+
   // Samarkand Turquoise: deep teal-navy ink on light, bright turquoise ink on
   // dark; turquoise highlights (route, selection) in both.
   //
@@ -177,6 +181,14 @@ class AppColors {
 
   /// Same ink for text-bearing surfaces (kept as its own name for clarity).
   static Color get accentInk => inkFor(_dark);
+
+  /// Brand-coloured *text* (and small glyphs next to it). The ink in every
+  /// build except Plan F on light glass, where #007A7A over a mid-grey map
+  /// pixel seen through 72 % glass is only 3.6:1, so text takes the deeper
+  /// #005F5F (5.3:1) while buttons keep the ink (plan F, brand.onGlass.text).
+  static Color get accentText => accentTextFor(_dark);
+  static Color accentTextFor(bool dark) =>
+      glass && !dark ? const Color(0xFF005F5F) : inkFor(dark);
   static Color get accentInkPressed => accentPressed;
 
   /// Quiet fill for selected rows, chips, highlights.

@@ -99,9 +99,9 @@ class RideStatusHeader extends StatelessWidget {
   static Color? _toneColor(BuildContext context, RideStatusTone tone) {
     switch (tone) {
       case RideStatusTone.success:
-        return AppColors.accentInk;
+        return AppColors.accentText;
       case RideStatusTone.accent:
-        return AppColors.accentInk;
+        return AppColors.accentText;
       case RideStatusTone.neutral:
         return Theme.of(context).textTheme.bodyMedium?.color;
     }

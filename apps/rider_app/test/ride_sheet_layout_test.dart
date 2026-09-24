@@ -258,9 +258,9 @@ void main() {
       // The footer (payment choice above Confirm) stays on screen.
       expect(find.text('Cash'), findsWidgets, reason: at);
       // Seats: 1 on the bike, 3 in the auto.
-      final bikeRow = find.ancestor(of: find.text('Bike'), matching: find.byType(Row)).first;
+      final bikeRow = find.ancestor(of: find.text('Bike'), matching: find.byType(InkWell)).first;
       expect(find.descendant(of: bikeRow, matching: find.text('1')), findsOneWidget, reason: at);
-      final autoRow = find.ancestor(of: find.text('Auto'), matching: find.byType(Row)).first;
+      final autoRow = find.ancestor(of: find.text('Auto'), matching: find.byType(InkWell)).first;
       expect(find.descendant(of: autoRow, matching: find.text('3')), findsOneWidget, reason: at);
       // Comfort has no car nearby; the premium row is further down the list.
       await tester.scrollUntilVisible(find.text('Premium'), 80,
