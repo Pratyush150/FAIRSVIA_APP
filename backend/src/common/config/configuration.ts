@@ -64,6 +64,12 @@ export interface AppConfig {
   /** A driver may mark "arrived" only within this many metres of the pickup
    *  (checked against their last fresh GPS fix). */
   arrivalRadiusM: number;
+  /** Complete always ends the trip. Farther than this from the drop-off (last
+   *  fresh fix) — or with no fresh fix and under [completeMinDrivenM] driven —
+   *  it is settled as a short trip: metered, minimum-fare floor, never the
+   *  up-front estimate. */
+  completeDropoffRadiusM: number;
+  completeMinDrivenM: number;
   fcmServerKey: string;
   /** Google service-account JSON for FCM HTTP v1 push (real provider when set). */
   fcmServiceAccountJson: string;
@@ -234,6 +240,8 @@ export default (): AppConfig => {
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '0.20'),
   cancellationFee: parseFloat(process.env.CANCELLATION_FEE ?? '5'),
   arrivalRadiusM: parseFloat(process.env.ARRIVAL_RADIUS_M ?? '150'),
+  completeDropoffRadiusM: parseFloat(process.env.COMPLETE_DROPOFF_RADIUS_M ?? '500'),
+  completeMinDrivenM: parseFloat(process.env.COMPLETE_MIN_DRIVEN_M ?? '200'),
   fcmServerKey: process.env.FCM_SERVER_KEY ?? '',
   fcmServiceAccountJson: process.env.FCM_SERVICE_ACCOUNT_JSON ?? '',
   // Comma-separated phone numbers that are promoted to the admin role on login,

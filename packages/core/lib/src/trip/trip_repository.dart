@@ -110,4 +110,8 @@ class TripRepository {
 
   Future<double> cancelTrip(String id, {String? reason}) =>
       _trips.cancel(id, reason: reason);
+
+  /// Ends an in-progress ride where the car is now; returns the receipt.
+  Future<Map<String, dynamic>> endTripEarly(String id, {String? reason}) =>
+      _trips.endEarly(id, reason: reason);
 }

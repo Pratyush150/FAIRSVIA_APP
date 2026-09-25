@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_clay3d.dart';
 import 'app_colors.dart';
+import 'app_glass.dart';
 import 'phosphor_icons.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
@@ -61,6 +62,12 @@ class AppTheme {
     final text = AppTypography.textTheme(textPrimary, textSecondary);
     // Plan D: sheets are warm paper, not white; cards on them stay white.
     final sheet = AppVariant.local ? LocalColour.paperFor(isDark) : surface;
+    // Modal surfaces (sheets, dialogs, menus): Plan F uses glass's opaque
+    // surface.solid and the glass corner radius so they match the floating
+    // AppSheet; every other build keeps its sheet colour and radii.
+    final modalSurface = AppGlass.enabled ? AppGlass.solid(isDark) : sheet;
+    final modalRadius =
+        AppGlass.enabled ? AppGlass.sheetRadius : AppSpacing.radiusXl;
 
     OutlineInputBorder inputBorder(Color c, [double w = 1]) =>
         OutlineInputBorder(
@@ -184,27 +191,51 @@ class AppTheme {
         ),
       ),
 
+      // Audit 2026-09-25 item 8: one sheet / dialog / menu family. Plan F
+      // modal sheets open through core's showAppModalSheet (the inset glass
+      // card); any sheet opened directly still gets the glass radius and the
+      // solid glass surface, so nothing falls back to a white slab. Dialogs
+      // and popup menus share the same surface and corner family.
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: sheet,
+        backgroundColor: modalSurface,
         surfaceTintColor: Colors.transparent,
-        modalBackgroundColor: sheet,
+        modalBackgroundColor: modalSurface,
         elevation: 0,
         showDragHandle: false,
-        shape: const RoundedRectangleBorder(
+        dragHandleColor: textSecondary.withValues(alpha: 0.4),
+        dragHandleSize: const Size(36, 4),
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppSpacing.radiusXl),
+            top: Radius.circular(modalRadius),
           ),
         ),
       ),
 
       dialogTheme: DialogThemeData(
-        backgroundColor: surface,
+        backgroundColor: modalSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        insetPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.xl,
         ),
-        titleTextStyle: text.headlineSmall,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+            AppGlass.enabled ? modalRadius : AppSpacing.radiusLg,
+          ),
+        ),
+        titleTextStyle: text.titleLarge,
+      ),
+
+      popupMenuTheme: PopupMenuThemeData(
+        color: modalSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 3,
+        textStyle: text.bodyLarge,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radius),
+          side: BorderSide(color: border),
+        ),
       ),
 
       chipTheme: ChipThemeData(

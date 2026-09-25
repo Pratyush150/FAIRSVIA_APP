@@ -59,5 +59,23 @@ void main() {
       expect(t.promoDiscount, 0.5);
       expect(t.baseFare, 2);
     });
+
+    test('parses how the fare was reached and words it truthfully', () {
+      final b = FareBreakdown.fromJson(const {
+        'baseFare': 20, 'distanceFare': 50, 'timeFare': 10, 'bookingFee': 5,
+        'fareBasis': 'metered', 'fareAdjustment': 0, 'endedEarly': false,
+      });
+      expect(b.fareBasis, 'metered');
+      expect(b.basisNote, 'Metered on the distance and time driven.');
+      final early = FareBreakdown.fromJson(const {
+        'baseFare': 20, 'distanceFare': 0, 'timeFare': 0, 'bookingFee': 5,
+        'minimumFareAdjustment': 50, 'fareBasis': 'minimum',
+        'endedEarly': true, 'endReason': 'Safety concern',
+      });
+      expect(early.basisNote,
+          'Trip ended before the drop-off (Safety concern). Minimum fare applied.');
+      // Older receipts: no basis, no note (never a guessed "metered").
+      expect(FareBreakdown.fromJson(const {'baseFare': 1}).basisNote, isNull);
+    });
   });
 }

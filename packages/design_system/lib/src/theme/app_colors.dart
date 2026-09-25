@@ -576,6 +576,25 @@ class AppColors {
   static const Color warningDark = Color(0xFFF5A623);
   static Color dangerFor(bool dark) => dark ? dangerDark : error;
   static Color warningFor(bool dark) => dark ? warningDark : warning;
+
+  /// Caution as TEXT (or an icon standing in for text). [warning] #C67C00 is
+  /// only ~3.3:1 on white, below the 4.5:1 AA minimum (audit 2026-09-25 #16),
+  /// so light surfaces get a deeper ochre (5.5:1 on white, 4.7:1 on #EDEDED)
+  /// and dark ones the bright amber (≥6:1 on every dark sheet). [warning]
+  /// stays for fills, rings and tints. Asserted in contrast_test.dart.
+  static const Color warningText = Color(0xFF8F5F00);
+  static const Color warningTextDark = warningDark;
+  static Color warningTextFor(bool dark) => dark ? warningTextDark : warningText;
+  static Color warningTextOf(BuildContext context) =>
+      warningTextFor(Theme.of(context).brightness == Brightness.dark);
+
+  /// Text and icons ON a [warning] fill (banners): dark ink, 5.4:1. White on
+  /// that ochre was 3.2:1.
+  static const Color onWarning = Color(0xFF1F1600);
+
+  /// A success banner fill that carries white text at 5.4:1 ([success]
+  /// #05944F with white is 3.9:1).
+  static const Color successBanner = Color(0xFF037A41);
   /// Rating stars.
   static const Color star = Color(0xFFFFC043);
 

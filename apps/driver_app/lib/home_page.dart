@@ -313,6 +313,16 @@ class _DriverHomeViewState extends State<_DriverHomeView>
         label: 'You',
       ));
     }
+    // An open offer: show its pickup so the driver can see where it is
+    // above the offer card (audit 2026-09-25 #29).
+    final offer = state.offer;
+    if (offer != null && state.trip == null) {
+      markers.add(AppMapMarker(
+        point: LatLng(offer.pickup.point.lat, offer.pickup.point.lng),
+        kind: MapMarkerKind.pickup,
+        label: 'Pickup',
+      ));
+    }
     final trip = state.trip;
     if (trip != null) {
       markers.add(AppMapMarker(
@@ -445,6 +455,15 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   /// ~250 m box around the pickup (a street-level zoom via the same fitBounds
   /// API — AppMap has no explicit zoom setter).
   List<LatLng>? _fitBounds(DriverState state) {
+    // An open offer frames the driver and the offer's pickup in the map
+    // area left above the offer card (see [_boundsPadding]).
+    final offer = state.offer;
+    if (offer != null && state.trip == null) {
+      final pickup = LatLng(offer.pickup.point.lat, offer.pickup.point.lng);
+      final me = _myLocation;
+      final pts = me == null ? [pickup, pickup] : [me, pickup];
+      return _spanMeters(pts) < 50 ? _boxAround(pickup, 125) : pts;
+    }
     // While online we follow the driver's position at a close navigation zoom
     // (see the AppMap above), so don't fight it with bounds-framing — the map
     // stays zoomed in on the car and the route ahead.
@@ -595,6 +614,16 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                     driverCarAssetFor(state.trip?.tier ?? _vehicleTier),
                 route: _route(state),
                 fitBounds: _fitBounds(state),
+                // The offer card covers the lower part of the screen; frame
+                // the pickup in the strip above it.
+                boundsPadding: state.offer != null && state.trip == null
+                    ? EdgeInsets.fromLTRB(
+                        64,
+                        120,
+                        64,
+                        MediaQuery.sizeOf(context).height * 0.6,
+                      )
+                    : const EdgeInsets.all(64),
                 // Navigation view while driving: heading-up, centred on the
                 // car, until the driver pans (recenter resumes it).
                 cameraMode: state.phase == DriverPhase.enRoute ||
@@ -620,10 +649,10 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                       bottom: false,
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.md),
+                        // Menu top-left, as on the rider app (audit
+                        // 2026-09-25 #7); the status pill sits beside it.
                         child: Row(
                           children: [
-                            _StatusPill(online: state.isOnline),
-                            const Spacer(),
                             AppCircleButton(
                               icon: PhosphorIconsRegular.list,
                               tooltip: 'Account menu',
@@ -652,6 +681,9 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                                 );
                               },
                             ),
+                            const SizedBox(width: AppSpacing.sm),
+                            _StatusPill(online: state.isOnline),
+                            const Spacer(),
                           ],
                         ),
                       ),
@@ -1076,6 +1108,16 @@ class _CompletedSheet extends StatelessWidget {
                 style: theme.textTheme.bodyMedium),
           ),
         ],
+        // Ended short of the drop-off: say how it was charged (non-blocking).
+        if (state.endNote case final note?) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Center(
+            child: Text(note,
+                key: const ValueKey('trip-end-note'),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall),
+          ),
+        ],
         if (state.cashToCollect != null) ...[
           const SizedBox(height: AppSpacing.md),
           Container(
@@ -1200,7 +1242,11 @@ class _LifecycleSheet extends StatelessWidget {
             if (tripId != null) ...[
               IconButton(
                 tooltip: 'Safety',
-                icon: const Icon(PhosphorIconsRegular.shieldCheck, color: AppColors.error),
+                // Neutral at rest like the rider's Safety pill; the sheet it
+                // opens carries the red (audit 2026-09-25 #10).
+                icon: Icon(PhosphorIconsRegular.shieldCheck,
+                    color: AppColors.iconNeutralFor(
+                        Theme.of(context).brightness == Brightness.dark)),
                 onPressed: () => openDriverSafety(context, tripId!),
               ),
               IconButton(
@@ -1219,7 +1265,9 @@ class _LifecycleSheet extends StatelessWidget {
           Row(
             children: [
               Icon(PhosphorIconsRegular.navigationArrow,
-                  size: 20, color: AppColors.accent),
+                  size: 20,
+                  color: AppColors.iconNeutralFor(
+                      theme.brightness == Brightness.dark)),
               const SizedBox(width: AppSpacing.xs),
               Text(distanceLabel!, style: theme.textTheme.titleSmall),
             ],
@@ -1395,7 +1443,10 @@ class _PassengerBanner extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Call passenger',
-            icon: Icon(PhosphorIconsRegular.phone, color: AppColors.accent),
+            // Icons are neutral unless the colour means something (#10).
+            icon: Icon(PhosphorIconsRegular.phone,
+                color: AppColors.iconNeutralFor(
+                    Theme.of(context).brightness == Brightness.dark)),
             onPressed: () async {
               final ok = await dialPhone(passenger.phone);
               if (!ok && context.mounted) {
@@ -1560,7 +1611,11 @@ class _StartTripSheetState extends State<_StartTripSheet> {
             if (widget.tripId != null) ...[
               IconButton(
                 tooltip: 'Safety',
-                icon: const Icon(PhosphorIconsRegular.shieldCheck, color: AppColors.error),
+                // Neutral at rest like the rider's Safety pill; the sheet it
+                // opens carries the red (audit 2026-09-25 #10).
+                icon: Icon(PhosphorIconsRegular.shieldCheck,
+                    color: AppColors.iconNeutralFor(
+                        Theme.of(context).brightness == Brightness.dark)),
                 onPressed: () => openDriverSafety(context, widget.tripId!),
               ),
               IconButton(
@@ -1679,11 +1734,22 @@ class _OfferOverlayState extends State<OfferOverlay> {
     return Positioned.fill(
       child: Stack(
         children: [
-          // Frosted, dimmed backdrop lifts the offer off the live map.
-          const BlurredScrim(sigma: 8),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.xl),
+          // A light, unblurred scrim: the map (and the pickup on it) stays
+          // readable behind the card. The whole-screen blur hid exactly what
+          // the driver needs to judge the offer (audit 2026-09-25 #29).
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ColoredBox(
+                color: AppColors.scrim.withValues(alpha: 0.12),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
               child: Material(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
                 color: theme.colorScheme.surface,
@@ -1794,32 +1860,22 @@ class _OfferOverlayState extends State<OfferOverlay> {
                           color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: AppSpacing.lg),
                 AppCard(
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const AppIconBadge(icon: PhosphorIconsRegular.record),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Pickup',
-                                style: theme.textTheme.labelMedium),
-                            const SizedBox(height: 2),
-                            Text(offer.pickup.address ?? 'Pickup location',
-                                style: theme.textTheme.titleSmall,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 4),
-                            // Where the trip ends, so the driver can judge
-                            // the whole job before accepting.
-                            Text(
-                                '→ ${offer.dropoff.address ?? 'Dropoff location'}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis),
-                          ],
-                        ),
+                      _OfferStop(
+                        icon: PhosphorIconsRegular.record,
+                        label: 'Pickup',
+                        address: offer.pickup.address ?? 'Pickup location',
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      // Where the trip ends, so the driver can judge the
+                      // whole job before accepting; its own icon, not an
+                      // arrow in the text (audit 2026-09-25 #29).
+                      _OfferStop(
+                        icon: PhosphorIconsRegular.mapPin,
+                        label: 'Drop-off',
+                        address: offer.dropoff.address ?? 'Drop-off location',
                       ),
                     ],
                   ),
@@ -1862,6 +1918,46 @@ class _OfferOverlayState extends State<OfferOverlay> {
                   ),
             ),
           ),
+          ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One stop on the offer card: icon badge, a small label, the address.
+class _OfferStop extends StatelessWidget {
+  const _OfferStop({
+    required this.icon,
+    required this.label,
+    required this.address,
+  });
+
+  final IconData icon;
+  final String label;
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MergeSemantics(
+      child: Row(
+        children: [
+          AppIconBadge(icon: icon),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: theme.textTheme.labelMedium),
+                const SizedBox(height: 2),
+                Text(address,
+                    style: theme.textTheme.titleSmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
         ],
       ),
@@ -1909,7 +2005,12 @@ class _ChatBadgeIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const icon = Icon(PhosphorIconsRegular.chatCircle);
+    final icon = Icon(
+      PhosphorIconsRegular.chatCircle,
+      color: AppColors.iconNeutralFor(
+        Theme.of(context).brightness == Brightness.dark,
+      ),
+    );
     if (unread <= 0) return icon;
     return Badge.count(count: unread, child: icon);
   }

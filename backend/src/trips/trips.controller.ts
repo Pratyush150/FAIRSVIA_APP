@@ -17,6 +17,7 @@ import { DispatchService } from '../dispatch/dispatch.service';
 import { TripsService } from './trips.service';
 import { EstimateDto } from './dto/estimate.dto';
 import { CreateTripDto } from './dto/create-trip.dto';
+import { CompleteTripDto, EndTripEarlyDto } from './dto/complete-trip.dto';
 import { CancelTripDto } from './dto/cancel-trip.dto';
 import { DriverCancelTripDto } from './dto/driver-cancel-trip.dto';
 import { StartTripDto } from './dto/start-trip.dto';
@@ -143,8 +144,27 @@ export class TripsController {
 
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
-  complete(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.trips.completeTrip(user.userId, id);
+  complete(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CompleteTripDto,
+  ) {
+    return this.trips.completeTrip(user.userId, id, {
+      endEarly: dto?.endEarly === true,
+      reason: dto?.reason,
+    });
+  }
+
+  /** Rider or driver ends an in-progress ride here: metered fare, minimum
+   *  floor, never the up-front estimate. Reason optional. */
+  @Post(':id/end-early')
+  @HttpCode(HttpStatus.OK)
+  endEarly(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: EndTripEarlyDto,
+  ) {
+    return this.trips.endTripEarly(user.userId, id, dto?.reason);
   }
 
   /** Assigned driver walks away before the ride starts (e.g. rider no-show). */

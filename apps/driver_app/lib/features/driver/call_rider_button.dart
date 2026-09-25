@@ -24,7 +24,14 @@ class CallRiderButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       tooltip: 'Call rider',
-      icon: Icon(PhosphorIconsRegular.phone, color: AppColors.accent),
+      // Neutral like the chat and safety icons beside it: colour only where
+      // it means something (audit 2026-09-25 #10).
+      icon: Icon(
+        PhosphorIconsRegular.phone,
+        color: AppColors.iconNeutralFor(
+          Theme.of(context).brightness == Brightness.dark,
+        ),
+      ),
       onPressed: () async {
         final messenger = ScaffoldMessenger.of(context);
         final ok = await dialer(phone);

@@ -779,8 +779,9 @@ export class PaymentsService {
         select: { meta: true },
       })
       .catch(() => null);
-    const stored = (completion?.meta as { breakdown?: Record<string, number> } | null)
-      ?.breakdown;
+    const stored = (
+      completion?.meta as { breakdown?: Record<string, number | string | boolean> } | null
+    )?.breakdown;
     const breakdown = stored
       ? {
           baseFare: Number(stored.baseFare ?? 0),
@@ -791,6 +792,16 @@ export class PaymentsService {
           promoDiscount: Number(stored.promoDiscount ?? trip.promoDiscount ?? 0),
           tip: Number(p?.tip ?? 0),
           minimumFareAdjustment: Number(stored.minimumFareAdjustment ?? 0),
+          // How the headline was reached (metered | minimum | estimate); null
+          // on trips settled before it was recorded.
+          fareAdjustment: Number(stored.fareAdjustment ?? 0),
+          fareBasis: typeof stored.fareBasis === 'string' ? stored.fareBasis : null,
+          endedEarly: stored.endedEarly === true,
+          endReason: typeof stored.endReason === 'string' ? stored.endReason : null,
+          endedAwayFromDropoffM:
+            typeof stored.endedAwayFromDropoffM === 'number'
+              ? stored.endedAwayFromDropoffM
+              : null,
         }
       : null;
     const card =

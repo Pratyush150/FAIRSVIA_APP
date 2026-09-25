@@ -16,11 +16,12 @@ import '../theme/app_ink.dart';
 /// first few percent, then out, so a ring is invisible at both ends of its
 /// life: the loop never "pops" when a ring wraps back to the centre.
 abstract final class CalmPulse {
-  static const Duration period = Duration(milliseconds: 2400);
+  /// 3.4 s (was 2.4 s): the owner found the faster loop busy (2026-09-25).
+  static const Duration period = Duration(milliseconds: 3400);
   static const int rings = 3;
 
   /// Peak opacity a ring reaches.
-  static const double peak = 0.5;
+  static const double peak = 0.38;
 
   /// Ring [i] at loop time [t] (0..1): (spread 0..1, opacity 0..[peak]).
   /// Pure, for tests.

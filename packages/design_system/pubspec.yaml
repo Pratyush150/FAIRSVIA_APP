@@ -37,79 +37,52 @@ flutter:
   # Visual Direction v2 hero art (build-time variants; see AppColors.variant
   # and docs/brand/). 2.0x/ folders are picked up as resolution variants.
   assets:
-    - assets/vehicles/midnight/
+    # Shipped look (Plan F "Map Glass", the default build — no THEME flag)
+    # and the other clay-art looks: side-view clay cars, light + dark.
     - assets/vehicles/clay/
     - assets/vehicles/clay_dark/
+    # Top-down map markers (every build; ink swaps to ink_top/).
     - assets/vehicles/top/
-    - assets/vehicles/daylight/
-    # Plan E "Ink & Paper" (THEME=ink): line-art renders of the same Blender
-    # models (docs/brand/vehicles/clay/render_ink.py + export_ink.py).
-    - assets/vehicles/ink/
-    - assets/vehicles/ink_dark/
-    - assets/vehicles/ink_top/
-    - assets/heroes/daylight/
-    # Plan G "3D Clay" (THEME=clay3d): hero-size copies of the 3D icon renders
-    # (tool/icons3d/build.py HEROES), light and dark.
-    - assets/heroes/clay3d/
-    # Lottie: ride-complete confetti, cash/earnings money (assets/lottie/CREDITS.md).
-    - assets/lottie/
-    - assets/heroes/clay3d_dark/
     # Rider Home: 3D clay art for service tiles and promo banners, cropped
     # from the clay renders (vehicles/clay, docs/brand/icons3d), light + dark.
     - assets/home/
     - assets/home_dark/
+    # Rider Home promo banner photos (every build, incl. the default Glass
+    # look; Unsplash License, see assets/promo/CREDITS.md).
+    - assets/promo/
+    # Lottie: ride-complete confetti, cash/earnings money (assets/lottie/CREDITS.md).
+    - assets/lottie/
+    # --- Art for looks that do not ship ------------------------------------
+    # Each block between `# @variant: <THEME values>` and `# @end-variant`
+    # is removed from the release bundle by tools/apk/release_apk.py unless
+    # the build's THEME is listed. `flutter test`, `flutter run` and plain
+    # `flutter build` keep every block, so all THEME builds still work.
+    # @variant: midnight
+    - assets/vehicles/midnight/
+    # @end-variant
+    # @variant: daylight daynight
+    # (No code reads vehicles/daylight/ today; kept for Plans B/C.)
+    - assets/vehicles/daylight/
+    - assets/heroes/daylight/
+    # @end-variant
+    # Plan E "Ink & Paper" (THEME=ink): line-art renders of the same Blender
+    # models (docs/brand/vehicles/clay/render_ink.py + export_ink.py).
+    # @variant: ink
+    - assets/vehicles/ink/
+    - assets/vehicles/ink_dark/
+    - assets/vehicles/ink_top/
+    # @end-variant
+    # Plan G "3D Clay" (THEME=clay3d): hero-size copies of the 3D icon renders
+    # (tool/icons3d/build.py HEROES), light and dark.
+    # @variant: clay3d
+    - assets/heroes/clay3d/
+    - assets/heroes/clay3d_dark/
+    # @end-variant
   # skeletonizer (and our icons) rely on the Material icon font.
   uses-material-design: true
   fonts:
     # Inter (SIL Open Font License, fonts/Inter-LICENSE.txt): a neutral
     # grotesk of the same weight and rhythm as the big ride-hailing apps.
-    # Phosphor icon fonts (MIT, fonts/Phosphor-LICENSE.txt).
-    - family: PhosphorRegular
-      fonts:
-        - asset: fonts/Phosphor-Regular.ttf
-    - family: PhosphorFill
-      fonts:
-        - asset: fonts/Phosphor-Fill.ttf
-    # Anek Latin (Ek Type, SIL OFL 1.1, fonts/AnekLatin-LICENSE.txt): Plan D's
-    # (THEME=local) UI face. Static instances at wdth=100 cut from the
-    # variable font in google/fonts with fontTools' instancer.
-    - family: AnekLatin
-      fonts:
-        - asset: fonts/AnekLatin-Regular.ttf
-          weight: 400
-        - asset: fonts/AnekLatin-Medium.ttf
-          weight: 500
-        - asset: fonts/AnekLatin-SemiBold.ttf
-          weight: 600
-        - asset: fonts/AnekLatin-Bold.ttf
-          weight: 700
-        - asset: fonts/AnekLatin-ExtraBold.ttf
-          weight: 800
-    # Plan E "Ink & Paper" (THEME=ink) only. Phosphor Light (MIT, same
-    # licence file) with the RideVela glyphs at the same private-use code
-    # points (tool/ridevela_glyphs/build.py light).
-    - family: PhosphorLight
-      fonts:
-        - asset: fonts/Phosphor-Light.ttf
-    # Plan G "3D Clay" (THEME=clay3d) only: a colour-bitmap font (CBDT/CBLC
-    # + sbix, 128 ppem) whose glyphs at Phosphor's code points are the
-    # Blender-rendered 3D icons (docs/brand/icons3d; tool/icons3d/build.py).
-    - family: Phosphor3D
-      fonts:
-        - asset: fonts/Phosphor3D.ttf
-    # Instrument Serif (SIL OFL 1.1, fonts/InstrumentSerif-LICENSE.txt): the
-    # three serif moments of THEME=ink. One weight; never below 22 pt.
-    - family: InstrumentSerif
-      fonts:
-        - asset: fonts/InstrumentSerif-Regular.ttf
-        - asset: fonts/InstrumentSerif-Italic.ttf
-          style: italic
-    # Inter SemiBold with lowercase drawn as capitals (OFL, derived; see
-    # tool/ink_caps/build.py): THEME=ink's small-caps section labels.
-    - family: RideVelaCaps
-      fonts:
-        - asset: fonts/RideVelaCaps-SemiBold.ttf
-          weight: 600
     - family: Inter
       fonts:
         - asset: fonts/Inter-Regular.ttf
@@ -122,3 +95,57 @@ flutter:
           weight: 700
         - asset: fonts/Inter-ExtraBold.ttf
           weight: 800
+    # Phosphor icon fonts (MIT, fonts/Phosphor-LICENSE.txt).
+    - family: PhosphorRegular
+      fonts:
+        - asset: fonts/Phosphor-Regular.ttf
+    - family: PhosphorFill
+      fonts:
+        - asset: fonts/Phosphor-Fill.ttf
+    # --- Fonts for looks that do not ship (see the assets note above) -----
+    # Anek Latin (Ek Type, SIL OFL 1.1, fonts/AnekLatin-LICENSE.txt): Plan D's
+    # (THEME=local) UI face. Static instances at wdth=100 cut from the
+    # variable font in google/fonts with fontTools' instancer.
+    # @variant: local
+    - family: AnekLatin
+      fonts:
+        - asset: fonts/AnekLatin-Regular.ttf
+          weight: 400
+        - asset: fonts/AnekLatin-Medium.ttf
+          weight: 500
+        - asset: fonts/AnekLatin-SemiBold.ttf
+          weight: 600
+        - asset: fonts/AnekLatin-Bold.ttf
+          weight: 700
+        - asset: fonts/AnekLatin-ExtraBold.ttf
+          weight: 800
+    # @end-variant
+    # Plan E "Ink & Paper" (THEME=ink) only. Phosphor Light (MIT, same
+    # licence file) with the RideVela glyphs at the same private-use code
+    # points (tool/ridevela_glyphs/build.py light). Instrument Serif (SIL OFL
+    # 1.1, fonts/InstrumentSerif-LICENSE.txt): the three serif moments; one
+    # weight, never below 22 pt. RideVelaCaps: Inter SemiBold with lowercase
+    # drawn as capitals (OFL, derived; tool/ink_caps/build.py) for the
+    # small-caps section labels.
+    # @variant: ink
+    - family: PhosphorLight
+      fonts:
+        - asset: fonts/Phosphor-Light.ttf
+    - family: InstrumentSerif
+      fonts:
+        - asset: fonts/InstrumentSerif-Regular.ttf
+        - asset: fonts/InstrumentSerif-Italic.ttf
+          style: italic
+    - family: RideVelaCaps
+      fonts:
+        - asset: fonts/RideVelaCaps-SemiBold.ttf
+          weight: 600
+    # @end-variant
+    # Plan G "3D Clay" (THEME=clay3d) only: a colour-bitmap font (CBDT/CBLC
+    # + sbix, 128 ppem) whose glyphs at Phosphor's code points are the
+    # Blender-rendered 3D icons (docs/brand/icons3d; tool/icons3d/build.py).
+    # @variant: clay3d
+    - family: Phosphor3D
+      fonts:
+        - asset: fonts/Phosphor3D.ttf
+    # @end-variant

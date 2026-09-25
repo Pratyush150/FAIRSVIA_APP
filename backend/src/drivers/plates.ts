@@ -25,3 +25,17 @@ export function isValidPlate(normalized: string, currency: string): boolean {
 }
 
 export const PLATE_EXAMPLE: Record<string, string> = { INR: 'MH 12 AB 1234' };
+
+/**
+ * For display, the way it is printed on the car: "MH12AB1234" → "MH 12 AB
+ * 1234", Bharat series "22BH1234AA" → "22 BH 1234 AA". Anything else is
+ * returned unchanged. Mirrors Market.formatPlate in the apps.
+ */
+export function formatPlate(plate: string): string {
+  const p = normalizePlate(plate);
+  const bh = /^(\d{2})(BH)(\d{4})([A-Z]{1,2})$/.exec(p);
+  if (bh) return bh.slice(1).join(' ');
+  const m = /^([A-Z]{2})(\d{1,2})([A-Z]{0,3})(\d{1,4})$/.exec(p);
+  if (m) return m.slice(1).filter(Boolean).join(' ');
+  return plate;
+}

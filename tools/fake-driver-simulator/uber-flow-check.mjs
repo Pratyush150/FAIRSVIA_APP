@@ -62,7 +62,8 @@ async function main() {
       tier: 'economy',
       pickupAddr: pickup.addr,
       dropoffAddr: dropoff.addr,
-      paymentMode: 'card',
+      // PAYMENT_MODE=cash when the rider has no saved card (PAYMENT_METHOD_REQUIRED).
+      paymentMode: process.env.PAYMENT_MODE === 'cash' ? 'cash' : 'card',
     },
   });
   console.log(`   trip ${trip.id} created (${trip.status})`);
@@ -98,6 +99,9 @@ async function main() {
   check(!!accepted.vehicle?.plate, `rider sees the assigned car (${accepted.vehicle?.make} ${accepted.vehicle?.model})`);
 
   console.log('\n── 5. Driver arrives ──');
+  // "Arrived" is geofenced (ARRIVAL_RADIUS_M): be at the pickup first.
+  dSock.emit('driver:location', { lat: pickup.lat, lng: pickup.lng, heading: 90, speed: 0 });
+  await wait(400);
   const arrivedP = once(rSock, 'trip:arrived');
   await api(`/trips/${trip.id}/arrived`, { method: 'POST', token: driver.token });
   await arrivedP;
@@ -133,6 +137,11 @@ async function main() {
   check(true, `correct code "${riderView.startOtp}" STARTS the trip`);
 
   console.log('\n── 7. Trip completes + settles ──');
+  // Reach the drop-off before completing: Complete ends the trip wherever the
+  // car is, and short of the drop-off it is charged as a short trip (metered,
+  // minimum-fare floor) rather than the normal clamped fare.
+  dSock.emit('driver:location', { lat: dropoff.lat, lng: dropoff.lng, heading: 90, speed: 0 });
+  await wait(400);
   const completedP = once(rSock, 'trip:completed');
   const receipt = await api(`/trips/${trip.id}/complete`, {
     method: 'POST',

@@ -399,6 +399,22 @@ flutter analyze
 (cd apps/rider_app && flutter test)
 ```
 
+**Release APKs (what goes to phones):**
+```bash
+export PATH="/home/nova-robotics/flutter/bin:$PATH"
+make apk-rider  APK_ARGS="--dart-define=MARKET=in --dart-define=API_BASE_URL=<url>/api/v1"
+make apk-driver APK_ARGS="--dart-define=MARKET=in --dart-define=API_BASE_URL=<url>/api/v1"
+# → apps/<app>/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk  (give phones this one)
+```
+These run `tools/apk/release_apk.py`: a `--split-per-abi` release build of the
+shipped look (Plan F "Map Glass", no `THEME` flag) that leaves out the art and
+fonts only other looks use (the `# @variant:` blocks in
+`packages/design_system/pubspec.yaml`) and restores the pubspec afterwards.
+Rider arm64 APK: **36.4 MB**, against 44.5 MB split before this change and
+87.9 MB for the old universal APK (2026-09-25). Another look:
+`make apk-rider APK_THEME=clay3d`. One fat APK: `tools/apk/release_apk.py rider_app --universal`.
+`flutter test` / `flutter run` / plain `flutter build` still bundle everything.
+
 **On the Android emulator:**
 ```bash
 emulator -avd pixel_uber -no-window -gpu swiftshader_indirect &   # boot headless
@@ -420,6 +436,25 @@ adb -s <serial> install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 > **Xiaomi/MIUI phones:** you must enable Developer options → **"Install via USB"** AND
 > **"USB debugging (Security settings)"** (needs a Mi-account sign-in) or adb can't install/tap.
+
+**Release APKs (what goes on real phones):** the shipped look is Plan F "Map
+Glass" (no `THEME` flag). Build per-ABI APKs without the art and fonts of the
+looks that don't ship, and give phones the `arm64-v8a` one:
+```bash
+make apk-rider  APK_ARGS="--dart-define=API_BASE_URL=<publicURL>/api/v1 --dart-define=MARKET=in"
+make apk-driver APK_ARGS="--dart-define=API_BASE_URL=<publicURL>/api/v1 --dart-define=MARKET=in"
+# -> apps/<app>/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk (phones)
+#    app-armeabi-v7a-release.apk (old 32-bit phones), app-x86_64-release.apk (emulator)
+```
+Measured 2026-09-25 (rider): universal release APK 87.9 MB; arm64-v8a with
+every look's art 44.5 MB; arm64-v8a from `make apk-rider` **36.4 MB**. Another
+look: `make apk-rider APK_THEME=clay3d` keeps only that look's extra art.
+`tools/apk/release_apk.py` does this by removing, for the build only, the
+`# @variant:` blocks in `packages/design_system/pubspec.yaml` that the THEME
+does not use; the file is restored afterwards. Plain `flutter build apk`,
+`flutter run` and `flutter test` still bundle everything. For the Play Store,
+upload an App Bundle instead: `tools/apk/release_apk.py rider_app --bundle`
+(same stripping; not yet built or measured here).
 
 **Simulate a driver (for a full ride without a second phone):**
 ```bash

@@ -1,6 +1,8 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_modal_sheet.dart';
+
 import '../network/api_exception.dart';
 import 'safety_remote_data_source.dart';
 import 'package:shared_models/shared_models.dart';
@@ -37,7 +39,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
   }
 
   Future<void> _add() async {
-    final added = await showModalBottomSheet<EmergencyContact>(
+    final added = await showAppModalSheet<EmergencyContact>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

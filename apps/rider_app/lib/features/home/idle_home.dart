@@ -20,7 +20,7 @@ const double _searchHeaderExtent = AppSpacing.lg + 56 + AppSpacing.md;
 ///   through to the map, so it still pans and zooms;
 /// * a solid sheet (24 dp top radius) that scrolls up over the map; its
 ///   search bar pins to the top, so scrolling "collapses" the map header;
-/// * floating glass controls on the map (menu, current address + heart,
+/// * floating glass controls on the map (menu, current address + bookmark,
 ///   recenter) that fade out as the sheet covers the map.
 class IdleHome extends StatefulWidget {
   const IdleHome({
@@ -49,7 +49,7 @@ class IdleHome extends StatefulWidget {
   final String? addressLabel;
   final bool isSaved;
 
-  /// Null disables the heart (no real location to save yet).
+  /// Null disables the bookmark (no real location to save yet).
   final VoidCallback? onToggleSaved;
 
   /// Connection / location banners, drawn above the controls.
@@ -207,7 +207,7 @@ class _IdleHomeState extends State<IdleHome> {
   );
 }
 
-/// Menu disc on the left; the current-address chip with its heart on the
+/// Menu disc on the left; the current-address chip with its bookmark on the
 /// right.
 class _TopControls extends StatelessWidget {
   const _TopControls({
@@ -259,8 +259,8 @@ class _TopControls extends StatelessWidget {
                       onPressed: onToggleSaved,
                       icon: Icon(
                         isSaved
-                            ? PhosphorIconsFill.heart
-                            : PhosphorIconsRegular.heart,
+                            ? PhosphorIconsFill.bookmarkSimple
+                            : PhosphorIconsRegular.bookmarkSimple,
                         color: isSaved
                             ? AppColors.accent
                             : theme.colorScheme.onSurface,

@@ -134,4 +134,33 @@ void main() {
     // Still possible to try again.
     expect(find.widgetWithText(PrimaryButton, 'Send SOS alert'), findsOneWidget);
   });
+
+  group('Share trip status', () {
+    late TripTextSharer original;
+    setUp(() => original = tripTextSharer);
+    tearDown(() => tripTextSharer = original);
+
+    Future<List<String>> share(WidgetTester tester) async {
+      final shared = <String>[];
+      tripTextSharer = (text, _) async => shared.add(text);
+      await pump(tester);
+      await tester.ensureVisible(find.text('Share trip status'));
+      await tester.tap(find.text('Share trip status'));
+      await tester.pumpAndSettle();
+      return shared;
+    }
+
+    testWidgets('asks for the live link first and includes it', (tester) async {
+      when(() => safety.tripShareLink('t1'))
+          .thenAnswer((_) async => 'https://ride.example/api/v1/public/t/tok');
+      expect(await share(tester), [
+        'share Track my ride live: https://ride.example/api/v1/public/t/tok',
+      ]);
+    });
+
+    testWidgets('shares without the link when there is none', (tester) async {
+      when(() => safety.tripShareLink('t1')).thenAnswer((_) async => null);
+      expect(await share(tester), ['share']);
+    });
+  });
 }

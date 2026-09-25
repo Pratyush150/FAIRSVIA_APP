@@ -104,17 +104,17 @@ void main() {
     expect(find.text('+91 98765 43210'), findsOneWidget);
     expect(find.text('4.8'), findsOneWidget);
     expect(find.text('Saved places'), findsOneWidget);
-    // Menu rows are navigation, not state: Regular (audit 2.1 rule 3). The
-    // one Fill star left is the rating line — a real state.
+    // Menu rows are navigation, not state: Regular (audit 2.1 rule 3).
+    // Saved places is a bookmark (star = rating, heart = favourite driver;
+    // audit 2026-09-25 #11), so the only star is the rating line.
+    expect(find.byIcon(PhosphorIconsRegular.bookmarkSimple), findsOneWidget);
     if (AppClay3D.on) {
-      // THEME=clay3d: Regular and Fill are one 3D glyph (same IconData), so
-      // the menu star and the rating star are both found either way.
-      expect(PhosphorIconsFill.star, PhosphorIconsRegular.star);
-      expect(find.byIcon(PhosphorIconsRegular.star), findsNWidgets(2));
+      // THEME=clay3d: Regular and Fill are one 3D glyph (same IconData).
+      expect(find.byIcon(PhosphorIconsRegular.star), findsOneWidget);
       expect(find.byIcon(PhosphorIconsRegular.heart), findsOneWidget);
       return;
     }
-    expect(find.byIcon(PhosphorIconsRegular.star), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.star), findsNothing);
     expect(find.byIcon(PhosphorIconsRegular.heart), findsOneWidget);
     expect(find.byIcon(PhosphorIconsFill.star), findsOneWidget);
     expect(find.byIcon(PhosphorIconsFill.heart), findsNothing);

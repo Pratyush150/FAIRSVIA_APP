@@ -1,5 +1,7 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+
+import '../theme/app_modal_sheet.dart';
 import 'package:flutter/services.dart';
 
 import '../network/api_exception.dart';
@@ -73,7 +75,7 @@ class _PaymentMethodsPageState extends State<PaymentMethodsPage> {
       }
     }
     if (!mounted) return;
-    final added = await showModalBottomSheet<bool>(
+    final added = await showAppModalSheet<bool>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _AddCardSheet(payments: widget.payments),

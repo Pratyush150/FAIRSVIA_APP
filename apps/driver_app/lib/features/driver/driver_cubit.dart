@@ -6,6 +6,7 @@ import 'package:core/core.dart';
 import 'package:equatable/equatable.dart';
 import 'package:shared_models/shared_models.dart';
 
+import 'completion_note.dart';
 import 'location_stream.dart';
 
 part 'driver_state.dart';
@@ -75,6 +76,9 @@ class DriverCubit extends Cubit<DriverState> {
             approachPolyline: d['driverPolyline'] as String?,
           )))
       ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
+      // The RIDER can end the ride early (POST /trips/:id/end-early): the
+      // server completes it and sends both apps the receipt.
+      ..add(_realtime.on('trip:completed').listen(_onCompletedByServer))
       ..add(_realtime.on('trip:tip_added').listen(_onTipAdded))
       ..add(_realtime.on('trip:rider_coming').listen(_onRiderComing))
       ..add(_realtime.on('trip:stops_updated').listen(_onStopsUpdated))
@@ -440,6 +444,9 @@ class DriverCubit extends Cubit<DriverState> {
     }
   }
 
+  /// Completes the trip wherever the car is (owner rule: it ends where the
+  /// driver taps). Away from the drop-off the server charges the metered
+  /// fare with the minimum-fare floor and the trip-complete sheet says so.
   Future<void> completeTrip() async {
     final trip = state.trip;
     if (trip == null) return;
@@ -457,6 +464,24 @@ class DriverCubit extends Cubit<DriverState> {
       return;
     }
 
+    // The socket's `trip:completed` may have landed first.
+    if (state.phase == DriverPhase.completed && state.lastTripId == trip.id) {
+      return;
+    }
+    await _enterCompleted(trip.id, receipt);
+  }
+
+  /// `trip:completed` pushed by the server — the rider ended the ride early.
+  /// Our own Complete also echoes here; the trip-id check makes that a no-op.
+  void _onCompletedByServer(Map<String, dynamic> d) {
+    final trip = state.trip;
+    if (trip == null || d['tripId'] != trip.id) return;
+    if (state.phase != DriverPhase.onTrip) return;
+    unawaited(_enterCompleted(trip.id, d));
+  }
+
+  Future<void> _enterCompleted(
+      String tripId, Map<String, dynamic> receipt) async {
     // The trip is completed server-side now — move to `completed` IMMEDIATELY so
     // a follow-up failure (e.g. loading earnings) can't leave the driver stranded
     // on the trip screen re-tapping "Complete" on an already-completed trip.
@@ -471,9 +496,10 @@ class DriverCubit extends Cubit<DriverState> {
       riderName: null,
       unreadMessages: 0,
       busy: false,
-      lastTripId: trip.id,
+      lastTripId: tripId,
       riderRating: null,
       cashToCollect: cash,
+      endNote: completionNote(receipt),
     ));
 
     // Earnings total is a nice-to-have on the completion sheet — load it
@@ -509,6 +535,7 @@ class DriverCubit extends Cubit<DriverState> {
       phase: DriverPhase.online,
       lastTripId: null,
       riderRating: null,
+      endNote: null,
     ));
   }
 
@@ -566,6 +593,7 @@ class DriverCubit extends Cubit<DriverState> {
         lastTripId: null,
         riderRating: null,
         cashToCollect: null,
+        endNote: null,
       ));
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));

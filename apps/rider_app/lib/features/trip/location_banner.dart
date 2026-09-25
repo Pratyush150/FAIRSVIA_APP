@@ -97,23 +97,23 @@ class LocationBanner extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          const Icon(
+                          Icon(
                             PhosphorIconsRegular.gpsSlash,
                             size: 20,
-                            color: Colors.white,
+                            color: AppColors.onWarning,
                           ),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: Text(
                               message,
                               style: Theme.of(context).textTheme.labelLarge
-                                  ?.copyWith(color: Colors.white),
+                                  ?.copyWith(color: AppColors.onWarning),
                             ),
                           ),
-                          const Icon(
+                          Icon(
                             PhosphorIconsRegular.caretRight,
                             size: 20,
-                            color: Colors.white,
+                            color: AppColors.onWarning,
                           ),
                         ],
                       ),

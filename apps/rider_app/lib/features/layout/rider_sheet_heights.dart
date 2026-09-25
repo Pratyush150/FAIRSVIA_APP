@@ -48,7 +48,9 @@ class RiderSheetHeights {
     searching: null,
     pickupCompact: 0.50,
     onTripCompact: 0.36,
-    completed: 0.85,
+    // 75% (owner, 2026-09-25): map above stays visible; the whole page —
+    // total, rating, favourite, tips, Done — fits without scrolling.
+    completed: 0.75,
   );
 
   /// Floors in logical pixels, so a short phone (360×640) still shows the

@@ -7,7 +7,35 @@
 The single authoritative list of what is left. **Rewritten 2026-09-23** after
 the owner's decisions below and a fresh audit that checked older documents
 (`architecture-explained.md`, `codebase-audit.md`, both 2026-09-10) against the
-live code instead of trusting them.
+live code instead of trusting them. **Updated 2026-09-25**: the pilot market is
+**Pune, India (INR)** — the 2026-09-23 "Uzbekistan first" plan below is
+superseded for the pilot — and Plan F "Map Glass" is the final look. The full
+product audit of 2026-09-25 ([plans/audit-2026-09-25.md](plans/audit-2026-09-25.md))
+carries the current scores, 34 observed inconsistencies and a top-10 fix list.
+
+---
+
+## Current state — 2026-09-25
+
+| | |
+|---|---|
+| **Market** | **Pilot in Pune, India**: rupees (₹, whole-rupee fares, Indian digit grouping), km, +91 phone numbers, `Asia/Kolkata`, India emergency numbers (112 / Police 100 / Ambulance 108). Server: `MARKET_CURRENCY=INR BUSINESS_TZ=Asia/Kolkata`; apps: `--dart-define=MARKET=in`. Uzbekistan (`uz`, UZS, +998) remains a *later* market on the same switches — not current work |
+| **Look** | **Plan F "Map Glass" is final** (owner, 2026-09-25): the default build (no `THEME` flag) for rider and driver. The other looks (turquoise, A–E, G) stay in code behind `--dart-define=THEME=…` but do not ship |
+| **Apps** | rider + driver **v2.2.0 (build 6200)** on Android (emulator-verified). **iOS last built 2026-09-14 — unverified since** |
+| **Overall audit score** | 5.5 / 10 ([audit](plans/audit-2026-09-25.md)): core ride loop works end to end; money correctness (0 m completion charged the full estimate), unmasked calls, no i18n, visible polish bugs and all of iOS hold it back |
+
+## Done 2026-09-23 → 2026-09-25 (this week)
+
+| Area | What landed |
+|---|---|
+| Market | One market setting (`MARKET` / `MARKET_CURRENCY` / `BUSINESS_TZ`): ₹, km, +91 local-number input stored as E.164, Pune fares, ₹50 cancellation fee, rupee tips; US price comparison off outside the US; place names landmark-first instead of Plus Codes |
+| Rides | Auto-rickshaw and Bike taxi for Pune end to end (held back by default, switchable by the owner) |
+| UI (ui-10 plan) | Phase 1 audit bugs (Miami map, marker overlap, dead ride types); one icon family (Phosphor); plate-first driver card, four-box PIN, labelled Safety pill; login with +91 chip, Terms/Privacy links, OTP autofill; choose-ride / finding / in-trip / completed screens; radar at the pickup; type scale, tokens, motion, accessibility pass (3.1–3.4, 4.1–4.3) |
+| Look | Several looks built side by side (A Midnight, B Daylight, C Day & Night, D Local, E Ink & Paper, F Map Glass, G 3D Clay); **F chosen as final**; Light / Dark / Same-as-phone applies instantly, even mid-ride |
+| 2.1.0 / 2.2.0 | New rider Home, smooth locating, native Share + Call, chat redesign, Lottie moments; driver offerable right after a trip; rate card with the driver's name |
+| Analytics | Grafana "Today" page + five focused pages (§0c); ghost-driver count fixed |
+| Safety / store | SOS that reaches people, in-app account deletion, payout and capture races fixed (tables below) |
+| Size | Release APK build that leaves out art/fonts of looks that don't ship, and per-ABI APKs (`tools/apk/release_apk.py`, `make apk-rider` / `make apk-driver`) |
 
 ---
 
@@ -15,7 +43,7 @@ live code instead of trusting them.
 
 | Decision | Effect on this plan |
 |---|---|
-| **Launch market is Central Asia — Uzbekistan first — not Florida** | Florida-specific items (F.S. 627.748 insurance) are dropped. New market work added: routing data, currency, phone format, language, data residency — see §3 |
+| ~~Launch market is Central Asia — Uzbekistan first — not Florida~~ **Superseded for the pilot:** the pilot runs in **Pune, India (INR)**; Uzbekistan is a later market | Florida-specific items (F.S. 627.748 insurance) stay dropped. §3 now tracks Pune/India; the Uzbekistan items are kept at the end of §3 as later work |
 | **Business APIs that need the company's GST registration and company mobile number are deferred** until those exist | SMS sender, and any vendor account needing company KYC, stay mocked. **Do not spend time on them now** — polish what we own instead |
 | **Referral program stays on the roadmap** | Kept in §7, Tier 3. Not started |
 | **Grafana is the analytics + monitoring + alerting surface** — no separate reporting dashboard in the admin app for now | Checklist gap analysis in §5 |
@@ -59,7 +87,7 @@ live code instead of trusting them.
 | `tools/visual-check/shot-monitoring.mjs` still hard-codes the old LAN IP and a removed tab | New `shot-safety*.mjs` resolve the IP; the old script to be removed |
 | Dev watch-mode backend kept serving old code after a change (no restart after recompile) | Trap — restart the container before live checks. Added to handoff |
 | Emulator ANR in the location plugin (`geolocator` registers NMEA on the main thread; the emulator GPS HAL stalled) | Emulator HAL issue, not app code — **watch for it on real phones** (field test) |
-| **Driver card row overflows off-screen with Uzbek car names/plates** (33 px; 125 px at large text) | Being fixed as part of the arriving-screen redesign (§6); regression test written |
+| **Driver card row overflowed off-screen with long car names/plates** (33 px; 125 px at large text) | Being fixed as part of the arriving-screen redesign (§6); regression test written |
 | Driver app `versionCode` is 1 in `pubspec.yaml` while a 4001 build exists | Must increase monotonically before any store upload |
 | Already built, plan was stale: resend-OTP countdown, name + email at sign-up, add-stop at booking | Removed from §7 |
 
@@ -72,7 +100,10 @@ live code instead of trusting them.
 
 ---
 
-## 0. Uber-parity UI (owner request 2026-09-23) — in progress
+## 0. Uber-parity UI (owner request 2026-09-23) — superseded by the ui-10 plan
+
+The live UI roadmap is [plans/ui-10-audit-plan.md](plans/ui-10-audit-plan.md);
+the look is Plan F "Map Glass" (final). The table below is kept as history.
 
 Goal: using RideVela next to Uber, the apps should look and feel the same —
 colours, type, spacing, buttons, sheets, map, ride list, flows — on Android
@@ -88,7 +119,7 @@ and the name stays RideVela.
 |---|---|---|
 | 1 | Design tokens: monochrome palette (white / black / Uber-style greys, black primary actions, blue links), Inter type scale, 8 px radii, 56 px black buttons, light/dark map styles, black route line | ✅ ink follows light/dark; greyscale maps; black pickup ring + drop-off square; borderless cards; grey secondary buttons |
 | 2 | Rider screens: home "Where to?" pill + "Later", search, ride options list (selected = outlined), arriving, in-trip, completed/rating | 🟡 home, search, ride list, route framing, arriving sheet done and seen on the emulator (light + dark); completed/rating and account pages next |
-| — | **Brand palette: "Samarkand Turquoise"** (owner's choice 2026-09-23) — teal-navy / turquoise ink, turquoise route + selection, more legible map with turquoise water | ✅ default since v1.3.0; `THEME=mono` keeps the black-and-white variant |
+| — | **Brand palette: "Samarkand Turquoise"** (owner's choice 2026-09-23) — teal-navy / turquoise ink, turquoise route + selection, more legible map with turquoise water | Default v1.3.0 → 2.0; **superseded 2026-09-25 by Plan F "Map Glass"** as the shipped look. `THEME=turquoise` builds the previous default; `THEME=mono` the black-and-white variant |
 | 3 | Driver screens: online/offline, offer card, en-route, trip, earnings | 🟡 new palette, font, buttons and map apply (seen on the Moto); layout polish of the offer card and trip sheet still to do |
 | 4 | Shared: sign-in/OTP, account/menu, receipts; admin console palette | 🟡 new palette, font and buttons apply everywhere; layout polish still to do |
 | 5 | Verify: goldens updated, analyzer + tests, screenshots of every screen light + dark on the emulator, APKs to the pilot phones; iPhone check added to `mac-ios-pilot-handoff.md` | ⏳ |
@@ -141,16 +172,18 @@ testing). Before the numbers are shown as real:
 | Priority | Item | Exactly what is needed |
 |---|---|---|
 | 🔴 | **Real TLS certificate** | A DNS **A record** for the API hostname (e.g. `api.ridevela.com`) → the production server's public IP, in the Cloudflare account, "DNS only". Then one command — `infra/tls/README.md`. Today neither `api.ridevela.com` nor `api.fairsvia.com` exists in DNS |
-| 🔴 | **Production server location** | Uzbekistan's personal-data law requires citizens' data to be stored on servers inside Uzbekistan — confirm with counsel. Decides where the DB, backups and off-site copies may live |
-| 🔴 | **Regulatory / licensing for ride-hailing in Uzbekistan** (and each later country) | Taxi/TNC licensing, mandatory passenger insurance, driver requirements. No code can resolve this; it may add product requirements (e.g. licence documents, fiscal receipts) |
-| 🔴 | **Background-check provider for Uzbekistan** | Checkr is US-only. Integration layer exists (mock by default); needs a local vendor or a manual document-review process |
-| 🟠 | **Privacy policy completion** | Company legal name, address, contacts (pending registration), retention periods, counsel review, Uzbek + Russian translations, a public URL |
-| ⏸ | **Deferred by decision:** SMS sender, Stripe webhook secret, push keys, any company-KYC vendor | Waiting on GST registration + company mobile number. Also: **Stripe is, to our knowledge, not available to Uzbekistan-registered merchants** (confirm on Stripe's country list) — a local processor (e.g. Payme, Click) will be needed; the payment layer is provider-abstracted, so this is a new provider, not a rewrite |
+| 🔴 | **Production server location** | India's DPDP Act 2023 obligations (and any transfer restrictions the government notifies) — confirm with counsel. Decides where the DB, backups and off-site copies may live. (For Uzbekistan, later: its personal-data law is understood to require in-country storage — confirm then) |
+| 🔴 | **Regulatory / licensing for ride-hailing in Pune / Maharashtra** (and each later market) | Aggregator licence under the Motor Vehicle Aggregator Guidelines and Maharashtra's rules, passenger insurance, driver requirements — confirm with counsel. No code can resolve this; it may add product requirements (licence documents, GST invoices) |
+| 🔴 | **Background-check / KYC provider for India** | Checkr is US-only. Integration layer exists (mock by default); needs an Indian vendor or a manual document-review process |
+| 🟠 | **Privacy policy completion** | Company legal name, address, contacts (pending registration), retention periods, counsel review under the DPDP Act, Hindi + Marathi translations, a public URL. The draft still names Uzbekistan as the first market — update it with counsel |
+| 🟠 | **Masked calling provider** | Calls dial the other party's real number today. Options, flow, cost and the decisions needed: [plans/masked-calling.md](plans/masked-calling.md) |
+| 🟠 | **UPI payment provider** | Payment is cash or a Stripe card only; no UPI. The payment layer is provider-abstracted, so this is a new provider, not a rewrite |
+| ⏸ | **Deferred by decision:** SMS sender, Stripe webhook secret, push keys, any company-KYC vendor | Waiting on GST registration + company mobile number |
 | 🟡 | Alertmanager delivery | 10 min once a Slack webhook or email is chosen |
 | 🟡 | Android launcher icon (old "F") | An icon asset |
 | 🟡 | iOS rebuild + physical-iPhone run | A Mac (last built 2026-09-14) |
 | 🟡 | Sentry project | Create one, set `SENTRY_DSN` — two minutes, then error tracking is live |
-| 🟡 | Off-site backup destination | A bucket or second server, **in-country** if the residency rule is confirmed |
+| 🟡 | Off-site backup destination | A bucket or second server, in-country if counsel says so |
 
 ---
 
@@ -164,17 +197,26 @@ testing). Before the numbers are shown as real:
 
 ---
 
-## 3. Launch-market work: Uzbekistan (new)
+## 3. Launch-market work: Pune, India (pilot)
 
-Verified 2026-09-23 against the running stack:
+Re-checked 2026-09-25 (the 2026-09-23 version of this section planned for
+Uzbekistan; that is now the "later" table below).
 
-| # | Item | Current state | Work |
-|---|---|---|---|
-| 3.1 | **Routing + geocoding map data** | The loaded OSRM data (`bhukum`) covers a region of **Maharashtra, India** — not Florida, not Uzbekistan. Tashkent snaps to a road **2,540 km away** | Load the Geofabrik Uzbekistan extract into OSRM + Nominatim. ~1 day incl. processing; check disk first (96% used) |
-| 3.2 | **Currency** | `USD` is the DB default on trips and payments; 116 Dart strings format money with `$` | UZS end-to-end: fare config, formatting (UZS has no minor unit in practice), receipts. One money-formatting helper in `design_system` instead of 116 inline `$` |
-| 3.3 | **Phone numbers** | Validation is generic (`IsPhoneNumber`) | Default country +998, local-format input mask, OTP copy |
-| 3.4 | **Language** | No i18n at all | Uzbek (Latin) + Russian + English; extract strings to ARB files. Largest item in this section |
-| 3.5 | **Time zone** | Business dashboard "today" uses server time | Tashkent (UTC+5) for day boundaries |
+| # | Item | State |
+|---|---|---|
+| 3.1 | **Routing + geocoding map data** | ✅ The loaded OSRM/Nominatim data covers Maharashtra, which includes Pune; Pune rides and place search work end to end. Geocoder data quirks remain ("Unnammed Road", a result with no distance — audit #33) |
+| 3.2 | **Currency** | ✅ INR end to end via `MARKET_CURRENCY=INR` + `MARKET=in` (whole-rupee rider fares, Indian digit grouping). Open: driver earnings show paise while rider amounts are whole rupees (audit #15); **M13** money as `Float` in fare config (§4); tax/GST-style receipt and invoice number |
+| 3.3 | **Phone numbers** | ✅ +91 default, local-number input stored as E.164. Open: one display format everywhere (audit #13) |
+| 3.4 | **Language** | ❌ No i18n at all (no ARB files, no `flutter_localizations`). Hindi + Marathi (+ Noto Sans Devanagari); start now, it gets costlier with every screen |
+| 3.5 | **Time zone** | ✅ `BUSINESS_TZ=Asia/Kolkata` for day boundaries |
+| 3.6 | **Payments** | ❌ UPI (see §1) |
+
+**Later market — Uzbekistan** (not current work; same switches with `MARKET=uz`):
+Geofabrik Uzbekistan extract into OSRM + Nominatim (check disk first), UZS
+fare config (no minor unit in practice), +998 input, Uzbek (Latin) + Russian,
+`Asia/Tashkent`, in-country data storage, a local payment processor (Payme /
+Click — Stripe is, to our knowledge, not available to Uzbekistan-registered
+merchants).
 
 ---
 
@@ -187,7 +229,7 @@ Verified 2026-09-23 against the running stack:
 | C1 | Capture vs driver earning not atomic | ✅ **Fixed 2026-09-23** (was: partly fixed. Capture is capped at the authorised hold. The payment-status update and the ledger credit are still two statements (`payments.service.ts` ~257–267) — a crash between them leaves a captured fare with no driver credit. Put both in one transaction |
 | H2 | Per-user promo limit bypass under concurrency | ✅ **Already fixed** (serializable txn; the earlier "open" was wrong). Raw-SQL conflict 500 fixed 2026-09-23 |
 | M13 | Money stored as `Float` | 🟡 **Open** — `FareConfig` / competitor tables (`baseFare`, `bookingFee`, `minFare`, `observedFare`). Trip/Payment are correctly `Decimal`. Fix together with 3.2 |
-| — | **SOS notifies no one** | ✅ **Fixed 2026-09-23** — contacts texted, ops alerted, admin Safety tab. Needs Alertmanager delivery wired before launch (§1). Was: Writes an alert for the admin view only — no SMS, call or emergency contact. Must not be labelled an emergency feature until it alerts someone (local emergency number 102/103 in Uzbekistan, trusted contacts, ops on-call) |
+| — | **SOS notifies no one** | ✅ **Fixed 2026-09-23** — contacts texted, ops alerted, admin Safety tab. Needs Alertmanager delivery wired before launch (§1). Was: Writes an alert for the admin view only — no SMS, call or emergency contact. Must not be labelled an emergency feature until it alerts someone (trusted contacts, ops on-call). India numbers now: 112 / Police 100 / Ambulance 108 (`EMERGENCY_NUMBERS`) |
 | — | Driver document upload | Open — onboarding is typed text; verification is a manual admin toggle |
 
 ---
@@ -236,13 +278,13 @@ build to verify. ~3–4 days, excluding photo storage.
 
 ## 7. Feature gaps (unchanged, value-ordered)
 
-**Tier 1:** editable pickup · in-app masked calling · driver + vehicle photos
+**Tier 1:** editable pickup · in-app masked calling ([plan](plans/masked-calling.md)) · driver + vehicle photos
 · wait timer / no-show UI.
 **Tier 2:** rebook a past trip · add stop / change destination **mid-trip**
 (adding stops at booking already exists) · set-default / delete card.
 (Resend-OTP countdown and name + email at sign-up already exist.)
-**Tier 3:** local wallets (Payme / Click — replaces Apple/Google Pay as the
-priority for Uzbekistan) · settings screens (i18n moved to §3.4) ·
+**Tier 3:** UPI for India (moved up to §1/§3.6 — the pilot needs it); Payme /
+Click later for Uzbekistan · settings screens (i18n moved to §3.4) ·
 **referral program (kept by owner decision)** · pool rides and add-ons.
 
 Also: 26 iOS backlog items (iOS audit) · 4 cosmetic backend issues (S6–S9).
@@ -264,7 +306,7 @@ Also: 26 iOS backlog items (iOS audit) · 4 cosmetic backend issues (S6–S9).
 
 Assessed and deliberately **not** planned: measured capacity ~25–50k
 registered users on one box vs a 10k target. Revisit only after 8.1 gives real
-production numbers. The in-country hosting requirement (§1) also favours a
+production numbers. A possible in-country hosting requirement (§1) also favours a
 simple single-server deployment at launch.
 
 ---
@@ -273,9 +315,9 @@ simple single-server deployment at launch.
 
 | When | What |
 |---|---|
-| **Now (owner)** | DNS record for the API host · pick the production server (in-country) · start licensing/insurance and background-check vendor conversations · create a Sentry project |
-| **Next (us)** | §2.1 account deletion · §4 C1 + H2 + SOS · §3.1 map data · §6 arriving screen |
-| **Then** | §3.2–3.5 currency, phone, language, time zone · §5 Grafana panels · §8.1 benchmark |
+| **Now (owner)** | DNS record for the API host · pick the production server · start licensing/insurance and background-check vendor conversations for Pune · choose a masked-calling provider ([plan](plans/masked-calling.md)) and a UPI provider · create a Sentry project |
+| **Next (us)** | Audit top 10 ([audit §C](plans/audit-2026-09-25.md)): dark OTP number, Lottie dash, complete-trip guard (0 m at full fare), radar anchor, warning contrast, formatters · §6 arriving screen leftovers |
+| **Then** | §3.4 i18n (Hindi + Marathi) · M13 · masked calling · §5 Grafana panels · §8.1 benchmark |
 | **Ongoing** | §7 by tier |
 | **Needs a Mac** | §2.3, §8.2 |
 
@@ -287,5 +329,7 @@ simple single-server deployment at launch.
 | [monitoring-and-actions-plan.md](monitoring-and-actions-plan.md) | Observability stack, ops actions, Kubernetes assessment |
 | [frontend-maintainability-plan.md](frontend-maintainability-plan.md) | God files, model contract, admin_app tests |
 | [field-testing-plan.md](field-testing-plan.md) | On-road verification (23 cases) |
+| [plans/audit-2026-09-25.md](plans/audit-2026-09-25.md) | Full product audit: scores, 34 inconsistencies, top-10 fixes |
+| [plans/masked-calling.md](plans/masked-calling.md) | Masked calling: why, providers in India, flow, cost, owner decisions |
 | [legal/privacy-policy.md](legal/privacy-policy.md) | Privacy policy draft |
 | `infra/tls/README.md`, `infra/backup/README.md` | TLS and backup runbooks |

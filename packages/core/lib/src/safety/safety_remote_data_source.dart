@@ -116,6 +116,21 @@ class SafetyRemoteDataSource {
         return EmergencyContact.fromJson(res.data!);
       });
 
+  /// The public live-tracking link for the rider's active trip
+  /// (`POST /trips/:id/share-link`), or null when it can't be had — no
+  /// network, trip already over, server error. Never throws: sharing must go
+  /// ahead without the link rather than fail.
+  Future<String?> tripShareLink(String tripId) async {
+    try {
+      final res =
+          await _dio.post<Map<String, dynamic>>('/trips/$tripId/share-link');
+      final url = res.data?['url'];
+      return url is String && url.startsWith('http') ? url : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> removeContact(String id) => _guard(
       () => _dio.delete<Map<String, dynamic>>('/users/me/emergency-contacts/$id'));
 

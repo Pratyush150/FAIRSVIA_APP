@@ -220,7 +220,11 @@ void main() {
       );
       expect(find.text(TripCubit.cancelFailedMessage), findsOneWidget);
       // The ride is still live: the ETA headline is intact, not an error screen.
-      expect(find.textContaining('arriving in 4 min'), findsOneWidget);
+      // Drawn with non-breaking spaces so the phrase never wraps.
+      expect(
+        find.textContaining('arriving in 4 min'.replaceAll(' ', '\u00A0')),
+        findsOneWidget,
+      );
       await tester.tap(find.byTooltip('More options'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel ride'));

@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help ci ci-fast test-backend test-e2e test-flutter analyze build-web shots load-rest load-ride up down logs migrate
+.PHONY: help ci ci-fast test-backend test-e2e test-flutter analyze build-web apk-rider apk-driver shots load-rest load-ride up down logs migrate
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -49,6 +49,19 @@ build-web: ## Release-build all three web apps (env: LAN_IP)
 	@for a in rider_app driver_app admin_app; do \
 		(cd apps/$$a && flutter build web --release --pwa-strategy=none \
 			--dart-define=API_BASE_URL=http://$(LAN_IP):3000/api/v1); done
+
+# Release APKs of the shipped look (Plan F "Map Glass", no THEME flag), one per
+# ABI: give phones app-arm64-v8a-release.apk. The art and fonts of looks that
+# don't ship are left out (tools/apk/release_apk.py). Extra flutter flags via
+# APK_ARGS, e.g. APK_ARGS="--dart-define=API_BASE_URL=https://host/api/v1
+# --dart-define=MARKET=in"; another look with APK_THEME=clay3d.
+APK_THEME ?=
+APK_ARGS ?=
+apk-rider: ## Release rider APKs, split per ABI (env: APK_THEME, APK_ARGS)
+	./tools/apk/release_apk.py rider_app $(if $(APK_THEME),--theme $(APK_THEME)) -- $(APK_ARGS)
+
+apk-driver: ## Release driver APKs, split per ABI (env: APK_THEME, APK_ARGS)
+	./tools/apk/release_apk.py driver_app $(if $(APK_THEME),--theme $(APK_THEME)) -- $(APK_ARGS)
 
 up: ## Start the Docker stack
 	cd infra && docker compose up -d

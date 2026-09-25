@@ -179,6 +179,61 @@ Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) as
     );
 }
 
+/// "End your trip here?" → POST /trips/:id/end-early. The rider pays for the
+/// distance travelled, at least the tier's minimum fare — never the full
+/// up-front price. The completed sheet follows on success.
+Future<void> _confirmEndEarly(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final cubit = context.read<TripCubit>();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (_) => EndTripEarlyDialog(
+      minFare: cubit.state.trip?.minFare,
+      currency: cubit.state.trip?.currency,
+    ),
+  );
+  if (ok != true) return;
+  final ended = await cubit.endTripEarly(reason: 'Rider ended the trip');
+  if (!ended) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+          content: Text(cubit.state.error ?? 'Could not end the trip.')));
+  }
+}
+
+/// The rider's confirm for ending an in-progress ride early. Pops true to end.
+class EndTripEarlyDialog extends StatelessWidget {
+  const EndTripEarlyDialog({super.key, this.minFare, this.currency});
+
+  /// The tier's minimum fare; null on older backends (generic wording).
+  final double? minFare;
+  final String? currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final min = minFare == null
+        ? 'at least the minimum fare'
+        : 'min fare ${Fmt.money(minFare!, currency)}';
+    return AlertDialog(
+      title: const Text('End your trip here?'),
+      content: Text("You'll pay for the distance travelled ($min)."),
+      actions: [
+        TextButton(
+          key: const ValueKey('end-early-keep-riding'),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Keep riding'),
+        ),
+        FilledButton(
+          key: const ValueKey('end-early-confirm'),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('End trip here'),
+        ),
+      ],
+    );
+  }
+}
+
 /// "₹50" from the trip's configured cancellation fee, or a generic word
 /// when an older backend didn't send one.
 String _feeLabel(TripCubit cubit) {
@@ -268,6 +323,23 @@ class CancelRideDialog extends StatelessWidget {
   }
 }
 
+/// Dials the driver through [dialer]; says so, with the number spaced the
+/// way it is read, when no dialler could open it.
+Future<void> _callDriver(
+  BuildContext context,
+  String phone,
+  Future<bool> Function(String phone) dialer,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final ok = await dialer(phone);
+  if (!ok) {
+    messenger.showSnackBar(
+      SnackBar(
+          content: Text("Couldn't open the dialler for ${Fmt.phone(phone)}")),
+    );
+  }
+}
+
 /// The driver-arriving screen (matched → arrived): who is coming and when,
 /// the ride PIN, where to meet, the driver and the car, and what the rider can
 /// do. Public so it can be widget-tested without the map. [dialer] launches
@@ -286,15 +358,8 @@ class DriverInfoSheet extends StatelessWidget {
   static const String waitingForLocation =
       "Waiting for your driver's location…";
 
-  Future<void> _call(BuildContext context, String phone) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final ok = await dialer(phone);
-    if (!ok) {
-      messenger.showSnackBar(
-        SnackBar(content: Text("Couldn't open the dialler for $phone")),
-      );
-    }
-  }
+  Future<void> _call(BuildContext context, String phone) =>
+      _callDriver(context, phone, dialer);
 
   /// "I'm on my way" is worth showing once the driver is close or waiting —
   /// earlier, it would tell the driver nothing useful.
@@ -349,9 +414,16 @@ class DriverInfoSheet extends StatelessWidget {
                 ],
               ),
             ),
-            _sosButton(context, state),
             _RideMenuButton(state: state),
           ],
+        ),
+        // Safety on its own line under the headline (as on trip), so the
+        // title keeps the width and "arriving in 9 min" never wraps
+        // (audit 2026-09-25, top-10 #6).
+        const SizedBox(height: AppSpacing.xs),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: _sosButton(context, state),
         ),
         if (state.error != null) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -589,6 +661,19 @@ Color? vehicleTint(String? colorName) {
   }
 }
 
+/// The art key for the car on the driver card. Once the real car is known
+/// ("White Maruti Suzuki Dzire") the neutral grey sedan stands in for it —
+/// the booked tier's coloured art (a teal SUV for Comfort) would contradict
+/// the words beside it (audit 2026-09-25 A.14). The tier's art only while
+/// nothing is known about the car, and always for an auto or a bike (the
+/// grey art is a sedan). Public for tests.
+String driverCardArtKey(AssignedDriver? driver, String? tier) {
+  // An auto-rickshaw or a bike is never a sedan: those keep their own art.
+  if (tier == 'auto' || tier == 'bike') return tier!;
+  final known = driver?.vehicleLabel.trim().isNotEmpty ?? false;
+  return known ? 'driver' : (tier ?? 'comfort');
+}
+
 class _DriverVehicleCard extends StatelessWidget {
   const _DriverVehicleCard({required this.driver, this.tier});
 
@@ -629,7 +714,8 @@ class _DriverVehicleCard extends StatelessWidget {
                   Positioned(
                     right: 0,
                     bottom: 0,
-                    child: VehicleGlyph(tier: tier ?? 'comfort', width: 80),
+                    child: VehicleGlyph(
+                        tier: driverCardArtKey(d, tier), width: 80),
                   ),
                   Positioned(
                     left: 0,
@@ -804,43 +890,72 @@ class _RideMenuButton extends StatelessWidget {
             ));
           case 'cancel':
             _confirmCancel(context, feeWarning: true);
+          case 'end-early':
+            _confirmEndEarly(context);
         }
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem(
+      itemBuilder: (_) => [
+        const PopupMenuItem(
           value: 'share',
           child: ListTile(
             leading: Icon(PhosphorIconsRegular.export),
             title: Text('Share trip status'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'help',
           child: ListTile(
             leading: Icon(PhosphorIconsRegular.headset),
             title: Text('Help'),
           ),
         ),
-        PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'cancel',
-          child: ListTile(
-            leading: Icon(PhosphorIconsRegular.x, color: AppColors.error),
-            title: Text('Cancel ride', style: TextStyle(color: AppColors.error)),
+        const PopupMenuDivider(),
+        // Once the ride has started it can't be cancelled — only ended here.
+        if (state.phase == TripPhase.onTrip)
+          const PopupMenuItem(
+            value: 'end-early',
+            child: ListTile(
+              leading: Icon(PhosphorIconsRegular.flag,
+                  color: AppColors.error),
+              title: Text('End trip here',
+                  style: TextStyle(color: AppColors.error)),
+            ),
+          )
+        else
+          const PopupMenuItem(
+            value: 'cancel',
+            child: ListTile(
+              leading: Icon(PhosphorIconsRegular.x, color: AppColors.error),
+              title:
+                  Text('Cancel ride', style: TextStyle(color: AppColors.error)),
+            ),
           ),
-        ),
       ],
     );
   }
 }
 
-class _OnTripSheet extends StatelessWidget {
-  const _OnTripSheet({required this.state});
+/// The trip in progress. Public so it can be widget-tested; [dialer]
+/// launches the driver's number (`tel:`), injectable for tests.
+class OnTripSheet extends StatelessWidget {
+  const OnTripSheet({super.key, required this.state, this.dialer = dialPhone});
   final TripState state;
+  final Future<bool> Function(String phone) dialer;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final phone = state.driver?.phone;
+    // Plan G: a 3D icon needs something to sit on — the same soft disc as
+    // the map buttons, instead of floating in the header.
+    final discStyle = AppClay3D.on
+        ? IconButton.styleFrom(
+            backgroundColor: theme.brightness == Brightness.dark
+                ? AppColors.surfaceMutedDark
+                : AppColors.surfaceMutedLight,
+            fixedSize: const Size(48, 48),
+          )
+        : null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -851,21 +966,29 @@ class _OnTripSheet extends StatelessWidget {
         // way.
         RideStatusHeader(
           status: RideStatus.of(state),
-          trailing: IconButton(
-            tooltip: 'Message driver',
-            // Plan G: a 3D icon needs something to sit on — the same soft
-            // disc as the map buttons, instead of floating in the header.
-            style: AppClay3D.on
-                ? IconButton.styleFrom(
-                    backgroundColor:
-                        Theme.of(context).brightness == Brightness.dark
-                            ? AppColors.surfaceMutedDark
-                            : AppColors.surfaceMutedLight,
-                    fixedSize: const Size(48, 48),
-                  )
-                : null,
-            icon: _ChatIcon(unread: state.unreadMessages),
-            onPressed: () => _openTripChat(context, state),
+          // Message and Call side by side, as while the driver was on the
+          // way (audit 2026-09-25 A.21: on trip had no Call). Call only
+          // when the payload carries a number — a dead button is worse
+          // than none.
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Message driver',
+                style: discStyle,
+                icon: _ChatIcon(unread: state.unreadMessages),
+                onPressed: () => _openTripChat(context, state),
+              ),
+              if (phone != null)
+                IconButton(
+                  tooltip: 'Call driver',
+                  style: discStyle,
+                  icon: const Icon(PhosphorIconsRegular.phone),
+                  onPressed: () => _callDriver(context, phone, dialer),
+                ),
+              // ••• — Share, Help and "End trip here".
+              _RideMenuButton(state: state),
+            ],
           ),
         ),
         // Safety and Share side by side, labelled: in-trip they are the two
@@ -877,7 +1000,10 @@ class _OnTripSheet extends StatelessWidget {
             _shareButton(context, state),
           ],
         ),
-        if (_tripEtaLine(state) case final eta?) ...[
+        // The minutes are already in the headline's sub-line ("12 min to
+        // destination"): here only the clock and the distance (A.21).
+        if (_tripEtaLine(state, withMinutes: !_headlineHasMinutes(state))
+            case final eta?) ...[
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
@@ -1298,7 +1424,7 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
             if (_notice != null) ...[
               Text(_notice!,
                   style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: AppColors.warning)),
+                      ?.copyWith(color: AppColors.warningTextOf(context))),
               const SizedBox(height: AppSpacing.sm),
             ],
             AppCard(

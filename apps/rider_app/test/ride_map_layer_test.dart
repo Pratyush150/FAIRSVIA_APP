@@ -159,6 +159,29 @@ void main() {
       expect(layer(arrived).route, isEmpty);
     });
 
+    test('keeps the whole trip route on the completed screen', () {
+      // Audit 2026-09-25: the completed map peek showed only the car. The
+      // ride just driven stays drawn, untrimmed, and framed.
+      const done = TripState(
+        phase: TripPhase.completed,
+        pickup: pickup,
+        dropoff: dropoff,
+        driverLocation: car,
+        trip: Trip(
+          id: 't1',
+          status: TripStatus.completed,
+          tier: 'economy',
+          pickup: TripEndpoint(point: pickup),
+          dropoff: TripEndpoint(point: dropoff),
+          routePolyline: 'ynbnAkxqxMpBqE',
+        ),
+      );
+      final l = layer(done);
+      expect(l.route, hasLength(2));
+      expect(l.cameraFitBounds, isNotNull);
+      expect(l.cameraFitBounds, containsAll(l.route));
+    });
+
     test('a leg with no polyline draws nothing rather than guessing', () {
       const state = TripState(phase: TripPhase.onTrip, driverLocation: car);
       expect(layer(state).route, isEmpty);
@@ -166,9 +189,34 @@ void main() {
   });
 
   group('the camera box', () {
+    test('the approach frames the car itself, not only the route ends', () {
+      const state = TripState(
+        phase: TripPhase.driverEnRoute,
+        pickup: pickup,
+        dropoff: dropoff,
+        driverLocation: car,
+        driverRoutePolyline: 'ynbnAkxqxMpBqE', // any 2-point line
+      );
+      final box = layer(state).fitBounds!;
+      expect(box, contains(MapUtils.toLatLng(car)));
+    });
+
     test('is nothing at all without both ends of the trip', () {
       expect(layer(const TripState(pickup: pickup)).fitBounds, isNull);
       expect(layer(const TripState(dropoff: dropoff)).fitBounds, isNull);
+    });
+
+    test('frames the car itself during the approach, not just the route ends',
+        () {
+      // The car has moved off the route's first point since it was planned.
+      const state = TripState(
+        phase: TripPhase.driverEnRoute,
+        pickup: pickup,
+        dropoff: dropoff,
+        driverLocation: car,
+        driverRoutePolyline: 'ynbnAkxqxMpBqE',
+      );
+      expect(layer(state).fitBounds, contains(MapUtils.toLatLng(car)));
     });
 
     test('frames pickup and dropoff before a driver is on the way', () {

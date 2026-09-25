@@ -115,7 +115,7 @@ class _OtpPageState extends State<OtpPage> {
                           text: state.phone ?? 'your phone',
                           style: theme.textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimaryLight,
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
                         const TextSpan(text: '.'),
@@ -179,13 +179,14 @@ class _OtpPageState extends State<OtpPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(PhosphorIconsRegular.wrench,
-                                size: 16, color: AppColors.warning),
+                            Icon(PhosphorIconsRegular.wrench,
+                                size: 16,
+                                color: AppColors.warningTextOf(context)),
                             const SizedBox(width: AppSpacing.xs),
                             Text(
                               'Dev code: ${state.devCode}',
                               style: theme.textTheme.labelLarge?.copyWith(
-                                color: AppColors.warning,
+                                color: AppColors.warningTextOf(context),
                                 fontWeight: FontWeight.w700,
                               ),
                             ),

@@ -102,6 +102,7 @@ class Trip extends Equatable {
     this.requestedAt,
     this.completedAt,
     this.cancellationFee,
+    this.minFare,
     this.driverName,
     this.driverAvatarUrl,
     this.driverVehicleLabel,
@@ -162,6 +163,10 @@ class Trip extends Equatable {
   /// backends, in which case the UI keeps its generic wording.
   final double? cancellationFee;
 
+  /// The tier's minimum fare — what ending the ride early costs at least.
+  /// Null on older backends.
+  final double? minFare;
+
   /// The driver as a history row names them (`driver.name`) — also present
   /// on the rider's live `GET /trips/:id`. Null when no driver was assigned,
   /// on the driver's own history rows, and on older backends.
@@ -213,6 +218,7 @@ class Trip extends Equatable {
         requestedAt: _parseDate(json['requestedAt']),
         completedAt: _parseDate(json['completedAt']),
         cancellationFee: (json['cancellationFee'] as num?)?.toDouble(),
+        minFare: (json['minFare'] as num?)?.toDouble(),
         driverName: _driverField(json, 'name'),
         driverAvatarUrl: _driverField(json, 'avatarUrl'),
         driverVehicleLabel: _driverField(json, 'vehicleLabel'),
@@ -265,6 +271,7 @@ class Trip extends Equatable {
         requestedAt,
         completedAt,
         cancellationFee,
+        minFare,
         driverName,
         driverAvatarUrl,
         driverVehicleLabel,

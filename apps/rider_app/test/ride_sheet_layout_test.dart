@@ -132,6 +132,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('completed at 75%: tips and Done fit without scrolling (411×914)', (
+    tester,
+  ) async {
+    await run(tester, const [TripPhase.onTrip, TripPhase.completed]);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(tester.takeException(), isNull);
+    final screenH = 914.0;
+    final done = find.text('Done');
+    expect(done, findsOneWidget);
+    final tips = find.text('Custom');
+    expect(tips, findsWidgets);
+    final tipBottom = tester.getBottomLeft(tips.first).dy;
+    final doneTop = tester.getTopLeft(done).dy;
+    // Tip chips visible on screen, above the pinned Done — no scroll needed.
+    expect(tipBottom, lessThan(doneTop));
+    expect(doneTop, lessThan(screenH));
+    // Nothing scrolled: the first scrollable in the sheet is at offset 0 and
+    // has no extent left to scroll.
+    final scrollables = find.byType(Scrollable).evaluate().map(
+        (e) => (e as StatefulElement).state as ScrollableState);
+    for (final sc in scrollables) {
+      if (sc.position.axis == Axis.vertical && sc.position.hasContentDimensions) {
+        expect(sc.position.maxScrollExtent, lessThan(1),
+            reason: 'completed page content must fit without scrolling');
+      }
+    }
+  });
+
   testWidgets('the completed sheet (pinned Done) never overflows', (
     tester,
   ) async {

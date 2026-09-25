@@ -43,6 +43,9 @@ class VehicleGlyph extends StatelessWidget {
 
   static String _file(String tier) => switch (tier) {
         'economy' || 'comfort' || 'xl' || 'premium' => tier,
+        // The neutral light-grey sedan: a real car whose model is known but
+        // has no art of its own (the rider's driver card).
+        'driver' => tier,
         // The clay set also has India's auto-rickshaw and bike taxi.
         'auto' || 'bike' when AppColors.variant != 'midnight' => tier,
         _ => 'comfort',

@@ -72,9 +72,9 @@ class PriceComparisonCard extends StatelessWidget {
           headline,
           if (c.demandHigh) ...[
             const SizedBox(height: AppSpacing.xs),
-            const _Headline(
+            _Headline(
               icon: PhosphorIconsRegular.lightning,
-              color: AppColors.warning,
+              color: AppColors.warningTextOf(context),
               text: 'High demand — competitor prices may be higher',
             ),
           ],

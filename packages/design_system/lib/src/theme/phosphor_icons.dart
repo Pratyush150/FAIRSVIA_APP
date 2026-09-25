@@ -37,6 +37,7 @@ abstract final class PhosphorIconsRegular {
   static const IconData bank = IconData(0xe0b4, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData bell = IconData(0xe0ce, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData bellRinging = IconData(0xe5e8, fontFamily: _regularFamily, fontPackage: 'design_system');
+  static const IconData bookmarkSimple = IconData(0xe0ea, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData briefcase = IconData(0xe0ee, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData broadcast = IconData(0xe0f2, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData calendarBlank = IconData(0xe10a, fontFamily: _regularFamily, fontPackage: 'design_system');
@@ -141,6 +142,7 @@ abstract final class PhosphorIconsRegular {
 abstract final class PhosphorIconsFill {
   static const IconData checkCircle = IconData(0xe184, fontFamily: _fillFamily, fontPackage: 'design_system');
   static const IconData circle = IconData(0xe18a, fontFamily: _fillFamily, fontPackage: 'design_system');
+  static const IconData bookmarkSimple = IconData(0xe0ea, fontFamily: _fillFamily, fontPackage: 'design_system');
   static const IconData heart = IconData(0xe2a8, fontFamily: _fillFamily, fontPackage: 'design_system');
   static const IconData sealCheck = IconData(0xe606, fontFamily: _fillFamily, fontPackage: 'design_system');
   static const IconData shieldCheck = IconData(0xe40c, fontFamily: _fillFamily, fontPackage: 'design_system');
@@ -203,6 +205,7 @@ abstract final class PhosphorIconsLight {
   static const IconData gpsSlash = IconData(0xedd4, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData handHeart = IconData(0xe810, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData headset = IconData(0xe584, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
+  static const IconData bookmarkSimple = IconData(0xe0ea, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData heart = IconData(0xe2a8, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData heartbeat = IconData(0xe2ac, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData hourglass = IconData(0xe2b2, fontFamily: 'PhosphorLight', fontPackage: 'design_system');

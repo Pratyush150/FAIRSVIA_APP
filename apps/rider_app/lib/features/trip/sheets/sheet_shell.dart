@@ -64,7 +64,7 @@ class RideSheetForPhase extends StatelessWidget {
       TripPhase.searching => _FindingDriver(state: state),
       TripPhase.driverEnRoute => DriverInfoSheet(state: state, arrived: false),
       TripPhase.driverArrived => DriverInfoSheet(state: state, arrived: true),
-      TripPhase.onTrip => _OnTripSheet(state: state),
+      TripPhase.onTrip => OnTripSheet(state: state),
       TripPhase.completed => CompletedSheet(state: state),
       TripPhase.error => _ErrorCard(
         message: state.error ?? 'Something went wrong',
@@ -157,7 +157,7 @@ class _SheetWarning extends StatelessWidget {
           child: Text(
             message,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.warning,
+              color: AppColors.warningTextOf(context),
             ),
           ),
         ),
@@ -168,7 +168,15 @@ class _SheetWarning extends StatelessWidget {
 
 /// On-trip readout: "Arriving 3:42 PM · 12 min · 4.1 mi to go" built from the
 /// live progress, or from the routed estimate before the first ping.
-String? _tripEtaLine(TripState state) {
+/// True when the live headline already says the minutes left ("12 min to
+/// destination"), so a second line must not repeat them.
+bool _headlineHasMinutes(TripState state) =>
+    RideStatus.of(state).subtitle?.contains(' min') ?? false;
+
+/// "Arriving 2:23 PM · 12 min · 4.1 km to go"; without the minutes
+/// ("Arriving 2:23 PM · 4.1 km to go") when [withMinutes] is false because
+/// they are shown elsewhere on the same sheet.
+String? _tripEtaLine(TripState state, {bool withMinutes = true}) {
   final secs = state.liveEtaSec ?? state.estimate?.durationS;
   final metres = state.liveRemainingM ?? state.estimate?.distanceM;
   if (secs == null) return null;
@@ -178,7 +186,9 @@ String? _tripEtaLine(TripState state) {
       '$h:${arrival.minute.toString().padLeft(2, '0')} ${arrival.hour < 12 ? 'AM' : 'PM'}';
   final mins = (secs / 60).ceil().clamp(1, 999);
   final dist = metres == null ? '' : ' · ${Fmt.distance(metres)} to go';
-  return 'Arriving $clock · $mins min$dist';
+  return withMinutes
+      ? 'Arriving $clock · $mins min$dist'
+      : 'Arriving $clock$dist';
 }
 
 /// Opens the safety toolkit (SOS) for the active trip.
@@ -230,21 +240,33 @@ Widget _shareButton(BuildContext context, TripState state) => _RidePill(
   onTap: () => _shareTrip(context, state),
 );
 
+/// Shares the trip text with the public live-tracking link when the backend
+/// issues one; without it if that request fails (never blocks sharing).
 void _shareTrip(BuildContext context, TripState state) {
-  shareTripText(context, riderTripShareText(state));
+  final tripId = state.trip?.id;
+  if (tripId == null) {
+    shareTripText(context, riderTripShareText(state));
+    return;
+  }
+  shareTripTextWithLink(
+    context,
+    riderTripShareText(state),
+    fetchLink: () => sl<SafetyRemoteDataSource>().tripShareLink(tripId),
+  );
 }
 
 /// `I'm on a RideVela ride to PLACE. Car: VEHICLE, plate PLATE. Driver: NAME.`
-/// — shared by the Share pill, the ••• menu and the safety
-/// sheet. No live-tracking link: the backend issues none yet, so none is
-/// invented here.
+/// — shared by the Share pill, the ••• menu and the safety sheet, each of
+/// which appends `Track my ride live: URL` once the backend has issued the
+/// trip's public tracking link (see [shareTripTextWithLink]).
 String riderTripShareText(TripState state) {
   final d = state.driver;
   return tripShareText(
     brand: AppBrand.name,
     destination: state.dropoffAddr,
     vehicle: d?.vehicleLabel,
-    plate: d?.plate,
+    // Spaced the way it is painted ("MH 12 AB 3456"), as on the card.
+    plate: d?.plate == null ? null : Market.current.formatPlate(d!.plate!),
     driverName: d?.name,
   );
 }

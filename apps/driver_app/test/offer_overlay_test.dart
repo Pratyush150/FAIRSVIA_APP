@@ -69,7 +69,7 @@ void main() {
     expect(find.text('6 min · 1.4 mi to pickup'), findsOneWidget);
     expect(find.text('Est. fare · 4.3 mi · 14 min trip'), findsOneWidget);
     expect(find.text('12 Main St'), findsOneWidget);
-    expect(find.text('→ Airport T1'), findsOneWidget);
+    expect(find.text('Airport T1'), findsOneWidget);
     expect(find.text('Ava Rider'), findsOneWidget);
     expect(find.text('Accept'), findsOneWidget);
     expect(find.text('Decline'), findsOneWidget);
@@ -104,7 +104,7 @@ void main() {
 
     expect(find.textContaining('to pickup'), findsNothing);
     expect(find.text('Est. fare · 4.3 mi trip'), findsOneWidget);
-    expect(find.text('→ Dropoff location'), findsOneWidget);
+    expect(find.text('Drop-off location'), findsOneWidget);
 
     await teardown(tester);
   });

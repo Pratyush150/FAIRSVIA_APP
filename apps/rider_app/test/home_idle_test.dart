@@ -267,16 +267,16 @@ void main() {
     expect(picked?.point, const GeoPoint(18.58, 73.92));
   });
 
-  testWidgets('heart saves the current place; saved shows filled', (
+  testWidgets('bookmark saves the current place; saved shows filled', (
     tester,
   ) async {
     var taps = 0;
     await pump(tester, home(onHeart: () => taps++));
-    expect(find.byIcon(PhosphorIconsRegular.heart), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.bookmarkSimple), findsOneWidget);
     await tester.tap(find.byTooltip('Save this place'));
     expect(taps, 1);
     await pump(tester, home(isSaved: true));
-    expect(find.byIcon(PhosphorIconsFill.heart), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsFill.bookmarkSimple), findsOneWidget);
   });
 
   testWidgets('search bar opens search and pins to the top on scroll', (
@@ -332,6 +332,44 @@ void main() {
   testWidgets('offers page lists promos', (tester) async {
     await pump(tester, const OffersPage(promos: kMockPromos));
     expect(find.byType(PromoBanner), findsWidgets);
+  });
+
+  // The app launches in several markets (Central Asia / Middle East first):
+  // the Home's own copy must not name a city. Only the rider's real
+  // address (the address chip) may.
+  final cityName = RegExp(
+    r'pune|india|maharashtra|shaniwar|mumbai|delhi',
+    caseSensitive: false,
+  );
+  List<String> visibleTexts(WidgetTester tester) => [
+    for (final t in tester.widgetList<Text>(find.byType(Text)))
+      t.data ?? t.textSpan?.toPlainText() ?? '',
+  ];
+
+  testWidgets('home chrome, promos and footer name no city', (tester) async {
+    await pump(tester, home());
+    final seen = <String>{};
+    seen.addAll(visibleTexts(tester));
+    await tester.scrollUntilVisible(
+      find.byType(BrandFooter),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    seen.addAll(visibleTexts(tester));
+    seen.remove('Mote Mangal Karyalay Rd, Dattwadi, Pune'); // the rider's GPS
+    expect(seen, contains('Ride anywhere in the city'));
+    expect(seen, contains('Rides, made simple'));
+    expect(seen.where(cityName.hasMatch), isEmpty);
+    // Promos are photo banners.
+    for (final b in tester.widgetList<PromoBanner>(find.byType(PromoBanner))) {
+      expect(b.image, isNotNull, reason: b.headline);
+    }
+  });
+
+  testWidgets('offers page names no city', (tester) async {
+    await pump(tester, const OffersPage(promos: kMockPromos));
+    expect(visibleTexts(tester).where(cityName.hasMatch), isEmpty);
+    expect(find.text('Book your airport ride ahead'), findsOneWidget);
   });
 
   for (final size in const [Size(360, 640), Size(411, 914)]) {

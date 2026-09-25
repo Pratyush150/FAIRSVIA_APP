@@ -427,7 +427,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
       ? savedPlaceAt(_savedPlaces, _myLocation, _myLocationAddr)
       : null;
 
-  /// The heart on the address chip: saves where the rider is now through the
+  /// The bookmark on the address chip: saves where the rider is now through the
   /// Saved places API. Already saved → it just says so (removing lives in
   /// Saved places, where it can be undone deliberately).
   Future<void> _toggleSavedHere() async {
@@ -912,10 +912,10 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                         bottom: false,
                         child: Padding(
                           padding: const EdgeInsets.all(AppSpacing.md),
-                          child: Align(
-                            alignment: Alignment.topRight,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                          // Menu top-left in every phase, as on Home (audit
+                          // 2026-09-25 #7); recenter sits opposite, top-right.
+                          child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 AppCircleButton(
                                   icon: PhosphorIconsRegular.list,
@@ -933,7 +933,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                                     _loadSavedPlaces();
                                   },
                                 ),
-                                const SizedBox(height: AppSpacing.sm),
+                                const Spacer(),
                                 // One control, two meanings — and it says
                                 // which. During a ride it centres the CAR; at
                                 // rest it centres the rider. A button labelled
@@ -949,7 +949,6 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                                   onPressed: _recenterToMe,
                                 ),
                               ],
-                            ),
                           ),
                         ),
                       ),

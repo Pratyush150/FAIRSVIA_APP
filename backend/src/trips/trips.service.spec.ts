@@ -102,7 +102,7 @@ describe('TripsService', () => {
       { route: jest.fn().mockResolvedValue(route) } as never,
       sms as never,
     );
-    return { svc, store, redis, prisma, created, surge, stateMachine, realtime, notifications, dispatch, payments, sms };
+    return { svc, store, redis, prisma, pricing, created, surge, stateMachine, realtime, notifications, dispatch, payments, sms };
   }
 
   const baseDto = {
@@ -249,6 +249,169 @@ describe('TripsService', () => {
     });
   });
 
+  describe('complete anywhere + fare rules (audit: 0 m / 11 s trip charged the full estimate)', () => {
+    // Rupee-like tier: base 20 + 10/km + 1/min + booking 5, minimum 30.
+    // Estimate 89 → clamp window [71.2, 133.5].
+    const trip = {
+      id: 'trip-1', riderId: 'rider-1', driverId: 'driver-1', status: TripStatus.in_progress,
+      tier: 'economy', distanceM: 6000, durationS: 900, fareEstimate: 89, surgeMultiplier: 1,
+      promoDiscount: 0, currency: 'INR', paymentMode: 'cash',
+      pickupLat: pickup.lat, pickupLng: pickup.lng, dropoffLat: dropoff.lat, dropoffLng: dropoff.lng,
+    };
+    function setup(o: { drivenM?: number; ageS: number; at?: { lat: number; lng: number } | null }) {
+      const ctx = make();
+      ctx.pricing.minFareFor.mockReturnValue(30);
+      ctx.pricing.estimateForTier.mockImplementation(
+        (tier: string, d: number, t: number, s = 1) => {
+          const b = {
+            baseFare: 20 * s, distanceFare: (d / 1000) * 10 * s,
+            timeFare: (t / 60) * s, bookingFee: 5, surgeMultiplier: s,
+          };
+          const sum = b.baseFare + b.distanceFare + b.timeFare + b.bookingFee;
+          return { tier, fare: Math.max(sum, 30), breakdown: b };
+        },
+      );
+      ctx.prisma.trip.findUnique.mockResolvedValue({
+        ...trip, startedAt: new Date(Date.now() - o.ageS * 1000),
+      });
+      // The receipt's fareFinal is what capture charged: echo the settled fare.
+      ctx.payments.captureForTrip.mockImplementation(async () => ({
+        fareFinal: Number(ctx.stateMachine.transition.mock.calls[0][0].data.fareFinal),
+        platformFee: 0, driverPayout: 0,
+      }));
+      if (o.drivenM !== undefined) ctx.store[RedisKeys.tripDriven('trip-1')] = String(o.drivenM);
+      if (o.at) {
+        ctx.store[RedisKeys.driverLoc('driver-1')] = {
+          lat: String(o.at.lat), lng: String(o.at.lng), ts: String(Date.now()),
+        };
+      }
+      return ctx;
+    }
+
+    it('Complete at the pickup ENDS the trip (owner rule) at the minimum fare, never the estimate', async () => {
+      const { svc, stateMachine } = setup({ drivenM: 0, ageS: 11, at: pickup });
+      const r = await svc.completeTrip('driver-1', 'trip-1');
+      expect(r.fareFinal).toBe(30);
+      expect(r.breakdown.fareBasis).toBe('minimum');
+      expect(r.breakdown.endedEarly).toBe(true);
+      expect(r.breakdown.endedAwayFromDropoffM).toBeGreaterThan(500);
+      expect(stateMachine.transition).toHaveBeenCalledWith(
+        expect.objectContaining({ to: TripStatus.completed }),
+      );
+    });
+
+    it('no fix and barely driven: charged as a short trip, not the estimate', async () => {
+      const { svc } = setup({ drivenM: 0, ageS: 11, at: null });
+      const r = await svc.completeTrip('driver-1', 'trip-1');
+      expect(r.fareFinal).toBe(30);
+      expect(r.breakdown.endedAwayFromDropoffM).toBeUndefined();
+    });
+
+    it('early end at the pickup charges the minimum fare, never the estimate', async () => {
+      const { svc, stateMachine } = setup({ drivenM: 0, ageS: 11, at: pickup });
+      const r = await svc.completeTrip('driver-1', 'trip-1', {
+        endEarly: true, reason: 'Rider cancelled in the car',
+      });
+      expect(r.fareFinal).toBe(30);
+      expect(r.distanceM).toBe(0);
+      expect(r.breakdown.fareBasis).toBe('minimum');
+      expect(r.breakdown.minimumFareAdjustment).toBeGreaterThan(0);
+      expect(r.breakdown.fareAdjustment).toBe(0);
+      expect(r.breakdown.endedEarly).toBe(true);
+      expect(r.breakdown.endReason).toBe('Rider cancelled in the car');
+      expect(stateMachine.transition).toHaveBeenCalledWith(
+        expect.objectContaining({ meta: { breakdown: expect.objectContaining({ fareBasis: 'minimum' }) } }),
+      );
+    });
+
+    it('early end after a real partial drive charges metered, not lifted to 0.8x the estimate', async () => {
+      // 1.5 km, 5 min: 20 + 15 + 5 + 5 = 45 (< 71.2 the clamp floor would give).
+      const { svc } = setup({ drivenM: 1500, ageS: 300, at: pickup });
+      const r = await svc.completeTrip('driver-1', 'trip-1', { endEarly: true, reason: 'Rider asked' });
+      expect(r.fareFinal).toBe(45);
+      expect(r.breakdown.fareBasis).toBe('metered');
+      expect(r.breakdown.endedEarly).toBe(true);
+    });
+
+    it('completing away from the drop-off after a real drive is charged as a short trip', async () => {
+      const { svc } = setup({ drivenM: 1500, ageS: 300, at: pickup });
+      const r = await svc.completeTrip('driver-1', 'trip-1');
+      expect(r.fareFinal).toBe(45);
+      expect(r.breakdown.fareBasis).toBe('metered');
+      expect(r.breakdown.endedEarly).toBe(true);
+      expect(r.breakdown.endReason).toBeUndefined();
+    });
+
+    it('a short trip is still capped at FARE_CLAMP_MAX x the estimate', async () => {
+      // Spoofed odometer: 50 km. Cap = 133.5 → 134 (whole rupees).
+      const { svc } = setup({ drivenM: 50_000, ageS: 300, at: pickup });
+      const r = await svc.completeTrip('driver-1', 'trip-1', { endEarly: true, reason: 'x' });
+      expect(r.fareFinal).toBe(134);
+      expect(r.breakdown.fareBasis).toBe('estimate');
+      expect(r.breakdown.fareAdjustment).toBeLessThan(0);
+    });
+
+    it('normal trip at the drop-off: metered distance + time, whole rupees', async () => {
+      // 5 km, 10 min: 20 + 50 + 10 + 5 = 85 — inside [71.2, 133.5].
+      const { svc } = setup({ drivenM: 5000, ageS: 600, at: dropoff });
+      const r = await svc.completeTrip('driver-1', 'trip-1');
+      expect(r.fareFinal).toBe(85);
+      expect(r.breakdown.fareBasis).toBe('metered');
+      expect(r.breakdown.minimumFareAdjustment).toBe(0);
+      expect(r.breakdown.fareAdjustment).toBe(0);
+    });
+
+    it('normal trip at the drop-off, metered below the clamp: lifted to 0.8x (as an estimate adjustment, not "minimum fare")', async () => {
+      // 1 km, 10 min: 20 + 10 + 10 + 5 = 45 → floor 71.2 → 71.
+      const { svc } = setup({ drivenM: 1000, ageS: 600, at: dropoff });
+      const r = await svc.completeTrip('driver-1', 'trip-1');
+      expect(r.fareFinal).toBe(71);
+      expect(r.breakdown.fareBasis).toBe('estimate');
+      expect(r.breakdown.minimumFareAdjustment).toBe(0);
+      expect(r.breakdown.fareAdjustment).toBeCloseTo(26, 2);
+    });
+
+    it('at the drop-off with a sparse GPS trail (< 50 m) the estimate stands', async () => {
+      const { svc } = setup({ drivenM: 10, ageS: 900, at: dropoff });
+      const r = await svc.completeTrip('driver-1', 'trip-1');
+      expect(r.fareFinal).toBe(89);
+      expect(r.breakdown.fareBasis).toBe('estimate');
+    });
+
+    it('rider "End trip here" (POST /end-early): min/metered fare, both parties get the receipt', async () => {
+      const { svc, stateMachine, realtime } = setup({ drivenM: 0, ageS: 20, at: pickup });
+      const r = await svc.endTripEarly('rider-1', 'trip-1');
+      expect(r.fareFinal).toBe(30);
+      expect(r.breakdown.fareBasis).toBe('minimum');
+      expect(r.breakdown.endedEarly).toBe(true);
+      expect(r.breakdown.endReason).toBe('Rider ended the trip');
+      expect(stateMachine.transition).toHaveBeenCalledWith(
+        expect.objectContaining({ to: TripStatus.completed, actor: 'rider' }),
+      );
+      expect(realtime.emitToUser).toHaveBeenCalledWith('rider-1', 'trip:completed', expect.anything());
+      expect(realtime.emitToUser).toHaveBeenCalledWith('driver-1', 'trip:completed', expect.anything());
+    });
+
+    it('end-early is refused for a stranger and for a ride that has not started', async () => {
+      const { svc, prisma } = setup({ drivenM: 0, ageS: 20, at: pickup });
+      await expect(svc.endTripEarly('someone-else', 'trip-1')).rejects.toThrow('Not your trip');
+      prisma.trip.findUnique.mockResolvedValue({ ...trip, status: TripStatus.accepted });
+      const err = await svc.endTripEarly('rider-1', 'trip-1').catch((e) => e);
+      expect(err.getResponse().code).toBe('TRIP_NOT_IN_PROGRESS');
+    });
+
+    it('a stale fix is not trusted: a real trail with no fresh fix settles normally', async () => {
+      const ctx = setup({ drivenM: 5000, ageS: 600, at: null });
+      ctx.store[RedisKeys.driverLoc('driver-1')] = {
+        lat: String(pickup.lat), lng: String(pickup.lng),
+        ts: String(Date.now() - ARRIVAL_FIX_MAX_AGE_MS - 1000),
+      };
+      const r = await ctx.svc.completeTrip('driver-1', 'trip-1');
+      expect(r.fareFinal).toBe(85);
+      expect(r.breakdown.endedEarly).toBe(false);
+    });
+  });
+
   describe('arrival geofence', () => {
     const trip = {
       id: 'trip-1', riderId: 'rider-1', driverId: 'driver-1', status: TripStatus.accepted,
@@ -313,7 +476,13 @@ describe('TripsService', () => {
       const { svc, prisma, realtime, stateMachine, notifications, redis } = make();
       prisma.trip.findUnique.mockResolvedValue(trip);
       const receipt = await svc.completeTrip('driver-1', 'trip-1');
-      const breakdown = { ...breakdownFor(1), promoDiscount: 0, tip: 0, minimumFareAdjustment: 0 };
+      // No GPS trail and no fix proving the car reached the drop-off: charged
+      // as a short trip on what was metered (this mock prices it at the
+      // itemised sum), never silently the up-front estimate.
+      const breakdown = {
+        ...breakdownFor(1), promoDiscount: 0, tip: 0, minimumFareAdjustment: 0,
+        fareAdjustment: 0, fareBasis: 'metered', endedEarly: false,
+      };
       expect(receipt.breakdown).toEqual(breakdown);
       expect(realtime.emitToUser).toHaveBeenCalledWith('rider-1', 'trip:completed', expect.objectContaining({ breakdown }));
       expect(realtime.emitToUser).toHaveBeenCalledWith('driver-1', 'trip:completed', expect.objectContaining({ breakdown }));

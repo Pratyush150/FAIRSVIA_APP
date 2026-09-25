@@ -1274,8 +1274,28 @@ describe('PaymentsService', () => {
       expect(receipt.breakdown).toEqual({
         baseFare: 2.5, distanceFare: 6, timeFare: 2.4, bookingFee: 1.5, surgeMultiplier: 1.2, promoDiscount: 1, tip: 2,
         minimumFareAdjustment: 0,
+        // Older events carry no basis: null, never a guessed "metered".
+        fareAdjustment: 0, fareBasis: null, endedEarly: false, endReason: null,
+        endedAwayFromDropoffM: null,
       });
       expect(receipt.fare).toBe(12);
+    });
+
+    it('replays how the fare was reached (basis, early end, reason)', async () => {
+      const prisma: any = makePrisma();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      prisma.tripEvent.findFirst.mockResolvedValue({
+        meta: { breakdown: {
+          baseFare: 20, distanceFare: 0, timeFare: 0.2, bookingFee: 5, surgeMultiplier: 1,
+          promoDiscount: 0, tip: 0, minimumFareAdjustment: 4.8, fareAdjustment: 0,
+          fareBasis: 'minimum', endedEarly: true, endReason: 'Rider changed plans',
+        } },
+      });
+      const receipt = await makeService(prisma as never).getReceipt('r1', 't1');
+      expect(receipt.breakdown).toMatchObject({
+        minimumFareAdjustment: 4.8, fareBasis: 'minimum', endedEarly: true,
+        endReason: 'Rider changed plans',
+      });
     });
 
     it('is null for trips completed before breakdowns were persisted', async () => {

@@ -18,6 +18,7 @@ IconData phosphorFillTwin(IconData icon) {
     0xe0b4 => const IconData(0xe0b4, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // bank
     0xe0ce => const IconData(0xe0ce, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // bell
     0xe5e8 => const IconData(0xe5e8, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // bellRinging
+    0xe0ea => const IconData(0xe0ea, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // bookmarkSimple
     0xe0ee => const IconData(0xe0ee, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // briefcase
     0xe0f2 => const IconData(0xe0f2, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // broadcast
     0xe10a => const IconData(0xe10a, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // calendarBlank

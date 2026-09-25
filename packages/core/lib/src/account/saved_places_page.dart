@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+
+import '../theme/app_modal_sheet.dart';
 import 'package:shared_models/shared_models.dart';
 
 import '../network/api_exception.dart';
@@ -35,7 +37,7 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
   }
 
   Future<void> _addOrEdit([SavedPlace? existing]) async {
-    final picked = await showModalBottomSheet<_PlaceForm>(
+    final picked = await showAppModalSheet<_PlaceForm>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _PlaceEditorSheet(
@@ -113,7 +115,9 @@ class _SavedPlacesPageState extends State<SavedPlacesPage> {
         key: ValueKey(_reloadTick),
         load: widget.users.listPlaces,
         isEmpty: (list) => list.isEmpty,
-        emptyIcon: PhosphorIconsRegular.star,
+        // Saved places are a bookmark everywhere (audit item 11: heart on
+        // Home, star here; star means rating, heart means favourite driver).
+        emptyIcon: PhosphorIconsRegular.bookmarkSimple,
         emptyTitle: 'No saved places',
         emptyMessage: 'Save Home, Work, or anywhere you go often.',
         builder: (context, list, _) => ListView(

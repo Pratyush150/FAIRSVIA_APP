@@ -16,6 +16,10 @@ class FareBreakdown extends Equatable {
     this.promoDiscount = 0,
     this.tip = 0,
     this.minimumFareAdjustment = 0,
+    this.fareAdjustment = 0,
+    this.fareBasis,
+    this.endedEarly = false,
+    this.endReason,
   });
 
   final double baseFare;
@@ -32,7 +36,39 @@ class FareBreakdown extends Equatable {
   /// the lines add up to the headline (0 when the minimum didn't apply).
   final double minimumFareAdjustment;
 
+  /// Signed move from the metered parts to the charged fare when the
+  /// up-front quote bounded it (not a minimum-fare top-up).
+  final double fareAdjustment;
+
+  /// How the headline was reached: `metered` (distance + time driven),
+  /// `minimum` (the tier's minimum fare) or `estimate` (bounded by / fell back
+  /// to the up-front price). Null for trips settled before it was recorded.
+  final String? fareBasis;
+
+  /// The driver ended the trip before the drop-off, and why.
+  final bool endedEarly;
+  final String? endReason;
+
   bool get hasMinimumFare => minimumFareAdjustment > 0;
+  bool get hasFareAdjustment => fareAdjustment.abs() >= 0.005;
+
+  /// One truthful line on how the fare was worked out; null when unknown.
+  String? get basisNote {
+    final early = endedEarly
+        ? 'Trip ended before the drop-off'
+            '${endReason == null || endReason!.isEmpty ? '' : ' ($endReason)'}. '
+        : '';
+    final how = switch (fareBasis) {
+      'metered' => 'Metered on the distance and time driven.',
+      'minimum' => 'Minimum fare applied.',
+      'estimate' => endedEarly
+          ? 'Capped at your up-front price.'
+          : 'Based on your up-front price.',
+      _ => null,
+    };
+    if (how == null && early.isEmpty) return null;
+    return '$early${how ?? ''}'.trim();
+  }
 
   /// Surge worth calling out (a 1.0× line would only add noise).
   bool get hasSurge => surgeMultiplier > 1.0 + 1e-9;
@@ -53,6 +89,10 @@ class FareBreakdown extends Equatable {
     tip: (json['tip'] as num?)?.toDouble() ?? 0,
     minimumFareAdjustment:
         (json['minimumFareAdjustment'] as num?)?.toDouble() ?? 0,
+    fareAdjustment: (json['fareAdjustment'] as num?)?.toDouble() ?? 0,
+    fareBasis: json['fareBasis'] as String?,
+    endedEarly: json['endedEarly'] == true,
+    endReason: json['endReason'] as String?,
   );
 
   FareBreakdown copyWith({double? tip}) => FareBreakdown(
@@ -64,6 +104,10 @@ class FareBreakdown extends Equatable {
     promoDiscount: promoDiscount,
     tip: tip ?? this.tip,
     minimumFareAdjustment: minimumFareAdjustment,
+    fareAdjustment: fareAdjustment,
+    fareBasis: fareBasis,
+    endedEarly: endedEarly,
+    endReason: endReason,
   );
 
   @override
@@ -76,5 +120,9 @@ class FareBreakdown extends Equatable {
     promoDiscount,
     tip,
     minimumFareAdjustment,
+    fareAdjustment,
+    fareBasis,
+    endedEarly,
+    endReason,
   ];
 }

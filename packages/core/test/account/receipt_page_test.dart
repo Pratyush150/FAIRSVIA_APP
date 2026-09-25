@@ -217,6 +217,55 @@ void main() {
     expect(find.text('Booking fee'), findsNothing);
   });
 
+  testWidgets('an early end at the minimum fare says "minimum", not "metered"',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: FareBreakdownRows(
+          currency: 'INR',
+          breakdown: FareBreakdown(
+            baseFare: 45,
+            distanceFare: 0,
+            timeFare: 1,
+            bookingFee: 4,
+            minimumFareAdjustment: 25,
+            fareBasis: 'minimum',
+            endedEarly: true,
+            endReason: 'Rider changed plans',
+          ),
+        ),
+      ),
+    ));
+    expect(find.text('Minimum fare'), findsOneWidget);
+    expect(
+        find.text('Trip ended before the drop-off (Rider changed plans). '
+            'Minimum fare applied.'),
+        findsOneWidget);
+    expect(find.textContaining('Metered'), findsNothing);
+  });
+
+  testWidgets('a quote-bounded fare is an adjustment, never "Minimum fare"',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: FareBreakdownRows(
+          currency: 'INR',
+          breakdown: FareBreakdown(
+            baseFare: 20,
+            distanceFare: 10,
+            timeFare: 10,
+            bookingFee: 5,
+            fareAdjustment: 26,
+            fareBasis: 'estimate',
+          ),
+        ),
+      ),
+    ));
+    expect(find.text('Minimum fare'), findsNothing);
+    expect(find.text('Up-front price adjustment'), findsOneWidget);
+    expect(find.text('Based on your up-front price.'), findsOneWidget);
+  });
+
   testWidgets('a cash trip says so', (tester) async {
     await show(
       tester,

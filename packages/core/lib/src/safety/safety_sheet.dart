@@ -1,5 +1,7 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+
+import '../theme/app_modal_sheet.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -60,8 +62,8 @@ Future<void> _platformShare(String text, Rect? origin) async {
 TripTextSharer tripTextSharer = _platformShare;
 
 /// The rider's "Share trip status" text — who is driving, which car, where
-/// to. [trackingUrl] is appended only when a live-tracking link really exists
-/// (none is issued today; never invent one).
+/// to. [trackingUrl] (the backend's public live-tracking link) is appended
+/// only when one was really issued; never invent one.
 String tripShareText({
   required String brand,
   String? destination,
@@ -82,9 +84,36 @@ String tripShareText({
   }
   final name = _orNull(driverName);
   if (name != null) b.write(' Driver: $name.');
+  return withTrackingLink(b.toString(), trackingUrl);
+}
+
+/// [text] with the live-tracking line appended (`Track my ride live: URL`),
+/// or unchanged when there is no real link.
+String withTrackingLink(String text, String? trackingUrl) {
   final url = _orNull(trackingUrl);
-  if (url != null) b.write(' Track it live: $url');
-  return b.toString();
+  return url == null ? text : '$text Track my ride live: $url';
+}
+
+/// Asks for the trip's live-tracking link first, then shares [text] with it
+/// appended. The link is a bonus, never a gate: if [fetchLink] fails, returns
+/// null or takes longer than [timeout], the text is shared without it.
+Future<void> shareTripTextWithLink(
+  BuildContext context,
+  String text, {
+  required Future<String?> Function() fetchLink,
+  Duration timeout = const Duration(seconds: 4),
+}) async {
+  String? url;
+  try {
+    url = await fetchLink().timeout(timeout);
+  } catch (_) {
+    url = null;
+  }
+  final full = withTrackingLink(text, url);
+  if (context.mounted) return shareTripText(context, full);
+  try {
+    await tripTextSharer(full, null);
+  } catch (_) {}
 }
 
 String? _orNull(String? s) {
@@ -129,7 +158,7 @@ Future<void> showSafetySheet(
   SafetyLocator? locate,
   Future<bool> Function(Uri uri)? launch,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppModalSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -251,7 +280,11 @@ class _SafetySheetState extends State<SafetySheet> {
     );
   }
 
-  Future<void> _shareTrip() => shareTripText(context, widget.shareText);
+  Future<void> _shareTrip() => shareTripTextWithLink(
+        context,
+        widget.shareText,
+        fetchLink: () => widget.safety.tripShareLink(widget.tripId),
+      );
 
   Future<void> _manageContacts() async {
     await Navigator.of(context).push(MaterialPageRoute(
@@ -283,9 +316,12 @@ class _SafetySheetState extends State<SafetySheet> {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('CALL EMERGENCY SERVICES',
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: secondary, letterSpacing: 0.8)),
+          // Sentence case, never all caps (audit 2026-09-25 item 9).
+          Semantics(
+            header: true,
+            child: Text('Call emergency services',
+                style: theme.textTheme.titleSmall?.copyWith(color: secondary)),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
@@ -359,9 +395,12 @@ class _CallTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
+    // onTap on the node itself: excludeSemantics drops the InkWell's action,
+    // which left the tiles exposed as clickable=false (audit 2026-09-25).
     return Semantics(
       button: true,
       label: 'Call ${number.label}, ${number.number}',
+      onTap: onTap,
       excludeSemantics: true,
       child: Material(
         color: dark ? AppColors.errorSoftDark : AppColors.errorSoft,
@@ -403,10 +442,14 @@ class _SosExplainer extends StatelessWidget {
     final c = contacts;
     final String text;
     if (c == null) {
-      text = 'Sends your location, the car and its plate.';
+      // One helper line in every phase (audit item 9: en route and on trip
+      // showed different text while contacts were still loading).
+      text = 'Alerts ${AppBrand.name} safety with your location, the car and '
+          'its plate.';
     } else if (c.isEmpty) {
-      text = "Alerts ${AppBrand.name} safety. You haven't added emergency "
-          "contacts, so nobody you know will be texted.";
+      text = 'Alerts ${AppBrand.name} safety with your location, the car and '
+          "its plate. You haven't added emergency contacts, so nobody you "
+          'know will be texted.';
     } else {
       final n = c.map((x) => x.name).toList();
       final names = n.length == 1

@@ -221,6 +221,72 @@ class AppMap extends StatefulWidget {
       math.pow(2, zoom).toDouble() /
       (156543.03392 * math.cos(lat * math.pi / 180));
 
+  /// A screen point from the native SDK's own projection
+  /// (`getScreenCoordinate`) in logical pixels. Android reports physical
+  /// pixels; iOS (points) and web (CSS pixels) are already logical.
+  @visibleForTesting
+  static Offset nativeToLogical(Offset native, double devicePixelRatio,
+      {required bool android}) {
+    if (!android || devicePixelRatio <= 0) return native;
+    return native / devicePixelRatio;
+  }
+
+  /// How far the radar overlay's own projection ([screenPoint]) is from
+  /// where the native map actually draws the pickup, or zero when the
+  /// measurement is not believable (bigger than the map itself).
+  ///
+  /// The overlay only learns the camera from `onCameraMove`, so any camera
+  /// change the SDK makes without reporting a move (a padding change
+  /// re-centres the camera target on the new padded area; a fit that
+  /// throws) leaves it projecting from a stale camera. That is how the
+  /// finding-driver rings ended up ~280 px under the pickup (audit
+  /// 2026-09-25 #2, `r-finding-dark.jpg`): a vertical-only shift, the
+  /// signature of the sheet-height padding changing between "Choose a ride"
+  /// and "Finding your driver". Measuring the real point and carrying the
+  /// difference anchors the rings whatever the cause.
+  @visibleForTesting
+  static Offset pulseCorrection(Offset predicted, Offset actual, Size size) {
+    final d = actual - predicted;
+    if (!d.dx.isFinite || !d.dy.isFinite) return Offset.zero;
+    if (d.distance > size.longestSide) return Offset.zero;
+    return d;
+  }
+
+  /// Pixels of breathing room around a fitted bounds, wide enough that the
+  /// car and the plate tag hanging under it are never clipped by the screen
+  /// edge when the car is at a corner of the box (audit 2026-09-25 #6, the
+  /// plate half off screen in `r-enroute-dark-early.jpg`).
+  @visibleForTesting
+  static double fitPaddingFor(double plateTagWidth) =>
+      math.max(56, math.max(carMarkerWidth, plateTagWidth) / 2 + 16);
+
+  /// Zoom that fits [pts] into a [box] of logical pixels (Web Mercator,
+  /// 256-px tiles). Used when the padded area is too small for the SDK's own
+  /// newLatLngBounds, which throws on Android ("View size is too small after
+  /// padding is applied") and left the completed screen's map on the car
+  /// with no route in view (`r-completed-dark.jpg`).
+  @visibleForTesting
+  static double fitZoom(List<LatLng> pts, Size box) {
+    double x(double lng) => (lng + 180) / 360 * 256;
+    double y(double lat) {
+      final s = math.sin(lat.clamp(-85.0, 85.0) * math.pi / 180);
+      return (0.5 - math.log((1 + s) / (1 - s)) / (4 * math.pi)) * 256;
+    }
+
+    var minX = double.infinity, maxX = -double.infinity;
+    var minY = double.infinity, maxY = -double.infinity;
+    for (final p in pts) {
+      minX = math.min(minX, x(p.longitude));
+      maxX = math.max(maxX, x(p.longitude));
+      minY = math.min(minY, y(p.latitude));
+      maxY = math.max(maxY, y(p.latitude));
+    }
+    final dx = math.max(maxX - minX, 1e-9);
+    final dy = math.max(maxY - minY, 1e-9);
+    final scale = math.min(box.width / dx, box.height / dy);
+    return (math.log(scale) / math.ln2).clamp(3.0, 18.0);
+  }
+
   /// Plan D (`THEME=local`): the pickup radar is a kolam, not rings — the
   /// [Kolam] dot grid laid out on the ground at [kolamUnitM] metres a step.
   static const double kolamUnitM = 42;
@@ -315,6 +381,24 @@ class AppMap extends StatefulWidget {
     final insideLng = target.longitude >= sw.longitude + lngSpan * margin &&
         target.longitude <= ne.longitude - lngSpan * margin;
     return !(insideLat && insideLng);
+  }
+
+  /// [needsEdgePan] measured on screen: whether [car] (logical pixels) sits
+  /// outside the middle band of the map area left uncovered by [padding]
+  /// (the sheet below, the controls above). The SDK's visible region is the
+  /// whole view on some platforms, so a car hidden behind a tall glass card
+  /// still counted as "on screen" and the camera never moved.
+  @visibleForTesting
+  static bool needsEdgePanOnScreen(Offset car, Size size, EdgeInsets padding,
+      {double margin = edgeMargin}) {
+    final w = size.width - padding.horizontal;
+    final h = size.height - padding.vertical;
+    if (w <= 0 || h <= 0) return false;
+    final inX = car.dx >= padding.left + w * margin &&
+        car.dx <= padding.left + w * (1 - margin);
+    final inY = car.dy >= padding.top + h * margin &&
+        car.dy <= padding.top + h * (1 - margin);
+    return !(inX && inY);
   }
 
   /// Fraction of the viewport's half-span the camera aims *past* the car, in
@@ -471,6 +555,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   }
   gmaps.BitmapDescriptor? _plateTagIcon; // Plan F plate tag under the car
   String? _plateTagFor;
+  double _plateTagWidth = 0;
 
   Future<void> _loadPlateTag() async {
     final plate = widget.driverPlateTag;
@@ -485,7 +570,10 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       final icon =
           gmaps.BitmapDescriptor.bytes(tag.png, width: tag.size.width);
       if (mounted && widget.driverPlateTag == plate) {
-        setState(() => _plateTagIcon = icon);
+        setState(() {
+          _plateTagIcon = icon;
+          _plateTagWidth = tag.size.width;
+        });
       }
     } catch (_) {
       // No tag rather than a broken one; the plate is still on the card.
@@ -556,6 +644,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   void dispose() {
     _pulseTimer?.cancel();
     _camera.dispose();
+    _pulseCorrection.dispose();
+    _radarVisibility.dispose();
     _driverAnim.dispose();
     super.dispose();
   }
@@ -566,6 +656,49 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   // (a dot grid laid on the ground, not a candidate for the overlay yet).
   Timer? _pulseTimer;
   final Stopwatch _pulseClock = Stopwatch();
+
+  // Where the native map really draws the pickup, relative to where the
+  // overlay's own projection puts it (see [AppMap.pulseCorrection]).
+  // Re-measured when the camera settles, while it moves (throttled), and
+  // after the padding or the pickup changes.
+  final ValueNotifier<Offset> _pulseCorrection = ValueNotifier(Offset.zero);
+  Size? _mapSize;
+  final RadarVisibility _radarVisibility = RadarVisibility();
+
+  Future<void> _measurePulse() async {
+    final at = widget.pulseAt;
+    final size = _mapSize;
+    if (at == null || AppVariant.local || size == null || size.isEmpty) return;
+    if (!_controller.isCompleted) return;
+    final c = await _controller.future;
+    try {
+      final sc = await c.getScreenCoordinate(_g(at));
+      if (!mounted || widget.pulseAt != at) return;
+      final cam = _camera.value;
+      final predicted = AppMap.screenPoint(
+          at,
+          LatLng(cam.target.latitude, cam.target.longitude),
+          cam.zoom,
+          size,
+          widget.boundsPadding);
+      final actual = AppMap.nativeToLogical(
+          Offset(sc.x.toDouble(), sc.y.toDouble()),
+          MediaQuery.maybeDevicePixelRatioOf(context) ?? 1,
+          android: !kIsWeb && defaultTargetPlatform == TargetPlatform.android);
+      _pulseCorrection.value = AppMap.pulseCorrection(predicted, actual, size);
+    } catch (_) {
+      // No projection yet (map not laid out); the next idle retries.
+    }
+  }
+
+  void _measurePulseSoon() {
+    if (widget.pulseAt == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 250), () {
+        if (mounted) _measurePulse();
+      });
+    });
+  }
 
   // The camera as the map last reported it, for the overlay to follow. Fed
   // from onCameraMove (synchronous data, no platform round-trip) and read by
@@ -729,11 +862,25 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         Future<void>.delayed(const Duration(milliseconds: 120), () {
           if (!mounted) return;
           _lastFittedBounds = null;
-          _fit();
+          if (widget.fitBounds != null) {
+            _fit();
+          } else if (widget.cameraMode == MapCameraMode.followDriverEdge) {
+            // Following with nothing to fit: a taller sheet may have just
+            // covered the car, so check it against the new visible area.
+            _followDriverEdge();
+          }
         });
       });
     } else if (!_sameBounds(old.fitBounds, widget.fitBounds)) {
       _fit();
+    }
+    if (old.boundsPadding != widget.boundsPadding ||
+        old.pulseAt != widget.pulseAt) {
+      if (widget.pulseAt == null) {
+        _pulseCorrection.value = Offset.zero;
+      } else {
+        _measurePulseSoon();
+      }
     }
     if (AppMap.recenterChanged(old, widget)) {
       _setFollowing(true);
@@ -866,12 +1013,44 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     if (!mounted || _userPanned) return;
     final sw = LatLng(region.southwest.latitude, region.southwest.longitude);
     final ne = LatLng(region.northeast.latitude, region.northeast.longitude);
-    if (!AppMap.needsEdgePan(target, sw, ne)) return;
+    // Judge on screen against the uncovered area (the sheet height is in
+    // boundsPadding); fall back to the lat/lng box if there is no projection.
+    bool? offBand;
+    final size = _mapSize;
+    if (size != null && !size.isEmpty) {
+      try {
+        final sc = await c.getScreenCoordinate(_g(target));
+        if (!mounted) return;
+        final car = AppMap.nativeToLogical(
+            Offset(sc.x.toDouble(), sc.y.toDouble()),
+            MediaQuery.maybeDevicePixelRatioOf(context) ?? 1,
+            android:
+                !kIsWeb && defaultTargetPlatform == TargetPlatform.android);
+        offBand =
+            AppMap.needsEdgePanOnScreen(car, size, widget.boundsPadding);
+      } catch (_) {
+        offBand = null;
+      }
+    }
+    if (!(offBand ?? AppMap.needsEdgePan(target, sw, ne))) return;
+    if (_userPanned) return;
     _programmaticUntil = DateTime.now().add(_programmaticWindow);
     // Aim PAST the car along its heading so the road it is about to drive
     // fills the screen, instead of re-centring it and handing half the
     // viewport back to the road already behind it.
-    final aim = AppMap.lookAhead(target, _driverBearing, sw, ne);
+    // The lead is a share of the visible box; when a tall sheet covers most
+    // of it, shrink the lead to the uncovered share so the car is not pushed
+    // straight back into the margin (or under the card).
+    var lead = AppMap.lookAheadFraction;
+    if (size != null && size.width > 0 && size.height > 0) {
+      final p = widget.boundsPadding;
+      lead *= math.min(
+        ((size.width - p.horizontal) / size.width).clamp(0.0, 1.0),
+        ((size.height - p.vertical) / size.height).clamp(0.0, 1.0),
+      );
+    }
+    final aim =
+        AppMap.lookAhead(target, _driverBearing, sw, ne, fraction: lead);
     // newLatLng, not newLatLngZoom: keep whatever zoom is on screen.
     await c.animateCamera(gmaps.CameraUpdate.newLatLng(_g(aim)));
   }
@@ -930,8 +1109,10 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     return true;
   }
 
-  // Pixels of breathing room left around a fitted bounds.
-  static const double _boundsPixelPadding = 56;
+  // Pixels of breathing room left around a fitted bounds: room for the car
+  // and its plate tag (see [AppMap.fitPaddingFor]).
+  double get _boundsPixelPadding => AppMap.fitPaddingFor(
+      _plateTagIcon == null ? 0 : _plateTagWidth);
   // Below this diagonal span the two framed points are effectively on top of
   // each other (the car has nearly reached its target); a bounds-fit would
   // over-zoom or throw, so we centre + hold a street-level zoom instead.
@@ -969,9 +1150,55 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       );
       return;
     }
-    await c.animateCamera(
-      gmaps.CameraUpdate.newLatLngBounds(_boundsOf(pts), _boundsPixelPadding),
-    );
+    final pad = _boundsPixelPadding;
+    final size = _mapSize;
+    final p = widget.boundsPadding;
+    // What is left of the map once the sheet (padding) and the breathing room
+    // are taken off. The completed sheet leaves a strip a few dozen pixels
+    // tall, where the SDK's newLatLngBounds throws on Android and the camera
+    // never moved at all.
+    final avail = size == null
+        ? null
+        : Size(size.width - p.horizontal - 2 * pad,
+            size.height - p.vertical - 2 * pad);
+    Future<void> fitByZoom() {
+      final box = avail == null
+          ? const Size(160, 160)
+          : Size(math.max(avail.width, 48), math.max(avail.height, 48));
+      final b = _boundsOf(pts);
+      final centre = gmaps.LatLng(
+        (b.southwest.latitude + b.northeast.latitude) / 2,
+        (b.southwest.longitude + b.northeast.longitude) / 2,
+      );
+      return c.animateCamera(
+        gmaps.CameraUpdate.newLatLngZoom(centre, AppMap.fitZoom(pts, box)),
+      );
+    }
+
+    try {
+      if (avail != null && (avail.width < 48 || avail.height < 48)) {
+        await fitByZoom();
+      } else {
+        await c.animateCamera(
+          gmaps.CameraUpdate.newLatLngBounds(_boundsOf(pts), pad),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      try {
+        await fitByZoom();
+      } catch (_) {
+        // Leave the camera; the next phase or recenter re-frames it.
+      }
+    }
+    // A fit frames the box's ends, but the car can drift out of it before the
+    // next GPS fix triggers an edge check (early en route the car and its
+    // plate sat half off the left edge). Check once the animation settles.
+    if (widget.cameraMode == MapCameraMode.followDriverEdge) {
+      Future<void>.delayed(const Duration(milliseconds: 900), () {
+        if (mounted) _followDriverEdge();
+      });
+    }
   }
 
   /// True when every point of [a] is within [m] metres of the matching point
@@ -1410,6 +1637,10 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         widget.onMapReady?.call();
       },
       onCameraMoveStarted: () {
+        // The overlay follows the camera a frame or more late on a fast drag
+        // (the positions arrive over the platform channel), so the rings
+        // leave the map while it moves and come back when it settles.
+        _radarVisibility.cameraMoving();
         // Don't decide yet: a pinch and a drag both land here. Remember where
         // the centre was and classify once the gesture settles.
         if (!_isProgrammatic && widget.cameraMode != MapCameraMode.fit) {
@@ -1424,6 +1655,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         _lastCameraTarget = pos.target;
         _lastCameraZoom = pos.zoom;
         _camera.value = pos;
+        // Covers a move whose start the platform did not report.
+        _radarVisibility.cameraMoving();
       },
       onCameraIdle: () {
         final start = _gestureStartTarget;
@@ -1446,6 +1679,12 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           if (AppMap.isUserGesture(moved, zoomed)) _setFollowing(false);
         }
         _programmaticUntil = null;
+        // Back in only once the pickup has been re-measured at the settled
+        // camera, so the rings reappear on the pin, not where they were.
+        final idleAt = _radarVisibility.idleSeq;
+        _measurePulse().whenComplete(() {
+          if (mounted) _radarVisibility.cameraIdle(idleAt);
+        });
         final t = _lastCameraTarget;
         if (t != null && widget.onCenterChanged != null) {
           widget.onCenterChanged!(LatLng(t.latitude, t.longitude));
@@ -1455,7 +1694,9 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     // Always a Stack with the map first, radar or not: switching between a
     // bare map and a Stack would re-parent the GoogleMap and recreate the
     // native view (a visible flash) the moment a search starts or ends.
-    return Stack(
+    return LayoutBuilder(builder: (context, box) {
+      _mapSize = box.biggest;
+      return Stack(
       fit: StackFit.expand,
       children: [
         map,
@@ -1466,12 +1707,44 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
             child: _PickupPulse(
               at: pulseAt,
               camera: _camera,
+              correction: _pulseCorrection,
+              visibility: _radarVisibility,
               padding: widget.boundsPadding,
               still: reduceMotion,
             ),
           ),
       ],
     );
+    });
+  }
+}
+
+/// Whether the pickup radar may be on screen: hidden the moment the camera
+/// starts moving (a drag, a pinch or our own animation), shown again once it
+/// is idle and the pickup has been re-measured. A Flutter overlay trails an
+/// async platform camera on a fast drag, and rings sliding behind the map
+/// read as a glitch (owner, 2026-09-25); rings that step aside and return on
+/// the pin do not.
+class RadarVisibility extends ValueNotifier<bool> {
+  RadarVisibility() : super(true);
+
+  static const Duration fadeOut = Duration(milliseconds: 120);
+  static const Duration fadeIn = Duration(milliseconds: 300);
+
+  int _moves = 0;
+
+  /// Token for [cameraIdle]: a re-measure that finishes after a newer move
+  /// has started must not bring the rings back mid-drag.
+  int get idleSeq => _moves;
+
+  void cameraMoving() {
+    _moves++;
+    value = false;
+  }
+
+  void cameraIdle([int? seq]) {
+    if (seq != null && seq != _moves) return;
+    value = true;
   }
 }
 
@@ -1484,12 +1757,17 @@ class _PickupPulse extends StatefulWidget {
   const _PickupPulse({
     required this.at,
     required this.camera,
+    required this.correction,
+    required this.visibility,
     required this.padding,
     required this.still,
   });
 
+  final ValueListenable<bool> visibility;
+
   final LatLng at;
   final ValueListenable<gmaps.CameraPosition> camera;
+  final ValueListenable<Offset> correction;
   final EdgeInsets padding;
   final bool still;
 
@@ -1534,16 +1812,29 @@ class _PickupPulseState extends State<_PickupPulse>
 
   @override
   Widget build(BuildContext context) {
-    return RepaintBoundary(
+    return ValueListenableBuilder<bool>(
+      valueListenable: widget.visibility,
+      builder: (context, shown, child) => AnimatedOpacity(
+        opacity: shown ? 1 : 0,
+        // Reduce Motion: no fade, the rings simply step out and back.
+        duration: widget.still
+            ? Duration.zero
+            : (shown ? RadarVisibility.fadeIn : RadarVisibility.fadeOut),
+        curve: Curves.easeOut,
+        child: child,
+      ),
+      child: RepaintBoundary(
       child: CustomPaint(
         size: Size.infinite,
         painter: _PickupPulsePainter(
           at: widget.at,
           camera: widget.camera,
+          correction: widget.correction,
           progress: _c,
           padding: widget.padding,
           color: AppColors.highlight,
         ),
+      ),
       ),
     );
   }
@@ -1553,13 +1844,15 @@ class _PickupPulsePainter extends CustomPainter {
   _PickupPulsePainter({
     required this.at,
     required this.camera,
+    required this.correction,
     required this.progress,
     required this.padding,
     required this.color,
-  }) : super(repaint: Listenable.merge([camera, progress]));
+  }) : super(repaint: Listenable.merge([camera, correction, progress]));
 
   final LatLng at;
   final ValueListenable<gmaps.CameraPosition> camera;
+  final ValueListenable<Offset> correction;
   final Animation<double> progress;
   final EdgeInsets padding;
   final Color color;
@@ -1568,7 +1861,8 @@ class _PickupPulsePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cam = camera.value;
     final target = LatLng(cam.target.latitude, cam.target.longitude);
-    final centre = AppMap.screenPoint(at, target, cam.zoom, size, padding);
+    final centre = AppMap.screenPoint(at, target, cam.zoom, size, padding) +
+        correction.value;
     final ppm = AppMap.pixelsPerMetre(at.latitude, cam.zoom);
     // Metres on the ground, but kept to a readable size on screen whatever
     // the zoom: never a speck, never a disc swallowing the map.
@@ -1606,5 +1900,6 @@ class _PickupPulsePainter extends CustomPainter {
       old.padding != padding ||
       old.color != color ||
       old.camera != camera ||
+      old.correction != correction ||
       old.progress != progress;
 }

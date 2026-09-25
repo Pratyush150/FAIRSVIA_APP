@@ -66,6 +66,8 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
     final showing = !widget.connected || _confirming;
     final text =
         widget.connected ? widget.reconnectedMessage : widget.message;
+    // Dark ink on the ochre, white on the deep green: both ≥4.5:1.
+    final ink = widget.connected ? Colors.white : AppColors.onWarning;
     return AnimatedSize(
       duration: AppMotion.of(context, AppMotion.normal),
       alignment: Alignment.topCenter,
@@ -76,7 +78,9 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
               container: true,
               label: text,
               child: Material(
-                color: widget.connected ? AppColors.success : AppColors.warning,
+                color: widget.connected
+                    ? AppColors.successBanner
+                    : AppColors.warning,
                 child: SafeArea(
                   bottom: false,
                   child: Padding(
@@ -88,23 +92,23 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (widget.connected)
-                          const Icon(PhosphorIconsRegular.check,
-                              size: 16, color: Colors.white)
+                          Icon(PhosphorIconsRegular.check,
+                              size: 16, color: ink)
                         else
-                          const SizedBox(
+                          SizedBox(
                             width: 14,
                             height: 14,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                              valueColor: AlwaysStoppedAnimation(ink),
                             ),
                           ),
                         const SizedBox(width: AppSpacing.sm),
                         Flexible(
                           child: Text(
                             text,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: ink,
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
                             ),

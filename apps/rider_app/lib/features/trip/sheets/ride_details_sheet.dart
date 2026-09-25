@@ -91,8 +91,11 @@ class RideDetailsContent extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'The final fare is metered on the distance actually '
-                      'driven.',
+                      // Truthful for every settlement rule: metered within
+                      // the quote's bounds, or the minimum fare if the trip
+                      // ends early (see TripsService.settleFare).
+                      'The final fare is based on the distance and time '
+                      'actually driven.',
                       style: theme.textTheme.bodySmall,
                     ),
                   ),
@@ -156,8 +159,10 @@ class RideDetailsContent extends StatelessWidget {
                     _RideDetailRow(
                       icon: PhosphorIconsRegular.ticket,
                       label: 'Plate',
-                      value: plate,
-                      spokenValue: AppA11y.spell(plate),
+                      // Spaced as on the driver card and the map tag.
+                      value: Market.current.formatPlate(plate),
+                      spokenValue:
+                          AppA11y.spell(Market.current.formatPlate(plate)),
                     ),
                 ],
               ),

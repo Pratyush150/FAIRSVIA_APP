@@ -12,7 +12,7 @@ class BrandFooter extends StatelessWidget {
   const BrandFooter({
     super.key,
     this.tagline = '#RideVela',
-    this.subtitle = 'Rides, the Pune way',
+    this.subtitle = 'Rides, made simple',
   });
 
   final String tagline;
@@ -75,8 +75,8 @@ class BrandFooter extends StatelessWidget {
   }
 }
 
-/// A gentle Pune skyline — a hill fort's ridge, low blocks, a temple
-/// spire — over a curving road with a dashed centre line, all in [color]
+/// A gentle, generic modern skyline — distant hills, low blocks, two slim
+/// glass towers with antenna masts — over a curving road with a dashed centre line, all in [color]
 /// at low opacity. Deterministic: the same size paints the same picture.
 class BrandFooterPainter extends CustomPainter {
   const BrandFooterPainter({required this.color, required this.dark});
@@ -130,44 +130,48 @@ class BrandFooterPainter extends CustomPainter {
         ),
       );
     }
-    // A temple spire (shikhara) with its small flag.
-    final sx = w * 0.40, sw = w * 0.07;
-    final spire = Path()
-      ..moveTo(sx, base)
-      ..lineTo(sx, base - h * 0.16)
-      ..quadraticBezierTo(
-        sx + sw * 0.1,
-        base - h * 0.46,
-        sx + sw / 2,
-        base - h * 0.56,
+    // Two slim glass towers: a stepped one with a mast, and a tapered one.
+    // Generic modern city — no landmark, no religious or regional motif.
+    final tx = w * 0.38, tw = w * 0.05;
+    final tower = Path()
+      ..addRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(tx, base - h * 0.44, tw, h * 0.44),
+          topLeft: const Radius.circular(2),
+          topRight: const Radius.circular(2),
+        ),
       )
-      ..quadraticBezierTo(
-        sx + sw * 0.9,
-        base - h * 0.46,
-        sx + sw,
-        base - h * 0.16,
-      )
-      ..lineTo(sx + sw, base)
+      ..addRect(
+        Rect.fromLTWH(tx + tw * 0.2, base - h * 0.54, tw * 0.6, h * 0.10),
+      );
+    blocks.addPath(tower, Offset.zero);
+    final t2x = w * 0.445, t2w = w * 0.045;
+    final tower2 = Path()
+      ..moveTo(t2x, base)
+      ..lineTo(t2x, base - h * 0.30)
+      ..lineTo(t2x + t2w * 0.35, base - h * 0.46)
+      ..lineTo(t2x + t2w, base - h * 0.40)
+      ..lineTo(t2x + t2w, base)
       ..close();
-    blocks.addPath(spire, Offset.zero);
+    blocks.addPath(tower2, Offset.zero);
     blocks.addRect(Rect.fromLTWH(0, base - 1, w, 2));
     canvas.drawPath(blocks, fill(0.11 * k));
-    final flagX = sx + sw / 2;
+    // Antenna mast on the stepped tower.
+    final mastX = tx + tw / 2;
     canvas.drawLine(
-      Offset(flagX, base - h * 0.56),
-      Offset(flagX, base - h * 0.68),
+      Offset(mastX, base - h * 0.54),
+      Offset(mastX, base - h * 0.70),
       Paint()
         ..color = color.withValues(alpha: 0.14 * k)
         ..strokeWidth = 1.2,
     );
-    canvas.drawPath(
-      Path()
-        ..moveTo(flagX, base - h * 0.68)
-        ..lineTo(flagX + w * 0.022, base - h * 0.64)
-        ..lineTo(flagX, base - h * 0.60)
-        ..close(),
-      fill(0.16 * k),
-    );
+    // Faint window bands on the towers.
+    final bands = Paint()
+      ..color = color.withValues(alpha: 0.07 * k)
+      ..strokeWidth = 1;
+    for (var y = base - h * 0.40; y < base - h * 0.04; y += h * 0.07) {
+      canvas.drawLine(Offset(tx + 2, y), Offset(tx + tw - 2, y), bands);
+    }
 
     // The road: a soft band sweeping in from the left.
     final road = Path()

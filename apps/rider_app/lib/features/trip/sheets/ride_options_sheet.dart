@@ -42,7 +42,7 @@ class _RideOptions extends StatelessWidget {
             child: Text(
               'Fares are higher due to demand (${estimate.surge.toStringAsFixed(1)}x)',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.warning,
+                color: AppColors.warningTextOf(context),
               ),
             ),
           ),
@@ -63,7 +63,7 @@ class _RideOptions extends StatelessWidget {
                   child: Text(
                     state.error!,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.warning,
+                      color: AppColors.warningTextOf(context),
                     ),
                   ),
                 ),
@@ -83,6 +83,9 @@ class _RideOptions extends StatelessWidget {
             for (final (i, tier) in _listOrder(estimate.tiers).indexed)
               _RideTierTile(
                 tier: tier,
+                // The request for this tier just came back with no driver:
+                // the estimate's "Pickup in 4 min" is no longer true.
+                noDrivers: _noDriversFor(state, tier.tier),
                 tripDurationS: estimate.durationS,
                 selected: tier.tier == state.selectedTier,
                 // No car of this type nearby: shown, dimmed, not pickable —
@@ -173,7 +176,8 @@ class _BookForSomeoneElseRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Ride for ${passenger.displayName}',
+                // No name given: the number, spaced as it is read aloud.
+                'Ride for ${(passenger.name?.trim().isEmpty ?? true) ? Fmt.phone(passenger.phone) : passenger.displayName}',
                 style: theme.textTheme.bodyMedium,
               ),
               Text(
@@ -208,7 +212,10 @@ Future<TripPassenger?> _askPassenger(
   TripPassenger? existing,
 ) {
   final nameCtrl = TextEditingController(text: existing?.name ?? '');
-  final phoneCtrl = TextEditingController(text: existing?.phone ?? '');
+  // Spaced for reading ("+91 98765 43210"); toE164 strips the spaces again.
+  final phoneCtrl = TextEditingController(
+    text: existing == null ? '' : Fmt.phone(existing.phone),
+  );
   return showDialog<TripPassenger>(
     context: context,
     builder: (dialogCtx) {
@@ -373,6 +380,13 @@ class _StopsSection extends StatelessWidget {
     );
   }
 }
+
+/// Whether [tier] is the one a ride request just came back from with no
+/// driver ([TripCubit.noDriversNearby]; the cubit keeps the booked tier
+/// selected when it drops back to the options).
+bool _noDriversFor(TripState state, String tier) =>
+    state.error == TripCubit.noDriversNearby &&
+    (state.trip?.tier ?? state.selectedTier) == tier;
 
 String _confirmLabel(TripState state) {
   final fare = state.selectedFare;
@@ -963,12 +977,21 @@ class _PromoFieldState extends State<_PromoField> {
 class _RideTierTile extends StatelessWidget {
   const _RideTierTile({
     required this.tier,
+    this.noDrivers = false,
     required this.tripDurationS,
     required this.selected,
     required this.onTap,
   });
 
   final FareTier tier;
+
+  /// True when a request for this tier has just found no driver: the row
+  /// then shows no pickup ETA ("No cars nearby") although the estimate
+  /// quoted one. It stays pickable so the rider can try again.
+  final bool noDrivers;
+
+  /// The pickup ETA to show, or null when there is none to promise.
+  int? get _eta => noDrivers ? null : tier.etaSeconds;
 
   /// Pickup → destination drive time, for the "Drop 11:41 PM" estimate.
   final int tripDurationS;
@@ -981,7 +1004,7 @@ class _RideTierTile extends StatelessWidget {
   Widget build(BuildContext context) {
     if (AppVariant.local) return _buildLocal(context);
     final theme = Theme.of(context);
-    final eta = tier.etaSeconds;
+    final eta = _eta;
     return Semantics(
       selected: selected,
       button: true,
@@ -1148,7 +1171,7 @@ class _RideTierTile extends StatelessWidget {
   Widget _buildLocal(BuildContext context) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
-    final eta = tier.etaSeconds;
+    final eta = _eta;
     final ink = AppColors.inkFor(dark);
     return Semantics(
       selected: selected,

@@ -42,6 +42,20 @@ class RideStatus {
   /// the headline is focused, so nothing on screen is hidden from a reader.
   final String? momentDetail;
 
+  /// [title] as drawn: the ticking part ([momentDetail], "arriving in 9 min")
+  /// joined with non-breaking spaces so a narrow screen or a large text size
+  /// can only wrap *before* it — "Amit / arriving in 9 min" — and never
+  /// orphan "min" on a line of its own ("Amit arriving in 9 / min", audit
+  /// 2026-09-25 A.21). [title] keeps plain spaces for readers and tests.
+  String get displayTitle {
+    final detail = momentDetail;
+    if (detail == null || !title.contains(detail)) return title;
+    return title.replaceFirst(detail, detail.replaceAll(' ', nbsp));
+  }
+
+  /// The non-breaking space [displayTitle] glues the ETA phrase with.
+  static const String nbsp = '\u00A0';
+
   /// At or below this ETA the driver counts as "almost here" — close enough
   /// that the rider should start walking out, not keep watching the map.
   static const int almostHereSec = 150; // 2.5 min → rounds to "2 min"

@@ -66,13 +66,13 @@ class RideStatusHeader extends StatelessWidget {
                       // THEME=ink: the status headline is a serif moment,
                       // with balanced lines ("Rahul arriving / in 3 min").
                       ? BalancedText(
-                          status.title,
+                          status.displayTitle,
                           key: ValueKey(status.title),
                           style:
                               theme.textTheme.headlineSmall?.serifMoment(32),
                         )
-                      : Text(
-                          status.title,
+                      : _UnbrokenTitle(
+                          status.displayTitle,
                           key: ValueKey(status.title),
                           style: theme.textTheme.headlineSmall,
                         ),
@@ -114,5 +114,53 @@ class RideStatusHeader extends StatelessWidget {
       case RideStatusTone.neutral:
         return Theme.of(context).textTheme.bodyMedium?.color;
     }
+  }
+}
+
+/// The headline, never broken inside its non-breaking ETA phrase.
+///
+/// [RideStatus.displayTitle] glues "arriving in 9 min" together so it wraps
+/// as a unit. If even that unit is wider than the line (a 360 dp phone at
+/// 1.3× text), Flutter would split it character by character; instead the
+/// size steps down just enough for the longest unbroken run to fit, so the
+/// title stays at most "Name / arriving in 9 min".
+class _UnbrokenTitle extends StatelessWidget {
+  const _UnbrokenTitle(this.text, {super.key, this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final base = DefaultTextStyle.of(context).style.merge(style);
+        var fitted = base;
+        final maxWidth = constraints.maxWidth;
+        final size = base.fontSize;
+        if (maxWidth.isFinite && size != null) {
+          final scaler = MediaQuery.textScalerOf(context);
+          // The widest run the line breaker may not split.
+          var widest = 0.0;
+          for (final run in text.split(' ')) {
+            final painter = TextPainter(
+              text: TextSpan(text: run, style: base),
+              textDirection: Directionality.of(context),
+              textScaler: scaler,
+              maxLines: 1,
+            )..layout();
+            if (painter.width > widest) widest = painter.width;
+            painter.dispose();
+          }
+          if (widest > maxWidth) {
+            // Floor, not round: a half pixel over still splits the run.
+            fitted = base.copyWith(
+              fontSize: (size * maxWidth / widest * 100).floorToDouble() / 100,
+            );
+          }
+        }
+        return Text(text, style: fitted);
+      },
+    );
   }
 }

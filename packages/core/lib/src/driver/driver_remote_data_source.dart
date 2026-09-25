@@ -157,11 +157,20 @@ class DriverRemoteDataSource {
   Future<void> start(String tripId, String otp) =>
       _guard(() => _dio.post('/trips/$tripId/start', data: {'otp': otp}));
 
-  /// Completes the trip and returns the settlement receipt (fareFinal,
-  /// driverPayout, paymentMode, ...).
-  Future<Map<String, dynamic>> complete(String tripId) async {
+  /// Completes the trip wherever the car is and returns the settlement
+  /// receipt (fareFinal, driverPayout, paymentMode, breakdown ...). Away from
+  /// the drop-off the server charges metered with the minimum-fare floor;
+  /// [endEarly] + [reason] records an explicit early end.
+  Future<Map<String, dynamic>> complete(
+    String tripId, {
+    bool endEarly = false,
+    String? reason,
+  }) async {
     final res = await _guard(
-      () => _dio.post<Map<String, dynamic>>('/trips/$tripId/complete'),
+      () => _dio.post<Map<String, dynamic>>(
+        '/trips/$tripId/complete',
+        data: endEarly ? {'endEarly': true, 'reason': reason} : null,
+      ),
     );
     return res.data ?? const {};
   }

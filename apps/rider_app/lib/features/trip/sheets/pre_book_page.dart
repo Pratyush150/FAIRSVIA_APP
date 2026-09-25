@@ -247,7 +247,7 @@ class _PreBookPageState extends State<PreBookPage> {
                     const SizedBox(height: AppSpacing.md),
                     Text(_notice!,
                         style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: AppColors.warning)),
+                            ?.copyWith(color: AppColors.warningTextOf(context))),
                   ],
                   if (_error != null) ...[
                     const SizedBox(height: AppSpacing.md),

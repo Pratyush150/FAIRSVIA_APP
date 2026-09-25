@@ -137,7 +137,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
               Center(
             child: _HeroIcon(
               asset: 'done',
-              size: 72,
+              size: 56,
               fallback: Container(
                 width: 64,
                 height: 64,
@@ -222,13 +222,13 @@ class _CompletedSheetState extends State<CompletedSheet> {
                     child: Text(
                       'Pay ${Fmt.money(fare + tip, state.receipt?.currency)} in cash to your driver',
                       style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.warning),
+                          ?.copyWith(color: AppColors.warningTextOf(context)),
                     ),
                   ),
                 ],
               ),
             ),
-          SizedBox(height: InkPaper.on ? AppSpacing.xxxl : AppSpacing.xl),
+          SizedBox(height: InkPaper.on ? AppSpacing.xxxl : AppSpacing.md),
           // Rating
           Center(
               child: Text('Rate your driver',
@@ -265,7 +265,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
               driverName: state.driver!.name,
             ),
           ],
-          SizedBox(height: InkPaper.on ? AppSpacing.xxxl : AppSpacing.xl),
+          SizedBox(height: InkPaper.on ? AppSpacing.xxxl : AppSpacing.md),
           if (InkPaper.on) ...[
             const InkRule(),
             const SizedBox(height: AppSpacing.xl),

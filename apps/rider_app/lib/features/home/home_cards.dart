@@ -69,9 +69,8 @@ Future<bool> showRatePastRideSheet(
   String? driverName,
 }) async {
   final name = firstName(driverName ?? trip.driverName);
-  final saved = await showModalBottomSheet<bool>(
+  final saved = await showAppModalSheet<bool>(
     context: context,
-    showDragHandle: true,
     builder: (ctx) => _RatePastRide(
       title: name == null
           ? 'How was your last ride?'

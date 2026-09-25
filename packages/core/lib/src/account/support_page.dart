@@ -1,5 +1,7 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+
+import '../theme/app_modal_sheet.dart';
 import 'package:shared_models/shared_models.dart';
 
 import '../network/api_exception.dart';
@@ -47,7 +49,7 @@ class _SupportPageState extends State<SupportPage> {
   }
 
   Future<void> _newTicket() async {
-    final created = await showModalBottomSheet<SupportTicket>(
+    final created = await showAppModalSheet<SupportTicket>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _NewTicketSheet(support: widget.support),

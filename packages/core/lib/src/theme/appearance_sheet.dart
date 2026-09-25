@@ -1,6 +1,7 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 
+import 'app_modal_sheet.dart';
 import 'theme_controller.dart';
 
 /// Light / Dark / Same as phone — the Appearance picker.
@@ -8,9 +9,8 @@ Future<void> showAppearanceSheet(
   BuildContext context,
   ThemeController controller,
 ) {
-  return showModalBottomSheet<void>(
+  return showAppModalSheet<void>(
     context: context,
-    showDragHandle: true,
     builder: (ctx) => SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(

@@ -117,7 +117,26 @@ export interface ReceiptBreakdown extends FareBreakdown {
   /** Top-up applied when the metered components fell below the tier's
    *  minimum fare, so the itemised lines always add up to the headline. */
   minimumFareAdjustment: number;
+  /** Signed move from the metered components to the charged fare when the
+   *  [FARE_CLAMP_MIN, FARE_CLAMP_MAX] × estimate bound (or the up-front
+   *  fallback) applied — NOT a minimum-fare top-up. 0 when metered as-is. */
+  fareAdjustment: number;
+  /** How the headline was reached, so apps word it truthfully:
+   *  metered  — distance + time actually driven;
+   *  minimum  — the tier's minimum fare (metered parts fell below it);
+   *  estimate — bounded by / fell back to the up-front estimate. */
+  fareBasis: FareBasis;
+  /** The driver ended the trip away from the drop-off (with a reason). */
+  endedEarly: boolean;
+  endReason?: string;
+  /** Where the trip ended, when that was away from the drop-off (metres). */
+  endedAwayFromDropoffM?: number;
 }
+
+export type FareBasis = 'metered' | 'minimum' | 'estimate';
+
+/** Odometer below this is "no usable GPS trail". */
+export const MIN_TRAIL_M = 50;
 
 @Injectable()
 export class TripsService {
@@ -618,22 +637,97 @@ export class TripsService {
     );
   }
 
-  async completeTrip(driverId: string, tripId: string) {
+  /**
+   * POST /trips/:id/end-early — either party ends an in-progress ride where
+   * the car is now. Settles like the driver's explicit early end: metered on
+   * what was driven, floored at the tier minimum (never the estimate), and
+   * both apps get the usual `trip:completed` receipt.
+   */
+  async endTripEarly(userId: string, tripId: string, reason?: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) throw new NotFoundException('Trip not found');
+    const byRider = trip.riderId === userId;
+    if (!byRider && trip.driverId !== userId) {
+      throw new ForbiddenException('Not your trip');
+    }
+    if (trip.status !== TripStatus.in_progress || !trip.driverId) {
+      throw new BadRequestException({
+        code: 'TRIP_NOT_IN_PROGRESS',
+        message: 'Only a ride that has started can be ended early.',
+      });
+    }
+    const why =
+      reason?.trim() || (byRider ? 'Rider ended the trip' : 'Driver ended the trip');
+    return this.completeTrip(trip.driverId, tripId, {
+      endEarly: true,
+      reason: why,
+      endedBy: byRider ? 'rider' : 'driver',
+    });
+  }
+
+  /** Metres from the driver's last FRESH fix to the drop-off; null when there
+   *  is no fix or it is too old to trust (the guard is then skipped). */
+  private async driverDistanceToDropoff(
+    driverId: string,
+    trip: Trip,
+  ): Promise<number | null> {
+    const loc = await this.redis.client.hgetall(RedisKeys.driverLoc(driverId));
+    const lat = Number(loc?.lat);
+    const lng = Number(loc?.lng);
+    const ts = Number(loc?.ts);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (!Number.isFinite(ts) || Date.now() - ts > ARRIVAL_FIX_MAX_AGE_MS) return null;
+    return Math.round(
+      haversineMeters({ lat, lng }, { lat: trip.dropoffLat, lng: trip.dropoffLng }),
+    );
+  }
+
+  async completeTrip(
+    driverId: string,
+    tripId: string,
+    opts: { endEarly?: boolean; reason?: string; endedBy?: 'driver' | 'rider' } = {},
+  ) {
     const trip = await this.assertDriverTrip(
       driverId,
       tripId,
       TripStatus.in_progress,
     );
-    // Recompute the final fare from the actually-driven distance (the trip
-    // odometer accumulated by LocationService), falling back to the estimate
-    // when there's no usable GPS trail (e.g. simulator with sparse pings).
+    // Complete ALWAYS ends the trip where the driver is (owner rule). What it
+    // must never do is what the audit caught: a 0 m / 11 s trip completed at
+    // the pickup charged 100% of the estimate. So: a trip that ended away from
+    // the drop-off, or with no evidence it got there and barely any distance
+    // driven, is charged as a short trip — metered on what was actually
+    // driven, floored at the tier minimum, never lifted to the estimate.
+    const toDropoffM = await this.driverDistanceToDropoff(driverId, trip);
+    const drivenNow = Number(
+      (await this.redis.client.get(RedisKeys.tripDriven(tripId))) ?? 0,
+    );
+    const driven = Number.isFinite(drivenNow) ? drivenNow : 0;
+    const radius = this.config.get<number>('completeDropoffRadiusM') ?? 500;
+    const minDriven = this.config.get<number>('completeMinDrivenM') ?? 200;
+    const farFromDropoff = toDropoffM !== null && toDropoffM > radius;
+    const unknownAndShort = toDropoffM === null && driven < minDriven;
+    const endEarly = opts.endEarly === true;
+    const early = endEarly || farFromDropoff || unknownAndShort;
     const { fareFinal, distanceM, durationS, breakdown } =
-      await this.settleFare(trip);
+      await this.settleFare(trip, {
+        early,
+        endedEarly: endEarly || farFromDropoff,
+        reason: endEarly ? opts.reason?.trim() : undefined,
+        endedAwayFromDropoffM: farFromDropoff ? toDropoffM : undefined,
+      });
+    if (early) {
+      this.logger.log(
+        `trip ${tripId} ended ${endEarly ? `early by ${opts.endedBy ?? 'driver'}` : 'short of the drop-off'} ` +
+          `(${toDropoffM ?? '?'} m from drop-off, ${Math.round(driven)} m driven` +
+          `${opts.reason ? `, reason: ${opts.reason}` : ''}); fare ${fareFinal} (${breakdown.fareBasis})`,
+      );
+    }
     await this.stateMachine.transition({
       tripId,
       from: TripStatus.in_progress,
       to: TripStatus.completed,
-      actor: 'driver',
+      actor: opts.endedBy ?? 'driver',
       data: { completedAt: new Date(), fareFinal, distanceM, durationS },
       // The itemised fare is persisted on the completion event (no trip
       // column for it) so GET /payments/:tripId/receipt can replay it.
@@ -726,13 +820,29 @@ export class TripsService {
   }
 
   /**
-   * Determines the final fare at completion. Reads the trip odometer (actual
-   * driven meters accumulated by LocationService) and, if it's usable,
-   * recomputes the fare from real distance + wall-clock duration via pricing.
-   * Falls back to the up-front estimate when there's no meaningful GPS trail.
+   * Determines the final fare at completion from the trip odometer (actual
+   * driven meters accumulated by LocationService) and wall-clock duration.
    * Always clears the odometer keys.
+   *
+   * Rules (whole-currency rounding via roundFare throughout):
+   *  - normal (at the drop-off, trail >= MIN_TRAIL_M): metered, clamped to
+   *    [FARE_CLAMP_MIN, FARE_CLAMP_MAX] x the gross estimate, floored at the
+   *    tier minimum;
+   *  - normal with no usable trail (sparse GPS but the car IS at / can't be
+   *    shown away from the drop-off): the up-front estimate;
+   *  - early / short (driver ended early, or completed away from the
+   *    drop-off): max(minimum fare, metered), capped at FARE_CLAMP_MAX x
+   *    estimate — never lifted to the estimate.
    */
-  private async settleFare(trip: Trip): Promise<{
+  private async settleFare(
+    trip: Trip,
+    opts: {
+      early?: boolean;
+      endedEarly?: boolean;
+      reason?: string;
+      endedAwayFromDropoffM?: number;
+    } = {},
+  ): Promise<{
     fareFinal: number;
     distanceM: number | null;
     durationS: number | null;
@@ -744,12 +854,21 @@ export class TripsService {
       RedisKeys.tripMeterLast(trip.id),
     );
     const estimate = trip.fareEstimate ? Number(trip.fareEstimate) : 0;
-    const driven = drivenRaw ? Number(drivenRaw) : 0;
+    const drivenNum = drivenRaw ? Number(drivenRaw) : 0;
+    const driven = Number.isFinite(drivenNum) ? drivenNum : 0;
     const surge = trip.surgeMultiplier ? Number(trip.surgeMultiplier) : 1;
     const discount = trip.promoDiscount ? Number(trip.promoDiscount) : 0;
+    const currency = trip.currency ?? CURRENCY;
+    const early = opts.early === true;
+    const meta = {
+      endedEarly: opts.endedEarly === true,
+      endReason: opts.reason,
+      endedAwayFromDropoffM: opts.endedAwayFromDropoffM,
+    };
 
-    // Need a meaningful trail (>= 50 m) to trust the odometer over the estimate.
-    if (!Number.isFinite(driven) || driven < 50) {
+    // Need a meaningful trail (>= 50 m) to trust the odometer over the estimate
+    // — but only for a trip that plausibly reached the drop-off.
+    if (!early && driven < MIN_TRAIL_M) {
       // The estimate is only a usable answer if there actually is one. A trip
       // whose `fareEstimate` is missing or zero used to settle at exactly
       // $0.00 here — a free ride for the rider, no earning for the driver, and
@@ -782,6 +901,8 @@ export class TripsService {
           surge,
           discount,
           fareFinal,
+          'estimate',
+          meta,
         ),
       };
     }
@@ -799,7 +920,9 @@ export class TripsService {
     // Carry the up-front promo discount onto the final (odometer-based) fare.
     // `fareEstimate` is stored net of the promo; the clamp is on gross fares.
     const grossEstimate = estimate + discount;
-    const gross = this.clampFare(metered, grossEstimate, trip.tier, trip.currency ?? CURRENCY);
+    const gross = early
+      ? this.shortTripFare(metered, grossEstimate, trip.tier, currency)
+      : this.clampFare(metered, grossEstimate, trip.tier, currency);
     const fareFinal = Math.max(gross - discount, 0);
     return {
       fareFinal,
@@ -812,12 +935,20 @@ export class TripsService {
         surge,
         discount,
         fareFinal,
+        null,
+        meta,
       ),
     };
   }
 
-  /** Itemised components as pricing computes them, plus promo/tip slots. The
-   *  headline fare stays authoritative (a clamp can move it off the sum). */
+  /**
+   * Itemised components as pricing computes them, plus promo/tip slots, and
+   * which rule produced the headline (`fareBasis`). The gap between the raw
+   * metered parts and the charged gross is reported as a minimum-fare top-up
+   * ONLY when the minimum is what applied; any other move (the estimate
+   * clamp, the up-front fallback) is `fareAdjustment`, so a receipt never
+   * calls an estimate bound a "minimum fare".
+   */
   private breakdownFor(
     tier: string,
     distanceM: number,
@@ -825,16 +956,34 @@ export class TripsService {
     surge: number,
     promoDiscount: number,
     fareFinal: number,
+    forcedBasis: FareBasis | null,
+    meta: { endedEarly: boolean; endReason?: string; endedAwayFromDropoffM?: number },
   ): ReceiptBreakdown {
     const b = this.pricing.estimateForTier(tier, distanceM, durationS, surge).breakdown;
     const itemised = b.baseFare + b.distanceFare + b.timeFare + b.bookingFee;
     const gross = fareFinal + promoDiscount;
     const gap = Math.round((gross - itemised) * 100) / 100;
+    const minFare = this.pricing.minFareFor(tier);
+    let basis: FareBasis;
+    if (forcedBasis) basis = forcedBasis;
+    // Within rounding of the metered parts: metered.
+    else if (Math.abs(gap) < 1) basis = 'metered';
+    // Lifted exactly to the tier minimum (and the metered parts were below it).
+    else if (gap > 0 && Math.abs(gross - minFare) < 1) basis = 'minimum';
+    else basis = 'estimate';
+    const round2 = (n: number) => Math.round(n * 100) / 100;
     return {
       ...b,
-      promoDiscount: Math.round(promoDiscount * 100) / 100,
+      promoDiscount: round2(promoDiscount),
       tip: 0,
-      minimumFareAdjustment: gap > 0 ? gap : 0,
+      minimumFareAdjustment: basis === 'minimum' && gap > 0 ? gap : 0,
+      fareAdjustment: basis === 'minimum' || Math.abs(gap) < 0.005 ? 0 : gap,
+      fareBasis: basis,
+      endedEarly: meta.endedEarly,
+      ...(meta.endReason ? { endReason: meta.endReason } : {}),
+      ...(meta.endedAwayFromDropoffM !== undefined
+        ? { endedAwayFromDropoffM: meta.endedAwayFromDropoffM }
+        : {}),
     };
   }
 
@@ -842,7 +991,7 @@ export class TripsService {
    * Bound a metered (GPS-derived, driver-supplied) gross fare to
    * [FARE_CLAMP_MIN, FARE_CLAMP_MAX] × the gross up-front estimate, then floor
    * at the tier's minimum fare. Without a usable estimate the metered fare is
-   * only floored.
+   * only floored. Only for trips that plausibly reached the drop-off.
    */
   private clampFare(
     metered: number,
@@ -859,6 +1008,24 @@ export class TripsService {
     }
     fare = Math.max(fare, this.pricing.minFareFor(tier));
     // The charged fare follows the same rule as the quote: whole rupees.
+    return roundFare(fare, currency);
+  }
+
+  /**
+   * A trip that ended early / away from the drop-off: max(minimum fare,
+   * metered). There is no lower clamp to the estimate (the rider did not get
+   * the ride they were quoted); the upper FARE_CLAMP_MAX bound still protects
+   * the rider from a spoofed odometer.
+   */
+  private shortTripFare(
+    metered: number,
+    grossEstimate: number,
+    tier: string,
+    currency: string,
+  ): number {
+    let fare = metered;
+    if (grossEstimate > 0) fare = Math.min(fare, grossEstimate * FARE_CLAMP_MAX);
+    fare = Math.max(fare, this.pricing.minFareFor(tier));
     return roundFare(fare, currency);
   }
 
@@ -1129,6 +1296,15 @@ export class TripsService {
     }
   }
 
+  private minFareOrNull(tier: string): number | null {
+    try {
+      const m = this.pricing.minFareFor(tier);
+      return Number.isFinite(m) ? m : null;
+    } catch {
+      return null;
+    }
+  }
+
   private cancellationFeeApplies(trip: Trip): boolean {
     const committed =
       trip.status === TripStatus.accepted || trip.status === TripStatus.arrived;
@@ -1311,6 +1487,8 @@ export class TripsService {
       startOtp: showOtp ? t.startOtp : null,
       // What a late cancel costs, so the app can state the amount up front.
       cancellationFee: this.config.get<number>('cancellationFee') ?? 5,
+      // The floor an early end is charged at, so "End trip here" can say it.
+      minFare: this.minFareOrNull(t.tier),
       requestedAt: t.requestedAt,
       acceptedAt: t.acceptedAt,
       arrivedAt: t.arrivedAt,

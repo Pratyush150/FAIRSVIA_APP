@@ -6,6 +6,7 @@
 //   HOME_SHOTS=../../docs/brand/research/home-components \
 //       flutter test test/home_components_test.dart
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:design_system/design_system.dart';
@@ -81,7 +82,7 @@ Widget _page() => ListView(
       child: ContextCard(
         leading: const HomeArtImage(HomeArt.star, size: 40),
         title: 'Rate your ride with Ravi',
-        subtitle: 'Tuesday, Koregaon Park to Baner',
+        subtitle: 'Tuesday, City Centre to Airport',
         trailing: Icon(PhosphorIconsRegular.caretRight, size: 20),
         onTap: () {},
       ),
@@ -287,6 +288,139 @@ void main() {
     });
   });
 
+  group('PromoBanner photo look', () {
+    test('every PromoPhoto ships: 16:10 JPEG, ≤150 KB', () async {
+      for (final path in PromoPhoto.all) {
+        final f = File(path.replaceFirst('packages/design_system/', ''));
+        expect(f.existsSync(), isTrue, reason: path);
+        final bytes = f.readAsBytesSync();
+        expect(bytes.length, lessThanOrEqualTo(150 * 1024), reason: path);
+        final codec = await ui.instantiateImageCodec(bytes);
+        final img = (await codec.getNextFrame()).image;
+        expect(img.width / img.height, closeTo(16 / 10, 0.01), reason: path);
+      }
+    });
+
+    testWidgets('photo + scrim + white text, CTA, tap, a11y label', (
+      tester,
+    ) async {
+      var taps = 0;
+      final handle = tester.ensureSemantics();
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _app(
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: PromoBanner(
+                headline: 'Ride anywhere in the city',
+                subline: 'See the fare before you book.',
+                image: PromoPhoto.cityNight,
+                onTap: () => taps++,
+              ),
+            ),
+          ),
+        ),
+      );
+      final size = tester.getSize(find.byType(PromoBanner));
+      expect(size.width, 328);
+      expect(size.height, closeTo(328 * 10 / 16, 0.01));
+      final photo = tester.widget<Image>(find.byType(Image));
+      expect(
+        (photo.image as ResizeImage).imageProvider,
+        isA<AssetImage>().having(
+          (a) => a.assetName,
+          'asset',
+          PromoPhoto.cityNight,
+        ),
+      );
+      expect(find.byType(HomeArtImage), findsNothing);
+      expect(
+        tester
+            .widget<Text>(find.text('Ride anywhere in the city'))
+            .style
+            ?.color,
+        PromoBanner.photoHeadline,
+      );
+      final cta = find.byIcon(PhosphorIconsRegular.arrowRight);
+      expect(
+        tester.getSize(
+          find.ancestor(of: cta, matching: find.byType(Container)).first,
+        ),
+        const Size(48, 48),
+      );
+      // Text never runs past the dense part of the scrim.
+      final text = tester.getRect(find.text('Ride anywhere in the city'));
+      final card = tester.getRect(find.byType(PromoBanner));
+      expect(
+        text.right - card.left,
+        lessThanOrEqualTo(card.width * PromoBanner.textWidthFraction),
+      );
+      expect(
+        find.bySemanticsLabel(
+          'Ride anywhere in the city. See the fare before you book.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byType(PromoBanner));
+      expect(taps, 1);
+      handle.dispose();
+    });
+
+    test('text over the scrim is ≥ 4.5:1 even on a pure-white photo', () {
+      // WCAG 2 relative luminance / contrast.
+      double lin(double c) => c <= 0.04045
+          ? c / 12.92
+          : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
+      double lum(Color c) =>
+          0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+      double contrast(Color a, Color b) {
+        final (x, y) = (lum(a), lum(b));
+        return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
+      }
+
+      // Worst case: the brightest possible photo pixel under the thinnest
+      // scrim anywhere behind the text.
+      final alpha = PromoBanner.minTextScrimAlpha;
+      expect(alpha, greaterThan(0.6));
+      final bg = Color.alphaBlend(
+        PromoBanner.scrimColor.withValues(alpha: alpha),
+        const Color(0xFFFFFFFF),
+      );
+      final head = contrast(PromoBanner.photoHeadline, bg);
+      final sub = contrast(Color.alphaBlend(PromoBanner.photoSubline, bg), bg);
+      expect(head, greaterThanOrEqualTo(4.5), reason: 'headline $head');
+      expect(sub, greaterThanOrEqualTo(4.5), reason: 'subline $sub');
+      // Scrim only thins towards the right, after the text.
+      for (var t = 0.0; t <= PromoBanner.textWidthFraction; t += 0.02) {
+        expect(PromoBanner.scrimAlphaAt(t), greaterThanOrEqualTo(alpha - 1e-9));
+      }
+    });
+
+    test('mock promos and footer name no city or country', () {
+      final bad = RegExp(
+        r'pune|india|mumbai|delhi|maharashtra|shaniwar|tashkent|dubai',
+        caseSensitive: false,
+      );
+      for (final p in kMockPromos) {
+        expect(p.image, isNotNull, reason: p.id);
+        expect(bad.hasMatch('${p.headline} ${p.subline}'), isFalse);
+      }
+      const footer = BrandFooter();
+      expect(bad.hasMatch('${footer.tagline} ${footer.subtitle}'), isFalse);
+    });
+
+    testWidgets('art look still works (admin cards use it)', (tester) async {
+      await tester.pumpWidget(
+        _app(const PromoBanner(headline: 'Code copied', art: HomeArt.tag)),
+      );
+      expect(find.byType(HomeArtImage), findsOneWidget);
+    });
+  });
+
   group('ContextCard', () {
     testWidgets('title, subtitle, trailing, tap + label', (tester) async {
       var taps = 0;
@@ -323,7 +457,7 @@ void main() {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_app(const BrandFooter()));
       expect(find.text('#RideVela'), findsOneWidget);
-      expect(find.text('Rides, the Pune way'), findsOneWidget);
+      expect(find.text('Rides, made simple'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(BrandFooter),
@@ -334,7 +468,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.bySemanticsLabel('#RideVela. Rides, the Pune way'),
+        find.bySemanticsLabel('#RideVela. Rides, made simple'),
         findsOneWidget,
       );
       handle.dispose();

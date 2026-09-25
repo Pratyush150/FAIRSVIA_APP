@@ -128,6 +128,11 @@ async function main() {
   await api(`/trips/${trip.id}/start`, { method: 'POST', token: driver.token, body: { otp: riderView.startOtp } });
   await startedP;
   console.log('• arrived → started (OTP)');
+  // Reach the drop-off before completing: Complete ends the trip wherever the
+  // car is, and short of the drop-off it is charged as a short trip (metered,
+  // minimum-fare floor) rather than the normal clamped fare.
+  dSock.emit('driver:location', { lat: dropoff.lat, lng: dropoff.lng, heading: 90, speed: 0 });
+  await wait(400);
   const completedP = once(rSock, 'trip:completed');
   const receipt = await api(`/trips/${trip.id}/complete`, { method: 'POST', token: driver.token });
   await completedP;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -32,7 +34,7 @@ void main() {
           destination: 'Home',
           trackingUrl: 'https://example.test/t/abc',
         ),
-        "I'm on a RideVela ride to Home. Track it live: https://example.test/t/abc",
+        "I'm on a RideVela ride to Home. Track my ride live: https://example.test/t/abc",
       );
     });
   });
@@ -97,6 +99,78 @@ void main() {
 
       expect(clipboard, ['trip text']);
       expect(find.textContaining('copied'), findsOneWidget);
+    });
+  });
+
+  group('shareTripTextWithLink', () {
+    late TripTextSharer original;
+    setUp(() => original = tripTextSharer);
+    tearDown(() => tripTextSharer = original);
+
+    Future<List<String>> tapShare(
+      WidgetTester tester,
+      Future<String?> Function() fetchLink, {
+      Duration timeout = const Duration(seconds: 4),
+    }) async {
+      final shared = <String>[];
+      tripTextSharer = (text, origin) async => shared.add(text);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => shareTripTextWithLink(
+                context,
+                "I'm on a RideVela ride to Home.",
+                fetchLink: fetchLink,
+                timeout: timeout,
+              ),
+              child: const Text('Share'),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('Share'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 5));
+      return shared;
+    }
+
+    testWidgets('includes the live link when the backend issues one', (
+      tester,
+    ) async {
+      final shared = await tapShare(
+        tester,
+        () async => 'https://ride.example/api/v1/public/t/abcDEF_-',
+      );
+      expect(shared, [
+        "I'm on a RideVela ride to Home. Track my ride live: "
+            'https://ride.example/api/v1/public/t/abcDEF_-',
+      ]);
+    });
+
+    testWidgets('still shares, without a link, when the request fails', (
+      tester,
+    ) async {
+      final shared =
+          await tapShare(tester, () async => throw Exception('offline'));
+      expect(shared, ["I'm on a RideVela ride to Home."]);
+    });
+
+    testWidgets('still shares when the backend has no link (null)', (
+      tester,
+    ) async {
+      final shared = await tapShare(tester, () async => null);
+      expect(shared, ["I'm on a RideVela ride to Home."]);
+    });
+
+    testWidgets('does not wait forever on a slow link request', (tester) async {
+      final never = Completer<String?>();
+      final shared = await tapShare(
+        tester,
+        () => never.future,
+        timeout: const Duration(seconds: 2),
+      );
+      expect(shared, ["I'm on a RideVela ride to Home."]);
     });
   });
 

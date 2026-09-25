@@ -72,7 +72,7 @@ String? firstName(String? fullName) {
 }
 
 /// Whether [point] is already one of [places] (same spot within ~50 m, or the
-/// same address text) — drives the Home's filled heart.
+/// same address text) — drives the Home's filled bookmark.
 SavedPlace? savedPlaceAt(
   List<SavedPlace> places,
   GeoPoint point,

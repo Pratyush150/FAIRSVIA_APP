@@ -78,7 +78,7 @@ class LegalPage extends StatelessWidget {
                 child: Text(
                   'Draft — not yet published',
                   style: theme.textTheme.labelLarge?.copyWith(
-                    color: AppColors.warning,
+                    color: AppColors.warningTextOf(context),
                     fontWeight: FontWeight.w700,
                   ),
                 ),

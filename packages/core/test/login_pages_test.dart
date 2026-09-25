@@ -20,10 +20,10 @@ void main() {
 
   tearDown(() => Market.current = previousMarket);
 
-  Widget host(Widget page, AuthState state) {
+  Widget host(Widget page, AuthState state, {bool dark = false}) {
     whenListen(bloc, const Stream<AuthState>.empty(), initialState: state);
     return MaterialApp(
-      theme: AppTheme.light,
+      theme: dark ? AppTheme.dark : AppTheme.light,
       home: BlocProvider<AuthBloc>.value(value: bloc, child: page),
     );
   }
@@ -109,6 +109,27 @@ void main() {
       expect(field.autofillHints, contains(AutofillHints.oneTimeCode));
       // Dev code chip is still offered.
       expect(find.text('Dev code: 123456'), findsOneWidget);
+    });
+
+    testWidgets('the phone number reads on a dark screen (audit #1)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(host(const OtpPage(), sent, dark: true));
+      final rich = tester.widget<RichText>(
+        find.byWidgetPredicate((w) =>
+            w is RichText && w.text.toPlainText().contains('+919876543210')),
+      );
+      TextSpan? number;
+      rich.text.visitChildren((span) {
+        if (span is TextSpan && span.text == '+919876543210') number = span;
+        return true;
+      });
+      final bg = AppTheme.dark.colorScheme.surface;
+      final fg = number!.style!.color!;
+      double lum(Color c) => c.computeLuminance();
+      final hi = lum(fg) > lum(bg) ? lum(fg) : lum(bg);
+      final lo = lum(fg) > lum(bg) ? lum(bg) : lum(fg);
+      expect((hi + 0.05) / (lo + 0.05), greaterThanOrEqualTo(4.5));
     });
 
     testWidgets(

@@ -238,7 +238,16 @@ class RideMapLayer {
           : (approachPts.isNotEmpty ? approachPts.first : pickupLL);
       bounds = [car, pickupLL];
     } else if (approaching && approachPts.length >= 2) {
-      bounds = [approachPts.first, approachPts.last];
+      // The car itself too: it is rarely exactly on the route's first point
+      // (the route was planned at accept, the car has moved since), and a
+      // box of the route's ends alone left it and its plate cut off at the
+      // screen edge (audit 2026-09-25, r-enroute-dark-early).
+      bounds = [
+        approachPts.first,
+        approachPts.last,
+        if (state.driverLocation != null)
+          MapUtils.toLatLng(state.driverLocation!),
+      ];
     } else {
       // The whole route, not just its ends: a road that bends outside the
       // pickup–dropoff box would otherwise run off the visible map.

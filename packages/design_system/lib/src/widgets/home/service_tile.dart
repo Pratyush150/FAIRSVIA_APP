@@ -73,12 +73,16 @@ class ServiceTile extends StatelessWidget {
             child: FittedBox(child: HomeArtImage(art, size: artSize)),
           ),
           const SizedBox(height: _gap),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelMedium,
+          // Large text: the label shrinks to fit the tile rather than being
+          // cut to "Saved p…" (audit #32).
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelMedium,
+            ),
           ),
         ],
       ),

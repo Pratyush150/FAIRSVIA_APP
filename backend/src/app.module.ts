@@ -41,6 +41,7 @@ import { AuditModule } from './common/audit/audit.module';
 import { ActivityModule } from './common/activity/activity.module';
 import { OpsModule } from './ops/ops.module';
 import { ContentModule } from './content/content.module';
+import { ShareModule } from './share/share.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -87,6 +88,7 @@ import { HealthController } from './health/health.controller';
     SupportModule,
     BackgroundModule,
     ContentModule,
+    ShareModule, // live trip tracking links (public, token-gated)
   ],
   controllers: [HealthController],
   providers: [

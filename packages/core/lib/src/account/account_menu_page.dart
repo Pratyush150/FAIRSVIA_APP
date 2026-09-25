@@ -238,7 +238,8 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
               _Item(
                 // Regular, not Fill: nothing is "on" here — Fill is for a
                 // state (a rated star, a favourited driver). Audit 2.1 rule 3.
-                icon: PhosphorIconsRegular.star,
+                // Bookmark, not star: star means rating (audit 2026-09-25 #11).
+                icon: PhosphorIconsRegular.bookmarkSimple,
                 title: 'Saved places',
                 onTap: () => _open(
                   SavedPlacesPage(

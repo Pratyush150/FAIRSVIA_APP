@@ -196,6 +196,44 @@ void main() {
     await cubit.close();
   });
 
+  test('rider ends the trip early: trip:completed moves the driver to the '
+      'trip-complete sheet with the adjusted fare', () async {
+    final cubit = make();
+    await cubit.init('token');
+    await cubit.goOnline();
+    realtime.push('trip:offer', offerJson);
+    await tick();
+    cubit.acceptOffer();
+    realtime.push('trip:assigned', {'tripId': 'trip-1'});
+    await tick();
+    await cubit.markArrived();
+    await cubit.startTrip('1234');
+    expect(cubit.state.phase, DriverPhase.onTrip);
+
+    // A stray event for another trip is ignored.
+    realtime.push('trip:completed', {'tripId': 'other', 'fareFinal': 1});
+    await tick();
+    expect(cubit.state.phase, DriverPhase.onTrip);
+
+    realtime.push('trip:completed', {
+      'tripId': 'trip-1',
+      'fareFinal': 75,
+      'paymentMode': 'cash',
+      'breakdown': {
+        'fareBasis': 'minimum',
+        'endedEarly': true,
+        'endReason': 'Rider ended the trip',
+      },
+    });
+    await tick();
+    expect(cubit.state.phase, DriverPhase.completed);
+    expect(cubit.state.lastTripId, 'trip-1');
+    expect(cubit.state.cashToCollect, 75);
+    expect(cubit.state.endNote, 'The rider ended the trip here · minimum fare');
+    verifyNever(() => remote.complete(any()));
+    await cubit.close();
+  });
+
   group('offers on the trip-complete sheet (back-to-back rides)', () {
     Future<DriverCubit> completed() async {
       final cubit = make();

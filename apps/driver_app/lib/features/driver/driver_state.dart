@@ -21,6 +21,7 @@ class DriverState extends Equatable {
     this.lastTripId,
     this.riderRating,
     this.cashToCollect,
+    this.endNote,
     this.needsOnboarding = false,
     this.connected = true,
     this.approachPolyline,
@@ -46,6 +47,10 @@ class DriverState extends Equatable {
 
   /// Cash the driver must collect for the just-completed trip (null for card).
   final double? cashToCollect;
+
+  /// Non-blocking note when the trip ended away from the drop-off
+  /// ("Ended 0.8 km before the drop-off · minimum fare"); null otherwise.
+  final String? endNote;
   final bool needsOnboarding;
 
   /// Live socket connectivity. False shows a "reconnecting" banner.
@@ -97,6 +102,7 @@ class DriverState extends Equatable {
     Object? lastTripId = _s,
     Object? riderRating = _s,
     Object? cashToCollect = _s,
+    Object? endNote = _s,
     bool? needsOnboarding,
     bool? connected,
     Object? approachPolyline = _s,
@@ -118,6 +124,7 @@ class DriverState extends Equatable {
       riderRating: riderRating == _s ? this.riderRating : riderRating as int?,
       cashToCollect:
           cashToCollect == _s ? this.cashToCollect : cashToCollect as double?,
+      endNote: endNote == _s ? this.endNote : endNote as String?,
       needsOnboarding: needsOnboarding ?? this.needsOnboarding,
       connected: connected ?? this.connected,
       approachPolyline: approachPolyline == _s
@@ -149,6 +156,7 @@ class DriverState extends Equatable {
         lastTripId,
         riderRating,
         cashToCollect,
+        endNote,
         needsOnboarding,
         connected,
         approachPolyline,

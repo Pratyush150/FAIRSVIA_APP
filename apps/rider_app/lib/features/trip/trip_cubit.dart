@@ -671,6 +671,11 @@ class TripCubit extends Cubit<TripState> {
     }
   }
 
+  /// What the ride options say when a request came back with no driver.
+  /// The options sheet matches on it to drop that tier's stale pickup ETA.
+  static const String noDriversNearby =
+      'No drivers available nearby right now — try again.';
+
   void _onNoDrivers() {
     // Drop back to the ride options (destination + tier retained) with a clear
     // message, so the rider can just re-tap Confirm instead of being stuck on
@@ -678,7 +683,7 @@ class TripCubit extends Cubit<TripState> {
     if (state.estimate != null) {
       emit(state.copyWith(
         phase: TripPhase.choosingRide,
-        error: 'No drivers available nearby right now — try again.',
+        error: noDriversNearby,
       ));
     } else {
       emit(state.copyWith(
@@ -960,6 +965,29 @@ class TripCubit extends Cubit<TripState> {
 
   /// [reason] is the rider's chosen cancellation reason (for ops/analytics);
   /// defaults to a generic label when none was given.
+  /// "End trip here" mid-ride. Returns true once the server has completed
+  /// the trip (the completed sheet follows via [_onCompleted]); false with
+  /// [TripState.error] set when it could not.
+  Future<bool> endTripEarly({String? reason}) async {
+    final trip = state.trip;
+    if (trip == null || state.phase != TripPhase.onTrip) return false;
+    emit(state.copyWith(error: null));
+    try {
+      final receipt =
+          await _repository.endTripEarly(trip.id, reason: reason);
+      // The socket's `trip:completed` may already have moved us on.
+      if (!isClosed && state.phase == TripPhase.onTrip) _onCompleted(receipt);
+      return true;
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+      return false;
+    } catch (_) {
+      emit(state.copyWith(
+          error: 'Could not end the trip. Check your connection and try again.'));
+      return false;
+    }
+  }
+
   Future<double> cancelTrip({String? reason}) async {
     // The trip may have ended while the confirm dialog was open (e.g. the
     // no-drivers timeout bounced us back to the ride options). There is

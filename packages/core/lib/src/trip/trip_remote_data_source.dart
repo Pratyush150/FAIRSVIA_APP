@@ -221,6 +221,21 @@ class TripRemoteDataSource {
       throw ApiException.fromDio(e);
     }
   }
+
+  /// POST /trips/:id/end-early — the rider ends an in-progress ride here.
+  /// Charged metered on what was driven, floored at the minimum fare (never
+  /// the up-front estimate). Returns the same receipt as `trip:completed`.
+  Future<Map<String, dynamic>> endEarly(String id, {String? reason}) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/trips/$id/end-early',
+        data: {'reason': ?reason},
+      );
+      return res.data ?? const {};
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
 }
 
 /// What adding one more stop would do to the ride.

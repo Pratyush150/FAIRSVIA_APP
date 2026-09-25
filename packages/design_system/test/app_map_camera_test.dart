@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -183,6 +185,117 @@ void main() {
     });
   });
 
+  group('screenPoint with map padding (radar anchoring)', () {
+    const size = Size(400, 800);
+    final target = const LatLng(18.52, 73.86);
+    final pickup = const LatLng(18.515, 73.855);
+
+    test('a taller bottom padding lifts the target by half the difference', () {
+      final tall = AppMap.screenPoint(target, target, 15, size,
+          const EdgeInsets.fromLTRB(0, 96, 0, 500));
+      final short = AppMap.screenPoint(target, target, 15, size,
+          const EdgeInsets.fromLTRB(0, 96, 0, 200));
+      expect(short.dy - tall.dy, closeTo(150, 1e-9));
+      expect(short.dx, tall.dx);
+    });
+
+    test('an off-centre point keeps its offset from the padded centre', () {
+      const pad = EdgeInsets.fromLTRB(40, 96, 40, 420);
+      final c = AppMap.screenPoint(target, target, 15, size, pad);
+      final p = AppMap.screenPoint(pickup, target, 15, size, pad);
+      final p0 = AppMap.screenPoint(pickup, target, 15, size, EdgeInsets.zero);
+      final c0 = AppMap.screenPoint(target, target, 15, size, EdgeInsets.zero);
+      expect(p - c, offsetMoreOrLessEquals(p0 - c0));
+      // Padded centre: (40 + 320/2, 96 + 284/2).
+      expect(c, const Offset(200, 238));
+    });
+
+    test('a stale camera after a padding change is exactly what the '
+        'correction carries', () {
+      // The native map re-centred on the new padded area without reporting a
+      // camera move: the overlay still projects with the new padding but the
+      // old target. The measured correction puts the rings back on the pin.
+      const before = EdgeInsets.fromLTRB(40, 96, 40, 560);
+      const after = EdgeInsets.fromLTRB(40, 96, 40, 180);
+      final drawnAt = AppMap.screenPoint(pickup, target, 15, size, before);
+      final predicted = AppMap.screenPoint(pickup, target, 15, size, after);
+      final fix = AppMap.pulseCorrection(predicted, drawnAt, size);
+      expect(fix.dx, 0);
+      expect(fix.dy, closeTo(-190, 1e-9)); // rings were 190 px too low
+      expect(predicted + fix, offsetMoreOrLessEquals(drawnAt));
+    });
+
+    test('an unbelievable measurement is ignored', () {
+      expect(
+          AppMap.pulseCorrection(Offset.zero, const Offset(5000, 0), size),
+          Offset.zero);
+      expect(
+          AppMap.pulseCorrection(
+              Offset.zero, const Offset(double.nan, 0), size),
+          Offset.zero);
+    });
+
+    test('Android screen coordinates are physical pixels; others logical', () {
+      expect(AppMap.nativeToLogical(const Offset(300, 600), 3, android: true),
+          const Offset(100, 200));
+      expect(AppMap.nativeToLogical(const Offset(300, 600), 3, android: false),
+          const Offset(300, 600));
+    });
+  });
+
+  group('follow camera against the uncovered map area', () {
+    const size = Size(400, 800);
+    const pad = EdgeInsets.fromLTRB(40, 96, 40, 420); // tall glass card
+
+    test('a car hidden behind the sheet needs a pan', () {
+      expect(AppMap.needsEdgePanOnScreen(const Offset(200, 600), size, pad),
+          isTrue);
+    });
+
+    test('a car in the middle of the uncovered strip is left alone', () {
+      expect(AppMap.needsEdgePanOnScreen(const Offset(200, 238), size, pad),
+          isFalse);
+    });
+
+    test('a car at the left edge needs a pan', () {
+      expect(AppMap.needsEdgePanOnScreen(const Offset(10, 238), size, pad),
+          isTrue);
+    });
+
+    test('an unmeasurable area holds still', () {
+      expect(
+          AppMap.needsEdgePanOnScreen(const Offset(10, 10), size,
+              const EdgeInsets.fromLTRB(0, 400, 0, 400)),
+          isFalse);
+    });
+  });
+
+  group('fitting the ride', () {
+    test('bounds padding leaves room for the car and its plate tag', () {
+      expect(AppMap.fitPaddingFor(0), 56);
+      expect(AppMap.fitPaddingFor(150), greaterThanOrEqualTo(150 / 2 + 16));
+    });
+
+    test('fitZoom frames the points inside the box', () {
+      final pts = [const LatLng(18.50, 73.84), const LatLng(18.53, 73.88)];
+      const box = Size(300, 60);
+      final z = AppMap.fitZoom(pts, box);
+      final a = AppMap.screenPoint(
+          pts[0], const LatLng(18.515, 73.86), z, box, EdgeInsets.zero);
+      final b = AppMap.screenPoint(
+          pts[1], const LatLng(18.515, 73.86), z, box, EdgeInsets.zero);
+      expect((a.dx - b.dx).abs(), lessThanOrEqualTo(box.width + 1e-6));
+      expect((a.dy - b.dy).abs(), lessThanOrEqualTo(box.height + 1e-6));
+      // Tight on at least one axis.
+      expect(
+          math.max((a.dx - b.dx).abs() / box.width,
+              (a.dy - b.dy).abs() / box.height),
+          closeTo(1, 1e-6));
+      // Half the box, one zoom level out.
+      expect(AppMap.fitZoom(pts, const Size(150, 30)), closeTo(z - 1, 1e-9));
+    });
+  });
+
   group('screenPoint', () {
     const size = Size(400, 800);
     const target = LatLng(18.52, 73.85);
@@ -222,9 +335,54 @@ void main() {
     });
   });
 
+  group('RadarVisibility (rings step aside while the map moves)', () {
+    test('shown at rest, hidden the moment the camera starts moving', () {
+      final v = RadarVisibility();
+      expect(v.value, isTrue);
+      v.cameraMoving();
+      expect(v.value, isFalse);
+      v.cameraMoving(); // every move event of a drag keeps them hidden
+      expect(v.value, isFalse);
+    });
+
+    test('come back on idle, after the pickup is re-measured', () {
+      final v = RadarVisibility()..cameraMoving();
+      final seq = v.idleSeq; // idle fires, re-measure starts
+      v.cameraIdle(seq); // re-measure done
+      expect(v.value, isTrue);
+    });
+
+    test('a re-measure finishing after a new drag began keeps them hidden',
+        () {
+      final v = RadarVisibility()..cameraMoving();
+      final seq = v.idleSeq;
+      v.cameraMoving(); // the rider grabbed the map again
+      v.cameraIdle(seq); // the stale re-measure lands
+      expect(v.value, isFalse);
+      v.cameraIdle(v.idleSeq);
+      expect(v.value, isTrue);
+    });
+
+    test('fades out fast and back in gently', () {
+      expect(RadarVisibility.fadeOut, const Duration(milliseconds: 120));
+      expect(RadarVisibility.fadeIn, const Duration(milliseconds: 300));
+      expect(RadarVisibility.fadeOut < RadarVisibility.fadeIn, isTrue);
+    });
+
+    test('notifies listeners so the overlay repaints its opacity', () {
+      final v = RadarVisibility();
+      var calls = 0;
+      v.addListener(() => calls++);
+      v.cameraMoving();
+      v.cameraIdle(v.idleSeq);
+      expect(calls, 2);
+    });
+  });
+
   group('CalmPulse ring timing', () {
     test('a calm period, three rings evenly staggered', () {
-      expect(CalmPulse.period, const Duration(milliseconds: 2400));
+      expect(CalmPulse.period, const Duration(milliseconds: 3400));
+      expect(CalmPulse.peak, lessThanOrEqualTo(0.4));
       final r = CalmPulse.all(0.4);
       expect(r, hasLength(3));
       expect(CalmPulse.ring(0.4, 1), CalmPulse.ring(0.4 + 1 / 3, 0));

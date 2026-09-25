@@ -25,10 +25,14 @@ particularly rule 1 (absolute honesty) and rule 2 (never quietly reduce a goal).
 **Updated 2026-09-23.** The authoritative list is **`remaining-work-plan.md`**
 — rewritten that day. Key changes since this handoff was first written:
 
-- **Launch market is Uzbekistan / Central Asia, not Florida.** Map data,
-  currency (UZS), phone format (+998), language and in-country data storage
-  are now tracked work. The loaded routing data covers part of India, not
-  either market.
+- **Market (corrected 2026-09-25): the pilot is Pune, India** — INR, km,
+  +91, `Asia/Kolkata` (`MARKET=in` in the apps, `MARKET_CURRENCY=INR` on the
+  server). The 2026-09-23 note here said "Uzbekistan first"; that is now a
+  later market on the same switches (`uz`). The loaded routing data covers
+  Maharashtra, which is what the Pune pilot uses.
+- **Look:** Plan F "Map Glass" is final (2026-09-25) — the default build. Ship
+  it with `make apk-rider` / `make apk-driver` (per-ABI, unshipped looks' art
+  left out; see README "Release APKs").
 - **Done and verified:** Sentry error tracking (backend + all 3 apps, off until
   a DSN is set), nightly Postgres backups with a restore drill and staleness
   alert, TLS automation in the prod stack, a privacy-policy draft.

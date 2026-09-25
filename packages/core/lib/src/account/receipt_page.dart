@@ -211,10 +211,27 @@ class FareBreakdownRows extends StatelessWidget {
         if (b.hasMinimumFare)
           _line('Minimum fare', Fmt.money(b.minimumFareAdjustment, currency),
               textStyle),
+        // The quote bounded the metered fare (lifted to 0.8x or capped at
+        // 1.5x of it) — never labelled a "minimum fare".
+        if (b.hasFareAdjustment)
+          _line(
+              b.fareAdjustment > 0
+                  ? 'Up-front price adjustment'
+                  : 'Capped at up-front price',
+              b.fareAdjustment > 0
+                  ? Fmt.money(b.fareAdjustment, currency)
+                  : '−${Fmt.money(-b.fareAdjustment, currency)}',
+              textStyle),
         if (b.hasSurge) _line('Surge', Fmt.surge(b.surgeMultiplier), textStyle),
         if (b.hasPromo)
           _line('Promo', '−${Fmt.money(b.promoDiscount, currency)}', textStyle),
         if (showTip && b.hasTip) _line('Tip', Fmt.money(b.tip, currency), textStyle),
+        if (b.basisNote != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(b.basisNote!,
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
       ],
     );
   }
