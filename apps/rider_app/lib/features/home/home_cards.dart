@@ -21,10 +21,10 @@ class HomeSection extends StatelessWidget {
 /// "Rate your ride" — the contextual card shown when the newest completed
 /// ride has no rating from this rider yet.
 ///
-/// `/trips/history` does not carry the driver's name or photo, so the card
-/// names the driver only when [driverName] is supplied, and otherwise says
-/// "Rate your last ride" with a generic avatar (see the API gap in the
-/// report).
+/// `/trips/history` carries the driver's name and photo, so the card reads
+/// "Rate your ride with Aziz" with their avatar. [driverName] overrides the
+/// trip's; with neither (an older backend) it says "Rate your last ride" with
+/// a generic car avatar.
 class RateLastRideCard extends StatelessWidget {
   const RateLastRideCard({
     super.key,
@@ -39,14 +39,18 @@ class RateLastRideCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = driverName;
+    final full = driverName ?? trip.driverName;
+    final first = firstName(full);
     final to = trip.dropoff.address;
     return ContextCard(
       leading: AppAvatar(
-        name: name,
-        icon: name == null ? PhosphorIconsRegular.car : null,
+        name: full,
+        imageUrl: trip.driverAvatarUrl,
+        icon: full == null ? PhosphorIconsRegular.car : null,
       ),
-      title: name == null ? 'Rate your last ride' : 'Rate your ride with $name',
+      title: first == null
+          ? 'Rate your last ride'
+          : 'Rate your ride with $first',
       subtitle: to == null
           ? null
           : 'To ${RecentDestination(point: trip.dropoff.point, address: to).name}',
@@ -64,13 +68,14 @@ Future<bool> showRatePastRideSheet(
   required Future<void> Function(int stars) submit,
   String? driverName,
 }) async {
+  final name = firstName(driverName ?? trip.driverName);
   final saved = await showModalBottomSheet<bool>(
     context: context,
     showDragHandle: true,
     builder: (ctx) => _RatePastRide(
-      title: driverName == null
+      title: name == null
           ? 'How was your last ride?'
-          : 'How was your ride with $driverName?',
+          : 'How was your ride with $name?',
       submit: submit,
     ),
   );

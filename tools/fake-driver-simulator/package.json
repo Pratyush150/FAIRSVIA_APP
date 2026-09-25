@@ -7,6 +7,7 @@
   "scripts": {
     "full-ride": "node full-ride.mjs",
     "tier-ride": "node tier-ride.mjs",
+    "back-to-back": "node back-to-back.mjs",
     "simulate": "node simulate.mjs"
   },
   "dependencies": {

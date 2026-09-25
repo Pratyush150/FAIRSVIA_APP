@@ -2,10 +2,8 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../layout/rider_sheet_heights.dart';
 import 'home_data.dart';
-
-/// Share of the screen the map header takes on the idle Home.
-const double kHomeMapFraction = 0.35;
 
 /// How far the sheet's rounded top overlaps the bottom of the map header.
 const double kHomeSheetOverlap = 24;
@@ -17,7 +15,8 @@ const double _searchHeaderExtent = AppSpacing.lg + 56 + AppSpacing.md;
 /// The idle Home, drawn OVER the full-screen map the rest of the ride flow
 /// uses (so the map is never torn down and rebuilt when booking starts):
 ///
-/// * a transparent window on the top ~35 % of the screen — touches there fall
+/// * a transparent window on the top of the screen
+///   ([RiderSheetHeights.homeMap]) — touches there fall
 ///   through to the map, so it still pans and zooms;
 /// * a solid sheet (24 dp top radius) that scrolls up over the map; its
 ///   search bar pins to the top, so scrolling "collapses" the map header;
@@ -59,7 +58,7 @@ class IdleHome extends StatefulWidget {
 
   /// Height of the map window for a screen of [screenHeight].
   static double headerHeightFor(double screenHeight) =>
-      screenHeight * kHomeMapFraction;
+      screenHeight * RiderSheetHeights.current.homeMap;
 
   @override
   State<IdleHome> createState() => _IdleHomeState();

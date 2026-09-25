@@ -366,7 +366,7 @@ class DriverCubit extends Cubit<DriverState> {
           return;
         }
         emit(state.copyWith(
-          phase: DriverPhase.online,
+          phase: _idlePhase,
           offer: null,
           busy: false,
           error: 'That ride was taken or cancelled',
@@ -406,8 +406,15 @@ class DriverCubit extends Cubit<DriverState> {
     if (offer != null) {
       _realtime.emit('trip:decline', {'tripId': offer.tripId});
     }
-    emit(state.copyWith(phase: DriverPhase.online, offer: null, busy: false));
+    emit(state.copyWith(phase: _idlePhase, offer: null, busy: false));
   }
+
+  /// Where an offer that went away (declined, expired, lost) returns to: the
+  /// trip-complete sheet if the driver hadn't finished with it yet, else the
+  /// plain online screen.
+  DriverPhase get _idlePhase => state.lastTripId != null
+      ? DriverPhase.completed
+      : DriverPhase.online;
 
   Future<void> markArrived() async {
     final trip = state.trip;
@@ -506,8 +513,15 @@ class DriverCubit extends Cubit<DriverState> {
   }
 
   void _onOffer(RideOffer offer) {
-    // Only surface offers while idle-online.
-    if (state.phase != DriverPhase.online) return;
+    // Surface offers while idle-online — and on the trip-complete / rate-rider
+    // sheet: the server puts the driver back in the dispatch pool the moment
+    // the trip completes, so dropping offers here left them un-offerable
+    // (every offer ghosted) until they tapped Done. The card is drawn over the
+    // completion sheet; rating the last rider is optional.
+    if (state.phase != DriverPhase.online &&
+        state.phase != DriverPhase.completed) {
+      return;
+    }
     // Drop any stale error (e.g. the previous "taken or cancelled" reset) so
     // the page listener doesn't re-toast it over the new card on this phase
     // change, and so a repeat of the same message can surface again later.
@@ -523,7 +537,7 @@ class DriverCubit extends Cubit<DriverState> {
     if (tripId != null && state.offer?.tripId != tripId) return;
     _cancelAcceptTimer();
     emit(state.copyWith(
-      phase: DriverPhase.online,
+      phase: _idlePhase,
       offer: null,
       busy: false,
       error: state.busy ? 'That ride was taken or cancelled' : null,
@@ -546,6 +560,12 @@ class DriverCubit extends Cubit<DriverState> {
         // The Trip model carries no rider profile; keep the name from the
         // offer card so the chat header can address the rider by name.
         riderName: state.offer?.riderName ?? trip.riderName,
+        // Accepting from the trip-complete sheet closes it: the new trip
+        // takes over. The skipped rider rating can still be given later
+        // (POST /trips/:id/rating accepts it after the fact).
+        lastTripId: null,
+        riderRating: null,
+        cashToCollect: null,
       ));
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));

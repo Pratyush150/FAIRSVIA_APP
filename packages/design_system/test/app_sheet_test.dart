@@ -178,4 +178,62 @@ void main() {
     expect(rect.height, lessThanOrEqualTo(screen.height * 0.5 + 0.5));
     expect(rect.bottom, screen.height);
   });
+
+  Future<void> pumpSheet(WidgetTester tester, AppSheet sheet) async {
+    const screen = Size(402, 874);
+    tester.view.physicalSize = screen;
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: screen,
+            padding: EdgeInsets.only(top: 40, bottom: 20),
+          ),
+          child: Scaffold(
+            body: Align(alignment: Alignment.bottomCenter, child: sheet),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('AppSheet minHeightFraction holds a short sheet open, footer '
+      'on the bottom edge', (tester) async {
+    await pumpSheet(
+      tester,
+      const AppSheet(
+        minHeightFraction: 0.5,
+        maxHeightFraction: 0.5,
+        footer: Text('footer'),
+        child: Text('short'),
+      ),
+    );
+    final rect = tester.getRect(find.byType(AppSheet));
+    expect(rect.height, closeTo(874 * 0.5, 0.5));
+    expect(tester.getRect(find.text('footer')).bottom, greaterThan(874 - 60));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('AppSheet fullScreen covers the screen below the status bar', (
+    tester,
+  ) async {
+    await pumpSheet(
+      tester,
+      const AppSheet(
+        fullScreen: true,
+        footer: Text('footer'),
+        child: Text('top'),
+      ),
+    );
+    final rect = tester.getRect(find.byType(AppSheet));
+    expect(rect.top, 0);
+    expect(rect.height, 874);
+    // Content starts below the status-bar inset.
+    expect(tester.getRect(find.text('top')).top, greaterThanOrEqualTo(40));
+    expect(tester.getRect(find.text('footer')).bottom, greaterThan(874 - 80));
+    expect(tester.takeException(), isNull);
+  });
 }

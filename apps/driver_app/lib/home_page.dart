@@ -16,6 +16,15 @@ import 'features/driver/location_priming_page.dart';
 import 'features/driver/location_stream.dart';
 import 'features/driver/vehicle_setup_dialog.dart';
 
+/// Top-down 3D render of the driver's own vehicle tier for their car on the
+/// map (the same art the rider sees for this driver); unknown/absent tiers
+/// get the generic 'driver' car.
+String driverCarAssetFor(String? tier) {
+  const known = {'economy', 'comfort', 'xl', 'premium', 'auto', 'bike'};
+  final name = known.contains(tier) ? tier : 'driver';
+  return 'packages/design_system/assets/vehicles/top/$name.png';
+}
+
 /// Driver home: map + online toggle, interrupting offer modal, and the
 /// en-route → arrived → on-trip lifecycle sheets.
 class DriverHomePage extends StatelessWidget {
@@ -89,12 +98,28 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   String? _liveRoutePolyline;
   String? _liveRouteLeg;
 
+  // The driver's registered vehicle tier (from their profile) — picks the
+  // top-down car drawn for them on the map.
+  String? _vehicleTier;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _connect();
     _primeLocation();
+    _loadVehicleTier();
+  }
+
+  Future<void> _loadVehicleTier() async {
+    try {
+      final profile = await sl<DriverRemoteDataSource>().me();
+      if (mounted && profile.vehicleTier != _vehicleTier) {
+        setState(() => _vehicleTier = profile.vehicleTier);
+      }
+    } catch (_) {
+      // Not onboarded yet / offline: the generic car stays until it loads.
+    }
   }
 
   /// One fix at startup so the idle/offline map opens on the driver instead
@@ -564,6 +589,10 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                     ? _myLocation
                     : null,
                 markers: _markers(state),
+                // The driver's own car: the 3D top-down render of their tier
+                // (the live trip's tier wins, it is what they're driving).
+                driverCarAsset:
+                    driverCarAssetFor(state.trip?.tier ?? _vehicleTier),
                 route: _route(state),
                 fitBounds: _fitBounds(state),
                 // Navigation view while driving: heading-up, centred on the
@@ -630,16 +659,13 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                   ],
                 ),
               ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: _BottomSheet(
+              Positioned.fill(
+                child: DriverSheetLayer(
                   state: state,
                   myLocation: _myLocation,
                   route: _route(state),
                 ),
               ),
-              if (state.phase == DriverPhase.offered && state.offer != null)
-                OfferOverlay(offer: state.offer!),
             ],
           ),
         );
@@ -670,6 +696,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
       );
     } finally {
       _onboardingShowing = false;
+      unawaited(_loadVehicleTier());
     }
   }
 
@@ -697,6 +724,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
       ),
     );
     if (saved == true) {
+      unawaited(_loadVehicleTier());
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(const SnackBar(content: Text('Vehicle updated.')));
@@ -718,6 +746,40 @@ Future<void> _goOnline(BuildContext context, DriverCubit cubit) async {
     }
   }
   await cubit.goOnline();
+}
+
+/// The layer over the map: the phase's bottom sheet and, when an offer is
+/// live, the offer card drawn above it — including above the trip-complete /
+/// rate-rider sheet, which stays underneath (see [DriverCubit] `_onOffer`).
+class DriverSheetLayer extends StatelessWidget {
+  const DriverSheetLayer({
+    super.key,
+    required this.state,
+    this.myLocation,
+    this.route = const [],
+  });
+
+  final DriverState state;
+  final LatLng? myLocation;
+  final List<LatLng> route;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: _BottomSheet(
+            state: state,
+            myLocation: myLocation,
+            route: route,
+          ),
+        ),
+        if (state.phase == DriverPhase.offered && state.offer != null)
+          OfferOverlay(offer: state.offer!),
+      ],
+    );
+  }
 }
 
 class _BottomSheet extends StatelessWidget {
@@ -747,6 +809,11 @@ class _BottomSheet extends StatelessWidget {
           busy: state.busy,
           onGoOnline: () => _goOnline(context, cubit),
         );
+      // An offer that arrived on the trip-complete sheet is drawn OVER that
+      // sheet (OfferOverlay); keep the sheet underneath so declining it or
+      // letting it expire lands the driver back where they were.
+      case DriverPhase.offered when state.lastTripId != null:
+        child = _CompletedSheet(state: state, cubit: cubit);
       case DriverPhase.online:
       case DriverPhase.offered:
         child = Column(

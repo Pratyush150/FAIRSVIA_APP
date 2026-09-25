@@ -7,15 +7,17 @@ part of 'ride_sheets.dart';
 /// - Home: no card at all — the "Where to?" pill floats over the map on its
 ///   own, saved places in a small glass card under it.
 /// - Driver on the way / arrived / on trip: map-first. The card opens
-///   compact ([kGlassCompactFraction] of the screen: the status, the car and
+///   compact ([RiderSheetHeights.pickupCompact] / [RiderSheetHeights.onTripCompact]
+///   of the screen: the status, the car and
 ///   plate, the PIN) and the handle expands it to the full sheet — same
 ///   content, same order, it only scrolls less.
+/// - Choosing a ride: [RiderSheetHeights.chooseRide] of the screen; the
+///   handle pulls it up to [RiderSheetHeights.chooseRideExpanded].
+/// - Ride complete: the card grows to [RiderSheetHeights.completed] of the
+///   screen (a map peek above it; 1.0 is a full-screen page).
 /// - The card's size springs between phases ([GlassSpringCurve]) while the
 ///   content swaps inside it; under Reduce Motion the size snaps and the
 ///   content cross-fades.
-
-/// Share of the screen the compact live-ride card takes.
-const double kGlassCompactFraction = 0.40;
 
 /// The phases that open as a compact card over the map.
 bool _glassCompactPhase(TripPhase p) =>
@@ -56,6 +58,13 @@ class _GlassPhaseSheetState extends State<_GlassPhaseSheet> {
   Widget build(BuildContext context) {
     final phase = widget.state.phase;
     final compactable = _glassCompactPhase(phase);
+    final choosing = phase == TripPhase.choosingRide;
+    // The handle is a control on the live phases (compact ↔ full) and on
+    // the ride options (half screen ↔ tall).
+    final toggles = compactable || choosing;
+    final heights = RiderSheetHeights.current;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final fixed = _fixedFraction(phase, screenHeight);
     final reduced = AppMotion.reduced(context);
     final switcher = AnimatedSwitcher(
       duration: reduced ? AppMotion.normal : AppMotion.slow,
@@ -82,16 +91,27 @@ class _GlassPhaseSheetState extends State<_GlassPhaseSheet> {
     return AppSheet(
       chromeless: widget.chromeless,
       handle: !widget.chromeless,
-      maxHeightFraction: phase == TripPhase.choosingRide
-          ? kRideOptionsSheetFraction
+      maxHeightFraction: choosing && _expanded
+          ? heights.chooseRideExpanded
           : compactable && !_expanded
-          ? kGlassCompactFraction
+          ? heights.liveCompactAt(
+              onTrip: phase == TripPhase.onTrip,
+              screenHeight: screenHeight,
+            )
+          : fixed,
+      // Choosing a ride: its set share from the start, however few tiers.
+      minHeightFraction: fixed,
+      // Ride complete: the card grows into a full-screen page (or nearly).
+      fullScreen: _completedFullScreen(phase),
+      onHandleTap: toggles ? _toggle : null,
+      handleLabel: toggles
+          ? (_expanded
+                ? 'Show less'
+                : choosing
+                ? 'Show more ride options'
+                : 'Show more ride details')
           : null,
-      onHandleTap: compactable ? _toggle : null,
-      handleLabel: compactable
-          ? (_expanded ? 'Show less' : 'Show more ride details')
-          : null,
-      onHandleDrag: compactable
+      onHandleDrag: toggles
           ? (v) {
               if (v < -200 && !_expanded) setState(() => _expanded = true);
               if (v > 200 && _expanded) setState(() => _expanded = false);

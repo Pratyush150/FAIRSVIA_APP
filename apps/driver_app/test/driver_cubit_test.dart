@@ -196,6 +196,97 @@ void main() {
     await cubit.close();
   });
 
+  group('offers on the trip-complete sheet (back-to-back rides)', () {
+    Future<DriverCubit> completed() async {
+      final cubit = make();
+      await cubit.init('token');
+      await cubit.goOnline();
+      realtime.push('trip:offer', offerJson);
+      await tick();
+      cubit.acceptOffer();
+      realtime.push('trip:assigned', {'tripId': 'trip-1'});
+      await tick();
+      await cubit.markArrived();
+      await cubit.startTrip('1234');
+      await cubit.completeTrip();
+      expect(cubit.state.phase, DriverPhase.completed);
+      return cubit;
+    }
+
+    final nextOffer = <String, dynamic>{...offerJson, 'tripId': 'trip-2'};
+
+    test('an offer on the completion sheet is shown, not dropped', () async {
+      final cubit = await completed();
+      realtime.push('trip:offer', nextOffer);
+      await tick();
+      expect(cubit.state.phase, DriverPhase.offered);
+      expect(cubit.state.offer?.tripId, 'trip-2');
+      // The completion sheet is still underneath the card.
+      expect(cubit.state.lastTripId, 'trip-1');
+      await cubit.close();
+    });
+
+    test('location keeps streaming on the completion sheet', () async {
+      final cubit = await completed();
+      realtime.emitted.clear();
+      cubit.sendLocation(12.97, 77.59);
+      expect(realtime.emitted.any((e) => e.$1 == 'driver:location'), isTrue);
+      await cubit.close();
+    });
+
+    test('accepting closes the completion sheet and starts the new trip; the '
+        'unrated rider is skipped', () async {
+      final cubit = await completed();
+      final trip2 = Trip(
+        id: 'trip-2',
+        status: TripStatus.accepted,
+        tier: 'economy',
+        pickup: const TripEndpoint(point: GeoPoint(12.96, 77.63), address: 'C'),
+        dropoff: const TripEndpoint(point: GeoPoint(12.97, 77.59), address: 'D'),
+      );
+      when(() => remote.getTrip('trip-2')).thenAnswer((_) async => trip2);
+      realtime.push('trip:offer', nextOffer);
+      await tick();
+      cubit.acceptOffer();
+      expect(
+        realtime.emitted.any(
+            (e) => e.$1 == 'trip:accept' && e.$2['tripId'] == 'trip-2'),
+        isTrue,
+      );
+      realtime.push('trip:assigned', {'tripId': 'trip-2'});
+      await tick();
+      expect(cubit.state.phase, DriverPhase.enRoute);
+      expect(cubit.state.trip?.id, 'trip-2');
+      expect(cubit.state.lastTripId, isNull);
+      expect(cubit.state.cashToCollect, isNull);
+      verifyNever(() => ratings.rate(any(), stars: any(named: 'stars')));
+      await cubit.close();
+    });
+
+    test('declining returns to the completion sheet so the driver can still '
+        'rate', () async {
+      final cubit = await completed();
+      realtime.push('trip:offer', nextOffer);
+      await tick();
+      cubit.declineOffer();
+      expect(cubit.state.phase, DriverPhase.completed);
+      expect(cubit.state.lastTripId, 'trip-1');
+      await cubit.rateRider(4);
+      verify(() => ratings.rate('trip-1', stars: 4)).called(1);
+      await cubit.close();
+    });
+
+    test('an expired offer returns to the completion sheet', () async {
+      final cubit = await completed();
+      realtime.push('trip:offer', nextOffer);
+      await tick();
+      realtime.push('trip:offer_expired', {'tripId': 'trip-2'});
+      await tick();
+      expect(cubit.state.phase, DriverPhase.completed);
+      await cubit.close();
+    });
+  });
+
   test('declining an offer returns to online and emits trip:decline', () async {
     final cubit = make();
     await cubit.init('token');

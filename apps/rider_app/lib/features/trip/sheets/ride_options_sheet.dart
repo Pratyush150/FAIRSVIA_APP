@@ -23,10 +23,12 @@ class _RideOptions extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: AppSpacing.sm,
           children: [
-            Text('Choose a ride',
-                style: theme.textTheme.headlineSmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
+            Text(
+              'Choose a ride',
+              style: theme.textTheme.headlineSmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             Text(
               '${Market.current.legDistance(estimate.distanceM)} · '
               '${_minutes(estimate.durationS)} min',
@@ -39,8 +41,9 @@ class _RideOptions extends StatelessWidget {
             padding: const EdgeInsets.only(top: AppSpacing.sm),
             child: Text(
               'Fares are higher due to demand (${estimate.surge.toStringAsFixed(1)}x)',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: AppColors.warning),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.warning,
+              ),
             ),
           ),
         // Surfaced when a request comes back with no drivers (or a create error);
@@ -50,13 +53,19 @@ class _RideOptions extends StatelessWidget {
             padding: const EdgeInsets.only(top: AppSpacing.sm),
             child: Row(
               children: [
-                const Icon(PhosphorIconsRegular.info,
-                    size: 16, color: AppColors.warning),
+                const Icon(
+                  PhosphorIconsRegular.info,
+                  size: 16,
+                  color: AppColors.warning,
+                ),
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
-                  child: Text(state.error!,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.warning)),
+                  child: Text(
+                    state.error!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.warning,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -68,37 +77,40 @@ class _RideOptions extends StatelessWidget {
         // swallowed swipes and hid the payment/schedule/promo rows behind a
         // nested-scroll trap.
         ListView(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              for (final (i, tier) in _listOrder(estimate.tiers).indexed)
-                _RideTierTile(
-                  tier: tier,
-                  tripDurationS: estimate.durationS,
-                  selected: tier.tier == state.selectedTier,
-                  // No car of this type nearby: shown, dimmed, not pickable —
-                  // unless the ride is booked for later, when "nearby now"
-                  // doesn't matter.
-                  onTap: tier.available || state.scheduledAt != null
-                      ? () {
-                          AppHaptics.selection();
-                          cubit.selectTier(tier.tier);
-                        }
-                      : null,
-                ).motion(
-                  (w) => w.animate().fadeIn(
-                        delay: AppMotion.stagger * i,
-                        duration: AppMotion.normal,
-                      ).moveY(
-                        begin: 8,
-                        end: 0,
-                        delay: AppMotion.stagger * i,
-                        duration: AppMotion.normal,
-                        curve: AppMotion.enter,
-                      ),
-                ),
-            ],
-          ),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            for (final (i, tier) in _listOrder(estimate.tiers).indexed)
+              _RideTierTile(
+                tier: tier,
+                tripDurationS: estimate.durationS,
+                selected: tier.tier == state.selectedTier,
+                // No car of this type nearby: shown, dimmed, not pickable —
+                // unless the ride is booked for later, when "nearby now"
+                // doesn't matter.
+                onTap: tier.available || state.scheduledAt != null
+                    ? () {
+                        AppHaptics.selection();
+                        cubit.selectTier(tier.tier);
+                      }
+                    : null,
+              ).motion(
+                (w) => w
+                    .animate()
+                    .fadeIn(
+                      delay: AppMotion.stagger * i,
+                      duration: AppMotion.normal,
+                    )
+                    .moveY(
+                      begin: 8,
+                      end: 0,
+                      delay: AppMotion.stagger * i,
+                      duration: AppMotion.normal,
+                      curve: AppMotion.enter,
+                    ),
+              ),
+          ],
+        ),
         if (estimate.comparison != null) ...[
           const SizedBox(height: AppSpacing.sm),
           PriceComparisonCard(comparison: estimate.comparison!),
@@ -150,17 +162,24 @@ class _BookForSomeoneElseRow extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(PhosphorIconsRegular.userCircle,
-            size: 20, color: AppColors.accent),
+        Icon(
+          PhosphorIconsRegular.userCircle,
+          size: 20,
+          color: AppColors.accent,
+        ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Ride for ${passenger.displayName}',
-                  style: theme.textTheme.bodyMedium),
-              Text('They get the start code by text',
-                  style: theme.textTheme.bodySmall),
+              Text(
+                'Ride for ${passenger.displayName}',
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                'They get the start code by text',
+                style: theme.textTheme.bodySmall,
+              ),
             ],
           ),
         ),
@@ -243,10 +262,7 @@ Future<TripPassenger?> _askPassenger(
                 final name = nameCtrl.text.trim();
                 Navigator.pop(
                   dialogCtx,
-                  TripPassenger(
-                    phone: phone,
-                    name: name.isEmpty ? null : name,
-                  ),
+                  TripPassenger(phone: phone, name: name.isEmpty ? null : name),
                 );
               },
               child: const Text('Done'),
@@ -277,8 +293,9 @@ class _RideConfirmFooter extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         PrimaryButton(
           label: _confirmLabel(state),
-          onPressed:
-              state.selectedTier != null ? () => cubit.confirmRide() : null,
+          onPressed: state.selectedTier != null
+              ? () => cubit.confirmRide()
+              : null,
         ),
         TextButton(
           onPressed: () => cubit.reset(),
@@ -360,7 +377,9 @@ class _StopsSection extends StatelessWidget {
 String _confirmLabel(TripState state) {
   final fare = state.selectedFare;
   if (fare == null) {
-    return state.scheduledAt == null ? 'No cars nearby right now' : 'Choose a ride';
+    return state.scheduledAt == null
+        ? 'No cars nearby right now'
+        : 'Choose a ride';
   }
   final net = state.discountedFare ?? fare.fare;
   final amount = (state.appliedPromo != null && net != fare.fare)
@@ -373,8 +392,18 @@ String _confirmLabel(TripState state) {
 String _formatSchedule(DateTime when) {
   final local = when.toLocal();
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
   final ampm = local.hour < 12 ? 'AM' : 'PM';
@@ -390,12 +419,14 @@ Future<DateTime?> _pickCupertino(BuildContext context) async {
   // Material path). Start on the next 5-minute mark an hour from now.
   final floor = now.add(const Duration(minutes: 6));
   var initial = now.add(const Duration(hours: 1));
-  initial = initial.subtract(Duration(
-    minutes: initial.minute % 5,
-    seconds: initial.second,
-    milliseconds: initial.millisecond,
-    microseconds: initial.microsecond,
-  ));
+  initial = initial.subtract(
+    Duration(
+      minutes: initial.minute % 5,
+      seconds: initial.second,
+      milliseconds: initial.millisecond,
+      microseconds: initial.microsecond,
+    ),
+  );
   var picked = initial;
   final theme = Theme.of(context);
   final ok = await showCupertinoModalPopup<bool>(
@@ -463,8 +494,13 @@ Future<DateTime?> pickRideTime(BuildContext context) async {
     initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
   );
   if (time == null) return null;
-  final when =
-      DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  final when = DateTime(
+    date.year,
+    date.month,
+    date.day,
+    time.hour,
+    time.minute,
+  );
   // Clamping to exactly now+5 and sending a few seconds later was rejected
   // by the backend with a 400 — hence 6.
   final floor = now.add(const Duration(minutes: 6));
@@ -503,8 +539,7 @@ class _ScheduleRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(PhosphorIconsRegular.calendarDots,
-                size: 20, color: AppColors.accentInk),
+            const Icon(PhosphorIconsRegular.clock, size: 20),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -519,9 +554,12 @@ class _ScheduleRow extends StatelessWidget {
                 onPressed: () => cubit.setScheduledAt(null),
               )
             else
-              Text('Schedule',
-                  style: theme.textTheme.labelLarge
-                      ?.copyWith(color: AppColors.accentText)),
+              Text(
+                'Schedule',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: AppColors.accentText,
+                ),
+              ),
           ],
         ),
       ),
@@ -543,7 +581,11 @@ class _ScheduledConfirmation extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(PhosphorIconsRegular.calendarCheck, color: AppColors.accent, size: 48),
+        Icon(
+          PhosphorIconsRegular.calendarCheck,
+          color: AppColors.accent,
+          size: 48,
+        ),
         const SizedBox(height: AppSpacing.sm),
         Center(
           child: Text('Ride scheduled', style: theme.textTheme.headlineSmall),
@@ -667,16 +709,22 @@ class _PaymentModeToggle extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
-                child: Text('Pay with',
-                    style: theme.textTheme.titleMedium),
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                ),
+                child: Text('Pay with', style: theme.textTheme.titleMedium),
               ),
               for (final c in cards)
                 ListTile(
                   leading: const Icon(PhosphorIconsRegular.creditCard),
                   title: Text(_cardLabel(c)),
                   trailing: c['id'] == activeId
-                      ? Icon(PhosphorIconsRegular.check, color: AppColors.accent)
+                      ? Icon(
+                          PhosphorIconsRegular.check,
+                          color: AppColors.accent,
+                        )
                       : null,
                   onTap: () {
                     AppHaptics.selection();
@@ -695,8 +743,7 @@ class _PaymentModeToggle extends StatelessWidget {
 
 /// What marks the chosen option: the ink, or teal in THEME=ink (Plan E keeps
 /// teal for the route and the selection).
-Color get _selectionInk =>
-    InkPaper.on ? AppColors.highlight : AppColors.accent;
+Color get _selectionInk => InkPaper.on ? AppColors.highlight : AppColors.accent;
 
 class _PayChip extends StatelessWidget {
   const _PayChip({
@@ -721,57 +768,63 @@ class _PayChip extends StatelessWidget {
       selected: selected,
       button: true,
       child: InkWell(
-      onTap: () {
-        AppHaptics.selection();
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-      child: AnimatedContainer(
-        duration: AppMotion.fast,
-        curve: AppMotion.standard,
-        // 48 tall: Android's minimum touch target.
-        constraints: const BoxConstraints(minHeight: 48),
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        // THEME=ink: outlined on the paper; the chosen one in teal (the
-        // selection colour), 1.6 wide, with the check.
-        decoration: BoxDecoration(
-          color: selected && !InkPaper.on
-              ? (theme.brightness == Brightness.dark
-                  ? AppColors.accentSoftDark
-                  : AppColors.accentSoft)
-              : null,
-          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-          border: Border.all(
-            color: selected
-                ? _selectionInk
-                : (InkPaper.on
-                    ? InkPaper.outline(theme.brightness == Brightness.dark)
-                    : theme.dividerColor),
-            width: InkPaper.on ? (selected ? 1.6 : 1) : 2,
+        onTap: () {
+          AppHaptics.selection();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          curve: AppMotion.standard,
+          // 48 tall: Android's minimum touch target.
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          // THEME=ink: outlined on the paper; the chosen one in teal (the
+          // selection colour), 1.6 wide, with the check.
+          decoration: BoxDecoration(
+            color: selected && !InkPaper.on
+                ? (theme.brightness == Brightness.dark
+                      ? AppColors.accentSoftDark
+                      : AppColors.accentSoft)
+                : null,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+            border: Border.all(
+              color: selected
+                  ? _selectionInk
+                  : (InkPaper.on
+                        ? InkPaper.outline(theme.brightness == Brightness.dark)
+                        : theme.dividerColor),
+              width: InkPaper.on ? (selected ? 1.6 : 1) : 2,
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(selected ? PhosphorIconsFill.checkCircle : icon,
-                size: 20, color: selected ? _selectionInk : null),
-            const SizedBox(width: AppSpacing.sm),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: selected ? _selectionInk : null,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                selected ? PhosphorIconsFill.checkCircle : icon,
+                size: 20,
+                color: selected ? _selectionInk : null,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: selected ? _selectionInk : null,
+                  ),
                 ),
               ),
-            ),
-            if (trailing != null)
-              Icon(trailing,
-                  size: 20, color: selected ? _selectionInk : null),
-          ],
+              if (trailing != null)
+                Icon(
+                  trailing,
+                  size: 20,
+                  color: selected ? _selectionInk : null,
+                ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -795,7 +848,8 @@ class _PromoFieldState extends State<_PromoField> {
     super.didUpdateWidget(old);
     // The field sits low in the scrolling sheet; an error or the "applied"
     // chip appearing below the fold went unseen. Bring it into view.
-    final changed = old.state.promoError != widget.state.promoError ||
+    final changed =
+        old.state.promoError != widget.state.promoError ||
         old.state.appliedPromo != widget.state.appliedPromo;
     if (changed &&
         (widget.state.promoError != null ||
@@ -835,7 +889,11 @@ class _PromoFieldState extends State<_PromoField> {
         ),
         child: Row(
           children: [
-            const Icon(PhosphorIconsRegular.tag, size: 20, color: AppColors.success),
+            const Icon(
+              PhosphorIconsRegular.tag,
+              size: 20,
+              color: AppColors.success,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -892,8 +950,9 @@ class _PromoFieldState extends State<_PromoField> {
             padding: const EdgeInsets.only(top: AppSpacing.xs),
             child: Text(
               widget.state.promoError!,
-              style:
-                  theme.textTheme.bodySmall?.copyWith(color: AppColors.error),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.error,
+              ),
             ),
           ),
       ],
@@ -918,7 +977,6 @@ class _RideTierTile extends StatelessWidget {
   /// Null when this ride type has no car nearby.
   final VoidCallback? onTap;
 
-
   @override
   Widget build(BuildContext context) {
     if (AppVariant.local) return _buildLocal(context);
@@ -929,137 +987,157 @@ class _RideTierTile extends StatelessWidget {
       button: true,
       enabled: onTap != null,
       child: Opacity(
-       opacity: onTap == null ? 0.4 : 1,
-       child: Padding(
-        padding: EdgeInsets.only(bottom: InkPaper.on ? 0 : 4),
-        child: Material(
-          color: Colors.transparent,
-          // THEME=ink: ruled rows, no box; the selection is the teal marker
-          // under the name and a teal check (below).
-          shape: InkPaper.on
-              ? Border(
-                  bottom: BorderSide(
-                      color: InkPaper.rule(
-                          theme.brightness == Brightness.dark)))
-              : RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppSpacing.radius),
-                  // The selected ride is outlined in ink; the rest have no
-                  // box at all.
-                  side: BorderSide(
-                    color: selected ? AppColors.highlight : Colors.transparent,
-                    width: 2,
+        opacity: onTap == null ? 0.4 : 1,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: InkPaper.on ? 0 : 4),
+          child: Material(
+            color: Colors.transparent,
+            // THEME=ink: ruled rows, no box; the selection is the teal marker
+            // under the name and a teal check (below).
+            shape: InkPaper.on
+                ? Border(
+                    bottom: BorderSide(
+                      color: InkPaper.rule(theme.brightness == Brightness.dark),
+                    ),
+                  )
+                : RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.radius),
+                    // The selected ride is outlined in ink; the rest have no
+                    // box at all.
+                    side: BorderSide(
+                      color: selected
+                          ? AppColors.highlight
+                          : Colors.transparent,
+                      width: 2,
+                    ),
                   ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.sm,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
                 ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.sm, AppSpacing.md, AppSpacing.md, AppSpacing.md),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 76,
-                    child: InkPaper.on
-                        // THEME=ink: the teal check sits on the drawing's
-                        // corner, so selection is never the underline's
-                        // colour alone and the text column keeps its width.
-                        ? Stack(
-                            clipBehavior: Clip.none,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 76,
+                      child: InkPaper.on
+                          // THEME=ink: the teal check sits on the drawing's
+                          // corner, so selection is never the underline's
+                          // colour alone and the text column keeps its width.
+                          ? Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                VehicleGlyph(tier: tier.tier, width: 76),
+                                if (selected)
+                                  Positioned(
+                                    left: -2,
+                                    top: -4,
+                                    child: Icon(
+                                      PhosphorIconsRegular.check,
+                                      size: 20,
+                                      color: AppColors.highlight,
+                                    ),
+                                  ),
+                              ],
+                            )
+                          : VehicleGlyph(tier: tier.tier, width: 76),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              VehicleGlyph(tier: tier.tier, width: 76),
-                              if (selected)
-                                Positioned(
-                                  left: -2,
-                                  top: -4,
-                                  child: Icon(PhosphorIconsRegular.check,
-                                      size: 20, color: AppColors.highlight),
-                                ),
-                            ],
-                          )
-                        : VehicleGlyph(tier: tier.tier, width: 76),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: MarkerUnderline(
-                                visible: InkPaper.on && selected,
-                                child: Text(tier.label,
+                              Flexible(
+                                child: MarkerUnderline(
+                                  visible: InkPaper.on && selected,
+                                  child: Text(
+                                    tier.label,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.titleMedium
                                         ?.copyWith(
-                                            fontWeight: InkPaper.on
-                                                ? FontWeight.w600
-                                                : FontWeight.w700)),
+                                          fontWeight: InkPaper.on
+                                              ? FontWeight.w600
+                                              : FontWeight.w700,
+                                        ),
+                                  ),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            Icon(PhosphorIconsRegular.user,
-                                size: 16, color: theme.colorScheme.onSurface),
-                            Text('${tier.capacity}',
-                                style: theme.textTheme.labelMedium),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          eta == null
-                              ? switch (tier.tier) {
-                                  'auto' => 'No autos nearby',
-                                  'bike' => 'No bikes nearby',
-                                  _ => 'No cars nearby',
-                                }
-                              // When the car comes, and when the rider gets
-                              // there: the two numbers people compare tiers on.
-                              : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    // Same rule as the confirm footer (Fmt.money), so the
-                    // list and the button always agree.
-                    Fmt.money(tier.fare, tier.currency),
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700)
-                        .tabular(),
-                  ),
-                  // What the number is made of — only when the backend
-                  // itemised it; an empty breakdown is worse than none. The
-                  // glyph is 20 but the target is a full 48 × 48, beside the
-                  // fare rather than under it so the row stays one height.
-                  if (tier.breakdown != null)
-                    Semantics(
-                      button: true,
-                      label: 'Fare details for ${tier.label}',
-                      onTap: () => showFareDetailsSheet(context, tier),
-                      excludeSemantics: true,
-                      child: InkResponse(
-                        onTap: () => showFareDetailsSheet(context, tier),
-                        radius: 22,
-                        child: SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: Icon(PhosphorIconsRegular.info,
-                              size: 20,
-                              color: theme.textTheme.bodySmall?.color),
-                        ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                PhosphorIconsRegular.user,
+                                size: 16,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                              Text(
+                                '${tier.capacity}',
+                                style: theme.textTheme.labelMedium,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            eta == null
+                                ? switch (tier.tier) {
+                                    'auto' => 'No autos nearby',
+                                    'bike' => 'No bikes nearby',
+                                    _ => 'No cars nearby',
+                                  }
+                                // When the car comes, and when the rider gets
+                                // there: the two numbers people compare tiers on.
+                                : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
                       ),
                     ),
-                ],
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      // Same rule as the confirm footer (Fmt.money), so the
+                      // list and the button always agree.
+                      Fmt.money(tier.fare, tier.currency),
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700)
+                          .tabular(),
+                    ),
+                    // What the number is made of — only when the backend
+                    // itemised it; an empty breakdown is worse than none. The
+                    // glyph is 20 but the target is a full 48 × 48, beside the
+                    // fare rather than under it so the row stays one height.
+                    if (tier.breakdown != null)
+                      Semantics(
+                        button: true,
+                        label: 'Fare details for ${tier.label}',
+                        onTap: () => showFareDetailsSheet(context, tier),
+                        excludeSemantics: true,
+                        child: InkResponse(
+                          onTap: () => showFareDetailsSheet(context, tier),
+                          radius: 22,
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Icon(
+                              PhosphorIconsRegular.info,
+                              size: 20,
+                              color: theme.textTheme.bodySmall?.color,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
-     ),
     );
   }
 
@@ -1098,7 +1176,11 @@ class _RideTierTile extends StatelessWidget {
               onTap: onTap,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.sm, AppSpacing.sm, AppSpacing.md, 0),
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                  AppSpacing.md,
+                  0,
+                ),
                 child: Row(
                   children: [
                     SizedBox(
@@ -1115,8 +1197,9 @@ class _RideTierTile extends StatelessWidget {
                               height: 14,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(40),
-                                color: LocalColour.marigold
-                                    .withValues(alpha: dark ? 0.22 : 0.28),
+                                color: LocalColour.marigold.withValues(
+                                  alpha: dark ? 0.22 : 0.28,
+                                ),
                               ),
                             ),
                           ),
@@ -1134,13 +1217,15 @@ class _RideTierTile extends StatelessWidget {
                             textBaseline: TextBaseline.alphabetic,
                             children: [
                               Expanded(
-                                child: Text(tier.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleMedium
-                                        ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            color: selected ? ink : null)),
+                                child: Text(
+                                  tier.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: selected ? ink : null,
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: AppSpacing.sm),
                               Text(
@@ -1242,8 +1327,10 @@ Future<void> showFareDetailsSheet(BuildContext context, FareTier tier) {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Estimated total', style: theme.textTheme.titleMedium),
-                  Text(Fmt.money(tier.fare, tier.currency),
-                      style: theme.textTheme.titleMedium?.tabular()),
+                  Text(
+                    Fmt.money(tier.fare, tier.currency),
+                    style: theme.textTheme.titleMedium?.tabular(),
+                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -1271,8 +1358,9 @@ class _PickupNoteField extends StatefulWidget {
 }
 
 class _PickupNoteFieldState extends State<_PickupNoteField> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.state.pickupNote ?? '');
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.state.pickupNote ?? '',
+  );
 
   @override
   void dispose() {

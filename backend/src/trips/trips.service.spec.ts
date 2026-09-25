@@ -41,6 +41,7 @@ describe('TripsService', () => {
         incr: jest.fn().mockResolvedValue(1),
         expire: jest.fn().mockResolvedValue(1),
         exists: jest.fn(async (k: string) => (store[k] === undefined ? 0 : 1)),
+        geoadd: jest.fn().mockResolvedValue(1),
       },
     };
     const created: Record<string, unknown>[] = [];
@@ -334,6 +335,36 @@ describe('TripsService', () => {
       );
     });
 
+    it('puts the driver straight back into their tier pool at the drop-off (offerable before any new ping)', async () => {
+      const { svc, prisma, redis, store } = make();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      store[RedisKeys.driverTier('driver-1')] = 'economy';
+      store[RedisKeys.driverLoc('driver-1')] = { lat: '12.97', lng: '77.59', ts: String(Date.now()) };
+      await svc.completeTrip('driver-1', 'trip-1');
+      expect(redis.client.set).toHaveBeenCalledWith(RedisKeys.driverStatus('driver-1'), 'online');
+      expect(redis.client.geoadd).toHaveBeenCalledWith(
+        RedisKeys.driversGeo('economy'), 77.59, 12.97, 'driver-1',
+      );
+    });
+
+    it('does not re-pool on a stale last fix (dispatch would evict it; the next ping re-adds)', async () => {
+      const { svc, prisma, redis, store } = make();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      store[RedisKeys.driverTier('driver-1')] = 'economy';
+      store[RedisKeys.driverLoc('driver-1')] = { lat: '12.97', lng: '77.59', ts: String(Date.now() - 10 * 60_000) };
+      await svc.completeTrip('driver-1', 'trip-1');
+      expect(redis.client.geoadd).not.toHaveBeenCalled();
+    });
+
+    it('a failing re-pool never fails the completion', async () => {
+      const { svc, prisma, redis, store } = make();
+      prisma.trip.findUnique.mockResolvedValue(trip);
+      store[RedisKeys.driverTier('driver-1')] = 'economy';
+      store[RedisKeys.driverLoc('driver-1')] = { lat: '12.97', lng: '77.59', ts: String(Date.now()) };
+      redis.client.geoadd.mockRejectedValueOnce(new Error('redis down'));
+      await expect(svc.completeTrip('driver-1', 'trip-1')).resolves.toMatchObject({ tripId: 'trip-1' });
+    });
+
     /**
      * A completed ride must never settle at nothing. Without a usable GPS
      * trail the fare falls back to the up-front estimate — but when that
@@ -611,6 +642,80 @@ describe('TripsService', () => {
       expect(asRider.driver.phone).toBeUndefined();
       const asDriver = (await setup('completed').getTrip('driver-1', 'trip-1')) as Record<string, any>;
       expect(asDriver.rider).toBeUndefined();
+    });
+  });
+
+  describe('history', () => {
+    const row = (over: Record<string, unknown>) => ({
+      id: 'trip-1',
+      riderId: 'rider-1',
+      driverId: 'driver-1',
+      status: TripStatus.completed,
+      tier: 'economy',
+      pickupLat: 1,
+      pickupLng: 2,
+      dropoffLat: 3,
+      dropoffLng: 4,
+      promoDiscount: 0,
+      surgeMultiplier: 1,
+      stops: null,
+      driver: {
+        fullName: 'Aziz Karimov',
+        photoUrl: 'https://cdn.example/aziz.jpg',
+        phone: '+998901112233',
+        driverProfile: {
+          vehicleMake: 'Chevrolet',
+          vehicleModel: 'Cobalt',
+          vehicleColor: 'White',
+          plateNumber: '01A123BC',
+        },
+      },
+      ratings: [],
+      ...over,
+    });
+
+    it('joins driver and the caller rating in one query (no N+1)', async () => {
+      const { svc, prisma } = make();
+      (prisma.trip as any).findMany = jest.fn().mockResolvedValue([
+        row({}),
+        row({ id: 'trip-2', ratings: [{ stars: 4 }] }),
+      ]);
+      const res = (await svc.history('rider-1')) as Record<string, any>[];
+      expect((prisma.trip as any).findMany).toHaveBeenCalledTimes(1);
+      const args = (prisma.trip as any).findMany.mock.calls[0][0];
+      expect(args.include.ratings.where).toEqual({ fromUser: 'rider-1' });
+      expect(args.include.driver.select.phone).toBeUndefined();
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+
+      expect(res[0].driver).toEqual({
+        name: 'Aziz Karimov',
+        avatarUrl: 'https://cdn.example/aziz.jpg',
+        vehicleLabel: 'White Chevrolet Cobalt',
+        plate: '01A123BC',
+      });
+      expect(res[0].myRating).toBeNull();
+      expect(res[1].myRating).toBe(4);
+      expect(JSON.stringify(res)).not.toContain('+998901112233');
+      expect(res[0].ratings).toBeUndefined();
+    });
+
+    it('leaves out the driver block on the driver own rows and on unassigned trips', async () => {
+      const { svc, prisma } = make();
+      (prisma.trip as any).findMany = jest.fn().mockResolvedValue([
+        row({ ratings: [{ stars: 5 }] }),
+        row({ id: 'trip-3', riderId: 'driver-1', driverId: null, driver: null }),
+      ]);
+      const asDriver = (await svc.history('driver-1')) as Record<string, any>[];
+      expect(asDriver[0].driver).toBeUndefined();
+      expect(asDriver[0].myRating).toBe(5);
+      expect(asDriver[1].driver).toBeUndefined();
+      expect(asDriver[1].myRating).toBeNull();
+    });
+
+    it('falls back when the driver has no name or vehicle', () => {
+      expect(
+        TripsService.historyDriver({ fullName: null, photoUrl: null, driverProfile: null }),
+      ).toEqual({ name: 'Your driver', avatarUrl: null, vehicleLabel: null, plate: null });
     });
   });
 });

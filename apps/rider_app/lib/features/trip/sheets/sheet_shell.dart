@@ -4,9 +4,22 @@ part of 'ride_sheets.dart';
 /// (warnings, busy/error cards, the SOS and chat affordances) that more than
 /// one sheet needs.
 
-/// Share of the screen the ride-options sheet may take, so the route stays
-/// visible above it (also drives the map's bottom fit padding).
-const double kRideOptionsSheetFraction = 0.58;
+/// The phases whose sheet is held at a set share of the screen
+/// ([RiderSheetHeights]): ride options, finding a driver (when set) and a
+/// ride-complete page that leaves a map peek. Null: the sheet fits its
+/// content.
+double? _fixedFraction(TripPhase phase, double screenHeight) {
+  final h = RiderSheetHeights.current;
+  return switch (phase) {
+    TripPhase.choosingRide => h.chooseRideAt(screenHeight),
+    TripPhase.searching => h.searching,
+    TripPhase.completed when h.completed < 1 => h.completed,
+    _ => null,
+  };
+}
+
+bool _completedFullScreen(TripPhase phase) =>
+    phase == TripPhase.completed && RiderSheetHeights.current.completed >= 1;
 
 class RideSheetForPhase extends StatelessWidget {
   const RideSheetForPhase({
@@ -33,18 +46,20 @@ class RideSheetForPhase extends StatelessWidget {
   Widget build(BuildContext context) {
     final child = switch (state.phase) {
       TripPhase.idle => _WhereToCard(
-          onTap: onSearch,
-          locationIssue: locationIssue,
-          onFixLocation: onFixLocation,
-          savedPlaces: savedPlaces,
-          onPickSaved: onPickSaved,
-          onSchedule: () => _openPreBook(context, state),
-        ),
-      TripPhase.loadingEstimate =>
-        const _InfoCard(child: _Busy(label: 'Finding the best route…')),
+        onTap: onSearch,
+        locationIssue: locationIssue,
+        onFixLocation: onFixLocation,
+        savedPlaces: savedPlaces,
+        onPickSaved: onPickSaved,
+        onSchedule: () => _openPreBook(context, state),
+      ),
+      TripPhase.loadingEstimate => const _InfoCard(
+        child: _Busy(label: 'Finding the best route…'),
+      ),
       TripPhase.choosingRide => _RideOptions(state: state),
-      TripPhase.requesting =>
-        const _InfoCard(child: _Busy(label: 'Requesting your ride…')),
+      TripPhase.requesting => const _InfoCard(
+        child: _Busy(label: 'Requesting your ride…'),
+      ),
       TripPhase.scheduled => _ScheduledConfirmation(state: state),
       TripPhase.searching => _FindingDriver(state: state),
       TripPhase.driverEnRoute => DriverInfoSheet(state: state, arrived: false),
@@ -52,16 +67,16 @@ class RideSheetForPhase extends StatelessWidget {
       TripPhase.onTrip => _OnTripSheet(state: state),
       TripPhase.completed => CompletedSheet(state: state),
       TripPhase.error => _ErrorCard(
-          message: state.error ?? 'Something went wrong',
-          onRetry: onSearch,
-        ),
+        message: state.error ?? 'Something went wrong',
+        onRetry: onSearch,
+      ),
     };
-    final footer = state.phase == TripPhase.choosingRide &&
-            state.estimate != null
+    final footer =
+        state.phase == TripPhase.choosingRide && state.estimate != null
         ? _RideConfirmFooter(state: state)
         : state.phase == TripPhase.completed
-            ? const CompletedDoneButton()
-            : null;
+        ? const CompletedDoneButton()
+        : null;
     if (AppGlass.enabled) {
       // Plan F: one floating glass card that morphs between phases.
       return _GlassPhaseSheet(
@@ -76,11 +91,17 @@ class RideSheetForPhase extends StatelessWidget {
     // surface rather than a stack of hard-swapped cards. Under Reduce Motion
     // it is a plain cross-fade: no slide, and the sheet snaps to its new size.
     final reduced = AppMotion.reduced(context);
+    final fixed = _fixedFraction(
+      state.phase,
+      MediaQuery.sizeOf(context).height,
+    );
     return AppSheet(
       // Keep the routed map visible while choosing a ride: the options sheet
       // is otherwise tall enough to hide the route and both markers.
-      maxHeightFraction:
-          state.phase == TripPhase.choosingRide ? kRideOptionsSheetFraction : null,
+      maxHeightFraction: fixed,
+      minHeightFraction: fixed,
+      // Ride complete: the sheet grows into a full-screen page (or nearly).
+      fullScreen: _completedFullScreen(state.phase),
       footer: footer,
       child: AnimatedSize(
         duration: reduced ? Duration.zero : AppMotion.slow,
@@ -104,10 +125,7 @@ class RideSheetForPhase extends StatelessWidget {
           ),
           layoutBuilder: (currentChild, previousChildren) => Stack(
             alignment: Alignment.bottomCenter,
-            children: [
-              ...previousChildren,
-              ?currentChild,
-            ],
+            children: [...previousChildren, ?currentChild],
           ),
           child: KeyedSubtree(key: ValueKey(state.phase), child: child),
         ),
@@ -129,13 +147,19 @@ class _SheetWarning extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(PhosphorIconsRegular.info,
-            size: 16, color: AppColors.warning),
+        const Icon(
+          PhosphorIconsRegular.info,
+          size: 16,
+          color: AppColors.warning,
+        ),
         const SizedBox(width: AppSpacing.xs),
         Expanded(
-          child: Text(message,
-              style:
-                  theme.textTheme.bodySmall?.copyWith(color: AppColors.warning)),
+          child: Text(
+            message,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.warning,
+            ),
+          ),
         ),
       ],
     );
@@ -146,8 +170,7 @@ class _SheetWarning extends StatelessWidget {
 /// live progress, or from the routed estimate before the first ping.
 String? _tripEtaLine(TripState state) {
   final secs = state.liveEtaSec ?? state.estimate?.durationS;
-  final metres =
-      state.liveRemainingM ?? state.estimate?.distanceM;
+  final metres = state.liveRemainingM ?? state.estimate?.distanceM;
   if (secs == null) return null;
   final arrival = DateTime.now().add(Duration(seconds: secs));
   final h = arrival.hour % 12 == 0 ? 12 : arrival.hour % 12;
@@ -177,7 +200,8 @@ void _openSafety(BuildContext context, TripState state) {
     // if the phone has none.
     locate: () async {
       try {
-        final p = await Geolocator.getLastKnownPosition() ??
+        final p =
+            await Geolocator.getLastKnownPosition() ??
             await Geolocator.getCurrentPosition();
         return (lat: p.latitude, lng: p.longitude);
       } catch (_) {
@@ -192,19 +216,19 @@ void _openSafety(BuildContext context, TripState state) {
 /// shield icon — riders looking for help should not have to guess what an
 /// icon means. Neutral at rest; the sheet it opens carries the red.
 Widget _sosButton(BuildContext context, TripState state) => _RidePill(
-      // Regular: nothing is "on" at rest (audit 2.1 rule 3 — Fill is state).
-      icon: PhosphorIconsRegular.shieldCheck,
-      label: 'Safety',
-      onTap: () => _openSafety(context, state),
-    );
+  // Regular: nothing is "on" at rest (audit 2.1 rule 3 — Fill is state).
+  icon: PhosphorIconsRegular.shieldCheck,
+  label: 'Safety',
+  onTap: () => _openSafety(context, state),
+);
 
 /// Share the live trip (who, which car, where to) — a pill beside Safety
 /// once the ride is under way.
 Widget _shareButton(BuildContext context, TripState state) => _RidePill(
-      icon: PhosphorIconsRegular.export,
-      label: 'Share',
-      onTap: () => _shareTrip(context, state),
-    );
+  icon: PhosphorIconsRegular.export,
+  label: 'Share',
+  onTap: () => _shareTrip(context, state),
+);
 
 void _shareTrip(BuildContext context, TripState state) {
   shareTripText(context, riderTripShareText(state));
@@ -257,36 +281,44 @@ class _RidePill extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Material(
-          // THEME=ink: an ink-outline pill on the paper.
-          color: InkPaper.on
-              ? Colors.transparent
-              : dark
-              ? AppColors.surfaceMutedDark
-              : AppColors.surfaceMutedLight,
-          shape: InkPaper.on
-              ? StadiumBorder(
-                  side: BorderSide(color: InkPaper.outline(dark)))
-              : const StadiumBorder(),
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: onTap,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 40),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 16, color: theme.colorScheme.onSurface),
-                    const SizedBox(width: 4),
-                    Text(label,
-                        style: theme.textTheme.labelLarge
-                            ?.copyWith(fontWeight: FontWeight.w600)),
-                  ],
+              // THEME=ink: an ink-outline pill on the paper.
+              color: InkPaper.on
+                  ? Colors.transparent
+                  : dark
+                  ? AppColors.surfaceMutedDark
+                  : AppColors.surfaceMutedLight,
+              shape: InkPaper.on
+                  ? StadiumBorder(
+                      side: BorderSide(color: InkPaper.outline(dark)),
+                    )
+                  : const StadiumBorder(),
+              child: InkWell(
+                customBorder: const StadiumBorder(),
+                onTap: onTap,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 40),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          icon,
+                          size: 16,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          label,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
             ),
           ),
         ),
@@ -302,19 +334,24 @@ void _openTripChat(BuildContext context, TripState state) {
   final tripId = state.trip?.id;
   final userId = context.read<AuthBloc>().state.user?.id;
   if (tripId == null || userId == null) return;
-  unawaited(Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => ChatPage(
-        tripId: tripId,
-        currentUserId: userId,
-        title: state.driver?.name ?? 'Driver',
-        // "White Maruti Suzuki Dzire · MH 12 AB 1234" under the name.
-        subtitle: _chatSubtitle(state),
-        chat: sl<ChatRemoteDataSource>(),
-        realtime: sl<RealtimeClient>(),
-      ),
-    ),
-  ).then((_) => cubit.setChatOpen(false)));}
+  unawaited(
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => ChatPage(
+              tripId: tripId,
+              currentUserId: userId,
+              title: state.driver?.name ?? 'Driver',
+              // "White Maruti Suzuki Dzire · MH 12 AB 1234" under the name.
+              subtitle: _chatSubtitle(state),
+              chat: sl<ChatRemoteDataSource>(),
+              realtime: sl<RealtimeClient>(),
+            ),
+          ),
+        )
+        .then((_) => cubit.setChatOpen(false)),
+  );
+}
 
 String? _chatSubtitle(TripState state) {
   final d = state.driver;
@@ -398,22 +435,28 @@ int _minutes(num seconds) => (seconds / 60).ceil().clamp(1, 9999).toInt();
 /// "Later" on the home sheet: pre-book from where the rider is now.
 Future<void> _openPreBook(BuildContext context, TripState state) async {
   final messenger = ScaffoldMessenger.of(context);
-  final trip = await Navigator.of(context).push<Trip>(MaterialPageRoute(
-    builder: (_) => PreBookPage(
-      repository: sl<TripRepository>(),
-      pickup: state.pickup,
-      pickupAddr: state.pickupAddr,
-      paymentMode: state.paymentMode,
+  final trip = await Navigator.of(context).push<Trip>(
+    MaterialPageRoute(
+      builder: (_) => PreBookPage(
+        repository: sl<TripRepository>(),
+        pickup: state.pickup,
+        pickupAddr: state.pickupAddr,
+        paymentMode: state.paymentMode,
+      ),
     ),
-  ));
+  );
   if (trip == null) return;
   final when = trip.scheduledAt;
   messenger
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(
-      content: Text(when == null
-          ? 'Ride scheduled. Find it in Account › Scheduled rides.'
-          : 'Ride scheduled for ${_formatSchedule(when)}. '
-              'Find it in Account › Scheduled rides.'),
-    ));
+    ..showSnackBar(
+      SnackBar(
+        content: Text(
+          when == null
+              ? 'Ride scheduled. Find it in Account › Scheduled rides.'
+              : 'Ride scheduled for ${_formatSchedule(when)}. '
+                    'Find it in Account › Scheduled rides.',
+        ),
+      ),
+    );
 }

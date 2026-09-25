@@ -37,56 +37,62 @@ class _WhereToCard extends StatelessWidget {
     if (issue != null) {
       return _LocationRequiredGate(issue: issue, onFix: onFixLocation);
     }
-    final muted = isDark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight;
+    final muted = isDark
+        ? AppColors.surfaceMutedDark
+        : AppColors.surfaceMutedLight;
     // One big pill is the whole call to action: "Where to?" on the left,
     // a "Later" chip on the right to book ahead.
     final pill = Semantics(
-          container: true,
-          button: true,
-          label: 'Where to?',
-          child: Material(
-            // Plan F: the pill *is* glass (drawn by _FloatingWhereTo).
-            // THEME=ink: no filled box; the field is a line to write on
-            // (the outline token, 3.3:1, since it is the control's edge).
-            color: AppGlass.enabled || InkPaper.on ? Colors.transparent : muted,
-            shape: InkPaper.on
-                ? Border(
-                    bottom: BorderSide(color: InkPaper.outline(isDark)))
-                : const StadiumBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onTap,
-              child: SizedBox(
-                height: 56,
-                child: Row(
-                  children: [
-                    SizedBox(width: InkPaper.on ? AppSpacing.xs : AppSpacing.lg),
-                    Icon(PhosphorIconsRegular.magnifyingGlass,
-                        color: theme.colorScheme.onSurface,
-                        size: AppIconSize.row),
-                    const SizedBox(width: AppSpacing.md),
-                    // Said once, by the pill's own label.
-                    Expanded(
-                      child: ExcludeSemantics(
-                        child: Text('Where to?',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                fontSize: InkPaper.on ? 20 : null)),
+      container: true,
+      button: true,
+      label: 'Where to?',
+      child: Material(
+        // Plan F: the pill *is* glass (drawn by _FloatingWhereTo).
+        // THEME=ink: no filled box; the field is a line to write on
+        // (the outline token, 3.3:1, since it is the control's edge).
+        color: AppGlass.enabled || InkPaper.on ? Colors.transparent : muted,
+        shape: InkPaper.on
+            ? Border(bottom: BorderSide(color: InkPaper.outline(isDark)))
+            : const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 56,
+            child: Row(
+              children: [
+                SizedBox(width: InkPaper.on ? AppSpacing.xs : AppSpacing.lg),
+                Icon(
+                  PhosphorIconsRegular.magnifyingGlass,
+                  color: theme.colorScheme.onSurface,
+                  size: AppIconSize.row,
+                ),
+                const SizedBox(width: AppSpacing.md),
+                // Said once, by the pill's own label.
+                Expanded(
+                  child: ExcludeSemantics(
+                    child: Text(
+                      'Where to?',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: InkPaper.on ? 20 : null,
                       ),
                     ),
-                    if (onSchedule != null)
-                      Padding(
-                        padding: const EdgeInsets.only(right: AppSpacing.sm),
-                        child: _LaterChip(onTap: onSchedule!),
-                      )
-                    else
-                      const SizedBox(width: AppSpacing.lg),
-                  ],
+                  ),
                 ),
-              ),
+                if (onSchedule != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    child: _LaterChip(onTap: onSchedule!),
+                  )
+                else
+                  const SizedBox(width: AppSpacing.lg),
+              ],
             ),
           ),
-        );
+        ),
+      ),
+    );
     final saved = [
       for (final place in savedPlaces) ...[
         _QuickDestination(
@@ -157,43 +163,46 @@ class _LaterChip extends StatelessWidget {
           child: Center(
             widthFactor: 1,
             child: Material(
-      color: InkPaper.on ? Colors.transparent : theme.colorScheme.surface,
-      shape: InkPaper.on
-          ? StadiumBorder(
-              side: BorderSide(
-                  color: InkPaper.outline(
-                      theme.brightness == Brightness.dark)))
-          : const StadiumBorder(),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const StadiumBorder(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // A small calendar in a soft teal badge — lighter and clearer
-              // than a clock for "book for later".
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: AppColors.accentSoft,
-                  shape: BoxShape.circle,
+              color: InkPaper.on
+                  ? Colors.transparent
+                  : theme.colorScheme.surface,
+              shape: InkPaper.on
+                  ? StadiumBorder(
+                      side: BorderSide(
+                        color: InkPaper.outline(
+                          theme.brightness == Brightness.dark,
+                        ),
+                      ),
+                    )
+                  : const StadiumBorder(),
+              child: InkWell(
+                onTap: onTap,
+                customBorder: const StadiumBorder(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // A plain, standard clock — minimal, same weight as the text.
+                      Icon(
+                        PhosphorIconsRegular.clock,
+                        size: 16,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      const SizedBox(width: 6),
+                      Text('Later', style: theme.textTheme.labelMedium),
+                      Icon(
+                        PhosphorIconsRegular.caretDown,
+                        size: 16,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ],
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: Icon(PhosphorIconsRegular.calendarDots,
-                    size: 16, color: AppColors.accentInk),
               ),
-              const SizedBox(width: 6),
-              Text('Later', style: theme.textTheme.labelMedium),
-              Icon(PhosphorIconsRegular.caretDown,
-                  size: 16, color: theme.colorScheme.onSurface),
-            ],
-          ),
-        ),
-      ),
             ),
           ),
         ),
@@ -213,25 +222,25 @@ class _LocationRequiredGate extends StatelessWidget {
   final VoidCallback? onFix;
 
   String get _message => switch (issue) {
-        LocationIssue.servicesOff =>
-          'Location Services are off, so we can\'t tell where to pick you '
-              'up. Turn them on to book a ride.',
-        LocationIssue.denied =>
-          'We need your location to set your pickup point and send a driver '
-              'to the right place.',
-        LocationIssue.deniedForever =>
-          'Location access is turned off for this app. Enable it in Settings '
-              'to book a ride.',
-        LocationIssue.error =>
-          "We couldn't read your location. Try again to book a ride.",
-      };
+    LocationIssue.servicesOff =>
+      'Location Services are off, so we can\'t tell where to pick you '
+          'up. Turn them on to book a ride.',
+    LocationIssue.denied =>
+      'We need your location to set your pickup point and send a driver '
+          'to the right place.',
+    LocationIssue.deniedForever =>
+      'Location access is turned off for this app. Enable it in Settings '
+          'to book a ride.',
+    LocationIssue.error =>
+      "We couldn't read your location. Try again to book a ride.",
+  };
 
   String get _action => switch (issue) {
-        LocationIssue.servicesOff => 'Turn on Location Services',
-        LocationIssue.denied => 'Allow location',
-        LocationIssue.deniedForever => 'Open Settings',
-        LocationIssue.error => 'Try again',
-      };
+    LocationIssue.servicesOff => 'Turn on Location Services',
+    LocationIssue.denied => 'Allow location',
+    LocationIssue.deniedForever => 'Open Settings',
+    LocationIssue.error => 'Try again',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -242,12 +251,17 @@ class _LocationRequiredGate extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(PhosphorIconsRegular.gpsSlash,
-                color: AppColors.warning, size: 24),
+            const Icon(
+              PhosphorIconsRegular.gpsSlash,
+              color: AppColors.warning,
+              size: 24,
+            ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: Text('Location required',
-                  style: theme.textTheme.headlineMedium),
+              child: Text(
+                'Location required',
+                style: theme.textTheme.headlineMedium,
+              ),
             ),
           ],
         ),
@@ -341,8 +355,11 @@ class HomeSearchBar extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: AppSpacing.lg),
-                Icon(PhosphorIconsRegular.magnifyingGlass,
-                    color: theme.colorScheme.onSurface, size: AppIconSize.row),
+                Icon(
+                  PhosphorIconsRegular.magnifyingGlass,
+                  color: theme.colorScheme.onSurface,
+                  size: AppIconSize.row,
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: ExcludeSemantics(
@@ -350,8 +367,9 @@ class HomeSearchBar extends StatelessWidget {
                       'Where to?',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),

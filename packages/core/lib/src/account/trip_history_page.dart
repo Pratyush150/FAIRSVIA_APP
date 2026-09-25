@@ -86,13 +86,31 @@ class _TripTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: Text(
-        // A scheduled ride is remembered by when it was booked for, not by
-        // the moment the rider tapped Schedule.
-        '${Fmt.dateTime(trip.completedAt ?? trip.scheduledAt ?? trip.requestedAt)} · '
-        '${Fmt.status(_snake(trip.status))}',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            // A scheduled ride is remembered by when it was booked for, not
+            // by the moment the rider tapped Schedule.
+            '${Fmt.dateTime(trip.completedAt ?? trip.scheduledAt ?? trip.requestedAt)} · '
+            '${Fmt.status(_snake(trip.status))}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          // Who drove, when the history carries it (rider rows only).
+          if (!isDriver && trip.driverName != null)
+            Text(
+              'with ${trip.driverName}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.brightness == Brightness.dark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+            ),
+        ],
       ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,

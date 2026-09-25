@@ -102,7 +102,12 @@ class Trip extends Equatable {
     this.requestedAt,
     this.completedAt,
     this.cancellationFee,
-  });
+    this.driverName,
+    this.driverAvatarUrl,
+    this.driverVehicleLabel,
+    this.myRating,
+    bool hasMyRatingField = false,
+  }) : _hasMyRating = hasMyRatingField;
 
   final String id;
   final TripStatus status;
@@ -157,6 +162,27 @@ class Trip extends Equatable {
   /// backends, in which case the UI keeps its generic wording.
   final double? cancellationFee;
 
+  /// The driver as a history row names them (`driver.name`) — also present
+  /// on the rider's live `GET /trips/:id`. Null when no driver was assigned,
+  /// on the driver's own history rows, and on older backends.
+  final String? driverName;
+
+  /// The driver's photo (`driver.avatarUrl`, history only), if they have one.
+  final String? driverAvatarUrl;
+
+  /// "White Chevrolet Cobalt" (`driver.vehicleLabel`, history only).
+  final String? driverVehicleLabel;
+
+  /// The caller's own stars for this trip (`myRating`, history only). Null
+  /// when unrated — and on older backends, which never send it; use
+  /// [hasMyRatingField] to tell those apart.
+  final int? myRating;
+  final bool _hasMyRating;
+
+  /// Whether the response carried `myRating` at all (so a null means
+  /// "unrated", not "this backend doesn't say").
+  bool get hasMyRatingField => _hasMyRating;
+
   /// The fare to display: final if settled, else the estimate.
   double? get fareDisplay => fareFinal ?? fareEstimate;
 
@@ -187,7 +213,21 @@ class Trip extends Equatable {
         requestedAt: _parseDate(json['requestedAt']),
         completedAt: _parseDate(json['completedAt']),
         cancellationFee: (json['cancellationFee'] as num?)?.toDouble(),
+        driverName: _driverField(json, 'name'),
+        driverAvatarUrl: _driverField(json, 'avatarUrl'),
+        driverVehicleLabel: _driverField(json, 'vehicleLabel'),
+        myRating: (json['myRating'] as num?)?.toInt(),
+        hasMyRatingField: json.containsKey('myRating'),
       );
+
+  static String? _driverField(Map<String, dynamic> json, String key) {
+    final driver = json['driver'];
+    if (driver is! Map) return null;
+    final v = driver[key];
+    if (v is! String) return null;
+    final t = v.trim();
+    return t.isEmpty ? null : t;
+  }
 
   static String? _riderField(Map<String, dynamic> json, String key) {
     final rider = json['rider'];
@@ -225,5 +265,10 @@ class Trip extends Equatable {
         requestedAt,
         completedAt,
         cancellationFee,
+        driverName,
+        driverAvatarUrl,
+        driverVehicleLabel,
+        myRating,
+        _hasMyRating,
       ];
 }

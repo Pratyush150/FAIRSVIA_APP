@@ -51,6 +51,26 @@ Trip? lastCompletedRide(List<Trip> history) {
   return null;
 }
 
+/// The rating the Home card should ask for, decided from the history alone:
+/// the newest completed ride when the backend says the rider has not rated it
+/// (`myRating == null` with the field present). Returns null when there is
+/// nothing to rate. Older backends that do not send `myRating` return
+/// [lastCompletedRide] via [needsLookup] so the caller can fall back to the
+/// per-trip ratings lookup.
+({Trip? trip, bool needsLookup}) unratedLastRide(List<Trip> history) {
+  final last = lastCompletedRide(history);
+  if (last == null) return (trip: null, needsLookup: false);
+  if (!last.hasMyRatingField) return (trip: last, needsLookup: true);
+  return (trip: last.myRating == null ? last : null, needsLookup: false);
+}
+
+/// "Aziz" of "Aziz Karimov"; null for a blank name.
+String? firstName(String? fullName) {
+  final parts = (fullName ?? '').trim().split(RegExp(r'\s+'));
+  final first = parts.first;
+  return first.isEmpty ? null : first;
+}
+
 /// Whether [point] is already one of [places] (same spot within ~50 m, or the
 /// same address text) — drives the Home's filled heart.
 SavedPlace? savedPlaceAt(

@@ -61,6 +61,39 @@ void main() {
       expect(lastCompletedRide(history)!.id, '1');
     });
 
+    test('unrated last ride comes from the history myRating', () {
+      Trip done({int? stars, bool hasField = true, String id = 'a'}) => Trip(
+        id: id,
+        status: TripStatus.completed,
+        tier: 'economy',
+        pickup: const TripEndpoint(point: GeoPoint(18.5, 73.8)),
+        dropoff: const TripEndpoint(point: GeoPoint(18.6, 73.9)),
+        myRating: stars,
+        hasMyRatingField: hasField,
+      );
+      // New backend, unrated → card, no lookup.
+      var r = unratedLastRide([done()]);
+      expect(r.trip?.id, 'a');
+      expect(r.needsLookup, isFalse);
+      // New backend, rated → no card.
+      r = unratedLastRide([done(stars: 5)]);
+      expect(r.trip, isNull);
+      expect(r.needsLookup, isFalse);
+      // Older backend (no field) → candidate, caller must look it up.
+      r = unratedLastRide([done(hasField: false)]);
+      expect(r.trip?.id, 'a');
+      expect(r.needsLookup, isTrue);
+      // Nothing completed → nothing.
+      expect(unratedLastRide(const []).trip, isNull);
+    });
+
+    test('first name of the driver', () {
+      expect(firstName('Aziz Karimov'), 'Aziz');
+      expect(firstName('  Aziz  '), 'Aziz');
+      expect(firstName('   '), isNull);
+      expect(firstName(null), isNull);
+    });
+
     test('saved place match by distance or address', () {
       const saved = [
         SavedPlace(
@@ -152,6 +185,29 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
+  testWidgets('rate card names the driver and shows their avatar', (
+    tester,
+  ) async {
+    const trip = Trip(
+      id: 'r',
+      status: TripStatus.completed,
+      tier: 'economy',
+      pickup: TripEndpoint(point: GeoPoint(18.5, 73.8)),
+      dropoff: TripEndpoint(
+        point: GeoPoint(18.56, 73.91),
+        address: 'Phoenix Marketcity, Viman Nagar, Pune',
+      ),
+      driverName: 'Aziz Karimov',
+      myRating: null,
+      hasMyRatingField: true,
+    );
+    await pump(tester, RateLastRideCard(trip: trip, onTap: () {}));
+    expect(find.text('Rate your ride with Aziz'), findsOneWidget);
+    expect(find.text('To Phoenix Marketcity'), findsOneWidget);
+    // Initials avatar (no photo URL here).
+    expect(find.text('AK'), findsOneWidget);
+  });
+
   testWidgets('sections render', (tester) async {
     await pump(
       tester,
@@ -187,7 +243,14 @@ void main() {
   ) async {
     await pump(tester, home());
     expect(find.byType(RecentDestinationsCard), findsNothing);
-    expect(find.byIcon(PhosphorIconsRegular.clock), findsNothing);
+    // (The Later chip carries a clock too, so check the card itself.)
+    expect(
+      find.descendant(
+        of: find.byType(RecentDestinationsCard),
+        matching: find.byIcon(PhosphorIconsRegular.clock),
+      ),
+      findsNothing,
+    );
     // And the card itself renders nothing for an empty list.
     await pump(tester, RecentDestinationsCard(items: const [], onPick: (_) {}));
     expect(find.byType(InkWell), findsNothing);

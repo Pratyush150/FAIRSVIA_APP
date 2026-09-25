@@ -87,6 +87,8 @@ export const ACTIVE_TRIP_STATUSES: TripStatus[] = [
  *  per trip and lock the trip for a cooling-off period once exhausted. */
 export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_LOCK_SECONDS = 15 * 60;
+/** Same freshness bar dispatch uses to evict ghost drivers from the pool. */
+const PRESENCE_STALE_MS = Number(process.env.PRESENCE_STALE_MS ?? 45000);
 const otpAttemptsKey = (tripId: string) => `trip:${tripId}:otpAttempts`;
 const otpLockKey = (tripId: string) => `trip:${tripId}:otpLock`;
 
@@ -646,6 +648,9 @@ export class TripsService {
       RedisKeys.tripNav(tripId),
       RedisKeys.tripWatch(tripId),
     );
+    // ...and make them dispatchable NOW, at the drop-off, instead of on their
+    // next GPS ping (see rejoinPool).
+    await this.rejoinPool(driverId);
     await this.prisma.driverProfile.update({
       where: { userId: driverId },
       data: { totalTrips: { increment: 1 } },
@@ -1141,6 +1146,36 @@ export class TripsService {
       RedisKeys.driverActiveRider(driverId),
       ...(tripId ? [RedisKeys.tripNav(tripId), RedisKeys.tripWatch(tripId)] : []),
     );
+    await this.rejoinPool(driverId);
+  }
+
+  /**
+   * Put a just-freed driver straight back into their tier's dispatch GEO pool
+   * at their last known position. Dispatch removes a driver from the pool at
+   * assignment and LocationService only re-adds on the next `driver:location`
+   * ping — so a rider booking right after a drop-off could find "no drivers"
+   * (or a far-away one) while the nearest driver sat on the rate-rider screen.
+   * Only a FRESH fix (within PRESENCE_STALE_MS) is used: a stale one would be
+   * evicted by dispatch anyway, and the next ping adds them normally.
+   * Best-effort — never fails the completion/cancel that called it.
+   */
+  private async rejoinPool(driverId: string): Promise<void> {
+    try {
+      const [tier, loc] = await Promise.all([
+        this.redis.client.get(RedisKeys.driverTier(driverId)),
+        this.redis.client.hgetall(RedisKeys.driverLoc(driverId)),
+      ]);
+      const lat = Number(loc?.lat);
+      const lng = Number(loc?.lng);
+      const ts = Number(loc?.ts);
+      if (!tier || !Number.isFinite(lat) || !Number.isFinite(lng) || !loc?.lat) {
+        return;
+      }
+      if (!Number.isFinite(ts) || Date.now() - ts > PRESENCE_STALE_MS) return;
+      await this.redis.client.geoadd(RedisKeys.driversGeo(tier), lng, lat, driverId);
+    } catch (e) {
+      this.logger.warn(`could not return driver ${driverId} to the pool: ${String(e)}`);
+    }
   }
 
   /** A request that ended without a ride no longer counts as local demand. */
@@ -1162,13 +1197,71 @@ export class TripsService {
     }
   }
 
+  /**
+   * The caller's last 50 trips, newest first. Each row carries `myRating`
+   * (the caller's own stars for that trip, null if unrated) and — on the
+   * rider's rows only — a `driver` block with name, photo and vehicle so the
+   * app can say "Rate your ride with Aziz" without another lookup. History
+   * never carries a phone number. One query: the driver and the caller's
+   * rating are joined in, not fetched per trip.
+   */
   async history(userId: string) {
     const trips = await this.prisma.trip.findMany({
       where: { OR: [{ riderId: userId }, { driverId: userId }] },
       orderBy: { requestedAt: 'desc' },
       take: 50,
+      include: {
+        driver: {
+          select: {
+            fullName: true,
+            photoUrl: true,
+            driverProfile: {
+              select: {
+                vehicleMake: true,
+                vehicleModel: true,
+                vehicleColor: true,
+                plateNumber: true,
+              },
+            },
+          },
+        },
+        ratings: { where: { fromUser: userId }, select: { stars: true } },
+      },
     });
-    return trips.map((t) => this.serialize(t, userId));
+    return trips.map((t) => {
+      const { driver, ratings, ...trip } = t;
+      return {
+        ...this.serialize(trip, userId),
+        ...(t.riderId === userId && driver
+          ? { driver: TripsService.historyDriver(driver) }
+          : {}),
+        myRating: ratings[0]?.stars ?? null,
+      };
+    });
+  }
+
+  /** The driver as a history row shows them: no phone, no id. */
+  static historyDriver(d: {
+    fullName: string | null;
+    photoUrl: string | null;
+    driverProfile: {
+      vehicleMake: string | null;
+      vehicleModel: string | null;
+      vehicleColor: string | null;
+      plateNumber: string | null;
+    } | null;
+  }) {
+    const p = d.driverProfile;
+    const label = [p?.vehicleColor, p?.vehicleMake, p?.vehicleModel]
+      .map((s) => s?.trim())
+      .filter((s) => !!s)
+      .join(' ');
+    return {
+      name: d.fullName?.trim() || 'Your driver',
+      avatarUrl: d.photoUrl ?? null,
+      vehicleLabel: label || null,
+      plate: p?.plateNumber ?? null,
+    };
   }
 
   /** The rider's upcoming scheduled rides, soonest first. */

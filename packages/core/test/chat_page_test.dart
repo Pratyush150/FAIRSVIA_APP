@@ -98,7 +98,7 @@ void main() {
     expect(calls, 2);
     expect(find.text('hello'), findsOneWidget);
     expect(find.text('missed you'), findsOneWidget);
-    // The late arrival pops in (flutter_animate starts on a zero timer).
+    // The late arrival fades in (flutter_animate starts on a zero timer).
     await tester.pumpAndSettle(AppMotion.slow);
   });
 
@@ -124,7 +124,7 @@ void main() {
         ),
       );
 
-  testWidgets('empty chat shows the header and quick replies one per line', (
+  testWidgets('empty chat: plain header, one muted line, rows one per line', (
     tester,
   ) async {
     when(() => chat.history('trip1')).thenAnswer((_) async => []);
@@ -132,9 +132,22 @@ void main() {
     await tester.pumpWidget(page());
     await tester.pumpAndSettle();
 
-    expect(find.text('Chat with Rahul'), findsOneWidget);
-    expect(find.text('MH 12 AB 1234'), findsWidgets);
-    expect(find.text('Messages go straight to your driver'), findsOneWidget);
+    // Plain app bar: name + one muted subtitle line, nothing else.
+    expect(find.text('Rahul'), findsOneWidget);
+    expect(find.text('MH 12 AB 1234'), findsOneWidget);
+    expect(find.byType(AppAvatar), findsNothing);
+    expect(find.text('Send a message to Rahul'), findsOneWidget);
+    expect(find.text('Suggestions'), findsOneWidget);
+    expect(find.textContaining('Messages go straight'), findsNothing);
+    expect(find.text('QUICK REPLIES'), findsNothing);
+    // Suggestion rows are text only: no icons inside them.
+    expect(
+      find.descendant(
+        of: find.byType(ChatSuggestionRow),
+        matching: find.byType(Icon),
+      ),
+      findsNothing,
+    );
 
     // Every suggestion is its own full-width row, stacked vertically.
     final rows = find.byType(ChatSuggestionRow);
@@ -179,18 +192,9 @@ void main() {
     verify(() => chat.send('trip1', 'On my way')).called(1);
     expect(find.byType(ChatBubble), findsOneWidget);
     expect(find.text('Sent'), findsOneWidget);
-    // Conversation started: the suggestions fold behind the lightning button,
-    // and open again as a vertical list.
+    // Conversation started: suggestions are only offered on an empty thread.
     expect(find.byType(ChatSuggestionRow), findsNothing);
-    await tester.tap(find.byTooltip('Quick replies'));
-    await tester.pumpAndSettle();
-    expect(
-      find.byType(ChatSuggestionRow),
-      findsNWidgets(kChatQuickReplies.length),
-    );
-    final a = tester.getRect(find.byKey(const ValueKey('quick-reply-0')));
-    final b = tester.getRect(find.byKey(const ValueKey('quick-reply-1')));
-    expect(b.top, greaterThan(a.bottom - 0.5));
+    expect(find.text('Suggestions'), findsNothing);
   });
 
   testWidgets('send button is inert until there is text', (tester) async {
@@ -252,6 +256,92 @@ void main() {
     expect(find.byType(ChatDaySeparator), findsNWidgets(2));
   });
 
+  testWidgets('bubbles are plain radius-18 rectangles; own bubble is teal', (
+    tester,
+  ) async {
+    when(() => chat.history('trip1')).thenAnswer(
+      (_) async => [
+        _msg('a', 'theirs', 1000),
+        const ChatMessage(
+          id: 'b',
+          tripId: 'trip1',
+          from: 'me',
+          text: 'mine',
+          ts: 2000,
+        ),
+      ],
+    );
+    usePhone(tester);
+    await tester.pumpWidget(page());
+    await tester.pumpAndSettle();
+
+    BoxDecoration deco(String text) =>
+        tester
+                .widget<Container>(
+                  find
+                      .ancestor(
+                        of: find.text(text),
+                        matching: find.byType(Container),
+                      )
+                      .first,
+                )
+                .decoration!
+            as BoxDecoration;
+    expect(deco('theirs').borderRadius, BorderRadius.circular(18));
+    expect(deco('mine').borderRadius, BorderRadius.circular(18));
+    expect(deco('mine').color, AppColors.inkFor(false));
+    expect(deco('theirs').color, AppColors.surfaceMutedLight);
+  });
+
+  testWidgets('a new message fades in over 150 ms, with no scale or move', (
+    tester,
+  ) async {
+    when(
+      () => chat.history('trip1'),
+    ).thenAnswer((_) async => [_msg('a', 'first', 1000)]);
+    usePhone(tester);
+    await tester.pumpWidget(page());
+    await tester.pumpAndSettle();
+
+    when(() => chat.send('trip1', 'hey')).thenAnswer(
+      (_) async => const ChatMessage(
+        id: 'n1',
+        tripId: 'trip1',
+        from: 'me',
+        text: 'hey',
+        ts: 3000,
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'hey');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send message'));
+    await tester.pump();
+    await tester.pump();
+    final moved = tester
+        .widgetList<Transform>(
+          find.ancestor(of: find.text('hey'), matching: find.byType(Transform)),
+        )
+        .where((t) => t.transform != Matrix4.identity());
+    expect(moved, isEmpty);
+    List<double> fades() => [
+      for (final f in tester.widgetList<FadeTransition>(
+        find.ancestor(
+          of: find.text('hey'),
+          matching: find.byType(FadeTransition),
+        ),
+      ))
+        f.opacity.value,
+    ];
+    // flutter_animate starts on a zero timer: one frame to kick off.
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(fades().any((v) => v > 0 && v < 1), isTrue, reason: '${fades()}');
+    // Done 150 ms after it started.
+    await tester.pump(const Duration(milliseconds: 95));
+    expect(fades().every((v) => v == 1), isTrue, reason: '${fades()}');
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('Reduce Motion: the empty state still renders and sends', (
     tester,
   ) async {
@@ -270,8 +360,7 @@ void main() {
     await tester.pump();
     await tester.pump(AppMotion.fast);
     await tester.pump(AppMotion.fast);
-    // Plain fades only: nothing is offset or scaled once the fade is done,
-    // so rows sit in their final place after ~100 ms.
+    // No motion at all: rows are in their final place immediately.
     expect(
       find.byType(ChatSuggestionRow),
       findsNWidgets(kChatQuickReplies.length),

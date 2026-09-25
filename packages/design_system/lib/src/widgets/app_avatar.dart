@@ -5,6 +5,8 @@ import '../theme/app_colors.dart';
 
 /// Circular avatar showing initials (from [name]) or a fallback [icon] on a
 /// tinted brand background. Consistent across driver cards, profiles, chat.
+/// When [imageUrl] is set the photo is shown over that, and the initials stay
+/// underneath while it loads or if it fails.
 class AppAvatar extends StatelessWidget {
   const AppAvatar({
     super.key,
@@ -12,9 +14,12 @@ class AppAvatar extends StatelessWidget {
     this.icon,
     this.size = 44,
     this.color,
+    this.imageUrl,
   });
 
   final String? name;
+  /// Optional photo (e.g. the driver's). Blank/null means initials only.
+  final String? imageUrl;
   final IconData? icon;
   final double size;
   /// Defaults to the theme's ink colour.
@@ -35,6 +40,31 @@ class AppAvatar extends StatelessWidget {
     // switch made while the app is open.
     Theme.of(context);
     final initials = _initials;
+    final url = imageUrl?.trim();
+    final base = _base(initials);
+    if (url == null || url.isEmpty) return base;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          base,
+          ClipOval(
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              width: size,
+              height: size,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _base(String initials) {
     return Container(
       width: size,
       height: size,

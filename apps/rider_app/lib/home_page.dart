@@ -385,11 +385,13 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     try {
       final history = await sl<TripRemoteDataSource>().history();
       if (!mounted) return;
-      final last = lastCompletedRide(history);
-      Trip? unrated;
-      if (last != null) {
-        final stars = await sl<RatingsRemoteDataSource>().myRating(last.id);
-        if (stars == null) unrated = last;
+      // The history row says whether the rider rated it (`myRating`); only an
+      // older backend without that field needs the per-trip lookup.
+      final pick = unratedLastRide(history);
+      var unrated = pick.trip;
+      if (unrated != null && pick.needsLookup) {
+        final stars = await sl<RatingsRemoteDataSource>().myRating(unrated.id);
+        if (stars != null) unrated = null;
       }
       if (!mounted) return;
       setState(() {
@@ -763,6 +765,15 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) setState(() => _followedPhase = state.phase);
         });
+        // The sheet grows into some phases (half-screen ride options, the
+        // full-screen ride-complete page) over ~500 ms, and the per-frame
+        // re-measure stops once a frame moves it by under a pixel. Measure
+        // again once it has settled, so the map's fit padding is exact.
+        Future<void>.delayed(const Duration(milliseconds: 700), () {
+          if (!mounted) return;
+          _measureSheet();
+          WidgetsBinding.instance.scheduleFrame();
+        });
         // Back to idle (change destination / cancel / done): the camera was
         // fitted to the route bounds — bring it back to the rider instead of
         // leaving it zoomed out over the whole route.
@@ -954,14 +965,16 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                       // Raised only while the camera is NOT following — the
                       // rider panned, so the car may now be off screen. It
                       // takes them back to the live position and resumes
-                      // automatic tracking.
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: RecenterPill(
-                          visible: _isLiveTracking(state) && !_following,
-                          onPressed: _recenterToMe,
+                      // automatic tracking. Not on the ride-complete page,
+                      // which covers the whole screen.
+                      if (state.phase != TripPhase.completed)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                          child: RecenterPill(
+                            visible: _isLiveTracking(state) && !_following,
+                            onPressed: _recenterToMe,
+                          ),
                         ),
-                      ),
                       // Flexible: the sheet caps itself at the screen height,
                       // but the pill above takes room too — without this the
                       // pair overflowed by 14 px whenever the sheet reached its

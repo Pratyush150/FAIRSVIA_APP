@@ -28,7 +28,21 @@ class AppSheet extends StatelessWidget {
     this.handleLabel,
     this.onHandleDrag,
     this.chromeless = false,
+    this.minHeightFraction,
+    this.fullScreen = false,
   });
+
+  /// Optional floor on the sheet height as a fraction of the screen height
+  /// (e.g. 0.5): the sheet opens at least this tall even when its content is
+  /// shorter, with the [footer] pinned to its bottom edge. Still capped by
+  /// [maxHeightFraction] and the top safe area; content scrolls inside.
+  final double? minHeightFraction;
+
+  /// Cover the whole screen: no floating inset, no rounded corners, an
+  /// opaque surface (the map is hidden behind it), and the top safe-area
+  /// inset applied as padding inside the sheet. The [footer] pins to the
+  /// bottom. Used for the ride-complete page.
+  final bool fullScreen;
 
   /// Plan F (`THEME=glass`) only — ignored by every other build.
   ///
@@ -68,24 +82,101 @@ class AppSheet extends StatelessWidget {
     // sheet with tip picker) scrolls inside the sheet instead of pushing the
     // header off the top of the screen. Seen on iPhone 17 (iOS 26.5).
     final media = MediaQuery.of(context);
-    if (AppGlass.enabled) return _glass(context, media);
-    var maxHeight = media.size.height - media.padding.top - AppSpacing.md;
-    final fraction = maxHeightFraction;
-    if (fraction != null) {
-      final capped = media.size.height * fraction;
-      if (capped < maxHeight) maxHeight = capped;
-    }
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxHeight > 0 ? maxHeight : 0),
-      child: _SheetBody(
+    if (AppGlass.enabled) return _sized(context, media, _glass(context, media));
+    return _sized(
+      context,
+      media,
+      _SheetBody(
         isDark: isDark,
-        padding: padding,
-        handle: handle,
+        padding: fullScreen
+            ? padding.copyWith(top: padding.top + media.padding.top)
+            : padding,
+        handle: handle && !fullScreen,
         footer: footer,
+        square: fullScreen,
         child: child,
       ),
     );
   }
+
+  /// Applies the height range. The floor animates, so a sheet that is told
+  /// to be taller (half-screen ride options, the full-screen ride-complete
+  /// page) grows into it from wherever it was; under Reduce Motion it snaps.
+  Widget _sized(BuildContext context, MediaQueryData media, Widget body) {
+    final range = _heightConstraints(media);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: range.minHeight),
+      duration: AppMotion.of(context, AppMotion.slower),
+      curve: AppMotion.standard,
+      builder: (context, floor, child) => ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: floor < range.maxHeight ? floor : range.maxHeight,
+          maxHeight: range.maxHeight,
+        ),
+        child: child,
+      ),
+      child: body,
+    );
+  }
+
+  /// The sheet's height range: at most the screen minus the top safe area
+  /// (or [maxHeightFraction] of it), at least [minHeightFraction] of it;
+  /// exactly the screen when [fullScreen].
+  BoxConstraints _heightConstraints(MediaQueryData media) {
+    final screen = media.size.height;
+    if (fullScreen) return BoxConstraints.tightFor(height: screen);
+    var maxHeight = screen - media.padding.top - AppSpacing.md;
+    final fraction = maxHeightFraction;
+    if (fraction != null) {
+      final capped = screen * fraction;
+      if (capped < maxHeight) maxHeight = capped;
+    }
+    if (maxHeight < 0) maxHeight = 0;
+    var minHeight = 0.0;
+    final floor = minHeightFraction;
+    if (floor != null) {
+      minHeight = screen * floor;
+      if (minHeight > maxHeight) minHeight = maxHeight;
+    }
+    return BoxConstraints(minHeight: minHeight, maxHeight: maxHeight);
+  }
+}
+
+/// The sheet's inner column: the handle and the scrolling content on top,
+/// the pinned footer at the bottom. When the sheet is held taller than its
+/// content ([AppSheet.minHeightFraction], [AppSheet.fullScreen]) the spare
+/// room goes between the two, so the footer stays on the bottom edge.
+Widget _sheetColumn({
+  required Widget? handle,
+  required Widget content,
+  required Widget? footer,
+}) {
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Flexible(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ?handle,
+            Flexible(child: content),
+          ],
+        ),
+      ),
+      if (footer != null)
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: AppSpacing.md),
+            footer,
+          ],
+        ),
+    ],
+  );
 }
 
 extension on AppSheet {
@@ -109,60 +200,61 @@ extension on AppSheet {
       padding.right > maxSide ? maxSide : padding.right,
       padding.bottom,
     );
-    final bottomGap =
-        media.padding.bottom > inset ? media.padding.bottom : inset;
-    final margin = EdgeInsets.fromLTRB(inset, 0, inset, bottomGap);
-    // Same caps as the solid sheet, on the whole sheet (card + bottom gap).
-    var maxHeight = media.size.height - media.padding.top - AppSpacing.md;
-    final fraction = maxHeightFraction;
-    if (fraction != null) {
-      final capped = media.size.height * fraction;
-      if (capped < maxHeight) maxHeight = capped;
-    }
+    final bottomGap = media.padding.bottom > inset
+        ? media.padding.bottom
+        : inset;
+    final content = MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      removeBottom: true,
+      child: _FadeWhenMore(child: child),
+    );
+    // Full screen: the card's float and corners melt away and the safe-area
+    // top becomes padding, so the card turns into the page.
+    final margin = fullScreen
+        ? EdgeInsets.zero
+        : EdgeInsets.fromLTRB(inset, 0, inset, bottomGap);
     final duration = AppMotion.of(context, AppMotion.slow);
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxHeight > 0 ? maxHeight : 0),
-      child: Padding(
-        padding: margin,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(end: chromeless ? 0 : 1),
+    return AnimatedPadding(
+      duration: duration,
+      curve: AppMotion.standard,
+      padding: margin,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: chromeless ? 0 : 1),
+        duration: duration,
+        curve: AppMotion.standard,
+        builder: (context, presence, content) => GlassSurface(
+          strong: true,
+          presence: presence,
+          borderRadius: fullScreen
+              ? BorderRadius.zero
+              : const BorderRadius.all(Radius.circular(AppGlass.sheetRadius)),
+          child: content!,
+        ),
+        child: AnimatedPadding(
           duration: duration,
           curve: AppMotion.standard,
-          builder: (context, presence, content) => GlassSurface(
-            strong: true,
-            presence: presence,
-            child: content!,
-          ),
-          child: AnimatedPadding(
-            duration: duration,
-            curve: AppMotion.standard,
-            padding: chromeless
-                ? EdgeInsets.zero
-                : EdgeInsets.fromLTRB(
-                    side.left,
-                    handle ? 0 : side.top,
-                    side.right,
-                    side.bottom,
-                  ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (handle && !chromeless) _GlassHandle(sheet: this),
-                Flexible(
-                  child: MediaQuery.removePadding(
-                    context: context,
-                    removeTop: true,
-                    removeBottom: true,
-                    child: _FadeWhenMore(child: child),
-                  ),
+          padding: chromeless
+              ? EdgeInsets.zero
+              : fullScreen
+              ? EdgeInsets.fromLTRB(
+                  side.left,
+                  media.padding.top + side.top,
+                  side.right,
+                  bottomGap + side.bottom,
+                )
+              : EdgeInsets.fromLTRB(
+                  side.left,
+                  handle ? 0 : side.top,
+                  side.right,
+                  side.bottom,
                 ),
-                if (footer != null) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  footer!,
-                ],
-              ],
-            ),
+          child: _sheetColumn(
+            handle: handle && !chromeless && !fullScreen
+                ? _GlassHandle(sheet: this)
+                : null,
+            content: content,
+            footer: footer,
           ),
         ),
       ),
@@ -204,8 +296,7 @@ class _FadeWhenMoreState extends State<_FadeWhenMore> {
 
   @override
   Widget build(BuildContext context) {
-    Widget scroll =
-        SingleChildScrollView(key: _scrollKey, child: widget.child);
+    Widget scroll = SingleChildScrollView(key: _scrollKey, child: widget.child);
     if (_more) {
       scroll = ShaderMask(
         blendMode: BlendMode.dstIn,
@@ -282,8 +373,10 @@ class _SheetBody extends StatelessWidget {
     required this.handle,
     required this.footer,
     required this.child,
+    this.square = false,
   });
 
+  final bool square;
   final bool isDark;
   final EdgeInsets padding;
   final bool handle;
@@ -299,56 +392,48 @@ class _SheetBody extends StatelessWidget {
         color: AppVariant.local
             ? LocalColour.paperFor(isDark)
             : Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusXl),
-        ),
+        borderRadius: square
+            ? BorderRadius.zero
+            : const BorderRadius.vertical(
+                top: Radius.circular(AppSpacing.radiusXl),
+              ),
         boxShadow: AppElevation.lg,
       ),
       child: SafeArea(
         top: false,
         child: Padding(
           padding: padding,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (handle) ...[
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.borderDark
-                          : AppColors.borderLight,
-                      borderRadius: BorderRadius.circular(AppSpacing.pill),
+          child: _sheetColumn(
+            handle: handle
+                ? Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.borderDark
+                            : AppColors.borderLight,
+                        borderRadius: BorderRadius.circular(AppSpacing.pill),
+                      ),
                     ),
-                  ),
-                ),
-              ],
-              // Scroll the content when it can't fit the available height —
-              // notably when the soft keyboard opens over a field in the sheet
-              // (promo code, custom tip). Flexible + shrink-wrapping scroll view
-              // keeps the sheet compact when content fits, and scrolls (instead
-              // of overflowing) when it doesn't.
-              Flexible(
-                // The sheet is already laid out below the top inset (see
-                // AppSheet.build), so inner scrollables must not re-apply
-                // MediaQuery.padding.top as leading padding — without this a
-                // ListView inside the sheet showed a phantom status-bar-sized
-                // gap above its first row.
-                child: MediaQuery.removePadding(
-                  context: context,
-                  removeTop: true,
-                  child: SingleChildScrollView(child: child),
-                ),
-              ),
-              if (footer != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                footer!,
-              ],
-            ],
+                  )
+                : null,
+            // Scroll the content when it can't fit the available height —
+            // notably when the soft keyboard opens over a field in the sheet
+            // (promo code, custom tip). Flexible + shrink-wrapping scroll view
+            // keeps the sheet compact when content fits, and scrolls (instead
+            // of overflowing) when it doesn't. The sheet is already laid out
+            // below the top inset (see AppSheet.build), so inner scrollables
+            // must not re-apply MediaQuery.padding.top as leading padding —
+            // without this a ListView inside the sheet showed a phantom
+            // status-bar-sized gap above its first row.
+            content: MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: SingleChildScrollView(child: child),
+            ),
+            footer: footer,
           ),
         ),
       ),
@@ -382,19 +467,23 @@ class MarigoldRulePainter extends CustomPainter {
       ..moveTo(inset, r)
       ..arcToPoint(Offset(r, inset), radius: Radius.circular(r - inset))
       ..lineTo(size.width - r, inset)
-      ..arcToPoint(Offset(size.width - inset, r),
-          radius: Radius.circular(r - inset));
+      ..arcToPoint(
+        Offset(size.width - inset, r),
+        radius: Radius.circular(r - inset),
+      );
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = width
       ..strokeCap = StrokeCap.round
-      ..shader = LinearGradient(colors: [
-        LocalColour.marigold.withValues(alpha: 0),
-        LocalColour.marigold,
-        LocalColour.marigold,
-        LocalColour.marigold.withValues(alpha: 0),
-      ], stops: const [0, 0.14, 0.86, 1])
-          .createShader(Offset.zero & Size(size.width, r));
+      ..shader = LinearGradient(
+        colors: [
+          LocalColour.marigold.withValues(alpha: 0),
+          LocalColour.marigold,
+          LocalColour.marigold,
+          LocalColour.marigold.withValues(alpha: 0),
+        ],
+        stops: const [0, 0.14, 0.86, 1],
+      ).createShader(Offset.zero & Size(size.width, r));
     canvas.drawPath(path, paint);
   }
 

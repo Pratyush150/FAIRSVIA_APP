@@ -13,6 +13,7 @@ Trip _trip({
   required TripStatus status,
   double? fareEstimate,
   double? fareFinal,
+  String? driverName,
 }) =>
     Trip(
       id: id,
@@ -23,6 +24,7 @@ Trip _trip({
       fareEstimate: fareEstimate,
       fareFinal: fareFinal,
       requestedAt: DateTime(2026, 9, 10, 19, 44),
+      driverName: driverName,
     );
 
 void main() {
@@ -53,5 +55,27 @@ void main() {
     expect(find.text('\$6.50'), findsOneWidget);
     expect(find.text('\$7.61'), findsNothing);
     expect(find.text('\$2'), findsOneWidget);
+  });
+
+  testWidgets('rider rows show who drove, when the history says',
+      (tester) async {
+    final trips = MockTrips();
+    when(() => trips.history()).thenAnswer((_) async => [
+          _trip(
+            id: 'done',
+            status: TripStatus.completed,
+            fareFinal: 6.50,
+            driverName: 'Aziz Karimov',
+          ),
+          _trip(id: 'gone', status: TripStatus.cancelled),
+        ]);
+
+    await tester.pumpWidget(MaterialApp(
+      home: TripHistoryPage(trips: trips, payments: MockPayments()),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('with Aziz Karimov'), findsOneWidget);
+    expect(find.textContaining('with '), findsOneWidget);
   });
 }
