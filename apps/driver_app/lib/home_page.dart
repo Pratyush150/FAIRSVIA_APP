@@ -11,11 +11,15 @@ import 'package:shared_models/shared_models.dart';
 
 import 'features/account/driver_profile_stats.dart';
 import 'features/driver/call_rider_button.dart';
+import 'features/driver/destination_mode.dart';
 import 'features/driver/driver_cubit.dart';
 import 'features/driver/location_priming_page.dart';
 import 'features/driver/location_stream.dart';
 import 'features/driver/no_show_timer.dart';
 import 'features/driver/vehicle_setup_dialog.dart';
+import 'features/fatigue/fatigue_panel.dart';
+import 'features/incentives/driver_rates.dart';
+import 'features/incentives/quests.dart';
 
 /// Top-down 3D render of the driver's own vehicle tier for their car on the
 /// map (the same art the rider sees for this driver); unknown/absent tiers
@@ -743,11 +747,19 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   Widget _profileStats(BuildContext context) {
     final user = context.read<AuthBloc>().state.user;
     final driver = sl<DriverRemoteDataSource>();
-    return DriverProfileStats(
-      ratingAvg: user?.ratingAvg ?? 0,
-      ratingCount: user?.ratingCount ?? 0,
-      loadProfile: driver.me,
-      loadWeek: () => driver.earnings(range: 'week'),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DriverProfileStats(
+          ratingAvg: user?.ratingAvg ?? 0,
+          ratingCount: user?.ratingCount ?? 0,
+          loadProfile: driver.me,
+          loadWeek: () => driver.earnings(range: 'week'),
+        ),
+        const Divider(height: AppSpacing.xl),
+        // Acceptance / cancellation rates, last 7 days.
+        DriverRates(load: sl<IncentivesRemoteDataSource>().stats),
+      ],
     );
   }
 
@@ -878,6 +890,8 @@ class _BottomSheet extends StatelessWidget {
             builder: (_) =>
                 DriverEarningsPage(driver: sl<DriverRemoteDataSource>()),
           )),
+          quests: const _SheetQuests(),
+          fatigue: const _SheetFatigue(),
         );
       // An offer that arrived on the trip-complete sheet is drawn OVER that
       // sheet (OfferOverlay); keep the sheet underneath so declining it or
@@ -919,6 +933,27 @@ class _BottomSheet extends StatelessWidget {
                 ),
               ],
             ),
+            const _SheetFatigue(),
+            const _SheetQuests(),
+            // Destination ("go home") mode: a button, or the active chip.
+            if (sl.isRegistered<DestinationModeRemoteDataSource>()) ...[
+              const SizedBox(height: AppSpacing.lg),
+              DestinationModeBar(
+                api: sl<DestinationModeRemoteDataSource>(),
+                onPick: (s) => Navigator.of(context).push<DestinationPick>(
+                  MaterialPageRoute(
+                    builder: (_) => DestinationPickerPage(
+                      places: sl<PlacesRemoteDataSource>(),
+                      home: s.home,
+                      near: myLocation == null
+                          ? null
+                          : GeoPoint(
+                              myLocation!.latitude, myLocation!.longitude),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
             SecondaryButton(
               label: 'Go offline',
@@ -1006,7 +1041,16 @@ class DriverOfflineSheet extends StatelessWidget {
     this.busy = false,
     required this.onGoOnline,
     this.onEarnings,
+    this.quests,
+    this.fatigue,
   });
+
+  /// Online time vs the fatigue limit / the rest countdown (FatigueStatusBar);
+  /// null hides it.
+  final Widget? fatigue;
+
+  /// The Quests card (DriverQuestsCard); null hides it.
+  final Widget? quests;
 
   final double? lastEarned;
   final LocationAccess? locationIssue;
@@ -1064,6 +1108,8 @@ class DriverOfflineSheet extends StatelessWidget {
             onOpenSettings: () => unawaited(openLocationFix(issue)),
           ),
         ],
+        ?fatigue,
+        ?quests,
         const SizedBox(height: AppSpacing.lg),
         PrimaryButton(
           label: 'Go online',
@@ -2093,5 +2139,53 @@ class _ChatBadgeIcon extends StatelessWidget {
     );
     if (unread <= 0) return icon;
     return Badge.count(count: unread, child: icon);
+  }
+}
+
+/// The Quests card wired to the real API and the `quest:completed` push.
+class _SheetQuests extends StatelessWidget {
+  const _SheetQuests();
+
+  @override
+  Widget build(BuildContext context) {
+    // Extra, not core: absent (e.g. in a widget test's slim DI) → no card.
+    if (!sl.isRegistered<IncentivesRemoteDataSource>()) {
+      return const SizedBox.shrink();
+    }
+    return DriverQuestsCard(
+      load: sl<IncentivesRemoteDataSource>().quests,
+      completions: sl.isRegistered<RealtimeClient>()
+          ? sl<RealtimeClient>().on('quest:completed')
+          : null,
+    );
+  }
+}
+
+/// Online time vs the fatigue limit, wired to the real API and the server's
+/// fatigue socket events; opens the rest screen when the driver is locked out.
+class _SheetFatigue extends StatelessWidget {
+  const _SheetFatigue();
+
+  @override
+  Widget build(BuildContext context) {
+    // Absent in a widget test's slim DI → nothing.
+    if (!sl.isRegistered<FatigueRemoteDataSource>()) {
+      return const SizedBox.shrink();
+    }
+    final rt = sl.isRegistered<RealtimeClient>() ? sl<RealtimeClient>() : null;
+    return FatigueStatusBar(
+      load: sl<FatigueRemoteDataSource>().get,
+      events: [
+        if (rt != null) ...[
+          rt.on('driver:fatigue_warning'),
+          rt.on('driver:fatigue_locked'),
+          rt.on('driver:status_changed'),
+        ],
+      ],
+      reminders: rt?.on('driver:break_reminder'),
+      onLocked: (s) => Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => DriverRestPage(status: s),
+      )),
+    );
   }
 }

@@ -42,6 +42,7 @@ import { ActivityModule } from './common/activity/activity.module';
 import { OpsModule } from './ops/ops.module';
 import { ContentModule } from './content/content.module';
 import { ShareModule } from './share/share.module';
+import { IncentivesModule } from './incentives/incentives.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -84,6 +85,7 @@ import { HealthController } from './health/health.controller';
     PromoModule,
     ScheduledModule,
     LedgerModule,
+    IncentivesModule, // acceptance/cancellation rates + quests
     FavoritesModule,
     SupportModule,
     BackgroundModule,

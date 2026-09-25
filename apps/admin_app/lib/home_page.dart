@@ -7,6 +7,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'cubit/admin_cubit.dart';
 import 'data/admin_api.dart';
 import 'widgets/status_chip.dart';
+import 'quests/quests_api.dart';
+import 'quests/quests_view.dart';
 
 /// Where the monitoring dashboards live. Override per environment with
 /// `--dart-define=GRAFANA_URL=https://grafana.example.com`.
@@ -132,6 +134,11 @@ class _AdminScaffold extends StatelessWidget {
                     label: Text('Promos'),
                   ),
                   const NavigationRailDestination(
+                    icon: Icon(PhosphorIconsRegular.flag),
+                    selectedIcon: Icon(PhosphorIconsRegular.flag),
+                    label: Text('Quests'),
+                  ),
+                  const NavigationRailDestination(
                     icon: Icon(PhosphorIconsRegular.cards),
                     selectedIcon: Icon(PhosphorIconsRegular.cards),
                     label: Text('Content'),
@@ -190,6 +197,7 @@ class _AdminScaffold extends StatelessWidget {
         AdminTab.live => 'Live map',
         AdminTab.support => 'Support',
         AdminTab.promos => 'Promotions',
+        AdminTab.quests => 'Driver quests & incentives',
         AdminTab.content => 'Content — cards under the ride',
         AdminTab.pricing => 'Pricing & surge',
         AdminTab.comparison => 'Price comparison & calibration',
@@ -263,6 +271,8 @@ class _Body extends StatelessWidget {
       AdminTab.safety => _SafetyView(incidents: state.incidents),
       AdminTab.support => _SupportView(state: state),
       AdminTab.promos => _PromosView(promos: state.promos),
+      AdminTab.quests =>
+        QuestsView(api: QuestsApi(sl<DioClient>().authenticatedDio)),
       AdminTab.content => _ContentView(cards: state.rideCards),
       AdminTab.pricing => _PricingView(fares: state.fares, surge: state.surge),
       AdminTab.comparison =>

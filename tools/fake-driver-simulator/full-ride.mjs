@@ -146,8 +146,12 @@ async function main() {
 
   // --- Payment: capture split (20% platform fee, 80% driver payout) ---
   assert(receipt.fareFinal > 0, 'receipt has a positive fare');
-  const expectedFee = Math.round(receipt.fareFinal * 0.2 * 100) / 100;
-  const expectedPayout = Math.round((receipt.fareFinal - expectedFee) * 100) / 100;
+  // Whole-unit markets (INR, UZS) pay the driver whole rupees / som and the
+  // platform takes the remainder; elsewhere the split keeps cents.
+  const wholeUnits = ['INR', 'UZS'].includes(String(final.currency).toUpperCase());
+  const roundFare = (n) => (wholeUnits ? Math.round(n) : Math.round(n * 100) / 100);
+  const expectedPayout = roundFare(receipt.fareFinal * 0.8);
+  const expectedFee = Math.round((receipt.fareFinal - expectedPayout) * 100) / 100;
   assert(
     receipt.platformFee === expectedFee,
     `platform fee ${receipt.platformFee} === ${expectedFee}`,
@@ -327,7 +331,7 @@ async function main() {
   );
   // Driver's payout share of the refund (net of the 20% fee) is clawed back.
   const postRefundBal = await api('/drivers/balance', { token: driver.token });
-  const expectedClawback = Math.round(refundAmt * 0.8 * 100) / 100;
+  const expectedClawback = roundFare(refundAmt * 0.8);
   assert(
     Math.abs(preRefundBalance - postRefundBal.balance - expectedClawback) < 0.01,
     `refund clawed back $${expectedClawback} from the driver`,

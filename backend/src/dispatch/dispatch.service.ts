@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Trip, TripStatus } from '@prisma/client';
@@ -10,6 +10,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { TripStateMachine } from '../trips/trip-state-machine';
 import { FavoritesService } from '../favorites/favorites.service';
 import { DriversService } from '../drivers/drivers.service';
+import { FatigueService } from '../drivers/fatigue/fatigue.service';
+import { DestinationModeService } from '../drivers/destination/destination-mode.service';
 import { SurgeService } from '../surge/surge.service';
 import { OpsFlagsService } from '../ops/ops-flags.service';
 import { MetricsService } from '../common/metrics/metrics.service';
@@ -24,6 +26,7 @@ import {
   DISPATCH_JOB,
   DEFAULT_JOB_OPTS,
 } from '../common/queue/queue.constants';
+import { recordOfferEvent } from '../incentives/offer-events';
 
 // How long a driver has to respond to an offer before we move on. A driver who
 // *ghosts* (neither accepts nor declines) blocks this rider's sequential offer
@@ -141,6 +144,8 @@ export class DispatchService {
     private readonly surge: SurgeService,
     private readonly flags: OpsFlagsService,
     private readonly metrics: MetricsService,
+    @Optional() private readonly fatigue?: FatigueService,
+    @Optional() private readonly destination?: DestinationModeService,
   ) {}
 
   /**
@@ -423,6 +428,12 @@ export class DispatchService {
         await this.nearestDrivers(trip, radiusKm),
         favorites,
       ).filter((id) => !declined.has(id));
+      // Destination ("go home") mode: a driver who set one is only offered
+      // trips whose drop-off brings them meaningfully closer to it (rule in
+      // drivers/destination/destination.rules.ts). Others pass untouched.
+      if (this.destination) {
+        candidates = await this.destination.filterCandidates(trip, candidates);
+      }
       // On the closest ring, refine the crow-flies order into real road-ETA
       // order for the top few non-favourite candidates — nearest-by-road beats
       // nearest-as-the-crow-flies across rivers/highways. Bounded + fail-open.
@@ -448,6 +459,9 @@ export class DispatchService {
         if ((await this.redis.client.get(RedisKeys.driverStatus(driverId))) !== 'online') {
           continue;
         }
+        // Fatigue limit: a driver at/over DRIVER_MAX_ONLINE_HOURS gets no new
+        // offers (the sweeper takes them offline once their trip ends).
+        if (this.fatigue && !(await this.fatigue.canTakeOffers(driverId))) continue;
         if (await this.offerTo(driverId, trip, riderInfo, approach)) return 'assigned';
       }
     }
@@ -660,6 +674,15 @@ export class DispatchService {
       const verdict = await this.awaitResponse(trip.id, driverId);
       await this.redis.client.del(RedisKeys.dispatchOffer(trip.id));
       this.metrics.offerOutcome(verdict === 'timeout' ? 'expired' : verdict);
+      if (verdict !== 'accepted') {
+        // Durable outcome for the driver's acceptance rate (best-effort).
+        void recordOfferEvent(
+          this.prisma,
+          driverId,
+          trip.id,
+          verdict === 'timeout' ? 'expired' : 'declined',
+        );
+      }
 
       if (verdict !== 'accepted') {
         if (verdict === 'declined') {
@@ -669,6 +692,8 @@ export class DispatchService {
         return false;
       }
       const assigned = await this.assign(trip, driverId);
+      // Only a committed accept counts; one that lost a race is nobody's fault.
+      if (assigned) void recordOfferEvent(this.prisma, driverId, trip.id, 'accepted');
       if (!assigned) {
         // The driver tapped Accept but the trip could not be committed to them
         // (rider cancelled during the offer window, trip already taken, or the

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import { RideTier, TripStatus, UserRole } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
@@ -16,6 +17,7 @@ import {
   startOfBusinessDay,
 } from '../common/time/business-day';
 import { splitByBusinessDay } from './online-time';
+import { FatigueService } from './fatigue/fatigue.service';
 
 /** How long the per-day online-seconds hash outlives its last write. */
 const ONLINE_SECS_TTL = 9 * 86400;
@@ -30,7 +32,8 @@ export type ForcedOfflineReason =
   | 'stale_location' // no GPS ping for PRESENCE_STALE_MS while "online"
   | 'presence_lost' // reconnect found no live presence for a DB-online driver
   | 'deactivated' // admin deactivated the account
-  | 'account_deleted'; // the driver deleted their own account
+  | 'account_deleted' // the driver deleted their own account
+  | 'fatigue'; // reached DRIVER_MAX_ONLINE_HOURS, must rest (fatigue/)
 
 @Injectable()
 export class DriversService {
@@ -39,6 +42,7 @@ export class DriversService {
     private readonly redis: RedisService,
     private readonly config: ConfigService,
     private readonly realtime: RealtimeService,
+    @Optional() private readonly fatigue?: FatigueService,
   ) {}
 
   /** Create/refresh the driver profile and mark the user as a driver. Documents
@@ -144,6 +148,8 @@ export class DriversService {
           message: 'Add your full name in Account before going online — riders check it when you arrive.',
         });
       }
+      // Fatigue limit: 409 DRIVER_REST_REQUIRED until the break is done.
+      await this.fatigue?.beforeOnline(userId);
       await this.redis.client.set(RedisKeys.driverStatus(userId), 'online');
       await this.redis.client.set(
         RedisKeys.driverTier(userId),
@@ -209,6 +215,7 @@ export class DriversService {
 
   /** Remove the driver from the live pool and clear ephemeral state. */
   async goOffline(userId: string, tier: string) {
+    await this.fatigue?.onOffline(userId); // before the session key is cleared
     await this.endOnlineSession(userId);
     await this.redis.client.set(RedisKeys.driverStatus(userId), 'offline');
     await this.redis.client.zrem(RedisKeys.driversGeo(tier), userId);
@@ -332,6 +339,11 @@ export class DriversService {
       }),
       this.onlineSecondsByDay(userId),
     ]);
+    // Quest / incentive bonuses are real money in the driver's balance.
+    const bonuses = await this.prisma.ledgerEntry.findMany({
+      where: { driverId: userId, type: 'bonus', createdAt: { gte: weekStart } },
+      select: { amount: true, createdAt: true },
+    });
 
     // Seven daily buckets, oldest first.
     const days: { date: string; total: number; trips: number; onlineSeconds: number }[] = [];
@@ -393,6 +405,16 @@ export class DriversService {
         cancellationTotal += amount;
       }
     }
+    let bonusTotal = 0;
+    for (const e of bonuses) {
+      const amount = Number(e.amount);
+      const b = bucket(e.createdAt);
+      if (b) b.total += amount;
+      if (e.createdAt >= since) {
+        total += amount;
+        bonusTotal += amount;
+      }
+    }
     for (const d of days) d.total = round2(d.total);
 
     const onlineSeconds =
@@ -406,6 +428,7 @@ export class DriversService {
       trips,
       onlineSeconds,
       cancellationFees: round2(cancellationTotal),
+      bonuses: round2(bonusTotal),
       currency: CURRENCY,
       days,
       recentTrips: list,

@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RideTier, Trip, TripStatus } from '@prisma/client';
@@ -49,6 +50,8 @@ import { EstimateDto } from './dto/estimate.dto';
 import { TripStateMachine } from './trip-state-machine';
 import { BRAND_NAME } from '../common/brand';
 import { routeThrough } from './route-through';
+import { recordOfferEvent } from '../incentives/offer-events';
+import { QuestsService } from '../incentives/quests.service';
 
 const CANCELLABLE: TripStatus[] = [
   TripStatus.scheduled,
@@ -163,6 +166,7 @@ export class TripsService {
     private readonly comparison: ComparisonService,
     @Inject(GEO_PROVIDER) private readonly geo: GeoProvider,
     @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
+    @Optional() private readonly quests?: QuestsService,
   ) {}
 
   /** Text the passenger of a ride somebody else booked. Best-effort: they are
@@ -798,6 +802,8 @@ export class TripsService {
     };
     this.realtime.emitToUser(trip.riderId, 'trip:completed', receipt);
     this.realtime.emitToUser(driverId, 'trip:completed', receipt);
+    // Pay any quest this trip just finished (best-effort, never throws).
+    void this.quests?.onTripCompleted(driverId, tripId);
     void this.notifications.notifyTrip(trip.riderId, 'completed', { tripId });
     void this.notifications.notifyTrip(
       driverId,
@@ -1295,6 +1301,14 @@ export class TripsService {
       data: { cancelReason: trimmed, cancelledBy: 'driver' },
       meta: { reason: trimmed, driverId },
     });
+    // Durable record for the driver's cancellation rate; a rider no-show is
+    // recorded apart so it never counts against the driver.
+    void recordOfferEvent(
+      this.prisma,
+      driverId,
+      tripId,
+      noShow ? 'cancelled_no_show' : 'cancelled',
+    );
 
     await this.releaseDriver(driverId);
     await this.releasePromo(trip);

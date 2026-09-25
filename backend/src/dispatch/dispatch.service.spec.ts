@@ -392,6 +392,30 @@ describe('DispatchService', () => {
     expect(offered).toEqual(['driver-B']); // `tried` de-dupes across rings; A is never offered
   });
 
+  it('sweep never offers to a driver over the fatigue limit', async () => {
+    const { svc, redis, prisma } = make();
+    redis.client.get.mockImplementation(async (k: string) =>
+      k.endsWith(':status') ? 'online' : null,
+    );
+    prisma.trip.findUnique.mockResolvedValue({ status: 'matching' });
+    const internals = svc as unknown as {
+      fatigue: { canTakeOffers: (id: string) => Promise<boolean> };
+      nearestDrivers: jest.Mock;
+      rankByRoadEta: jest.Mock;
+      offerTo: jest.Mock;
+      sweep: (t: unknown, f: Set<string>, r: unknown, d: number) => Promise<string>;
+    };
+    internals.fatigue = { canTakeOffers: async (id: string) => id !== 'driver-A' };
+    internals.nearestDrivers = jest.fn().mockResolvedValue(['driver-A', 'driver-B']);
+    internals.rankByRoadEta = jest.fn(async (_t: unknown, c: string[]) => c);
+    internals.offerTo = jest.fn().mockResolvedValue(false);
+
+    const trip = { id: 'trip-1', tier: 'economy', pickupLat: 25.7, pickupLng: -80.2 };
+    await internals.sweep(trip, new Set(), { name: 'R', rating: 5 }, Date.now() + 60000);
+
+    expect(internals.offerTo.mock.calls.map((c) => c[0])).toEqual(['driver-B']);
+  });
+
   it('rankByRoadEta caches each candidate route for the offer card', async () => {
     const { svc, geo, redis } = make();
     redis.client.hmget.mockResolvedValue(['25.7', '-80.2']);

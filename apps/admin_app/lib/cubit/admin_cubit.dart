@@ -21,6 +21,7 @@ enum AdminTab {
   live,
   support,
   promos,
+  quests,
   content,
   pricing,
   comparison,
@@ -210,6 +211,8 @@ class AdminCubit extends Cubit<AdminState> {
           emit(state.copyWith(loading: false, tickets: tickets));
         case AdminTab.promos:
           emit(state.copyWith(loading: false, promos: await _api.promos()));
+        case AdminTab.quests:
+          emit(state.copyWith(loading: false)); // QuestsView loads its own
         case AdminTab.content:
           emit(state.copyWith(loading: false, rideCards: await _api.rideCards()));
         case AdminTab.pricing:
@@ -249,6 +252,7 @@ class AdminCubit extends Cubit<AdminState> {
         case AdminTab.drivers:
         case AdminTab.support:
         case AdminTab.promos:
+        case AdminTab.quests:
         case AdminTab.content:
         case AdminTab.pricing:
         case AdminTab.comparison:

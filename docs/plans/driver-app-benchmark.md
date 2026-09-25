@@ -30,12 +30,12 @@ turn into Y with more digging.
 | 1 | **Earnings dashboard** (today/week, per-trip, online hours) | Y | Y | Y | ? | Y | Y | **Before:** today/week total, trip count and average per trip only (`DriverEarningsPage`). **Now:** online time, earnings per online hour, a 7-day bar chart, the trip list and cancellation-fee income. **Built in this pass.** | High / M |
 | 2 | Acceptance / cancellation rate shown to the driver | Y | Y | ? | ? | ? | Y\* | No. Declines are recorded per trip in Redis for dispatch, but no rate is computed or shown. | Med / M |
 | 3 | **Demand heatmap / busy areas** | Y (Guidance Heatmap) | ? | Y | ? | ? (third-party only) | Y | **Before:** no. Surge demand lived only in Redis for pricing, with a 5-minute TTL and an admin-only snapshot. **Now:** "busy areas" shading on the driver map from the last hour's ride requests. **Built in this pass.** | High / M |
-| 4 | Destination / "go home" filter | Y (2 per day) | Y (GoTo) | ? | Y (the driver picks orders by destination) | ? | Y (Home, Errands, My District) | No. Dispatch matches purely on nearest driver. | High / L (dispatch change) |
+| 4 | Destination / "go home" filter | Y (2 per day) | Y (GoTo) | ? | Y (the driver picks orders by destination) | ? | Y (Home, Errands, My District) | **Built.** Destination mode — see the note under the priorities list. | High / L (dispatch change) |
 | 5 | **Request card**: pickup ETA/distance, trip distance, upfront fare, rider rating, accept countdown | Y | ? | Y | Y (plus the rider's offered price) | ? | ? | **Already there.** `OfferOverlay` has fare, surge label, the trip label (distance and time), approach ETA, rider name and rating, pickup and drop-off addresses, the pickup note, and a countdown ring that turns red at 5 s or less. Nothing to add. | — |
 | 6 | Incentives / quests ("10 trips → ₹X") | Y (Quest, Boost) | Y | Y | ? | Y | Y | No. | High / L (rules engine, ledger, admin) |
 | 7 | **Rider no-show wait timer + fee to driver** | Y (fee after 7 min on Economy) | ? | Y | N | Y (5–10 min) | ? | **Before:** the backend had `POST /trips/:id/driver-cancel` with no fee, and the driver app had no cancel at all. A driver whose rider never came out was stuck. **Now:** a countdown from arrival, then "Rider didn't show", which charges the rider the cancellation fee. **Built in this pass.** | High / S–M |
 | 8 | Navigation hand-off (Google Maps / Waze) | Y | ? | ? | ? | ? | ? (built-in navigator) | **Already there.** A "Navigate" button on the en-route and on-trip sheets (`_LifecycleSheet._navigate`, `core/navigation`). | — |
-| 9 | Break reminders / fatigue driving-hour limit | Y (12 h, then 6 h off) | ? | ? | ? | ? | Y (about 10–12 h) | No. Online-time tracking now exists (item 1), which is the foundation for this. | Med / S (now that online time exists) |
+| 9 | Break reminders / fatigue driving-hour limit | Y (12 h, then 6 h off) | ? | ? | ? | ? | Y (about 10–12 h) | **Built.** 12 h online, reset by a 6 h break (Uber rule) — see the note under the priorities list. | Med / S (now that online time exists) |
 | 10 | Wallet / payout history / cash-out | Y (Instant Pay) | Y (daily cash-out) | Y\* | ? | Y (instant) | ? | **Already there.** `DriverPayoutsPage` has the balance, ledger history and withdraw, plus Stripe Connect. | — |
 | 11 | Ratings & feedback | Y | Y | Y | ? | Y | Y | **Already there.** The driver rates the rider after each trip, and the driver's own rating shows on their Account profile card. | — |
 | 12 | Safety (SOS, share trip, audio) | Y | Y | Y | Y | ? | ? | **Partly.** The driver has a safety sheet (`openDriverSafety`: emergency and SOS). Trip sharing is rider-side only. No audio recording. | Med / M |
@@ -136,8 +136,44 @@ Checked and already complete (see the matrix). No change.
 
 1. **Fatigue limit.** Online time now exists. Warn at 10 h and block at 12 h
    within a rolling 24 h, as Uber does.
+   **Built (2026-09-25).** Rule chosen: Uber's published one ("after 12 hours
+   of driving, go offline for 6 hours"), i.e. NOT a rolling 24 h window:
+   online time adds up across sessions and resets to zero only after one
+   continuous offline break of `DRIVER_REST_BREAK_MIN` (default 360); short
+   breaks do not reset it. At `DRIVER_MAX_ONLINE_HOURS` (default 12) dispatch
+   stops offering the driver trips, the sweeper (every
+   `DRIVER_FATIGUE_SWEEP_SEC`, default 30) takes them offline as soon as the
+   current trip ends (`driver:status_changed {reason:'fatigue'}` +
+   `driver:fatigue_locked` + push), and going online (REST or socket) is
+   refused with 409 `DRIVER_REST_REQUIRED` `{restSecondsLeft, restUntil}`
+   until the break is done. Warning `DRIVER_FATIGUE_WARN_MIN` (default 30)
+   before the limit: `driver:fatigue_warning` + push, once per count. Soft
+   `driver:break_reminder` every `DRIVER_BREAK_REMINDER_HOURS` (default 4) of
+   one continuous session (non-blocking). Difference from Uber, stated
+   plainly: we count ONLINE time (what we track), Uber counts on-trip +
+   en-route time, so ours is stricter. State is Redis only
+   (`driver:{id}:fatigue` hash, `drivers:fatigue:tracked` set); no migration.
+   API: `GET /drivers/me/fatigue`. Code: `backend/src/drivers/fatigue/`, gate in
+   `DriversService.setStatus` / `goOffline` and `DispatchService.sweep`. App:
+   `apps/driver_app/lib/features/fatigue/fatigue_panel.dart` ("Online today:
+   9h 40m of 12h", warning banner, rest card + `DriverRestPage` countdown).
+   Sim: `tools/fake-driver-simulator/fatigue-check.mjs`.
 2. **Destination mode.** Two uses a day: only offer trips whose drop-off
    brings the driver closer to a chosen point. This is a dispatch filter.
+   **Built (2026-09-25).** Rule: while a destination is set, a trip is
+   offered only if the pickup is inside the normal dispatch radius (the
+   sweep's GEO ring, unchanged) AND
+   `dist(dropoff, destination) ≤ 0.7 × dist(driver, destination)`
+   (great-circle). Uses per day: `DESTINATION_MODE_USES_PER_DAY` (default 2,
+   business day in the Tashkent calendar); moving an active destination does
+   not use another and keeps the original clock. Auto-off within 500 m of the
+   destination or 2 h after it was set (checked at match time and on GET;
+   pushes `driver:destination_off`). State is Redis only
+   (`driver:{id}:dest`, `driver:{id}:destUses:{day}`, `driver:{id}:destHome`).
+   API: `GET|POST|DELETE /drivers/me/destination-mode` (POST `{lat,lng,label,saveAsHome?}`).
+   Code: `backend/src/drivers/destination/`, filter call in
+   `DispatchService.sweep`; app: `apps/driver_app/lib/features/driver/destination_mode.dart`.
+   Sim: `tools/fake-driver-simulator/destination-mode.mjs`.
 3. **Acceptance and cancellation rate** on the earnings page.
 4. **Incentives / quests.**
 5. **Document expiry reminders.** Needs a migration done the safe way: diff

@@ -48,3 +48,21 @@ export function roundFare(n: number, currency: string): number {
     ? Math.round(n)
     : Math.round(n * 100) / 100;
 }
+
+/**
+ * Split a charged amount between driver and platform. The driver's share is
+ * `driverFraction` of `gross` (the pre-promo fare — a promo is the platform's
+ * cost, never the driver's), rounded like a fare line: whole rupees / som in
+ * [WHOLE_FARE] markets, so a driver never sees "₹71.20". The platform takes
+ * the remainder, so driverPayout + platformFee === charged, always.
+ */
+export function splitPayout(
+  gross: number,
+  charged: number,
+  driverFraction: number,
+  currency: string,
+): { driverPayout: number; platformFee: number } {
+  const driverPayout = roundFare(gross * driverFraction, currency);
+  const platformFee = Math.round((charged - driverPayout) * 100) / 100;
+  return { driverPayout, platformFee };
+}

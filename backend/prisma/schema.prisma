@@ -631,3 +631,59 @@ model UserActiveDay {
   @@index([day])
   @@map("user_active_days")
 }
+
+/// One row per dispatch offer outcome or driver cancellation — the durable
+/// record behind a driver's acceptance and cancellation rates (the live offer
+/// itself only ever exists in Redis). `outcome` is accepted | declined |
+/// expired | cancelled | cancelled_no_show. Append-only.
+model DriverOfferEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  driverId  String   @map("driver_id") @db.Uuid
+  tripId    String   @map("trip_id") @db.Uuid
+  outcome   String   @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([driverId, createdAt(sort: Desc)])
+  @@map("driver_offer_events")
+}
+
+/// An incentive quest set by ops: "complete N trips between startsAt and
+/// endsAt (optionally only in these tiers) and earn a bonus". Progress is
+/// counted from completed trips in the window, never stored.
+model Quest {
+  id          String     @id @default(uuid()) @db.Uuid
+  title       String     @db.VarChar(120)
+  /// Empty = every tier counts.
+  tiers       RideTier[] @default([])
+  targetTrips Int        @map("target_trips")
+  startsAt    DateTime   @map("starts_at") @db.Timestamptz(6)
+  endsAt      DateTime   @map("ends_at") @db.Timestamptz(6)
+  bonusAmount Decimal    @map("bonus_amount") @db.Decimal(10, 2)
+  currency    String     @db.VarChar(3)
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  awards QuestAward[]
+
+  @@index([active, endsAt])
+  @@map("quests")
+}
+
+/// A quest bonus paid to a driver. The (quest, driver) unique key is what
+/// makes the award one-time: a second attempt fails the insert and books
+/// nothing. Written in the same transaction as the ledger credit.
+model QuestAward {
+  id            String   @id @default(uuid()) @db.Uuid
+  questId       String   @map("quest_id") @db.Uuid
+  driverId      String   @map("driver_id") @db.Uuid
+  amount        Decimal  @db.Decimal(10, 2)
+  ledgerEntryId String?  @map("ledger_entry_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  quest Quest @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([questId, driverId])
+  @@index([driverId])
+  @@map("quest_awards")
+}

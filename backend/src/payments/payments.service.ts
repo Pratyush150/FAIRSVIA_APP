@@ -36,7 +36,7 @@ import {
   QUEUE_PAYMENTS,
 } from './payments.queue';
 import { isSerializationFailure } from '../common/prisma/serialization';
-import { formatMoney } from '../common/money';
+import { formatMoney, roundFare, splitPayout } from '../common/money';
 import { CURRENCY } from '../pricing/fare-config';
 
 function round2(n: number): number {
@@ -146,12 +146,15 @@ export class PaymentsService {
    * come out of the driver's pocket, so the platform's cut absorbs it (and
    * can go negative on a heavily discounted ride).
    */
-  private splitFor(trip: { promoDiscount?: unknown }, final: number) {
+  private splitFor(
+    trip: { promoDiscount?: unknown; currency?: string },
+    final: number,
+  ) {
     const discount = Number(trip.promoDiscount ?? 0);
     const gross = final + (Number.isFinite(discount) ? discount : 0);
-    const driverPayout = round2(gross * (1 - this.feePercent));
-    const platformFee = round2(final - driverPayout);
-    return { platformFee, driverPayout };
+    // Whole rupees / som to the driver in whole-unit markets; the platform
+    // keeps the remainder so the split always sums to the fare.
+    return splitPayout(gross, final, 1 - this.feePercent, trip.currency ?? CURRENCY);
   }
 
   /** Capture the final fare on completion and compute the payout split. */
@@ -336,7 +339,12 @@ export class PaymentsService {
     if (amount <= 0) return 0;
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) return 0;
-    const platformFee = round2(amount * this.feePercent);
+    const { platformFee } = splitPayout(
+      amount,
+      amount,
+      1 - this.feePercent,
+      trip.currency ?? CURRENCY,
+    );
 
     if (trip.paymentMode === 'cash') {
       await this.prisma.payment.upsert({
@@ -483,7 +491,7 @@ export class PaymentsService {
           const trip = await tx.trip.findUnique({ where: { id: tripId } });
           let clawback = 0;
           if (trip?.driverId) {
-            clawback = round2(refund * (1 - this.feePercent));
+            clawback = roundFare(refund * (1 - this.feePercent), trip.currency ?? CURRENCY);
             if (clawback !== 0) {
               await tx.ledgerEntry.create({
                 data: {

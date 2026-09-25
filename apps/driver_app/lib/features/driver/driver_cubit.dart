@@ -729,6 +729,9 @@ class DriverCubit extends Cubit<DriverState> {
       case 'presence_lost':
         return 'You were set offline — no location received for a while. '
             'Go online again.';
+      case 'fatigue':
+        return "You've reached the online-hours limit. Take your break "
+            'before going online again.';
       default:
         return "Connection dropped — you're offline. Go online again.";
     }

@@ -10,7 +10,8 @@ export type LedgerType =
   | 'tip'
   | 'commission'
   | 'withdrawal'
-  | 'adjustment';
+  | 'adjustment'
+  | 'bonus'; // a quest / incentive payout (see IncentivesModule)
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;

@@ -17,6 +17,9 @@ import '../network/kv_local_stub.dart'
     if (dart.library.html) '../network/kv_local_web.dart';
 import '../realtime/realtime_client.dart';
 import '../driver/driver_remote_data_source.dart';
+import '../driver/fatigue_remote_data_source.dart';
+import '../driver/destination_mode_remote_data_source.dart';
+import '../driver/incentives_remote_data_source.dart';
 import '../trip/places_remote_data_source.dart';
 import '../trip/trip_remote_data_source.dart';
 import '../trip/trip_repository.dart';
@@ -89,6 +92,15 @@ Future<void> configureCoreDependencies({AppConfig? config}) async {
     ..registerSingleton<RealtimeClient>(SocketIoRealtimeClient(cfg.wsUrl))
     ..registerSingleton<DriverRemoteDataSource>(
       DriverRemoteDataSource(sl<DioClient>().authenticatedDio),
+    )
+    ..registerSingleton<FatigueRemoteDataSource>(
+      FatigueRemoteDataSource(sl<DioClient>().authenticatedDio),
+    )
+    ..registerSingleton<DestinationModeRemoteDataSource>(
+      DestinationModeRemoteDataSource(sl<DioClient>().authenticatedDio),
+    )
+    ..registerSingleton<IncentivesRemoteDataSource>(
+      IncentivesRemoteDataSource(sl<DioClient>().authenticatedDio),
     )
     // Payments + ratings (Phase 3/4): receipts, tips, two-way ratings.
     ..registerSingleton<PaymentsRemoteDataSource>(
