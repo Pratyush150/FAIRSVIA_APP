@@ -20,6 +20,7 @@ class RideProgressCard extends StatelessWidget {
     this.endLabel,
     this.icon,
     this.glyph,
+    this.endGlyph,
   });
 
   final String title;
@@ -37,6 +38,10 @@ class RideProgressCard extends StatelessWidget {
   /// Drawn riding along the bar at [progress] (e.g. a car on the trip), and
   /// glides to each new value. Null keeps the plain bar.
   final IconData? glyph;
+
+  /// Drawn at the far end of the bar (e.g. a pickup pin the car glides
+  /// toward). Only with [glyph]; null leaves the end bare.
+  final IconData? endGlyph;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +90,7 @@ class RideProgressCard extends StatelessWidget {
               _TrackWithGlyph(
                 progress: p,
                 glyph: glyph,
+                endGlyph: endGlyph,
                 track: theme.dividerColor,
               ),
             ],
@@ -124,10 +130,12 @@ class _TrackWithGlyph extends StatelessWidget {
     required this.progress,
     required this.glyph,
     required this.track,
+    this.endGlyph,
   });
 
   final double progress;
   final IconData? glyph;
+  final IconData? endGlyph;
   final Color track;
 
   @override
@@ -160,6 +168,16 @@ class _TrackWithGlyph extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 children: [
                   bar,
+                  if (endGlyph != null)
+                    Positioned(
+                      right: 0,
+                      child: Icon(
+                        endGlyph,
+                        key: const ValueKey('ride-progress-end-glyph'),
+                        size: glyphSize,
+                        color: AppColors.accent,
+                      ),
+                    ),
                   Positioned(
                     left: x,
                     child: Container(

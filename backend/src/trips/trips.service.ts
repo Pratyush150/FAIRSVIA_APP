@@ -1144,12 +1144,19 @@ export class TripsService {
     const rider = await this.prisma.user
       .findUnique({
         where: { id: trip.riderId },
-        select: { id: true, fullName: true, phone: true },
+        select: { id: true, fullName: true, phone: true, ratingAvg: true },
       })
       .catch(() => null);
     if (!rider) return {};
     return {
-      rider: { id: rider.id, name: rider.fullName ?? 'Rider', phone: rider.phone },
+      rider: {
+        id: rider.id,
+        name: rider.fullName ?? 'Rider',
+        phone: rider.phone,
+        // Same figure the ride offer showed ("★ 4.8"), kept for the in-trip
+        // rider card after accept.
+        rating: rider.ratingAvg == null ? null : Number(rider.ratingAvg),
+      },
     };
   }
 

@@ -155,6 +155,9 @@ class _CompletedSheetState extends State<CompletedSheet> {
     final double? chosenTip = sentTip ?? _pendingTip;
     final bool locked = sentTip != null || state.tipping;
     return SingleChildScrollView(
+      // The confetti bursts 70px above the check; the default hard-edge clip
+      // cut the top of the burst off at the sheet's first line.
+      clipBehavior: Clip.none,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

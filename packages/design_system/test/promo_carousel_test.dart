@@ -111,4 +111,56 @@ void main() {
       expect(img.width / img.height, closeTo(16 / 10, 0.01), reason: path);
     }
   });
+
+  group('poster shimmer', () {
+    Widget host({bool reduce = false}) => MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(disableAnimations: reduce),
+        child: const Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 200,
+            child: Stack(children: [PosterShimmer()]),
+          ),
+        ),
+      ),
+    );
+    Finder paint() => find.descendant(
+      of: find.byType(PosterShimmer),
+      matching: find.byType(CustomPaint),
+    );
+
+    tearDown(() => PosterShimmer.debugDisableLoops = true);
+
+    testWidgets('static while loops are disabled (tests)', (tester) async {
+      await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
+      expect(paint(), findsNothing);
+    });
+
+    testWidgets('sweeps in its own repaint boundary, loops every period', (
+      tester,
+    ) async {
+      PosterShimmer.debugDisableLoops = false;
+      await tester.pumpWidget(host());
+      expect(paint(), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(PosterShimmer),
+          matching: find.byType(RepaintBoundary),
+        ),
+        findsWidgets,
+      );
+      await tester.pump(PosterShimmer.period * 2);
+      expect(tester.hasRunningAnimations, isTrue);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('static under Reduce Motion', (tester) async {
+      PosterShimmer.debugDisableLoops = false;
+      await tester.pumpWidget(host(reduce: true));
+      expect(paint(), findsNothing);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
 }

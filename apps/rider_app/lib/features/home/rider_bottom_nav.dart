@@ -49,12 +49,38 @@ class RiderBottomNav extends StatelessWidget {
         destinations: [
           dest(PhosphorIconsRegular.house, 'Home'),
           dest(PhosphorIconsRegular.receipt, 'Trips'),
-          dest(PhosphorIconsRegular.tag, 'Offers'),
+          // A small gift box drops in (twice, then holds) when the idle Home
+          // shows and again when Offers is opened: noticeable, never a loop.
+          // Reduce Motion shows the wrapped gift still.
+          const NavigationDestination(
+            icon: RiderOffersGift(key: ValueKey('offers-gift-idle')),
+            selectedIcon: RiderOffersGift(
+              key: ValueKey('offers-gift-selected'),
+            ),
+            label: 'Offers',
+          ),
           dest(PhosphorIconsRegular.userCircle, 'Account'),
         ],
       ),
     );
   }
+}
+
+/// The animated gift that stands in for the Offers tab icon (and heads the
+/// Offers page). Plays [RiderOffersGift.plays] times then holds on the
+/// wrapped gift.
+class RiderOffersGift extends StatelessWidget {
+  const RiderOffersGift({super.key, this.size = navSize});
+
+  /// Drawn a touch larger than a 24 px icon: the art has air around it.
+  static const double navSize = 30;
+  static const int plays = 2;
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) =>
+      LottieMoment.gift(size: size, plays: plays);
 }
 
 /// The rider app's frame: the Home (map + ride flow) plus the other tabs,

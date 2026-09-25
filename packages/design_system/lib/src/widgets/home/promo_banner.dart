@@ -233,6 +233,7 @@ class PromoBanner extends StatelessWidget {
                       // Light disc, dark arrow: reads on any photo.
                       child: _Cta(dark: true, onPhoto: true),
                     ),
+                    const PosterShimmer(),
                     Material(
                       type: MaterialType.transparency,
                       child: InkWell(onTap: onTap, borderRadius: r),
@@ -323,6 +324,7 @@ class PromoBanner extends StatelessWidget {
                         bottom: AppSpacing.lg,
                         child: _Cta(dark: dark),
                       ),
+                      const PosterShimmer(),
                     ],
                   );
                 },
@@ -333,6 +335,115 @@ class PromoBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A light diagonal glint that sweeps across a poster every [period]
+/// (the sweep itself takes [sweep]; the rest of the period is still).
+///
+/// Painted only: a [CustomPaint] driven by the controller (`repaint:`), in
+/// its own [RepaintBoundary], so the image, text and art under it are never
+/// rebuilt or repainted. Fills its [Stack]; ignores pointers; hidden from
+/// screen readers. Static (draws nothing) under Reduce Motion or when
+/// [debugDisableLoops] is set (tests, so `pumpAndSettle` settles); paused
+/// with the ticker when its route or tab is offstage ([TickerMode]).
+class PosterShimmer extends StatefulWidget {
+  const PosterShimmer({super.key});
+
+  /// One full cycle: a sweep, then a rest.
+  static const Duration period = Duration(seconds: 6);
+
+  /// How long the glint takes to cross the poster.
+  static const Duration sweep = Duration(milliseconds: 1100);
+
+  /// Peak white alpha at the centre of the glint.
+  static const double peakAlpha = 0.26;
+
+  /// Set in tests (see test/flutter_test_config.dart) so the endless loop
+  /// never keeps `pumpAndSettle` from settling.
+  static bool debugDisableLoops = false;
+
+  @override
+  State<PosterShimmer> createState() => _PosterShimmerState();
+}
+
+class _PosterShimmerState extends State<PosterShimmer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: PosterShimmer.period,
+  );
+  bool _still = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _still =
+        (MediaQuery.maybeDisableAnimationsOf(context) ?? false) ||
+        PosterShimmer.debugDisableLoops;
+    if (_still) {
+      _c.stop();
+      _c.value = 0;
+    } else if (!_c.isAnimating) {
+      _c.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_still) return const SizedBox.shrink();
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: ExcludeSemantics(
+          child: RepaintBoundary(
+            child: CustomPaint(painter: _ShimmerPainter(_c)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShimmerPainter extends CustomPainter {
+  _ShimmerPainter(this.t) : super(repaint: t);
+
+  final Animation<double> t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final frac =
+        PosterShimmer.sweep.inMicroseconds /
+        PosterShimmer.period.inMicroseconds;
+    final p = t.value / frac;
+    if (p <= 0 || p >= 1) return; // resting between sweeps
+    final eased = Curves.easeInOut.transform(p);
+    // A band ~35% of the width, travelling from fully off the left edge to
+    // fully off the right, tilted ~20 degrees.
+    final band = size.width * 0.35;
+    final x = -band + (size.width + band * 2) * eased;
+    final rect = Rect.fromLTWH(x - band, 0, band * 2, size.height);
+    const peak = PosterShimmer.peakAlpha;
+    final paint = Paint()
+      ..shader = LinearGradient(
+        begin: const Alignment(-1, -0.35),
+        end: const Alignment(1, 0.35),
+        colors: [
+          Colors.white.withValues(alpha: 0),
+          Colors.white.withValues(alpha: peak),
+          Colors.white.withValues(alpha: 0),
+        ],
+        stops: const [0.3, 0.5, 0.7],
+      ).createShader(rect);
+    canvas.drawRect(Offset.zero & size, paint);
+  }
+
+  @override
+  bool shouldRepaint(_ShimmerPainter old) => old.t != t;
 }
 
 class _Cta extends StatelessWidget {

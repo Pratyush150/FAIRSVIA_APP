@@ -117,6 +117,8 @@ describe('Rider and driver can call each other (e2e)', () => {
     expect(asDriver.body.rider).toEqual(
       expect.objectContaining({ id: rider.id, phone: rider.phone }),
     );
+    // The rider's rating rides along for the in-trip rider card ("★ 5.0").
+    expect(typeof asDriver.body.rider.rating).toBe('number');
 
     const active = await request(server)
       .get('/api/v1/trips/active')

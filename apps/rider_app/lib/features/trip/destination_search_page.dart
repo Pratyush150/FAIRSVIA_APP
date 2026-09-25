@@ -76,6 +76,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
   bool _closing = false;
   String? _error;
 
+  /// The last search for the text now in the field came back empty.
+  bool _noResults = false;
+
   // Chosen ends. Pickup starts at the rider's current location (null when
   // unknown — the rider must set it); dropoff empty.
   late GeoPoint? _pickup = widget.initialPickup;
@@ -114,6 +117,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
     // Re-run suggestions for whichever field is now active.
     setState(() {
       _predictions = [];
+      _noResults = false;
       _error = null;
     });
     final text = (_active == _Field.pickup ? _pickupCtrl : _dropoffCtrl).text;
@@ -122,6 +126,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
 
   void _onChanged(String value) {
     _debounce?.cancel();
+    _noResults = false;
     // Losing focus while the page pops used to fire one last autocomplete
     // for the address that was just chosen.
     if (_closing) return;
@@ -129,6 +134,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
     if (q.length < 2) {
       setState(() {
         _predictions = [];
+        _noResults = false;
         _loading = false;
       });
       return;
@@ -147,6 +153,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
         _predictions = results;
         _loading = false;
         _error = null;
+        _noResults = results.isEmpty;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -176,6 +183,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
       setState(() {
         _resolving = false;
         _predictions = [];
+        _noResults = false;
         if (field == _Field.pickup) {
           _pickup = details.location;
           _pickupLabel = details.address;
@@ -223,6 +231,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
     final address = place.address ?? place.label;
     setState(() {
       _predictions = [];
+      _noResults = false;
       _error = null;
       if (field == _Field.pickup) {
         _pickup = place.point;
@@ -274,6 +283,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
     }
     setState(() {
       _predictions = [];
+      _noResults = false;
       _error = null;
       if (field == _Field.pickup) {
         _pickup = result.location;
@@ -375,7 +385,22 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
           Expanded(
             child: Stack(
               children: [
-                if (_predictions.isEmpty && !_loading && _error == null)
+                if (_predictions.isEmpty &&
+                    !_loading &&
+                    _error == null &&
+                    _noResults)
+                  // Searched, nothing came back: say what to try next.
+                  EmptyState(
+                    key: const ValueKey('search-no-results'),
+                    icon: PhosphorIconsRegular.magnifyingGlass,
+                    art: const ExcludeSemantics(
+                      child: LottieMoment.noResults(size: 96),
+                    ),
+                    title: 'No places found',
+                    message: 'Check the spelling, try a nearby landmark or '
+                        'area name, or set the spot on the map.',
+                  )
+                else if (_predictions.isEmpty && !_loading && _error == null)
                   EmptyState(
                     icon: PhosphorIconsRegular.compass,
                     title: _active == _Field.pickup
@@ -439,7 +464,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                 if (_resolving)
                   Container(
                     color: AppColors.scrim,
-                    child: const Center(child: CircularProgressIndicator()),
+                    child: const Center(
+                      child: BrandLoader(label: 'Getting the place'),
+                    ),
                   ),
               ],
             ),
@@ -526,11 +553,7 @@ class _RouteFields extends StatelessWidget {
       trailing: loading
           ? const Padding(
               padding: EdgeInsets.all(12),
-              child: SizedBox(
-                height: 16,
-                width: 16,
-                child: CircularProgressIndicator(strokeWidth: 2.2),
-              ),
+              child: BrandLoader(size: 20, label: 'Searching'),
             )
           : null,
     );

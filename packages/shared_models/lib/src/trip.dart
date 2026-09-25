@@ -87,6 +87,7 @@ class Trip extends Equatable {
     this.passenger,
     this.riderName,
     this.riderPhone,
+    this.riderRating,
     this.routePolyline,
     this.stops = const [],
     this.distanceM,
@@ -133,6 +134,10 @@ class Trip extends Equatable {
   /// the rider's real number (production should hand out a masked one).
   final String? riderName;
   final String? riderPhone;
+
+  /// The rider's average rating (`rider.rating`), same scope as [riderName].
+  /// Shown as "★ 4.8" on the driver's in-trip rider card; null hides it.
+  final double? riderRating;
 
   /// Ordered intermediate stops (empty for a direct trip).
   final List<TripStop> stops;
@@ -215,6 +220,9 @@ class Trip extends Equatable {
         passenger: TripPassenger.fromJson(json['passenger']),
         riderName: _riderField(json, 'name'),
         riderPhone: _riderField(json, 'phone'),
+        riderRating: json['rider'] is Map
+            ? ((json['rider'] as Map)['rating'] as num?)?.toDouble()
+            : null,
         stops: (json['stops'] as List<dynamic>? ?? const [])
             .map((s) => TripStop.fromJson(s as Map<String, dynamic>))
             .toList(),
@@ -273,6 +281,7 @@ class Trip extends Equatable {
         passenger,
         riderName,
         riderPhone,
+        riderRating,
         stops,
         routePolyline,
         distanceM,

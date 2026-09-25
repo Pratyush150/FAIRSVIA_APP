@@ -130,6 +130,9 @@ class DriverTripExtras extends StatelessWidget {
       children: [
         _RiderCard(
           name: name,
+          // The booker's rating; hidden when someone else is travelling
+          // (it isn't theirs) or the backend didn't send one.
+          rating: passenger == null ? t.riderRating : null,
           bookedForSomeone: passenger != null,
           tier: t.tier,
           note: stage == TripExtrasStage.toPickup ? null : t.pickupNote,
@@ -284,9 +287,11 @@ class _RiderCard extends StatelessWidget {
     required this.name,
     required this.bookedForSomeone,
     required this.tier,
+    this.rating,
     this.note,
   });
   final String name;
+  final double? rating;
   final bool bookedForSomeone;
   final String tier;
   final String? note;
@@ -308,7 +313,27 @@ class _RiderCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: theme.textTheme.titleMedium),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: theme.textTheme.titleMedium,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (rating case final r?) ...[
+                          const SizedBox(width: AppSpacing.xs),
+                          Text(
+                            '★ ${r.toStringAsFixed(1)}',
+                            key: const ValueKey('driver-rider-rating'),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                     Text(
                       bookedForSomeone
                           ? 'Booked by someone else · ${_tierLabel(tier)}'

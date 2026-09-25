@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_models/shared_models.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
+import 'rider_bottom_nav.dart';
+
 /// "Ends 3 Oct" / "Ends today" for an offer's expiry.
 String offerExpiryLabel(DateTime when, {DateTime? now}) {
   final n = now ?? DateTime.now();
@@ -178,16 +180,25 @@ class _OffersHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Semantics(
-            header: true,
-            container: true,
-            child: Text(
-              'Offers',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
+          Row(
+            children: [
+              Semantics(
+                header: true,
+                container: true,
+                child: Text(
+                  'Offers',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: AppSpacing.xs),
+              const RiderOffersGift(
+                key: ValueKey('offers-header-gift'),
+                size: 44,
+              ),
+            ],
           ),
           if (c != null && c > 0) ...[
             const SizedBox(height: AppSpacing.xxs),

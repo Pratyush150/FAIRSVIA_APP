@@ -32,7 +32,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.vanish,
       stillAt = null,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// Holds at frame ~60 of 121: all notes stacked (they land by frame 22
   /// and only start to fly off at 104).
@@ -41,7 +42,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = moneyHoldAt,
       end = LottieEnd.hold,
       stillAt = null,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// Looping loader ("Sandy Loading") for waits like "Requesting your ride".
   const LottieMoment.loading({super.key, this.size = 56, this.repeat = true})
@@ -49,7 +51,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = null,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// Looping radar sweep around a pin: "Finding your driver".
   const LottieMoment.searching({super.key, this.size = 96, this.repeat = true})
@@ -57,7 +60,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 0.3,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// A pin drops and lands with a ripple: the driver has arrived. Plays once
   /// and holds on the landed pin.
@@ -66,7 +70,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// A magnifier looking around: no cars nearby. Loops gently.
   const LottieMoment.noCars({super.key, this.size = 96, this.repeat = true})
@@ -74,7 +79,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 0.3,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// A teal check with a small burst: payment or tip went through. Plays
   /// once and holds on the check.
@@ -83,7 +89,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// A star fills with a little sparkle: thanks for rating. Plays once and
   /// holds on the gold star.
@@ -92,7 +99,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// A finger flips a location toggle on and the pin rises: turn location
   /// on. Loops; the still frame is the "on" state.
@@ -101,7 +109,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// Wi-Fi bars that drop and cross out: offline. Loops; the still frame is
   /// the crossed-out signal.
@@ -113,7 +122,8 @@ class LottieMoment extends StatefulWidget {
   }) : asset = 'offline',
        holdAt = 1.0,
        end = LottieEnd.hold,
-       stillAt = offlineStillAt;
+       stillAt = offlineStillAt,
+       plays = 1;
 
   /// A shield draws itself and fills with a check: SOS sent, help is on the
   /// way. Calm, not an alarm. Plays once and holds on the filled shield.
@@ -122,7 +132,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// The brand loader: a teal arc that sweeps round and closes. Replaces the
   /// stock CircularProgressIndicator in waits (see [BrandLoader]). Under
@@ -135,7 +146,8 @@ class LottieMoment extends StatefulWidget {
   }) : asset = 'spinner',
        holdAt = 1.0,
        end = LottieEnd.hold,
-       stillAt = 0.55;
+       stillAt = 0.55,
+       plays = 1;
 
   /// An open, empty box with a moth drifting out: nothing here yet (no
   /// trips, no earnings). Plays once and holds on the moth in flight: an
@@ -145,7 +157,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// A sad magnifier: a search that found nothing. Plays once and holds.
   const LottieMoment.noResults({super.key, this.size = 96, this.repeat = false})
@@ -153,16 +166,24 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// A gift box drops, its lid lands and a bow pops out: offers. Plays once
   /// and holds on the wrapped gift.
-  const LottieMoment.gift({super.key, this.size = 112, this.repeat = false})
-    : asset = 'gift',
-      holdAt = 1.0,
-      end = LottieEnd.hold,
-      stillAt = 1.0,
-      tint = null;
+  ///
+  /// [plays] > 1 replays the drop that many times before holding (e.g. the
+  /// Offers tab: noticeable, but bounded — never a loop).
+  const LottieMoment.gift({
+    super.key,
+    this.size = 112,
+    this.repeat = false,
+    this.plays = 1,
+  }) : asset = 'gift',
+       holdAt = 1.0,
+       end = LottieEnd.hold,
+       stillAt = 1.0,
+       tint = null;
 
   /// A gold trophy rises with laurels: a quest completed. Plays once and
   /// holds on the trophy.
@@ -171,7 +192,8 @@ class LottieMoment extends StatefulWidget {
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
-      tint = null;
+      tint = null,
+      plays = 1;
 
   /// Progress of the offline loop where the signal is crossed out.
   static const double offlineStillAt = 0.8;
@@ -196,6 +218,9 @@ class LottieMoment extends StatefulWidget {
   /// Paints every fill and stroke in one colour (e.g. the ink of a warning
   /// banner the art sits on); null keeps the file's own palette.
   final Color? tint;
+
+  /// How many times a one-shot plays before it holds on [holdAt] (1 = once).
+  final int plays;
 
   @override
   State<LottieMoment> createState() => _LottieMomentState();
@@ -238,6 +263,18 @@ class _LottieMomentState extends State<LottieMoment>
         }
       });
     }
+    _play(widget.plays);
+  }
+
+  void _play(int left) {
+    if (!mounted) return;
+    if (left > 1) {
+      _c.forward(from: 0).whenCompleteOrCancel(() {
+        if (mounted && _c.status == AnimationStatus.completed) _play(left - 1);
+      });
+      return;
+    }
+    if (_c.value >= widget.holdAt) _c.value = 0;
     // animateTo scales the time by the distance, so this is the real pace.
     _c.animateTo(widget.holdAt);
   }

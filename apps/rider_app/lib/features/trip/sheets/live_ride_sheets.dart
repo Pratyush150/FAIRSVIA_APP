@@ -637,6 +637,50 @@ bool debugFindingExtras = false;
 /// that is not known leaves its line out. [searching]: the finding-driver
 /// variant (what was booked, what happens next); otherwise the driver is
 /// assigned (pickup ETA and clock time, meeting tips). Public for tests.
+/// "Driver arriving": the car glides along the bar toward a pickup pin as the
+/// real ETA falls. Progress is how much of the first ETA seen for this trip
+/// has elapsed (1 - eta / firstEta), so it only moves when the ETA does and
+/// never invents a distance. One-shot tweens (see RideProgressCard), so tests
+/// settle; Reduce Motion snaps.
+class DriverArrivingCard extends StatefulWidget {
+  const DriverArrivingCard({super.key, required this.etaSec});
+
+  final int etaSec;
+
+  @override
+  State<DriverArrivingCard> createState() => _DriverArrivingCardState();
+}
+
+class _DriverArrivingCardState extends State<DriverArrivingCard> {
+  late int _firstEta = widget.etaSec;
+
+  @override
+  void didUpdateWidget(DriverArrivingCard old) {
+    super.didUpdateWidget(old);
+    // A re-route can push the ETA up; widen the leg rather than go negative.
+    if (widget.etaSec > _firstEta) _firstEta = widget.etaSec;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final eta = widget.etaSec;
+    final progress = _firstEta > 0 ? 1 - eta / _firstEta : 0.0;
+    return RideProgressCard(
+      icon: PhosphorIconsRegular.clock,
+      title: 'Driver arriving',
+      headline: '${(eta / 60).ceil()} min away',
+      arrival:
+          'At your pickup by '
+          '${Fmt.time(DateTime.now().add(Duration(seconds: eta)))}',
+      progress: progress.clamp(0.0, 1.0),
+      glyph: PhosphorIconsRegular.car,
+      endGlyph: PhosphorIconsRegular.mapPin,
+      startLabel: 'Driver',
+      endLabel: 'Your pickup',
+    );
+  }
+}
+
 class LiveRideExtras extends StatelessWidget {
   const LiveRideExtras({
     super.key,
@@ -675,13 +719,9 @@ class LiveRideExtras extends StatelessWidget {
         if (!searching && eta != null && eta > 0)
           RideExtrasSection(
             title: 'Pickup',
-            child: RideProgressCard(
-              icon: PhosphorIconsRegular.clock,
-              title: 'Driver arriving',
-              headline: '${(eta / 60).ceil()} min away',
-              arrival:
-                  'At your pickup by '
-                  '${Fmt.time(DateTime.now().add(Duration(seconds: eta)))}',
+            child: DriverArrivingCard(
+              key: ValueKey('driver-arriving-${state.trip?.id}'),
+              etaSec: eta,
             ),
           ),
         // The driver sheet already shows the car, tier, pickup and payment

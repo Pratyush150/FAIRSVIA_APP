@@ -142,4 +142,33 @@ void main() {
         find.ancestor(of: label, matching: find.byType(FittedBox)));
     expect(fitted.width, lessThanOrEqualTo(badge.width + 0.01));
   });
+
+  testWidgets('a search with no results shows the no-results art and a '
+      'helpful message; typing again clears it', (tester) async {
+    when(
+      () => repo.autocomplete(
+        any(),
+        sessionToken: any(named: 'sessionToken'),
+        near: any(named: 'near'),
+      ),
+    ).thenAnswer((_) async => []);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: DestinationSearchPage(initialPickup: me)),
+    );
+    await typeQuery(tester, 'zzqx');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('search-no-results')), findsOneWidget);
+    expect(find.text('No places found'), findsOneWidget);
+    final art = tester.widget<LottieMoment>(find.byType(LottieMoment));
+    expect(art.asset, 'no_results');
+    expect(art.repeat, isFalse);
+
+    // Clearing the text goes back to the prompt, not the no-results state.
+    await tester.enterText(find.byType(TextField).last, '');
+    await tester.pump();
+    expect(find.byKey(const ValueKey('search-no-results')), findsNothing);
+    expect(find.text('Search for a destination'), findsOneWidget);
+  });
 }

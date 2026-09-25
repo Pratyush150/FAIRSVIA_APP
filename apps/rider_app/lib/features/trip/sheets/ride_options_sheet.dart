@@ -1256,6 +1256,70 @@ class _PromoFieldState extends State<_PromoField> {
   }
 }
 
+/// A small teal tick that plays once where a ride type was just selected
+/// (the success moment, 24 px). Reduce Motion shows its still, final frame.
+/// Decorative: the row's Semantics already says "selected".
+class _SelectTick extends StatelessWidget {
+  const _SelectTick();
+
+  @override
+  Widget build(BuildContext context) {
+    return const IgnorePointer(
+      child: ExcludeSemantics(child: LottieMoment.success(size: 24)),
+    );
+  }
+}
+
+/// A quick scale bump (1 -> 1.03 -> 1) when [selected] turns true. Plays
+/// once per selection, so pumpAndSettle settles; static under Reduce Motion.
+class _SelectBump extends StatefulWidget {
+  const _SelectBump({required this.selected, required this.child});
+  final bool selected;
+  final Widget child;
+
+  @override
+  State<_SelectBump> createState() => _SelectBumpState();
+}
+
+class _SelectBumpState extends State<_SelectBump>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(begin: 1.0, end: 1.03)
+          .chain(CurveTween(curve: Curves.easeOut)),
+      weight: 40,
+    ),
+    TweenSequenceItem(
+      tween: Tween(begin: 1.03, end: 1.0)
+          .chain(CurveTween(curve: Curves.easeIn)),
+      weight: 60,
+    ),
+  ]).animate(_c);
+
+  @override
+  void didUpdateWidget(_SelectBump old) {
+    super.didUpdateWidget(old);
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (widget.selected && !old.selected && !reduce) {
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      ScaleTransition(scale: _scale, child: widget.child);
+}
+
 class _RideTierTile extends StatelessWidget {
   const _RideTierTile({
     required this.tier,
@@ -1285,7 +1349,13 @@ class _RideTierTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (AppVariant.local) return _buildLocal(context);
+    return _SelectBump(
+      selected: selected,
+      child: AppVariant.local ? _buildLocal(context) : _buildDefault(context),
+    );
+  }
+
+  Widget _buildDefault(BuildContext context) {
     final theme = Theme.of(context);
     final eta = _eta;
     return Semantics(
@@ -1346,9 +1416,26 @@ class _RideTierTile extends StatelessWidget {
                                     color: AppColors.highlight,
                                   ),
                                 ),
+                              if (selected)
+                                const Positioned(
+                                  left: -4,
+                                  top: -6,
+                                  child: _SelectTick(),
+                                ),
                             ],
                           )
-                        : VehicleGlyph(tier: tier.tier, width: 76),
+                        : Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              VehicleGlyph(tier: tier.tier, width: 76),
+                              if (selected)
+                                const Positioned(
+                                  left: -4,
+                                  top: -6,
+                                  child: _SelectTick(),
+                                ),
+                            ],
+                          ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -1500,6 +1587,12 @@ class _RideTierTile extends StatelessWidget {
                           ),
                         ),
                         VehicleGlyph(tier: tier.tier, width: 76),
+                        if (selected)
+                          const Positioned(
+                            left: 0,
+                            top: 0,
+                            child: _SelectTick(),
+                          ),
                       ],
                     ),
                   ),

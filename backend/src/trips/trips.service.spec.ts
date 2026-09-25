@@ -790,7 +790,7 @@ describe('TripsService', () => {
       prisma.user.findUnique.mockImplementation(async ({ where }: any) =>
         where.id === 'driver-1'
           ? { id: 'driver-1', fullName: 'Ava', phone: '+998901112233', ratingAvg: 4.9, driverProfile: null }
-          : { id: 'rider-1', fullName: 'Rustam', phone: '+998907778899' },
+          : { id: 'rider-1', fullName: 'Rustam', phone: '+998907778899', ratingAvg: 4.7 },
       );
       return svc;
     }
@@ -804,7 +804,12 @@ describe('TripsService', () => {
     it('gives the driver the rider name and phone while the ride is live', async () => {
       for (const status of ['accepted', 'arrived', 'in_progress']) {
         const res = (await setup(status).getTrip('driver-1', 'trip-1')) as Record<string, any>;
-        expect(res.rider).toEqual({ id: 'rider-1', name: 'Rustam', phone: '+998907778899' });
+        expect(res.rider).toEqual({
+          id: 'rider-1',
+          name: 'Rustam',
+          phone: '+998907778899',
+          rating: 4.7,
+        });
       }
     });
 

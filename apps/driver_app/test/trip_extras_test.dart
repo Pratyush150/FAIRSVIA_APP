@@ -46,6 +46,7 @@ final _trip = Trip(
     TripStop(point: GeoPoint(18.53, 73.87), address: 'City Library'),
   ],
   riderName: 'Aisha Karimova',
+  riderRating: 4.8,
   pickupNote: 'Blue jacket, by the ticket office',
   distanceM: 8200,
   durationS: 1260,
@@ -108,12 +109,31 @@ void main() {
         stage.name,
       );
       expect(find.text('Aisha Karimova'), findsOneWidget);
+      expect(find.text('★ 4.8'), findsOneWidget);
       expect(find.text('Cash'), findsOneWidget);
       expect(find.textContaining('Collect cash'), findsOneWidget);
       expect(find.text('Safety & SOS'), findsOneWidget);
       expect(find.text('Driver tip'), findsOneWidget);
     });
   }
+
+  testWidgets('rider rating is hidden when the trip carries none', (t) async {
+    final noRating = Trip(
+      id: 't2',
+      status: TripStatus.accepted,
+      tier: 'economy',
+      pickup: _trip.pickup,
+      dropoff: _trip.dropoff,
+      riderName: 'New Rider',
+    );
+    await _pump(
+      t,
+      DriverTripExtras(stage: TripExtrasStage.toPickup, trip: noRating),
+      'no_rating',
+    );
+    expect(find.text('New Rider'), findsOneWidget);
+    expect(find.byKey(const ValueKey('driver-rider-rating')), findsNothing);
+  });
 
   testWidgets('completed extras: this trip, today, tip', (t) async {
     await _pump(
