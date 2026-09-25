@@ -853,6 +853,17 @@ class _OnTripSheet extends StatelessWidget {
           status: RideStatus.of(state),
           trailing: IconButton(
             tooltip: 'Message driver',
+            // Plan G: a 3D icon needs something to sit on — the same soft
+            // disc as the map buttons, instead of floating in the header.
+            style: AppClay3D.on
+                ? IconButton.styleFrom(
+                    backgroundColor:
+                        Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.surfaceMutedDark
+                            : AppColors.surfaceMutedLight,
+                    fixedSize: const Size(48, 48),
+                  )
+                : null,
             icon: _ChatIcon(unread: state.unreadMessages),
             onPressed: () => _openTripChat(context, state),
           ),

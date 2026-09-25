@@ -22,7 +22,8 @@ ROLES = {
 
 MAP = {
     'chrome': ['arrowClockwise', 'arrowUpRight', 'arrowsLeftRight', 'arrowLeft', 'arrowRight',
-               'caretDown', 'caretRight', 'caretUp', 'caretLeft', 'dotsThree', 'list', 'x', 'plus'],
+               'caretDown', 'caretRight', 'caretUp', 'caretLeft', 'dotsThree', 'list', 'x', 'plus',
+               'info'],
     'neutral': ['copy', 'export', 'signOut',
                 'pencilSimple', 'magnifyingGlass', 'squaresFour', 'square', 'circle', 'circleHalf',
                 'toggleLeft', 'wrench', 'ruler', 'note', 'tray', 'chatCircleSlash', 'moon'],

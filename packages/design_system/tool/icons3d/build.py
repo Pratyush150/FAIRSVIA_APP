@@ -199,10 +199,12 @@ def main():
     ap.add_argument('--src', default='png', help='folder under docs/brand/icons3d')
     a = ap.parse_args()
     base = os.path.join(ROOT, 'docs', 'brand', 'icons3d', a.src)
-    build(os.path.join(base, 'light'), 'Phosphor3D',
+    # ONE set for both themes: the dark-mode renders (brighter bodies, rim
+    # light, no floor shadow) read well on the light page too, while the
+    # light renders lose their graphite/chrome icons on dark sheets. A single
+    # bundled font also avoids the engine's one-way runtime font swap.
+    build(os.path.join(base, 'dark'), 'Phosphor3D',
           os.path.join(icons.PKG, 'fonts', 'Phosphor3D.ttf'))
-    build(os.path.join(base, 'dark'), 'Phosphor3DDark',
-          os.path.join(icons.PKG, 'assets', 'icons3d', 'Phosphor3DDark.ttf'))
     copy_heroes(base)
 
 

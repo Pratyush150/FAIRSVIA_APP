@@ -51,8 +51,6 @@ flutter:
     # (tool/icons3d/build.py HEROES), light and dark.
     - assets/heroes/clay3d/
     - assets/heroes/clay3d_dark/
-    # The dark-mode 3D icon font, registered at run time (AppClay3D).
-    - assets/icons3d/
   # skeletonizer (and our icons) rely on the Material icon font.
   uses-material-design: true
   fonts:

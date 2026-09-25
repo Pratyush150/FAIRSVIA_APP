@@ -289,9 +289,9 @@
    "hex_dark": "#2CC0C1"
   },
   "info": {
-   "role": "brand",
-   "hex": "#1FA7A8",
-   "hex_dark": "#2CC0C1"
+   "role": "chrome",
+   "hex": "#A8A29B",
+   "hex_dark": "#8A8580"
   },
   "lightning": {
    "role": "warning",

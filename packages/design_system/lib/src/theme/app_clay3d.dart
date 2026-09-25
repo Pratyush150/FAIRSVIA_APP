@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'app_colors.dart';
@@ -10,21 +9,13 @@ import 'app_colors.dart';
 /// [PhosphorIconsFill] name the 'Phosphor3D' font, a colour-bitmap font whose
 /// glyph at each Phosphor code point is the 3D render of that icon
 /// (CBDT/CBLC for Android, sbix for iOS; built by tool/icons3d/build.py from
-/// docs/brand/icons3d/png/light). Colour bitmaps ignore `Icon.color`, so the
+/// docs/brand/icons3d/png/dark). Colour bitmaps ignore `Icon.color`, so the
 /// icons keep their own lighting and colours on every surface.
 ///
-/// Dark mode: an `IconData` is `const`, so the family name cannot follow the
-/// theme. Instead [useIconSetFor] registers the dark renders
-/// (assets/icons3d/Phosphor3DDark.ttf) under the same family at run time:
-/// fonts loaded at run time win over the bundled one. The engine keeps the
-/// FIRST font registered at run time for a family (checked: a second
-/// FontLoader for 'packages/design_system/Phosphor3D' is ignored) and has no
-/// way to unregister one, so the swap is one-way per launch:
-///  * app starts dark  -> dark icons for the whole session;
-///  * app starts light -> light icons; switching to dark mid-session swaps
-///    them live (once);
-///  * switching dark -> light mid-session keeps the dark icons until the
-///    next launch.
+/// Dark mode: ONE set serves both themes — the dark-mode renders (brighter
+/// bodies, rim light, no floor shadow) read well on the light page as well,
+/// so the bundled font never has to be swapped at run time (the engine could
+/// only swap it one way per launch).
 abstract final class AppClay3D {
   static const bool on = AppColors.clay3d;
 
@@ -55,29 +46,11 @@ abstract final class AppClay3D {
     0, 0, 0, 1, 0, //
   ]);
 
-  static const String _family = 'packages/design_system/Phosphor3D';
-  static const String _darkAsset =
-      'packages/design_system/assets/icons3d/Phosphor3DDark.ttf';
-  static Future<void>? _dark;
-
-  /// Whether the dark icon set is registered (or being registered).
-  static bool get darkIconsLoaded => _dark != null;
-
-  /// Make the 3D icons match [brightness] (see the class doc for why this
-  /// only ever goes light -> dark). Call before `runApp` with the brightness
-  /// the app will start in, and again whenever the theme's brightness
-  /// changes. A no-op outside clay3d; never throws (the light set stays).
-  static Future<void> useIconSetFor(Brightness brightness) {
-    if (!on || brightness != Brightness.dark) return Future.value();
-    return _dark ??= () async {
-      try {
-        final bytes = rootBundle.load(_darkAsset);
-        await (FontLoader(_family)..addFont(bytes)).load();
-      } catch (e) {
-        debugPrint('AppClay3D: dark icon set not loaded: $e');
-      }
-    }();
-  }
+  /// Formerly swapped in a dark icon font; one set now serves both themes.
+  static Future<void> useIconSetFor(Brightness brightness) =>
+      // One 3D set now serves both themes (see tool/icons3d/build.py), so
+      // there is nothing to swap. Kept so callers need no change.
+      Future.value();
 }
 
 /// Icon sizes that grow under THEME=clay3d: a 3D render has its own shading
