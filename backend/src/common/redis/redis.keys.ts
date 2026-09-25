@@ -35,6 +35,13 @@ export const RedisKeys = {
   tripWatch: (id: string) => `trip:${id}:watch`,
   surgeOverride: () => 'surge:override',
   driverOfferLock: (id: string) => `driver:${id}:offerlock`,
+  // Online time for the earnings page: when the current online session began
+  // (epoch ms; absent while offline) and a hash of business day → seconds
+  // online, TTL'd a little past the week the page shows.
+  driverOnlineSince: (id: string) => `driver:${id}:onlineSince`,
+  driverOnlineSecs: (id: string) => `driver:${id}:onlineSecs`,
+  // Cached "busy areas" grid for the driver map, per coarse area cell.
+  demandMap: (cell: string) => `demand:map:${cell}`,
   // Cross-process offer signalling: the dispatch worker records who a trip is
   // currently offered to, and a driver's accept/decline lands here so the
   // worker (on any node) picks it up.

@@ -101,6 +101,8 @@ class Trip extends Equatable {
     this.scheduledAt,
     this.requestedAt,
     this.completedAt,
+    this.arrivedAt,
+    this.noShowWaitSec,
     this.cancellationFee,
     this.minFare,
     this.driverName,
@@ -159,6 +161,14 @@ class Trip extends Equatable {
 
   /// When the trip reached a terminal completed state, if it did.
   final DateTime? completedAt;
+
+  /// When the driver marked "Arrived" at the pickup (server clock). Starts
+  /// the driver's rider no-show wait. Null before arrival / on older backends.
+  final DateTime? arrivedAt;
+
+  /// Seconds the driver waits from [arrivedAt] before they may cancel as a
+  /// rider no-show (and be paid the cancellation fee). Null on older backends.
+  final int? noShowWaitSec;
 
   /// What a late cancel (after the free window) costs. Null on older
   /// backends, in which case the UI keeps its generic wording.
@@ -221,6 +231,8 @@ class Trip extends Equatable {
         scheduledAt: _parseDate(json['scheduledAt']),
         requestedAt: _parseDate(json['requestedAt']),
         completedAt: _parseDate(json['completedAt']),
+        arrivedAt: _parseDate(json['arrivedAt']),
+        noShowWaitSec: (json['noShowWaitSec'] as num?)?.toInt(),
         cancellationFee: (json['cancellationFee'] as num?)?.toDouble(),
         minFare: (json['minFare'] as num?)?.toDouble(),
         driverName: _driverField(json, 'name'),
@@ -275,6 +287,8 @@ class Trip extends Equatable {
         scheduledAt,
         requestedAt,
         completedAt,
+        arrivedAt,
+        noShowWaitSec,
         cancellationFee,
         minFare,
         driverName,

@@ -187,3 +187,48 @@ describe('DriversService.getProfileWithPresence', () => {
     expect((await svc.getProfileWithPresence('d1')).status).toBe('online');
   });
 });
+
+describe('DriversService online time', () => {
+  function make(state: Record<string, string | null>) {
+    const hash: Record<string, number> = {};
+    const client = {
+      get: jest.fn(async (k: string) => state[k] ?? null),
+      set: jest.fn(async (k: string, v: string, nx?: string) => {
+        if (nx === 'NX' && state[k] != null) return null;
+        state[k] = v;
+        return 'OK';
+      }),
+      zrem: jest.fn().mockResolvedValue(1),
+      del: jest.fn(async (...keys: string[]) => {
+        for (const k of keys) delete state[k];
+        return 1;
+      }),
+      hincrby: jest.fn(async (_h: string, f: string, n: number) => (hash[f] = (hash[f] ?? 0) + n)),
+      expire: jest.fn().mockResolvedValue(1),
+    };
+    const svc = new DriversService(
+      {} as never,
+      { client } as never,
+      { get: jest.fn(() => 'Asia/Kolkata') } as never,
+      { emitToUser: jest.fn() } as never,
+    );
+    return { svc, client, hash, state };
+  }
+
+  it('credits the closed session to today and clears the session start', async () => {
+    const { svc, hash, state } = make({
+      'driver:d1:onlineSince': String(Date.now() - 90_000),
+    });
+    await svc.goOffline('d1', 'economy');
+    const total = Object.values(hash).reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThanOrEqual(89);
+    expect(total).toBeLessThanOrEqual(92);
+    expect(state['driver:d1:onlineSince']).toBeUndefined();
+  });
+
+  it('going offline with no open session credits nothing', async () => {
+    const { svc, client } = make({});
+    await svc.goOffline('d1', 'economy');
+    expect(client.hincrby).not.toHaveBeenCalled();
+  });
+});

@@ -14,6 +14,7 @@ import 'features/driver/call_rider_button.dart';
 import 'features/driver/driver_cubit.dart';
 import 'features/driver/location_priming_page.dart';
 import 'features/driver/location_stream.dart';
+import 'features/driver/no_show_timer.dart';
 import 'features/driver/vehicle_setup_dialog.dart';
 
 /// Top-down 3D render of the driver's own vehicle tier for their car on the
@@ -77,6 +78,11 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   // requests find "no drivers" until they toggle offline/online. Re-send the
   // last known position on this timer so presence stays fresh while stationary.
   Timer? _heartbeat;
+
+  // Busy-areas shading: polled while the driver is free (no trip, no offer).
+  Timer? _demandTick;
+  DateTime? _demandAt;
+  static const _demandEvery = Duration(minutes: 2);
   // The driver's own live position — drawn as the car marker so they can see
   // themselves relative to the pickup (Uber-style).
   LatLng? _myLocation;
@@ -109,6 +115,23 @@ class _DriverHomeViewState extends State<_DriverHomeView>
     _connect();
     _primeLocation();
     _loadVehicleTier();
+    // Cheap tick; the fetch itself happens at most every [_demandEvery] and
+    // only once we have a fix (the server caches per area for a minute).
+    _demandTick = Timer.periodic(const Duration(seconds: 10), (_) {
+      _maybeLoadDemand();
+    });
+  }
+
+  void _maybeLoadDemand() {
+    if (!mounted) return;
+    final at = _myLocation;
+    if (at == null) return;
+    final cubit = context.read<DriverCubit>();
+    if (cubit.state.trip != null) return;
+    final last = _demandAt;
+    if (last != null && DateTime.now().difference(last) < _demandEvery) return;
+    _demandAt = DateTime.now();
+    unawaited(cubit.loadDemand(at.latitude, at.longitude));
   }
 
   Future<void> _loadVehicleTier() async {
@@ -298,8 +321,17 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _demandTick?.cancel();
     _stopStreamingLocation();
     super.dispose();
+  }
+
+  static List<MapHeatSpot> _heatSpots(DriverState state) {
+    if (state.trip != null || state.offer != null) return const [];
+    return [
+      for (final c in state.demand)
+        MapHeatSpot(point: LatLng(c.lat, c.lng), intensity: c.intensity),
+    ];
   }
 
   List<AppMapMarker> _markers(DriverState state) {
@@ -613,6 +645,8 @@ class _DriverHomeViewState extends State<_DriverHomeView>
                 driverCarAsset:
                     driverCarAssetFor(state.trip?.tier ?? _vehicleTier),
                 route: _route(state),
+                // Busy areas while the driver is free to take a trip.
+                heatSpots: _heatSpots(state),
                 fitBounds: _fitBounds(state),
                 // The offer card covers the lower part of the screen; frame
                 // the pickup in the strip above it.
@@ -840,6 +874,10 @@ class _BottomSheet extends StatelessWidget {
           locationIssue: state.locationIssue,
           busy: state.busy,
           onGoOnline: () => _goOnline(context, cubit),
+          onEarnings: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) =>
+                DriverEarningsPage(driver: sl<DriverRemoteDataSource>()),
+          )),
         );
       // An offer that arrived on the trip-complete sheet is drawn OVER that
       // sheet (OfferOverlay); keep the sheet underneath so declining it or
@@ -871,7 +909,10 @@ class _BottomSheet extends StatelessWidget {
                             style: theme.textTheme.titleLarge),
                       ),
                       const SizedBox(height: 2),
-                      Text('Looking for trips nearby…',
+                      Text(
+                          state.demand.isNotEmpty
+                              ? 'Looking for trips · busy areas are shaded'
+                              : 'Looking for trips nearby…',
                           style: theme.textTheme.bodyMedium),
                     ],
                   ),
@@ -911,6 +952,9 @@ class _BottomSheet extends StatelessWidget {
           busy: state.busy,
           tripId: state.trip?.id,
           riderPhone: state.trip?.riderPhone,
+          arrivedAt: state.arrivedAt ?? state.trip?.arrivedAt,
+          noShowWaitSec: state.trip?.noShowWaitSec,
+          noShowFee: state.trip?.cancellationFee,
         );
       case DriverPhase.onTrip:
         final dropoff = state.trip == null
@@ -961,12 +1005,16 @@ class DriverOfflineSheet extends StatelessWidget {
     this.locationIssue,
     this.busy = false,
     required this.onGoOnline,
+    this.onEarnings,
   });
 
   final double? lastEarned;
   final LocationAccess? locationIssue;
   final bool busy;
   final VoidCallback onGoOnline;
+
+  /// Opens the earnings dashboard; null hides the shortcut.
+  final VoidCallback? onEarnings;
 
   @override
   Widget build(BuildContext context) {
@@ -1002,6 +1050,11 @@ class DriverOfflineSheet extends StatelessWidget {
                 ],
               ),
             ),
+            if (onEarnings != null)
+              TextButton(
+                onPressed: onEarnings,
+                child: const Text('Earnings'),
+              ),
           ],
         ),
         if (locationIssue case final issue?) ...[
@@ -1545,10 +1598,19 @@ class _StartTripSheet extends StatefulWidget {
     required this.busy,
     this.tripId,
     this.riderPhone,
+    this.arrivedAt,
+    this.noShowWaitSec,
+    this.noShowFee,
   });
   final DriverCubit cubit;
   final bool busy;
   final String? tripId;
+
+  /// Rider no-show wait (see [NoShowTimer]); hidden when the backend doesn't
+  /// report the wait (older server) or the arrival time is unknown.
+  final DateTime? arrivedAt;
+  final int? noShowWaitSec;
+  final double? noShowFee;
 
   /// Waiting at the pickup: "Call rider" when they have not come out.
   final String? riderPhone;
@@ -1660,6 +1722,25 @@ class _StartTripSheetState extends State<_StartTripSheet> {
               ? () => widget.cubit.startTrip(_otp)
               : null,
         ),
+        if (widget.arrivedAt != null && widget.noShowWaitSec != null) ...[
+          const SizedBox(height: AppSpacing.lg),
+          NoShowTimer(
+            arrivedAt: widget.arrivedAt!,
+            waitSec: widget.noShowWaitSec!,
+            fee: widget.noShowFee,
+            busy: widget.busy,
+            onNoShow: () async {
+              final messenger = ScaffoldMessenger.maybeOf(context);
+              final fee = await widget.cubit.cancelNoShow();
+              if (fee == null) return;
+              messenger?.showSnackBar(SnackBar(
+                content: Text(fee > 0
+                    ? 'Trip cancelled · ${Fmt.money(fee)} no-show fee charged'
+                    : 'Trip cancelled'),
+              ));
+            },
+          ),
+        ],
       ],
     );
   }

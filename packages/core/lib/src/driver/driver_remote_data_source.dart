@@ -3,16 +3,131 @@ import 'package:shared_models/shared_models.dart';
 
 import '../network/api_exception.dart';
 
+/// Earnings for a range (`GET /drivers/me/earnings`): the total, trip count,
+/// online time, the last seven business days (the week chart) and the trips
+/// that made up the range. Everything past `total`/`trips` is optional so an
+/// older backend still parses.
 class DriverEarnings {
-  const DriverEarnings({required this.total, required this.trips, required this.range});
+  const DriverEarnings({
+    required this.total,
+    required this.trips,
+    required this.range,
+    this.onlineSeconds,
+    this.cancellationFees = 0,
+    this.days = const [],
+    this.recentTrips = const [],
+  });
   final double total;
   final int trips;
   final String range;
+
+  /// Seconds online in the range; null when the server doesn't report it.
+  final int? onlineSeconds;
+
+  /// No-show / late-cancel compensation included in [total].
+  final double cancellationFees;
+
+  /// Oldest first, today last. Empty on an older backend.
+  final List<EarningsDay> days;
+  final List<EarnedTrip> recentTrips;
 
   factory DriverEarnings.fromJson(Map<String, dynamic> json) => DriverEarnings(
         total: (json['total'] as num?)?.toDouble() ?? 0,
         trips: (json['trips'] as num?)?.toInt() ?? 0,
         range: json['range'] as String? ?? 'today',
+        onlineSeconds: (json['onlineSeconds'] as num?)?.toInt(),
+        cancellationFees: (json['cancellationFees'] as num?)?.toDouble() ?? 0,
+        days: (json['days'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(EarningsDay.fromJson)
+            .toList(),
+        recentTrips: (json['recentTrips'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(EarnedTrip.fromJson)
+            .toList(),
+      );
+}
+
+/// One business day of the earnings week.
+class EarningsDay {
+  const EarningsDay({
+    required this.date,
+    required this.total,
+    required this.trips,
+    this.onlineSeconds = 0,
+  });
+
+  /// Local calendar day, `YYYY-MM-DD` parsed to a date-only [DateTime].
+  final DateTime date;
+  final double total;
+  final int trips;
+  final int onlineSeconds;
+
+  factory EarningsDay.fromJson(Map<String, dynamic> j) => EarningsDay(
+        date: DateTime.tryParse(j['date'] as String? ?? '') ?? DateTime(1970),
+        total: (j['total'] as num?)?.toDouble() ?? 0,
+        trips: (j['trips'] as num?)?.toInt() ?? 0,
+        onlineSeconds: (j['onlineSeconds'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// One completed trip on the earnings page: what the driver earned from it.
+class EarnedTrip {
+  const EarnedTrip({
+    required this.id,
+    required this.earned,
+    this.completedAt,
+    this.pickupAddr,
+    this.dropoffAddr,
+    this.distanceM,
+    this.tip = 0,
+    this.paymentMode = 'card',
+  });
+
+  final String id;
+  final double earned;
+  final DateTime? completedAt;
+  final String? pickupAddr;
+  final String? dropoffAddr;
+  final int? distanceM;
+  final double tip;
+  final String paymentMode;
+
+  factory EarnedTrip.fromJson(Map<String, dynamic> j) => EarnedTrip(
+        id: j['id'] as String? ?? '',
+        earned: (j['earned'] as num?)?.toDouble() ?? 0,
+        completedAt: j['completedAt'] is String
+            ? DateTime.tryParse(j['completedAt'] as String)?.toLocal()
+            : null,
+        pickupAddr: j['pickupAddr'] as String?,
+        dropoffAddr: j['dropoffAddr'] as String?,
+        distanceM: (j['distanceM'] as num?)?.toInt(),
+        tip: (j['tip'] as num?)?.toDouble() ?? 0,
+        paymentMode: j['paymentMode'] as String? ?? 'card',
+      );
+}
+
+/// A "busy area" on the driver map: recent ride requests in a ~1 km cell.
+class DemandCell {
+  const DemandCell({
+    required this.lat,
+    required this.lng,
+    required this.count,
+    required this.intensity,
+  });
+
+  final double lat;
+  final double lng;
+  final int count;
+
+  /// 0–1, relative to the busiest cell returned.
+  final double intensity;
+
+  factory DemandCell.fromJson(Map<String, dynamic> j) => DemandCell(
+        lat: (j['lat'] as num?)?.toDouble() ?? 0,
+        lng: (j['lng'] as num?)?.toDouble() ?? 0,
+        count: (j['count'] as num?)?.toInt() ?? 0,
+        intensity: ((j['intensity'] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0),
       );
 }
 
@@ -220,6 +335,37 @@ class DriverRemoteDataSource {
       ),
     );
     return DriverEarnings.fromJson(res.data!);
+  }
+
+  /// Busy areas around ([lat], [lng]) from the last hour's ride requests.
+  Future<List<DemandCell>> demand(double lat, double lng) async {
+    final res = await _guard(
+      () => _dio.get<Map<String, dynamic>>(
+        '/drivers/me/demand',
+        queryParameters: {'lat': lat, 'lng': lng},
+      ),
+    );
+    return (res.data?['cells'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(DemandCell.fromJson)
+        .toList();
+  }
+
+  /// Driver-side cancel before the ride starts. [noShow] cancels as a rider
+  /// no-show (only after the wait at the pickup) and returns the fee the
+  /// rider was charged — the driver's compensation; 0 otherwise.
+  Future<double> driverCancel(
+    String tripId, {
+    required String reason,
+    bool noShow = false,
+  }) async {
+    final res = await _guard(
+      () => _dio.post<Map<String, dynamic>>(
+        '/trips/$tripId/driver-cancel',
+        data: {'reason': reason, if (noShow) 'noShow': true},
+      ),
+    );
+    return (res.data?['fee'] as num?)?.toDouble() ?? 0;
   }
 
   /// Current payout balance + recent ledger movements.

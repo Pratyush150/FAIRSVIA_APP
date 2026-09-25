@@ -14,11 +14,16 @@ import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { DriversService } from './drivers.service';
 import { OnboardingDto } from './dto/onboarding.dto';
 import { DriverStatusDto } from './dto/status.dto';
+import { DemandQueryDto } from './dto/demand.dto';
+import { DemandMapService } from './demand-map.service';
 
 @Controller('drivers')
 @UseGuards(JwtAuthGuard)
 export class DriversController {
-  constructor(private readonly drivers: DriversService) {}
+  constructor(
+    private readonly drivers: DriversService,
+    private readonly demand: DemandMapService,
+  ) {}
 
   @Post('onboarding')
   onboarding(@CurrentUser() user: AuthUser, @Body() dto: OnboardingDto) {
@@ -45,5 +50,13 @@ export class DriversController {
       user.userId,
       range === 'week' ? 'week' : 'today',
     );
+  }
+
+  /** "Busy areas": recent ride requests on a ~1 km grid around a point.
+   *  Drivers only — it is a supply-positioning aid, not rider data. */
+  @Get('me/demand')
+  async demandMap(@CurrentUser() user: AuthUser, @Query() q: DemandQueryDto) {
+    await this.drivers.getProfile(user.userId);
+    return this.demand.around(q.lat, q.lng);
   }
 }

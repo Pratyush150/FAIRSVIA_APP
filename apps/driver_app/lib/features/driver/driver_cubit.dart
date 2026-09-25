@@ -75,7 +75,7 @@ class DriverCubit extends Cubit<DriverState> {
             // exactly where they're collecting the rider from.
             approachPolyline: d['driverPolyline'] as String?,
           )))
-      ..add(_realtime.on('trip:cancelled').listen((_) => _onCancelledByRider()))
+      ..add(_realtime.on('trip:cancelled').listen(_onTripCancelled))
       // The RIDER can end the ride early (POST /trips/:id/end-early): the
       // server completes it and sends both apps the receipt.
       ..add(_realtime.on('trip:completed').listen(_onCompletedByServer))
@@ -103,6 +103,17 @@ class DriverCubit extends Cubit<DriverState> {
     // Today's total for the offline sheet — otherwise it read "Go online to
     // start earning" on every cold start, whatever the driver had made today.
     await _loadTodayEarnings();
+  }
+
+  /// Best-effort refresh of the busy-areas shading around ([lat], [lng]).
+  /// A failure keeps what was shown; the map simply isn't shaded.
+  Future<void> loadDemand(double lat, double lng) async {
+    try {
+      final cells = await _remote.demand(lat, lng);
+      if (!isClosed) emit(state.copyWith(demand: cells));
+    } catch (_) {
+      // Cosmetic.
+    }
   }
 
   /// Best-effort refresh of [DriverState.lastEarned] (today's total).
@@ -147,7 +158,7 @@ class DriverCubit extends Cubit<DriverState> {
       // We have a live assigned trip → we're effectively online; re-announce
       // presence and restore the trip screen at the right phase.
       _realtime.emit('driver:status', {'status': 'online'});
-      emit(state.copyWith(phase: phase, trip: trip));
+      emit(state.copyWith(phase: phase, trip: trip, arrivedAt: trip.arrivedAt));
     } catch (_) {
       // Best effort — offers/events will correct the screen if this fails.
     }
@@ -426,7 +437,11 @@ class DriverCubit extends Cubit<DriverState> {
     emit(state.copyWith(busy: true, error: null));
     try {
       await _remote.arrived(trip.id);
-      emit(state.copyWith(phase: DriverPhase.arrived, busy: false));
+      emit(state.copyWith(
+        phase: DriverPhase.arrived,
+        busy: false,
+        arrivedAt: DateTime.now(),
+      ));
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));
     }
@@ -742,6 +757,59 @@ class DriverCubit extends Cubit<DriverState> {
       busy: refusedOnline ? false : null,
       error: message,
     ));
+  }
+
+  /// Cancel the trip as a rider no-show (only offered once the wait at the
+  /// pickup is over; the server re-checks it on its own clock). Returns the
+  /// fee the rider was charged — the driver's compensation — or null when
+  /// the cancel failed (the error is on the state).
+  Future<double?> cancelNoShow() async {
+    final trip = state.trip;
+    if (trip == null || state.phase != DriverPhase.arrived) return null;
+    emit(state.copyWith(busy: true, error: null));
+    try {
+      final fee = await _remote.driverCancel(
+        trip.id,
+        reason: "Rider didn't show up",
+        noShow: true,
+      );
+      _backToOnline();
+      unawaited(_loadTodayEarnings());
+      return fee;
+    } on ApiException catch (e) {
+      emit(state.copyWith(busy: false, error: e.message));
+      return null;
+    }
+  }
+
+  void _backToOnline({String? error}) {
+    _cancelAcceptTimer();
+    emit(state.copyWith(
+      phase: DriverPhase.online,
+      trip: null,
+      riderComingAt: null,
+      arrivedAt: null,
+      stopsReached: 0,
+      stopsChangedAt: null,
+      riderName: null,
+      unreadMessages: 0,
+      offer: null,
+      busy: false,
+      error: error,
+    ));
+  }
+
+  void _onTripCancelled(dynamic data) {
+    // Our own cancel (no-show) echoes back as trip:cancelled by 'driver' —
+    // [cancelNoShow] already moved on; don't tell the driver "the rider
+    // cancelled".
+    if (data is Map && data['by'] == 'driver') {
+      if (state.trip != null && state.trip!.id == data['tripId']) {
+        _backToOnline();
+      }
+      return;
+    }
+    _onCancelledByRider();
   }
 
   void _onCancelledByRider() {

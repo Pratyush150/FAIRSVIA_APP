@@ -1134,4 +1134,92 @@ void main() {
       await cubit.close();
     });
   });
+
+  group('rider no-show', () {
+    Future<DriverCubit> atPickup() async {
+      final cubit = make();
+      await cubit.init('token');
+      await cubit.goOnline();
+      realtime.push('trip:assigned', {'tripId': 'trip-1'});
+      await tick();
+      await cubit.markArrived();
+      return cubit;
+    }
+
+    test('markArrived stamps the arrival that starts the wait', () async {
+      final before = DateTime.now();
+      final cubit = await atPickup();
+      expect(cubit.state.phase, DriverPhase.arrived);
+      expect(cubit.state.arrivedAt, isNotNull);
+      expect(cubit.state.arrivedAt!.isBefore(before), isFalse);
+      await cubit.close();
+    });
+
+    test('cancelNoShow cancels as a no-show, returns the fee and goes back '
+        'online without a "rider cancelled" error', () async {
+      when(() => remote.driverCancel(any(),
+              reason: any(named: 'reason'), noShow: any(named: 'noShow')))
+          .thenAnswer((_) async => 50);
+      final cubit = await atPickup();
+      final fee = await cubit.cancelNoShow();
+      expect(fee, 50);
+      verify(() => remote.driverCancel('trip-1',
+          reason: "Rider didn't show up", noShow: true)).called(1);
+      expect(cubit.state.phase, DriverPhase.online);
+      expect(cubit.state.trip, isNull);
+      expect(cubit.state.arrivedAt, isNull);
+      // The server echoes our own cancel: it must not read as the rider's.
+      realtime.push('trip:cancelled', {'tripId': 'trip-1', 'by': 'driver'});
+      await tick();
+      expect(cubit.state.error, isNull);
+      await cubit.close();
+    });
+
+    test('a refused no-show (too early) keeps the driver at the pickup',
+        () async {
+      when(() => remote.driverCancel(any(),
+              reason: any(named: 'reason'), noShow: any(named: 'noShow')))
+          .thenThrow(const ApiException(
+              'Please wait for the rider a little longer.',
+              statusCode: 400));
+      final cubit = await atPickup();
+      expect(await cubit.cancelNoShow(), isNull);
+      expect(cubit.state.phase, DriverPhase.arrived);
+      expect(cubit.state.error, 'Please wait for the rider a little longer.');
+      await cubit.close();
+    });
+
+    test('restoring an arrived trip carries the server arrival time', () async {
+      final arrivedAt = DateTime.now().subtract(const Duration(minutes: 3));
+      when(() => remote.getActiveTrip()).thenAnswer((_) async => Trip(
+            id: 'trip-1',
+            status: TripStatus.arrived,
+            tier: 'economy',
+            pickup: const TripEndpoint(point: GeoPoint(12.96, 77.63)),
+            dropoff: const TripEndpoint(point: GeoPoint(12.97, 77.59)),
+            arrivedAt: arrivedAt,
+            noShowWaitSec: 300,
+          ));
+      final cubit = make();
+      await cubit.init('token');
+      await tick();
+      expect(cubit.state.phase, DriverPhase.arrived);
+      expect(cubit.state.arrivedAt, arrivedAt);
+      await cubit.close();
+    });
+  });
+
+  test('loadDemand stores busy areas; a failure keeps the last ones',
+      () async {
+    when(() => remote.demand(any(), any())).thenAnswer((_) async => const [
+          DemandCell(lat: 18.52, lng: 73.86, count: 4, intensity: 1),
+        ]);
+    final cubit = make();
+    await cubit.loadDemand(18.52, 73.86);
+    expect(cubit.state.demand, hasLength(1));
+    when(() => remote.demand(any(), any())).thenThrow(Exception('offline'));
+    await cubit.loadDemand(18.52, 73.86);
+    expect(cubit.state.demand, hasLength(1));
+    await cubit.close();
+  });
 }

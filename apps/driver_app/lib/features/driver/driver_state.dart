@@ -31,6 +31,8 @@ class DriverState extends Equatable {
     this.riderComingAt,
     this.stopsReached = 0,
     this.stopsChangedAt,
+    this.arrivedAt,
+    this.demand = const [],
   });
 
   final DriverPhase phase;
@@ -77,6 +79,14 @@ class DriverState extends Equatable {
   /// When the rider last added a stop to this trip, or null.
   final DateTime? stopsChangedAt;
 
+  /// When this driver reached the pickup ("Arrived") — starts the rider
+  /// no-show wait. From the server's `arrivedAt` when the trip was restored.
+  final DateTime? arrivedAt;
+
+  /// Busy areas near the driver (recent ride requests), shaded on the map
+  /// while they're free to take a trip. Empty when unknown or quiet.
+  final List<DemandCell> demand;
+
   /// The trip's stops still ahead.
   List<TripStop> get stopsAhead {
     final all = trip?.stops ?? const <TripStop>[];
@@ -112,6 +122,8 @@ class DriverState extends Equatable {
     Object? riderComingAt = _s,
     int? stopsReached,
     Object? stopsChangedAt = _s,
+    Object? arrivedAt = _s,
+    List<DemandCell>? demand,
   }) {
     return DriverState(
       phase: phase ?? this.phase,
@@ -139,6 +151,8 @@ class DriverState extends Equatable {
       stopsChangedAt: stopsChangedAt == _s
           ? this.stopsChangedAt
           : stopsChangedAt as DateTime?,
+      arrivedAt: arrivedAt == _s ? this.arrivedAt : arrivedAt as DateTime?,
+      demand: demand ?? this.demand,
       locationIssue: locationIssue == _s
           ? this.locationIssue
           : locationIssue as LocationAccess?,
@@ -166,5 +180,7 @@ class DriverState extends Equatable {
         riderComingAt,
         stopsReached,
         stopsChangedAt,
+        arrivedAt,
+        demand,
       ];
 }

@@ -175,6 +175,11 @@ export class TripsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: DriverCancelTripDto,
   ) {
-    return this.trips.driverCancelTrip(user.userId, id, dto.reason);
+    return this.trips.driverCancelTrip(
+      user.userId,
+      id,
+      dto.reason,
+      dto.noShow === true,
+    );
   }
 }

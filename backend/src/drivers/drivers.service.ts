@@ -11,7 +11,16 @@ import { RedisKeys } from '../common/redis/redis.keys';
 import { RealtimeService } from '../realtime/realtime.service';
 import { OnboardingDto } from './dto/onboarding.dto';
 import { TIER_KEYS } from '../pricing/fare-config';
-import { startOfBusinessDay } from '../common/time/business-day';
+import {
+  businessDayKey,
+  startOfBusinessDay,
+} from '../common/time/business-day';
+import { splitByBusinessDay } from './online-time';
+
+/** How long the per-day online-seconds hash outlives its last write. */
+const ONLINE_SECS_TTL = 9 * 86400;
+/** The earnings page lists at most this many trips. */
+const EARNINGS_TRIP_LIMIT = 50;
 import { CURRENCY } from '../pricing/fare-config';
 import { PLATE_EXAMPLE, isValidPlate, normalizePlate } from './plates';
 
@@ -140,6 +149,7 @@ export class DriversService {
         RedisKeys.driverTier(userId),
         profile.vehicleTier,
       );
+      await this.startOnlineSession(userId);
     } else {
       // Don't let a driver drop offline mid-trip — goOffline wipes the
       // active-trip Redis linkage, which stops rider location streaming and trip
@@ -199,6 +209,7 @@ export class DriversService {
 
   /** Remove the driver from the live pool and clear ephemeral state. */
   async goOffline(userId: string, tier: string) {
+    await this.endOnlineSession(userId);
     await this.redis.client.set(RedisKeys.driverStatus(userId), 'offline');
     await this.redis.client.zrem(RedisKeys.driversGeo(tier), userId);
     await this.redis.client.del(
@@ -207,6 +218,63 @@ export class DriversService {
       RedisKeys.driverActiveRider(userId),
       RedisKeys.driverTier(userId),
     );
+  }
+
+  private get tz(): string {
+    return this.config.get<string>('businessTimezone') ?? 'Asia/Tashkent';
+  }
+
+  /** Mark the start of an online session (kept if one is already open —
+   *  a repeated "online" must not reset the clock). Best-effort: online
+   *  time is a display figure and must never block going online. */
+  private async startOnlineSession(userId: string): Promise<void> {
+    try {
+      await this.redis.client.set(
+        RedisKeys.driverOnlineSince(userId),
+        String(Date.now()),
+        'NX',
+      );
+    } catch {
+      /* display-only */
+    }
+  }
+
+  /** Close the open online session (if any) and credit its seconds to the
+   *  business day(s) it spanned. Best-effort, like [startOnlineSession]. */
+  private async endOnlineSession(userId: string): Promise<void> {
+    try {
+      const key = RedisKeys.driverOnlineSince(userId);
+      const since = Number(await this.redis.client.get(key));
+      if (!since) return;
+      await this.redis.client.del(key);
+      const parts = splitByBusinessDay(new Date(since), new Date(), this.tz);
+      const hash = RedisKeys.driverOnlineSecs(userId);
+      for (const [day, secs] of Object.entries(parts)) {
+        if (secs > 0) await this.redis.client.hincrby(hash, day, secs);
+      }
+      await this.redis.client.expire(hash, ONLINE_SECS_TTL);
+    } catch {
+      /* display-only */
+    }
+  }
+
+  /** Seconds online per business day, including the still-open session. */
+  private async onlineSecondsByDay(userId: string): Promise<Record<string, number>> {
+    try {
+      const [stored, since] = await Promise.all([
+        this.redis.client.hgetall(RedisKeys.driverOnlineSecs(userId)),
+        this.redis.client.get(RedisKeys.driverOnlineSince(userId)),
+      ]);
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(stored ?? {})) out[k] = Number(v) || 0;
+      if (since && Number(since) > 0) {
+        const open = splitByBusinessDay(new Date(Number(since)), new Date(), this.tz);
+        for (const [k, v] of Object.entries(open)) out[k] = (out[k] ?? 0) + v;
+      }
+      return out;
+    } catch {
+      return {};
+    }
   }
 
   /**
@@ -221,43 +289,132 @@ export class DriversService {
    * server's, which runs in UTC.
    */
   async earnings(userId: string, range: 'today' | 'week') {
-    const tz = this.config.get<string>('businessTimezone') ?? 'Asia/Tashkent';
+    const tz = this.tz;
     const now = new Date();
-    const since =
-      range === 'today'
-        ? startOfBusinessDay(now, tz)
-        : new Date(now.getTime() - 7 * 86400_000);
+    const todayStart = startOfBusinessDay(now, tz);
+    // The week is the last 7 business days (today + the 6 before), so the
+    // total equals the sum of the daily bars the page draws.
+    const weekStart = startOfBusinessDay(
+      new Date(todayStart.getTime() - 6 * 86400_000 + 12 * 3600_000),
+      tz,
+    );
+    const since = range === 'today' ? todayStart : weekStart;
     const settled = { in: ['captured', 'collected'] };
-    const [rides, cancellations] = await Promise.all([
+    const [rides, cancellations, online] = await Promise.all([
       this.prisma.trip.findMany({
         where: {
           driverId: userId,
           status: TripStatus.completed,
-          completedAt: { gte: since },
+          completedAt: { gte: weekStart },
         },
-        select: { payment: { select: { status: true, driverPayout: true } } },
+        orderBy: { completedAt: 'desc' },
+        select: {
+          id: true,
+          completedAt: true,
+          pickupAddr: true,
+          dropoffAddr: true,
+          distanceM: true,
+          tier: true,
+          paymentMode: true,
+          payment: {
+            select: { status: true, driverPayout: true, tip: true },
+          },
+        },
       }),
       this.prisma.payment.findMany({
         where: {
           kind: 'cancellation',
           status: settled,
-          updatedAt: { gte: since },
+          updatedAt: { gte: weekStart },
           trip: { driverId: userId },
         },
-        select: { driverPayout: true },
+        select: { driverPayout: true, updatedAt: true },
       }),
+      this.onlineSecondsByDay(userId),
     ]);
-    let total = 0;
-    for (const { payment } of rides) {
-      if (!payment || !settled.in.includes(payment.status)) continue;
-      total += Number(payment.driverPayout ?? 0);
+
+    // Seven daily buckets, oldest first.
+    const days: { date: string; total: number; trips: number; onlineSeconds: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const at = new Date(todayStart.getTime() - i * 86400_000 + 12 * 3600_000);
+      const date = businessDayKey(at, tz);
+      days.push({ date, total: 0, trips: 0, onlineSeconds: online[date] ?? 0 });
     }
-    for (const c of cancellations) total += Number(c.driverPayout ?? 0);
+    const bucket = (at: Date) => days.find((d) => d.date === businessDayKey(at, tz));
+
+    const earned = (p: { status: string; driverPayout: unknown } | null) =>
+      p && settled.in.includes(p.status) ? Number(p.driverPayout ?? 0) : 0;
+
+    let total = 0;
+    let trips = 0;
+    const list: {
+      id: string;
+      completedAt: Date | null;
+      pickupAddr: string | null;
+      dropoffAddr: string | null;
+      distanceM: number | null;
+      tier: string;
+      paymentMode: string;
+      earned: number;
+      tip: number;
+    }[] = [];
+    for (const r of rides) {
+      const amount = earned(r.payment);
+      const b = r.completedAt ? bucket(r.completedAt) : undefined;
+      if (b) {
+        b.total += amount;
+        b.trips += 1;
+      }
+      if (r.completedAt && r.completedAt >= since) {
+        total += amount;
+        trips += 1;
+        if (list.length < EARNINGS_TRIP_LIMIT) {
+          list.push({
+            id: r.id,
+            completedAt: r.completedAt,
+            pickupAddr: r.pickupAddr,
+            dropoffAddr: r.dropoffAddr,
+            distanceM: r.distanceM,
+            tier: r.tier,
+            paymentMode: r.paymentMode,
+            earned: round2(amount),
+            tip: Number(r.payment?.tip ?? 0),
+          });
+        }
+      }
+    }
+    let cancellationTotal = 0;
+    for (const c of cancellations) {
+      const amount = Number(c.driverPayout ?? 0);
+      const b = bucket(c.updatedAt);
+      if (b) b.total += amount;
+      if (c.updatedAt >= since) {
+        total += amount;
+        cancellationTotal += amount;
+      }
+    }
+    for (const d of days) d.total = round2(d.total);
+
+    const onlineSeconds =
+      range === 'today'
+        ? days[days.length - 1].onlineSeconds
+        : days.reduce((a, d) => a + d.onlineSeconds, 0);
+
     return {
       range,
-      total: Math.round(total * 100) / 100,
-      trips: rides.length,
+      total: round2(total),
+      trips,
+      onlineSeconds,
+      cancellationFees: round2(cancellationTotal),
+      currency: CURRENCY,
+      days,
+      recentTrips: list,
     };
   }
 
+
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }

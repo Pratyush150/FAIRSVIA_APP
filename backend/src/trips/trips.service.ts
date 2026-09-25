@@ -96,6 +96,10 @@ const otpLockKey = (tripId: string) => `trip:${tripId}:otpLock`;
  *  gets a moment to change their mind before the driver has invested. */
 export const CANCEL_GRACE_MS = 2 * 60 * 1000;
 
+/** How long a driver waits at the pickup (from "Arrived") before they may
+ *  cancel as a rider no-show and be paid the cancellation fee. */
+export const NO_SHOW_WAIT_SEC = Number(process.env.NO_SHOW_WAIT_SEC ?? 300);
+
 /** Bounds on the metered final fare relative to the up-front (gross) estimate.
  *  The odometer is fed by driver-supplied GPS, so it must not be able to push
  *  the fare arbitrarily above what the rider agreed to — or collapse it. */
@@ -1245,7 +1249,12 @@ export class TripsService {
    * trip and the state machine has no accepted→requested edge, so re-opening
    * is not a clean operation here.
    */
-  async driverCancelTrip(driverId: string, tripId: string, reason: string) {
+  async driverCancelTrip(
+    driverId: string,
+    tripId: string,
+    reason: string,
+    noShow = false,
+  ) {
     const trimmed = (reason ?? '').trim();
     if (!trimmed) throw new BadRequestException('A reason is required');
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
@@ -1257,6 +1266,25 @@ export class TripsService {
       throw new BadRequestException(
         `Trip in status ${trip.status} cannot be cancelled by the driver`,
       );
+    }
+    if (noShow) {
+      // A no-show is only a no-show once the driver has been AT the pickup
+      // for the full wait — the clock is the server's arrival stamp, never
+      // the app's, so a driver can't charge a rider who is still walking out.
+      if (trip.status !== TripStatus.arrived || !trip.arrivedAt) {
+        throw new BadRequestException({
+          code: 'NO_SHOW_NOT_ARRIVED',
+          message: 'Mark yourself arrived at the pickup first.',
+        });
+      }
+      const waitedSec = (Date.now() - trip.arrivedAt.getTime()) / 1000;
+      if (waitedSec < NO_SHOW_WAIT_SEC) {
+        throw new BadRequestException({
+          code: 'NO_SHOW_TOO_EARLY',
+          message: 'Please wait for the rider a little longer.',
+          secondsLeft: Math.ceil(NO_SHOW_WAIT_SEC - waitedSec),
+        });
+      }
     }
 
     await this.stateMachine.transition({
@@ -1272,19 +1300,42 @@ export class TripsService {
     await this.releasePromo(trip);
     await this.releaseDemand(trip);
 
+    // No-show: the rider pays the same fee a late rider cancel costs (never
+    // more than the ride would have), and the driver gets their share of it.
+    // Not when the start code is locked — the ride was blocked on the
+    // driver's side, so the rider isn't the one who walked away.
+    let fee = 0;
+    if (noShow && !(await this.otpLocked(tripId))) {
+      const configured = this.config.get<number>('cancellationFee') ?? 5;
+      const estimate = Number(trip.fareEstimate ?? 0);
+      const amount = estimate > 0 ? Math.min(configured, estimate) : configured;
+      try {
+        fee = await this.payments.chargeCancellationFee(tripId, amount);
+      } catch {
+        this.realtime.emitToUser(trip.riderId, 'trip:payment_warning', {
+          tripId,
+          message: 'Payment could not be processed',
+        });
+      }
+    }
+
     this.realtime.emitToUser(trip.riderId, 'trip:cancelled', {
       tripId,
       by: 'driver',
       reason: trimmed,
+      noShow,
+      fee,
     });
     void this.notifications.notifyTrip(trip.riderId, 'cancelled', { tripId });
     this.realtime.emitToUser(driverId, 'trip:cancelled', {
       tripId,
       by: 'driver',
       reason: trimmed,
+      noShow,
+      fee,
     });
 
-    return { status: TripStatus.cancelled, fee: 0 };
+    return { status: TripStatus.cancelled, fee };
   }
 
   /** Whether a rider cancel is charged: driver committed AND grace elapsed. */
@@ -1497,6 +1548,8 @@ export class TripsService {
       startOtp: showOtp ? t.startOtp : null,
       // What a late cancel costs, so the app can state the amount up front.
       cancellationFee: this.config.get<number>('cancellationFee') ?? 5,
+      // How long the driver waits at the pickup before a no-show cancel.
+      noShowWaitSec: NO_SHOW_WAIT_SEC,
       // The floor an early end is charged at, so "End trip here" can say it.
       minFare: this.minFareOrNull(t.tier),
       requestedAt: t.requestedAt,
