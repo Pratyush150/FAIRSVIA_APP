@@ -3,6 +3,9 @@ part of 'ride_sheets.dart';
 /// "Plan your ride": tier cascade, stops, schedule, payment, promo, pickup
 /// note, and the confirm footer whose label always names the consequence.
 
+/// Keys the list of pickable ride tiers on the choose-ride sheet.
+const rideTierListKey = Key('ride-tier-list');
+
 class _RideOptions extends StatelessWidget {
   const _RideOptions({required this.state});
   final TripState state;
@@ -94,6 +97,9 @@ class _RideOptions extends StatelessWidget {
         // swallowed swipes and hid the payment/schedule/promo rows behind a
         // nested-scroll trap.
         ListView(
+          // The pickable tier list — distinct from the compare table in the
+          // extras below, which repeats the tier names.
+          key: rideTierListKey,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
@@ -141,6 +147,147 @@ class _RideOptions extends StatelessWidget {
         _PickupNoteField(state: state),
         const SizedBox(height: AppSpacing.sm),
         _BookForSomeoneElseRow(state: state),
+        // Below the fold at rest; what the sheet shows once pulled all the
+        // way up, so it reads complete rather than ending in empty space.
+        const SizedBox(height: AppSpacing.xl),
+        _RideOptionsExtras(state: state),
+      ],
+    );
+  }
+}
+
+/// The pulled-up part of "Choose a ride": the ride types side by side, what
+/// the price is made of, the safety tools every ride has, and posters for
+/// what the rider can do next. Every number comes from the estimate.
+class _RideOptionsExtras extends StatelessWidget {
+  const _RideOptionsExtras({required this.state});
+  final TripState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final estimate = state.estimate!;
+    final cubit = context.read<TripCubit>();
+    final tiers = _listOrder(estimate.tiers);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (tiers.isNotEmpty)
+          SheetSection(
+            title: 'Compare rides',
+            icon: PhosphorIconsRegular.squaresFour,
+            child: CompareTable(
+              columns: const ['Seats', 'Pickup', 'Fare'],
+              rows: [
+                for (final t in tiers)
+                  CompareRow(
+                    label: t.label,
+                    highlighted: t.tier == state.selectedTier,
+                    cells: [
+                      '${t.capacity}',
+                      _noDriversFor(state, t.tier) || t.etaSeconds == null
+                          ? '—'
+                          : '${_minutes(t.etaSeconds!)} min',
+                      Fmt.money(t.fare, t.currency),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        const SizedBox(height: AppSpacing.lg),
+        SheetSection(
+          title: 'About this fare',
+          icon: PhosphorIconsRegular.receipt,
+          child: InfoPoints([
+            InfoPoint(
+              icon: PhosphorIconsRegular.path,
+              title: 'Your route',
+              text:
+                  '${Market.current.legDistance(estimate.distanceM)} · about '
+                  '${_minutes(estimate.durationS)} min of driving.',
+            ),
+            InfoPoint(
+              icon: PhosphorIconsRegular.trendUp,
+              title: 'Demand',
+              text: estimate.surge > 1.0
+                  ? 'Fares are ${estimate.surge.toStringAsFixed(1)}x right '
+                        'now because many people are riding.'
+                  : 'No demand surcharge on this quote.',
+            ),
+            const InfoPoint(
+              icon: PhosphorIconsRegular.ruler,
+              title: 'Final fare',
+              text:
+                  'Based on the distance and time actually driven. Tolls '
+                  'and waiting time are charged separately.',
+            ),
+            if (tiers.any((t) => t.breakdown != null))
+              const InfoPoint(
+                icon: PhosphorIconsRegular.info,
+                title: 'Itemised',
+                text: 'Tap the info icon on a ride for its full fare.',
+              ),
+          ]),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        const SheetSection(
+          title: 'Safety on every ride',
+          icon: PhosphorIconsRegular.shieldCheck,
+          card: false,
+          child: FeatureGrid([
+            FeatureItem(
+              icon: PhosphorIconsRegular.checks,
+              title: 'Start code',
+              subtitle: 'Your ride starts only with your PIN.',
+            ),
+            FeatureItem(
+              icon: PhosphorIconsRegular.export,
+              title: 'Share your trip',
+              subtitle: 'Send a live link to family.',
+            ),
+            FeatureItem(
+              icon: PhosphorIconsRegular.siren,
+              title: 'SOS',
+              subtitle: 'Alert your emergency contacts.',
+            ),
+            FeatureItem(
+              icon: PhosphorIconsRegular.chatCircle,
+              title: 'In-app chat',
+              subtitle: 'Message your driver without sharing a number.',
+            ),
+          ]),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        SheetSection(
+          title: 'More with ${AppBrand.name}',
+          icon: PhosphorIconsRegular.lightning,
+          card: false,
+          // The poster is a fixed-height image card: past 1.5x its copy
+          // would outgrow it (the headline is still large at that size).
+          child: MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.5,
+            child: PromoCarousel([
+              for (final p in homePosters(
+                onOffers: () {},
+                onSchedule: () async {
+                  final when = await pickRideTime(context);
+                  if (when != null) cubit.setScheduledAt(when);
+                },
+                onSafety: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => EmergencyContactsPage(
+                      safety: sl<SafetyRemoteDataSource>(),
+                    ),
+                  ),
+                ),
+                onRide: () {},
+              ))
+                // The offers poster is the promo field above; the "start a
+                // ride" one is this screen.
+                if (p.id == 'poster-schedule' || p.id == 'poster-safety') p,
+            ], padding: EdgeInsets.zero),
+          ),
+        ),
       ],
     );
   }
@@ -599,9 +746,9 @@ Future<DateTime?> _pickCupertino(BuildContext context) async {
 /// AM/PM toggle — even on a phone set to 24-hour time, which otherwise turns
 /// the Material dial into a two-ring 0–23 clock.
 Widget twelveHourClock(BuildContext context, Widget? child) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
-      child: child ?? const SizedBox.shrink(),
-    );
+  data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+  child: child ?? const SizedBox.shrink(),
+);
 
 /// Asks for a future pickup time — the native wheel on Apple platforms, the
 /// Material date + time pickers elsewhere — clamped to the backend's rule
@@ -1147,150 +1294,147 @@ class _RideTierTile extends StatelessWidget {
       enabled: onTap != null,
       // Never dimmed: a ride type with no car nearby can still be booked.
       child: Padding(
-          padding: EdgeInsets.only(bottom: InkPaper.on ? 0 : 4),
-          child: Material(
-            color: Colors.transparent,
-            // THEME=ink: ruled rows, no box; the selection is the teal marker
-            // under the name and a teal check (below).
-            shape: InkPaper.on
-                ? Border(
-                    bottom: BorderSide(
-                      color: InkPaper.rule(theme.brightness == Brightness.dark),
-                    ),
-                  )
-                : RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.radius),
-                    // The selected ride is outlined in ink; the rest have no
-                    // box at all.
-                    side: BorderSide(
-                      color: selected
-                          ? AppColors.highlight
-                          : Colors.transparent,
-                      width: 2,
-                    ),
+        padding: EdgeInsets.only(bottom: InkPaper.on ? 0 : 4),
+        child: Material(
+          color: Colors.transparent,
+          // THEME=ink: ruled rows, no box; the selection is the teal marker
+          // under the name and a teal check (below).
+          shape: InkPaper.on
+              ? Border(
+                  bottom: BorderSide(
+                    color: InkPaper.rule(theme.brightness == Brightness.dark),
                   ),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.sm,
-                  AppSpacing.md,
-                  AppSpacing.md,
-                  AppSpacing.md,
+                )
+              : RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radius),
+                  // The selected ride is outlined in ink; the rest have no
+                  // box at all.
+                  side: BorderSide(
+                    color: selected ? AppColors.highlight : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 76,
-                      child: InkPaper.on
-                          // THEME=ink: the teal check sits on the drawing's
-                          // corner, so selection is never the underline's
-                          // colour alone and the text column keeps its width.
-                          ? Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                VehicleGlyph(tier: tier.tier, width: 76),
-                                if (selected)
-                                  Positioned(
-                                    left: -2,
-                                    top: -4,
-                                    child: Icon(
-                                      PhosphorIconsRegular.check,
-                                      size: 20,
-                                      color: AppColors.highlight,
-                                    ),
-                                  ),
-                              ],
-                            )
-                          : VehicleGlyph(tier: tier.tier, width: 76),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 76,
+                    child: InkPaper.on
+                        // THEME=ink: the teal check sits on the drawing's
+                        // corner, so selection is never the underline's
+                        // colour alone and the text column keeps its width.
+                        ? Stack(
+                            clipBehavior: Clip.none,
                             children: [
-                              Flexible(
-                                child: MarkerUnderline(
-                                  visible: InkPaper.on && selected,
-                                  child: Text(
-                                    tier.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleMedium
-                                        ?.copyWith(
-                                          fontWeight: InkPaper.on
-                                              ? FontWeight.w600
-                                              : FontWeight.w700,
-                                        ),
+                              VehicleGlyph(tier: tier.tier, width: 76),
+                              if (selected)
+                                Positioned(
+                                  left: -2,
+                                  top: -4,
+                                  child: Icon(
+                                    PhosphorIconsRegular.check,
+                                    size: 20,
+                                    color: AppColors.highlight,
+                                  ),
+                                ),
+                            ],
+                          )
+                        : VehicleGlyph(tier: tier.tier, width: 76),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: MarkerUnderline(
+                                visible: InkPaper.on && selected,
+                                child: Text(
+                                  tier.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: InkPaper.on
+                                        ? FontWeight.w600
+                                        : FontWeight.w700,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Icon(
-                                PhosphorIconsRegular.user,
-                                size: 16,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                              Text(
-                                '${tier.capacity}',
-                                style: theme.textTheme.labelMedium,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            eta == null
-                                ? _noneNearbyLine(tier.tier, noDrivers)
-                                // When the car comes, and when the rider gets
-                                // there: the two numbers people compare tiers on.
-                                : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      // Same rule as the confirm footer (Fmt.money), so the
-                      // list and the button always agree.
-                      Fmt.money(tier.fare, tier.currency),
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700)
-                          .tabular(),
-                    ),
-                    // What the number is made of — only when the backend
-                    // itemised it; an empty breakdown is worse than none. The
-                    // glyph is 20 but the target is a full 48 × 48, beside the
-                    // fare rather than under it so the row stays one height.
-                    if (tier.breakdown != null)
-                      Semantics(
-                        button: true,
-                        label: 'Fare details for ${tier.label}',
-                        onTap: () => showFareDetailsSheet(context, tier),
-                        excludeSemantics: true,
-                        child: InkResponse(
-                          onTap: () => showFareDetailsSheet(context, tier),
-                          radius: 22,
-                          child: SizedBox(
-                            width: 48,
-                            height: 48,
-                            child: Icon(
-                              PhosphorIconsRegular.info,
-                              size: 20,
-                              color: theme.textTheme.bodySmall?.color,
                             ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              PhosphorIconsRegular.user,
+                              size: 16,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                            Text(
+                              '${tier.capacity}',
+                              style: theme.textTheme.labelMedium,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          eta == null
+                              ? _noneNearbyLine(tier.tier, noDrivers)
+                              // When the car comes, and when the rider gets
+                              // there: the two numbers people compare tiers on.
+                              : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    // Same rule as the confirm footer (Fmt.money), so the
+                    // list and the button always agree.
+                    Fmt.money(tier.fare, tier.currency),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700)
+                        .tabular(),
+                  ),
+                  // What the number is made of — only when the backend
+                  // itemised it; an empty breakdown is worse than none. The
+                  // glyph is 20 but the target is a full 48 × 48, beside the
+                  // fare rather than under it so the row stays one height.
+                  if (tier.breakdown != null)
+                    Semantics(
+                      button: true,
+                      label: 'Fare details for ${tier.label}',
+                      onTap: () => showFareDetailsSheet(context, tier),
+                      excludeSemantics: true,
+                      child: InkResponse(
+                        onTap: () => showFareDetailsSheet(context, tier),
+                        radius: 22,
+                        child: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Icon(
+                            PhosphorIconsRegular.info,
+                            size: 20,
+                            color: theme.textTheme.bodySmall?.color,
                           ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
           ),
         ),
+      ),
     );
   }
 
@@ -1309,125 +1453,124 @@ class _RideTierTile extends StatelessWidget {
       enabled: onTap != null,
       // Never dimmed: a ride type with no car nearby can still be booked.
       child: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Material(
-            color: selected
-                ? AppColors.softFor(dark)
-                : (dark ? AppColors.surfaceDark : AppColors.surfaceLight),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-              side: BorderSide(
-                color: selected
-                    ? ink
-                    : (dark ? AppColors.borderDark : AppColors.borderLight),
-                width: selected ? 2 : 1,
-              ),
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Material(
+          color: selected
+              ? AppColors.softFor(dark)
+              : (dark ? AppColors.surfaceDark : AppColors.surfaceLight),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+            side: BorderSide(
+              color: selected
+                  ? ink
+                  : (dark ? AppColors.borderDark : AppColors.borderLight),
+              width: selected ? 2 : 1,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.sm,
-                  AppSpacing.sm,
-                  AppSpacing.md,
-                  0,
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 80,
-                      height: 60,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // A marigold ground under the vehicle (art only).
-                          Positioned(
-                            bottom: 6,
-                            child: Container(
-                              width: 66,
-                              height: 14,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(40),
-                                color: LocalColour.marigold.withValues(
-                                  alpha: dark ? 0.22 : 0.28,
-                                ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.sm,
+                AppSpacing.md,
+                0,
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 80,
+                    height: 60,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // A marigold ground under the vehicle (art only).
+                        Positioned(
+                          bottom: 6,
+                          child: Container(
+                            width: 66,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(40),
+                              color: LocalColour.marigold.withValues(
+                                alpha: dark ? 0.22 : 0.28,
                               ),
                             ),
                           ),
-                          VehicleGlyph(tier: tier.tier, width: 76),
-                        ],
-                      ),
+                        ),
+                        VehicleGlyph(tier: tier.tier, width: 76),
+                      ],
                     ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  tier.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: selected ? ink : null,
-                                  ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                tier.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: selected ? ink : null,
                                 ),
                               ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Text(
-                                Fmt.money(tier.fare, tier.currency),
-                                style: theme.textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w700)
-                                    .tabular(),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Text(
+                              Fmt.money(tier.fare, tier.currency),
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700)
+                                  .tabular(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          eta == null
+                              ? _noneNearbyLine(tier.tier, noDrivers)
+                              : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        Row(
+                          children: [
+                            Semantics(
+                              label: '${tier.capacity} seats',
+                              excludeSemantics: true,
+                              child: LocalChip(
+                                label: '${tier.capacity}',
+                                icon: PhosphorIconsRegular.user,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            eta == null
-                                ? _noneNearbyLine(tier.tier, noDrivers)
-                                : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          Row(
-                            children: [
-                              Semantics(
-                                label: '${tier.capacity} seats',
-                                excludeSemantics: true,
-                                child: LocalChip(
-                                  label: '${tier.capacity}',
-                                  icon: PhosphorIconsRegular.user,
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              if (tier.breakdown != null)
-                                LocalChip(
-                                  label: 'Rate card',
-                                  icon: PhosphorIconsRegular.receipt,
-                                  semanticLabel:
-                                      'Fare details for ${tier.label}',
-                                  onTap: () =>
-                                      showFareDetailsSheet(context, tier),
-                                )
-                              else
-                                const SizedBox(height: 48),
-                            ],
-                          ),
-                        ],
-                      ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            if (tier.breakdown != null)
+                              LocalChip(
+                                label: 'Rate card',
+                                icon: PhosphorIconsRegular.receipt,
+                                semanticLabel: 'Fare details for ${tier.label}',
+                                onTap: () =>
+                                    showFareDetailsSheet(context, tier),
+                              )
+                            else
+                              const SizedBox(height: 48),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
+      ),
     );
   }
 

@@ -91,6 +91,45 @@ class _CompletedSheetState extends State<CompletedSheet> {
   /// first tap — which is what made a mis-tap permanent.
   double? _pendingTip;
 
+  /// The draggable sheet this page sits in (null when it is built on its
+  /// own, e.g. in a widget test).
+  _SheetDrag? _drag;
+
+  /// Owner (2026-09-25): at rest the page holds 75% of the screen and the
+  /// tip and Done fit there without scrolling; the rest of the trip
+  /// ([CompletedSheetExtras]) is only for a sheet pulled up past its rest
+  /// size. Built on its own (no sheet around it) it shows everything.
+  bool get _pulledUp => _drag == null || _drag!._dragHeight != null;
+
+  void _onSnap() {
+    if (mounted) setState(() {});
+  }
+
+  void _onSnapStatus(AnimationStatus _) => _onSnap();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final drag = context.findAncestorStateOfType<_SheetDrag>();
+    if (!identical(drag, _drag)) {
+      _drag?._snapAnim
+        ?..removeListener(_onSnap)
+        ..removeStatusListener(_onSnapStatus);
+      _drag = drag;
+      drag?._snapAnim
+        ?..addListener(_onSnap)
+        ..addStatusListener(_onSnapStatus);
+    }
+  }
+
+  @override
+  void dispose() {
+    _drag?._snapAnim
+      ?..removeListener(_onSnap)
+      ..removeStatusListener(_onSnapStatus);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
@@ -368,6 +407,8 @@ class _CompletedSheetState extends State<CompletedSheet> {
                 style: theme.textTheme.bodySmall,
               ),
             ),
+          // Pulled fully up: the trip, the ride back, receipt/help, posters.
+          if (_pulledUp) CompletedSheetExtras(state: state),
           // Done is not here: it is pinned under the sheet
           // ([CompletedDoneButton], the sheet's footer) so it never scrolls
           // away behind the tip and rating sections.
@@ -812,6 +853,395 @@ class _ComplimentTagsState extends State<_ComplimentTags> {
           ],
         ),
       ],
+    );
+  }
+}
+
+// --- Below the fold: what the sheet carries when pulled all the way up ------
+//
+// Owner (2026-09-25): a sheet dragged fully up "should look fully complete".
+// At rest (75%) the sheet is the receipt, the rating and the tip; everything
+// below the tip is the rest of the trip: its route and car, the ride back,
+// the receipt and help, and the posters. Only real data — a line with no
+// source (no distance on the trip, no driver) is left out, never filled in.
+
+/// "economy" → "Economy", "xl" → "XL"; the estimate's own label when held.
+String _completedTierLabel(TripState state) {
+  final tier = (state.trip?.tier ?? state.selectedTier ?? '').trim();
+  for (final t in state.estimate?.tiers ?? const <FareTier>[]) {
+    if (t.tier == tier) return t.label;
+  }
+  if (tier.isEmpty) return 'Ride';
+  if (tier.length <= 2) return tier.toUpperCase();
+  return tier[0].toUpperCase() + tier.substring(1).replaceAll('_', ' ');
+}
+
+/// The trip's stops for a [RouteTimeline]: pickup, any stops, drop-off.
+/// Null when either end has no address to show.
+List<RouteTimelineStop>? _routeStops(TripState state) {
+  final trip = state.trip;
+  final from = state.pickupAddr ?? trip?.pickup.address;
+  final to = state.dropoffAddr ?? trip?.dropoff.address;
+  if (from == null || from.trim().isEmpty || to == null || to.trim().isEmpty) {
+    return null;
+  }
+  final stops = trip?.stops.isNotEmpty == true ? trip!.stops : state.stops;
+  return [
+    RouteTimelineStop(label: 'Pickup', address: from),
+    for (var i = 0; i < stops.length; i++)
+      if (stops[i].address case final a? when a.trim().isNotEmpty)
+        RouteTimelineStop(label: 'Stop ${i + 1}', address: a),
+    RouteTimelineStop(label: 'Drop-off', address: to),
+  ];
+}
+
+/// Opens the existing pre-book flow from [pickup] to [dropoff] (either may
+/// be null: the page then asks for it), and confirms a booking with the same
+/// snackbar as every other pre-book entry point.
+Future<void> _preBookTrip(
+  BuildContext context,
+  TripState state, {
+  GeoPoint? pickup,
+  String? pickupAddr,
+  GeoPoint? dropoff,
+  String? dropoffAddr,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final booked = await Navigator.of(context).push<Trip>(MaterialPageRoute(
+    builder: (_) => PreBookPage(
+      repository: sl<TripRepository>(),
+      pickup: pickup,
+      pickupAddr: pickupAddr,
+      initialDropoff: dropoff,
+      initialDropoffAddr: dropoffAddr,
+      paymentMode: state.trip?.paymentMode ?? state.paymentMode,
+      payments: sl.isRegistered<PaymentsRemoteDataSource>()
+          ? sl<PaymentsRemoteDataSource>()
+          : null,
+    ),
+  ));
+  if (booked == null) return;
+  final when = booked.scheduledAt;
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(_completionSnackBar(when == null
+        ? 'Ride scheduled. Find it in Account › Scheduled rides.'
+        : 'Ride scheduled for ${_formatSchedule(when)}. '
+            'Find it in Account › Scheduled rides.'));
+}
+
+/// Everything under the tip section of [CompletedSheet].
+class CompletedSheetExtras extends StatelessWidget {
+  const CompletedSheetExtras({super.key, required this.state});
+
+  final TripState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final trip = state.trip;
+    final route = _routeStops(state);
+    final from = trip?.pickup.point ?? state.pickup;
+    final fromAddr = state.pickupAddr ?? trip?.pickup.address;
+    final to = trip?.dropoff.point ?? state.dropoff;
+    final toAddr = state.dropoffAddr ?? trip?.dropoff.address;
+    final canPreBook = sl.isRegistered<TripRepository>();
+    final canReceipt =
+        trip != null && sl.isRegistered<PaymentsRemoteDataSource>();
+    final canHelp = sl.isRegistered<SupportRemoteDataSource>();
+    final posters = homePosters(
+      onOffers: () => RiderTabScaffold.goTo(context, RiderTab.offers),
+      onSchedule: () => _preBookTrip(context, state,
+          pickup: to, pickupAddr: toAddr),
+      onSafety: () => Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) =>
+            EmergencyContactsPage(safety: sl<SafetyRemoteDataSource>()),
+      )),
+      onRide: () {},
+    )
+        // Sharing a live trip is for a ride under way, not one just ended;
+        // emergency contacts need the safety API registered.
+        .where((p) =>
+            p.id != 'poster-share' &&
+            (p.id != 'poster-safety' ||
+                sl.isRegistered<SafetyRemoteDataSource>()))
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: AppSpacing.xl),
+        // --- The trip -------------------------------------------------------
+        Text('Your trip',
+            style: inkSectionLabel(context, theme.textTheme.titleMedium)),
+        const SizedBox(height: AppSpacing.sm),
+        _CompletedTripCard(state: state, route: route),
+
+        // --- Where next -----------------------------------------------------
+        if (canPreBook && (to != null || from != null)) ...[
+          const SizedBox(height: AppSpacing.xl),
+          Text('Where next?',
+              style: inkSectionLabel(context, theme.textTheme.titleMedium)),
+          const SizedBox(height: AppSpacing.sm),
+          if (to != null)
+            _NextActionTile(
+              icon: PhosphorIconsRegular.arrowsLeftRight,
+              title: 'Plan your return',
+              subtitle: fromAddr == null
+                  ? 'Pre-book a pickup from here'
+                  : 'Pre-book a ride back to $fromAddr',
+              onTap: () => _preBookTrip(context, state,
+                  pickup: to,
+                  pickupAddr: toAddr,
+                  dropoff: from,
+                  dropoffAddr: fromAddr),
+            ),
+          if (from != null && to != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _NextActionTile(
+              icon: PhosphorIconsRegular.arrowClockwise,
+              title: 'Book this trip again',
+              subtitle: 'Same pickup and drop-off, at a time you choose',
+              onTap: () => _preBookTrip(context, state,
+                  pickup: from,
+                  pickupAddr: fromAddr,
+                  dropoff: to,
+                  dropoffAddr: toAddr),
+            ),
+          ],
+        ],
+
+        // --- Receipt / help -------------------------------------------------
+        if (canReceipt || canHelp) ...[
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              if (canReceipt)
+                Expanded(
+                  child: SecondaryButton(
+                    label: 'Receipt',
+                    icon: PhosphorIconsRegular.receipt,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ReceiptPage(
+                          payments: sl<PaymentsRemoteDataSource>(),
+                          trip: trip,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (canReceipt && canHelp) const SizedBox(width: AppSpacing.sm),
+              if (canHelp)
+                Expanded(
+                  child: SecondaryButton(
+                    label: 'Get help',
+                    icon: PhosphorIconsRegular.question,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SupportPage(
+                            support: sl<SupportRemoteDataSource>()),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+
+        // --- Posters --------------------------------------------------------
+        if (posters.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xl),
+          // The posters are fixed-height art: cap their type so a large
+          // Dynamic Type setting cannot push the copy out of the card.
+          MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.5,
+            child: PromoCarousel(posters, padding: EdgeInsets.zero),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.lg),
+      ],
+    );
+  }
+}
+
+/// The finished trip at a glance: the car it was in, who drove, the route,
+/// and the distance and time the trip record carries.
+class _CompletedTripCard extends StatelessWidget {
+  const _CompletedTripCard({required this.state, required this.route});
+
+  final TripState state;
+  final List<RouteTimelineStop>? route;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final trip = state.trip;
+    final driver = state.driver;
+    final tier = trip?.tier ?? state.selectedTier;
+    final vehicle =
+        RideDetailsContent.vehicleLine(driver) ?? trip?.driverVehicleLabel;
+    final driverName = driver?.name ?? trip?.driverName;
+    final plate = driver?.plate ?? trip?.driverPlate;
+    final distanceM = trip?.distanceM;
+    final durationS = trip?.durationS;
+    final muted = theme.brightness == Brightness.dark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              VehicleGlyph(tier: tier ?? 'comfort', width: 76),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_completedTierLabel(state),
+                        style: theme.textTheme.titleMedium),
+                    if (driverName != null && driverName.trim().isNotEmpty)
+                      Text(
+                        'with $driverName'
+                        '${driver != null ? ' · ★ ${driver.rating.toStringAsFixed(1)}' : ''}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    if (vehicle != null || (plate?.trim().isNotEmpty ?? false))
+                      Text(
+                        [
+                          ?vehicle,
+                          if (plate != null && plate.trim().isNotEmpty)
+                            Market.current.formatPlate(plate),
+                        ].join(' · '),
+                        style:
+                            theme.textTheme.bodySmall?.copyWith(color: muted),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (distanceM != null || durationS != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                if (distanceM != null)
+                  _TripStatPill(
+                      icon: PhosphorIconsRegular.ruler,
+                      text: Fmt.distance(distanceM)),
+                if (durationS != null)
+                  _TripStatPill(
+                      icon: PhosphorIconsRegular.clock,
+                      text: Fmt.duration(durationS)),
+                _TripStatPill(
+                  icon: (trip?.paymentMode ?? state.paymentMode) == 'cash'
+                      ? PhosphorIconsRegular.money
+                      : PhosphorIconsRegular.creditCard,
+                  text: (trip?.paymentMode ?? state.paymentMode) == 'cash'
+                      ? 'Cash'
+                      : (state.receipt?.cardLabel ?? 'Card'),
+                ),
+              ],
+            ),
+          ],
+          if (route != null) ...[
+            Divider(height: AppSpacing.xl, color: theme.dividerColor),
+            RouteTimeline(stops: route!),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TripStatPill extends StatelessWidget {
+  const _TripStatPill({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppColors.iconNeutralFor(dark)),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(
+            child: Text(text,
+                style: theme.textTheme.labelLarge?.tabular()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A tappable "what next" row: icon, title, one line of context, chevron.
+class _NextActionTile extends StatelessWidget {
+  const _NextActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: dark ? AppColors.accentSoftDark : AppColors.accentSoft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 20, color: AppColors.accentText),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleSmall),
+                Text(subtitle,
+                    style: theme.textTheme.bodySmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          Icon(PhosphorIconsRegular.caretRight,
+              size: 20, color: AppColors.iconNeutralFor(dark)),
+        ],
+      ),
     );
   }
 }

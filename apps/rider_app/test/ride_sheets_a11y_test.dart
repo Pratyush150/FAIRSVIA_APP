@@ -228,7 +228,10 @@ void main() {
     tester,
   ) async {
     await pump(tester, sheets['choose ride']!);
-    expect(find.text('No cars nearby now — we\'ll keep looking'), findsOneWidget);
+    expect(
+      find.text('No cars nearby now — we\'ll keep looking'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the chosen payment chip carries a check, not only a colour', (
@@ -283,8 +286,7 @@ void main() {
       );
       if (!LocalArt.on) {
         // The default look's Lottie sweep shows one still frame.
-        final moment =
-            tester.widget<LottieMoment>(find.byType(LottieMoment));
+        final moment = tester.widget<LottieMoment>(find.byType(LottieMoment));
         expect(moment.asset, 'searching');
         expect(moment.stillAt, isNotNull);
         return;
@@ -329,10 +331,23 @@ void main() {
         ),
       );
       await tester.pump();
-      final start = tester.getTopLeft(find.text('XL'));
+      final start = tester.getTopLeft(
+        find.descendant(
+          of: find.byKey(const Key('ride-tier-list')),
+          matching: find.text('XL'),
+        ),
+      );
       await tester.pump(const Duration(milliseconds: 600));
       // Where it starts is where it stays: no rise-in.
-      expect(tester.getTopLeft(find.text('XL')), start);
+      expect(
+        tester.getTopLeft(
+          find.descendant(
+            of: find.byKey(const Key('ride-tier-list')),
+            matching: find.text('XL'),
+          ),
+        ),
+        start,
+      );
     });
   });
 

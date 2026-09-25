@@ -1,7 +1,8 @@
 """Build the realistic ride-list vehicle set (assets/vehicles/photo{,_dark}).
 
 Pipeline, per vehicle (sources and licences: docs/brand/CREDITS-ride-vehicles.md):
-  1. download the Unsplash photo (images.unsplash.com CDN, w=3000),
+  1. download the Unsplash photo (images.unsplash.com CDN, w=3000; the white
+     premium and xl sources use w=1800),
   2. cut the background out with rembg `birefnet-general` (input downscaled to
      1800 px on the long side) -> src/<name>_cut.png,
   3. this script: paint out maker badges, model lettering and plate text
@@ -42,14 +43,19 @@ EDITS = {
         'mirror': True,
     },
     'premium': {
-        'inpaint': [(268, 891, 312, 916)],      # bonnet badge
-        'plain': [(242, 961, 282, 997)],        # front plate -> blank
+        # White sedan, pure side view (Unsplash kb9dTYzZuiQ, w=1800): no badge,
+        # lettering or plate is visible from this angle, so nothing to paint.
+        # The photo has a green film grade: neutralise it so the paint reads white.
+        'neutral': True,
+        'inpaint': [],
+        'plain': [],
         'erase_poly': [],
         'mirror': False,
     },
     'xl': {
-        'inpaint': [(344, 446, 372, 499), (384, 501, 434, 538), (356, 505, 380, 548),
-                    (1348, 612, 1370, 634)],  # badges, lettering, front wheel cap
+        # White 7-seat SUV, pure side view (Unsplash 2xqFLkR0f4Y, w=1800): no
+        # badge, lettering or plate visible from this angle.
+        'inpaint': [],
         'plain': [],
         'erase_poly': [],
         'mirror': True,
@@ -94,6 +100,12 @@ def clean(name):
         h = y1 - y0
         grad = np.linspace(1.03, 0.95, h)[:, None, None]
         rgb[y0:y1, x0:x1] = np.clip(col[None, None, :] * grad, 0, 255)
+    if e.get('neutral'):
+        # Drop the colour grade: keep 25% of the chroma, lift to clean white.
+        f = rgb.astype(np.float32)
+        g = f.mean(2, keepdims=True)
+        f = g + (f - g) * 0.25
+        rgb = np.clip(f * 1.04, 0, 255).astype(np.uint8)
     a[..., :3] = rgb
     alpha = Image.fromarray(a[..., 3])
     d = ImageDraw.Draw(alpha)

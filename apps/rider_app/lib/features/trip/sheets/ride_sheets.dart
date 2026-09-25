@@ -6,6 +6,8 @@
 /// that anything in the app could reach for.
 library;
 
+import '../../home/home_posters.dart';
+import '../../home/rider_bottom_nav.dart';
 import '../../layout/rider_sheet_heights.dart';
 import '../destination_search_page.dart';
 import '../location_service.dart';

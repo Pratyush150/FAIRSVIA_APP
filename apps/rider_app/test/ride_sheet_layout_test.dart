@@ -13,6 +13,11 @@ class MockTripCubit extends MockCubit<TripState> implements TripCubit {}
 /// Every live-ride sheet, and every transition between them, must lay out
 /// without overflow on a real phone size. A RenderFlex overflow was seen on
 /// the emulator (Pixel, 411×914 logical) at the arrived → on-trip switch.
+/// Scopes [f] to the pickable tier list: the compare table further down the
+/// sheet legitimately repeats tier names and fares.
+Finder inTierList(Finder f) =>
+    find.descendant(of: find.byKey(const Key('ride-tier-list')), matching: f);
+
 void main() {
   const driver = AssignedDriver(
     name: 'Bekzod',
@@ -132,33 +137,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('completed at 75%: tips and Done fit without scrolling (411×914)', (
-    tester,
-  ) async {
-    await run(tester, const [TripPhase.onTrip, TripPhase.completed]);
-    await tester.pump(const Duration(milliseconds: 600));
-    expect(tester.takeException(), isNull);
-    final screenH = 914.0;
-    final done = find.text('Done');
-    expect(done, findsOneWidget);
-    final tips = find.text('Custom');
-    expect(tips, findsWidgets);
-    final tipBottom = tester.getBottomLeft(tips.first).dy;
-    final doneTop = tester.getTopLeft(done).dy;
-    // Tip chips visible on screen, above the pinned Done — no scroll needed.
-    expect(tipBottom, lessThan(doneTop));
-    expect(doneTop, lessThan(screenH));
-    // Nothing scrolled: the first scrollable in the sheet is at offset 0 and
-    // has no extent left to scroll.
-    final scrollables = find.byType(Scrollable).evaluate().map(
-        (e) => (e as StatefulElement).state as ScrollableState);
-    for (final sc in scrollables) {
-      if (sc.position.axis == Axis.vertical && sc.position.hasContentDimensions) {
-        expect(sc.position.maxScrollExtent, lessThan(1),
-            reason: 'completed page content must fit without scrolling');
+  testWidgets(
+    'completed at 75%: tips and Done fit without scrolling (411×914)',
+    (tester) async {
+      await run(tester, const [TripPhase.onTrip, TripPhase.completed]);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(tester.takeException(), isNull);
+      final screenH = 914.0;
+      final done = find.text('Done');
+      expect(done, findsOneWidget);
+      final tips = find.text('Custom');
+      expect(tips, findsWidgets);
+      final tipBottom = tester.getBottomLeft(tips.first).dy;
+      final doneTop = tester.getTopLeft(done).dy;
+      // Tip chips visible on screen, above the pinned Done — no scroll needed.
+      expect(tipBottom, lessThan(doneTop));
+      expect(doneTop, lessThan(screenH));
+      // Nothing scrolled: the first scrollable in the sheet is at offset 0 and
+      // has no extent left to scroll.
+      final scrollables = find
+          .byType(Scrollable)
+          .evaluate()
+          .map((e) => (e as StatefulElement).state as ScrollableState);
+      for (final sc in scrollables) {
+        if (sc.position.axis == Axis.vertical &&
+            sc.position.hasContentDimensions) {
+          expect(
+            sc.position.maxScrollExtent,
+            lessThan(1),
+            reason: 'completed page content must fit without scrolling',
+          );
+        }
       }
-    }
-  });
+    },
+  );
 
   testWidgets('the completed sheet (pinned Done) never overflows', (
     tester,
@@ -406,19 +418,22 @@ void main() {
       final at = 'at $size x$scale';
       expect(tester.takeException(), isNull, reason: at);
       // Cheapest first: the bike row sits above the auto row, above economy.
-      expect(find.text('Bike'), findsOneWidget, reason: at);
-      expect(find.text('Auto'), findsOneWidget, reason: at);
+      expect(inTierList(find.text('Bike')), findsOneWidget, reason: at);
+      expect(inTierList(find.text('Auto')), findsOneWidget, reason: at);
       expect(
-        tester.getTopLeft(find.text('Bike')).dy,
-        lessThan(tester.getTopLeft(find.text('Auto')).dy),
+        tester.getTopLeft(inTierList(find.text('Bike'))).dy,
+        lessThan(tester.getTopLeft(inTierList(find.text('Auto'))).dy),
         reason: at,
       );
-      expect(find.text('₹53'), findsOneWidget, reason: at);
+      expect(inTierList(find.text('₹53')), findsOneWidget, reason: at);
       // The footer (payment choice above Confirm) stays on screen.
       expect(find.text('Cash'), findsWidgets, reason: at);
       // Seats: 1 on the bike, 3 in the auto.
       final bikeRow = find
-          .ancestor(of: find.text('Bike'), matching: find.byType(InkWell))
+          .ancestor(
+            of: inTierList(find.text('Bike')),
+            matching: find.byType(InkWell),
+          )
           .first;
       expect(
         find.descendant(of: bikeRow, matching: find.text('1')),
@@ -426,7 +441,10 @@ void main() {
         reason: at,
       );
       final autoRow = find
-          .ancestor(of: find.text('Auto'), matching: find.byType(InkWell))
+          .ancestor(
+            of: inTierList(find.text('Auto')),
+            matching: find.byType(InkWell),
+          )
           .first;
       expect(
         find.descendant(of: autoRow, matching: find.text('3')),
@@ -435,12 +453,12 @@ void main() {
       );
       // Comfort has no car nearby; the premium row is further down the list.
       await tester.scrollUntilVisible(
-        find.text('Premium'),
+        inTierList(find.text('Premium')),
         80,
         scrollable: find.byType(Scrollable).first,
       );
       await tester.pump();
-      expect(find.text('Premium'), findsOneWidget, reason: at);
+      expect(inTierList(find.text('Premium')), findsOneWidget, reason: at);
       expect(tester.takeException(), isNull, reason: at);
     }
     tester.view.reset();
@@ -515,8 +533,14 @@ void main() {
     for (var i = 0; i < 30; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    expect(find.text('No bikes nearby now — we\'ll keep looking'), findsOneWidget);
-    expect(find.text('No autos nearby now — we\'ll keep looking'), findsOneWidget);
+    expect(
+      find.text('No bikes nearby now — we\'ll keep looking'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('No autos nearby now — we\'ll keep looking'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }

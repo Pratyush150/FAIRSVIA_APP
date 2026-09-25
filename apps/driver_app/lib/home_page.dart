@@ -20,6 +20,8 @@ import 'features/driver/vehicle_setup_dialog.dart';
 import 'features/fatigue/fatigue_panel.dart';
 import 'features/incentives/driver_rates.dart';
 import 'features/incentives/quests.dart';
+import 'features/trip_extras/trip_extras.dart';
+import 'features/home_extras/driver_home_extras.dart';
 
 /// Top-down 3D render of the driver's own vehicle tier for their car on the
 /// map (the same art the rider sees for this driver); unknown/absent tiers
@@ -1014,6 +1016,36 @@ class _BottomSheet extends StatelessWidget {
     final coming = state.riderComingAt != null &&
         (state.phase == DriverPhase.enRoute ||
             state.phase == DriverPhase.arrived);
+    // Waiting phases (offline / online): pull the sheet up for today's
+    // figures, busy areas, rates and driver tips (real data only).
+    if (state.phase == DriverPhase.offline ||
+        (state.phase == DriverPhase.online)) {
+      return DriverExpandableSheet(
+        key: ValueKey('drv-sheet-${state.phase.name}'),
+        extras: driverWaitingExtras(context, state, myLocation),
+        child: child,
+      );
+    }
+    // In-trip phases: pull the sheet up for the rider, route, fare/payment,
+    // progress, safety tools and a driver tip; after the trip, this trip's
+    // fare, today's total and quests. Collapsed, the sheet is unchanged.
+    if (_tripExtras(context, state, cubit) case final extras?) {
+      return TripPullUpSheet(
+        stageKey: state.phase,
+        extras: extras,
+        child: coming
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _RiderComingBanner(name: state.riderName),
+                  const SizedBox(height: AppSpacing.md),
+                  child,
+                ],
+              )
+            : child,
+      );
+    }
     return AppSheet(
       child: coming
           ? Column(
@@ -1026,6 +1058,63 @@ class _BottomSheet extends StatelessWidget {
               ],
             )
           : child,
+    );
+  }
+
+  /// The pull-up content for the in-trip and trip-complete phases; null for
+  /// every other phase (or when there is no trip to describe).
+  Widget? _tripExtras(
+      BuildContext context, DriverState state, DriverCubit cubit) {
+    if (state.phase == DriverPhase.completed) {
+      final id = state.lastTripId;
+      final api = sl.isRegistered<DriverRemoteDataSource>()
+          ? sl<DriverRemoteDataSource>()
+          : null;
+      return DriverCompletedExtras(
+        key: ValueKey('completed-extras-$id'),
+        loadTrip: id == null || api == null ? null : () => api.getTrip(id),
+        todayTotal: state.lastEarned,
+        quests: const _SheetQuests(),
+      );
+    }
+    final trip = state.trip;
+    if (trip == null) return null;
+    final stage = switch (state.phase) {
+      DriverPhase.enRoute => TripExtrasStage.toPickup,
+      DriverPhase.arrived => TripExtrasStage.waiting,
+      DriverPhase.onTrip => TripExtrasStage.onTrip,
+      _ => null,
+    };
+    if (stage == null) return null;
+    final target = stage == TripExtrasStage.onTrip
+        ? LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng)
+        : LatLng(trip.pickup.point.lat, trip.pickup.point.lng);
+    final me = myLocation;
+    final remaining = me == null || stage == TripExtrasStage.waiting
+        ? null
+        : route.length >= 2
+            ? routeRemainingMeters(route, me)
+            : distanceMeters(me, target);
+    return DriverTripExtras(
+      stage: stage,
+      trip: trip,
+      riderName: state.riderName,
+      remainingMeters: remaining,
+      onNavigate: () async {
+        final ok = await openTurnByTurn(
+            lat: target.latitude, lng: target.longitude);
+        if (!ok && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('No navigation app could be opened')));
+        }
+      },
+      onSafety: () => openDriverSafety(context, trip.id),
+      onShare: () => shareTripText(
+        context,
+        "I'm driving a ${AppBrand.name} trip"
+        '${trip.dropoff.address != null ? ' to ${trip.dropoff.address}' : ''}.',
+      ),
+      onMessage: () => openDriverChat(context, trip.id),
     );
   }
 }

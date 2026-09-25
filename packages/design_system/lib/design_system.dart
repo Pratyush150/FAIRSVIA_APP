@@ -58,6 +58,16 @@ export 'src/widgets/home/promo_carousel.dart';
 export 'src/widgets/home/context_card.dart';
 export 'src/widgets/home/brand_footer.dart';
 
+// Sections for a bottom sheet's pulled-up part (comparison, notes, features).
+export 'src/widgets/sheet_extras/sheet_extras.dart';
+
+// Below-the-fold sections for the live ride / booking sheets (progress,
+// safety toolkit, fare rows, titled sections).
+export 'src/widgets/ride_extras/ride_progress_card.dart';
+export 'src/widgets/ride_extras/ride_toolkit_grid.dart';
+export 'src/widgets/ride_extras/ride_detail_rows_card.dart';
+export 'src/widgets/ride_extras/ride_extras_section.dart';
+
 // Re-export flutter_animate so apps get the `.animate()` API (and our reveal
 // helpers) from a single design_system import.
 export 'package:flutter_animate/flutter_animate.dart';
@@ -70,3 +80,4 @@ export 'package:latlong2/latlong.dart' show LatLng;
 export 'src/theme/phosphor_icons.dart';
 export 'src/widgets/brand_loader.dart';
 export 'src/widgets/lottie_moment.dart';
+export 'src/widgets/driver_extras/driver_extras.dart';

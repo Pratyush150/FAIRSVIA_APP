@@ -96,7 +96,7 @@ void main() {
 
     testWidgets('tapping the unavailable tier selects it', (tester) async {
       await pumpSheet(tester, choosing());
-      await tester.tap(find.text('Comfort'));
+      await tester.tap(find.text('Comfort').first);
       verify(() => cubit.selectTier('comfort')).called(1);
     });
 

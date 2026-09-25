@@ -7,6 +7,9 @@ class _FindingDriver extends StatefulWidget {
   const _FindingDriver({required this.state});
   final TripState state;
 
+  /// Always show the pulled-up extras (tests render the expanded page).
+  bool get showExtras => debugFindingExtras;
+
   @override
   State<_FindingDriver> createState() => _FindingDriverState();
 }
@@ -21,8 +24,9 @@ class _FindingDriverState extends State<_FindingDriver> {
   /// else the default window from the request (or from when this showed).
   DateTime get _endsAt =>
       widget.state.searchEndsAt ??
-      (widget.state.trip?.requestedAt?.toLocal() ?? _shownAt)
-          .add(RideStatus.searchWindow);
+      (widget.state.trip?.requestedAt?.toLocal() ?? _shownAt).add(
+        RideStatus.searchWindow,
+      );
 
   @override
   void initState() {
@@ -47,8 +51,46 @@ class _FindingDriverState extends State<_FindingDriver> {
     }
   }
 
+  _SheetDrag? _drag;
+
+  /// The sheet is settled fully pulled up (expanded): it has a fixed height
+  /// then, so extra content scrolls instead of growing it. Only once it has
+  /// settled there, so a drag between rest and expanded, and the snap back
+  /// to rest, move the compact card alone and it rests at the height it had.
+  bool get _pulledUp {
+    final d = _drag;
+    return d != null &&
+        d.sheetExpanded &&
+        d._snapTween == null &&
+        d._dragHeight != null;
+  }
+
+  void _onSnap() {
+    if (mounted) setState(() {});
+  }
+
+  void _onSnapStatus(AnimationStatus _) => _onSnap();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final drag = context.findAncestorStateOfType<_SheetDrag>();
+    if (!identical(drag, _drag)) {
+      _drag?._snapAnim
+        ?..removeListener(_onSnap)
+        ..removeStatusListener(_onSnapStatus);
+      _drag = drag;
+      drag?._snapAnim
+        ?..addListener(_onSnap)
+        ..addStatusListener(_onSnapStatus);
+    }
+  }
+
   @override
   void dispose() {
+    _drag?._snapAnim
+      ?..removeListener(_onSnap)
+      ..removeStatusListener(_onSnapStatus);
     _timer?.cancel();
     _tick?.cancel();
     super.dispose();
@@ -61,7 +103,9 @@ class _FindingDriverState extends State<_FindingDriver> {
     final place = RideStatus.placeName(state);
     var left = _endsAt.difference(DateTime.now());
     if (left.isNegative) left = Duration.zero;
-    final total = left > RideStatus.searchWindow ? left : RideStatus.searchWindow;
+    final total = left > RideStatus.searchWindow
+        ? left
+        : RideStatus.searchWindow;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -81,8 +125,11 @@ class _FindingDriverState extends State<_FindingDriver> {
                   child: PulseRadar(
                     // Plan D's kolam needs room round the glyph.
                     size: 76,
-                    child: Icon(PhosphorIconsRegular.taxi,
-                        size: 20, color: AppColors.accent),
+                    child: Icon(
+                      PhosphorIconsRegular.taxi,
+                      size: 20,
+                      color: AppColors.accent,
+                    ),
                   ),
                 ),
               )
@@ -161,6 +208,11 @@ class _FindingDriverState extends State<_FindingDriver> {
           label: 'Cancel ride',
           onPressed: () => _confirmCancel(context, feeWarning: false),
         ),
+        // This sheet rests at its content's height, so the extras show only
+        // once the rider pulls it up (it is then a fixed height and
+        // scrolls); at rest it stays the compact card it was.
+        if (widget.showExtras || _pulledUp)
+          LiveRideExtras(state: state, searching: true),
       ],
     );
   }
@@ -192,7 +244,8 @@ bool _paysCash(TripState state) =>
 /// ride yet rather than showing a zero. Public for tests.
 String searchingSummary(TripState state) {
   final fare = state.displayFare;
-  final currency = state.trip?.currency ??
+  final currency =
+      state.trip?.currency ??
       state.selectedFare?.currency ??
       state.estimate?.currency;
   return [
@@ -205,7 +258,10 @@ String searchingSummary(TripState state) {
 /// Confirms a ride cancellation before calling through. When a driver is already
 /// on the way ([feeWarning]), warns that a cancellation fee may apply, then — if
 /// one was charged — tells the rider the exact amount. Prevents a silent charge.
-Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) async {
+Future<void> _confirmCancel(
+  BuildContext context, {
+  required bool feeWarning,
+}) async {
   final messenger = ScaffoldMessenger.of(context);
   final cubit = context.read<TripCubit>();
   final reason = await showDialog<String>(
@@ -221,7 +277,7 @@ Future<void> _confirmCancel(BuildContext context, {required bool feeWarning}) as
         content: Text(
           fee > 0
               ? 'Ride cancelled. A ${Fmt.money(fee, cubit.state.trip?.currency)} '
-                  'cancellation fee was charged.'
+                    'cancellation fee was charged.'
               : 'Ride cancelled.',
         ),
       ),
@@ -246,8 +302,9 @@ Future<void> _confirmEndEarly(BuildContext context) async {
   if (!ended) {
     messenger
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-          content: Text(cubit.state.error ?? 'Could not end the trip.')));
+      ..showSnackBar(
+        SnackBar(content: Text(cubit.state.error ?? 'Could not end the trip.')),
+      );
   }
 }
 
@@ -334,7 +391,11 @@ class CancelRideDialog extends StatelessWidget {
       child: AlertDialog(
         title: const Text('Cancel this ride?'),
         contentPadding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
+          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.lg,
+          0,
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -343,9 +404,9 @@ class CancelRideDialog extends StatelessWidget {
               Text(
                 feeWarning
                     ? 'Your driver is already on the way. Cancelling is free '
-                        'for 2 minutes after they accept; after that a '
-                        '${_feeLabel(cubit)} cancellation fee applies. '
-                        'Let us know why:'
+                          'for 2 minutes after they accept; after that a '
+                          '${_feeLabel(cubit)} cancellation fee applies. '
+                          'Let us know why:'
                     : 'Let us know why:',
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -384,7 +445,8 @@ Future<void> _callDriver(
   if (!ok) {
     messenger.showSnackBar(
       SnackBar(
-          content: Text("Couldn't open the dialler for ${Fmt.phone(phone)}")),
+        content: Text("Couldn't open the dialler for ${Fmt.phone(phone)}"),
+      ),
     );
   }
 }
@@ -461,8 +523,10 @@ class DriverInfoSheet extends StatelessWidget {
                         ),
                         const SizedBox(width: AppSpacing.xs),
                         Flexible(
-                          child: Text(waitingForLocation,
-                              style: theme.textTheme.bodySmall),
+                          child: Text(
+                            waitingForLocation,
+                            style: theme.textTheme.bodySmall,
+                          ),
                         ),
                       ],
                     ),
@@ -487,20 +551,28 @@ class DriverInfoSheet extends StatelessWidget {
         ],
         const SizedBox(height: AppSpacing.md),
         _DriverVehicleCard(
-            driver: driver, tier: state.trip?.tier ?? state.selectedTier),
+          driver: driver,
+          tier: state.trip?.tier ?? state.selectedTier,
+        ),
         if (otp != null) ...[
           const SizedBox(height: AppSpacing.md),
           _RidePin(pin: otp, driverName: RideStatus.driverName(state)),
         ],
         // Plan D: once the car is here, a cash rider sees who to pay.
-        if (LocalArt.on && arrived && _paysCash(state) && state.displayFare != null) ...[
+        if (LocalArt.on &&
+            arrived &&
+            _paysCash(state) &&
+            state.displayFare != null) ...[
           const SizedBox(height: AppSpacing.md),
           PayDriverStrip(
-            amount: Money.format(state.displayFare!,
-                currency: state.trip?.currency ??
-                    state.selectedFare?.currency ??
-                    state.estimate?.currency,
-                wholeOnly: true),
+            amount: Money.format(
+              state.displayFare!,
+              currency:
+                  state.trip?.currency ??
+                  state.selectedFare?.currency ??
+                  state.estimate?.currency,
+              wholeOnly: true,
+            ),
             driverName: _payee(state),
           ),
         ],
@@ -546,6 +618,271 @@ class DriverInfoSheet extends StatelessWidget {
         const RideCardsSection(),
         const SizedBox(height: AppSpacing.md),
         _RideQuickActions(state: state),
+        // Below the fold (the compact card scrolls), so pulling the card
+        // fully up shows a complete page, not an empty one.
+        LiveRideExtras(state: state, searching: false),
+      ],
+    );
+  }
+}
+
+/// Tests only: render the finding-driver sheet with its pulled-up extras
+/// without driving the drag.
+@visibleForTesting
+bool debugFindingExtras = false;
+
+/// The below-the-fold part of the finding-driver and driver-arriving sheets:
+/// what fills the card when the rider pulls it fully up. Every figure is the
+/// trip's own (tier, fare, payment, addresses, the driver's ETA); a figure
+/// that is not known leaves its line out. [searching]: the finding-driver
+/// variant (what was booked, what happens next); otherwise the driver is
+/// assigned (pickup ETA and clock time, meeting tips). Public for tests.
+class LiveRideExtras extends StatelessWidget {
+  const LiveRideExtras({
+    super.key,
+    required this.state,
+    required this.searching,
+  });
+
+  final TripState state;
+  final bool searching;
+
+  String? get _fareText {
+    final fare = state.displayFare;
+    if (fare == null) return null;
+    return Money.format(
+      fare,
+      currency:
+          state.trip?.currency ??
+          state.selectedFare?.currency ??
+          state.estimate?.currency,
+      wholeOnly: true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pickup = state.trip?.pickup.address ?? state.pickupAddr;
+    final drop = state.trip?.dropoff.address ?? state.dropoffAddr;
+    final tier = state.trip?.tier ?? state.selectedTier;
+    final fare = _fareText;
+    final eta = state.liveEtaSec ?? state.driver?.etaSec;
+    final hasTrip = state.trip?.id != null;
+    return Column(
+      key: ValueKey(searching ? 'finding-extras' : 'driver-extras'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!searching && eta != null && eta > 0)
+          RideExtrasSection(
+            title: 'Pickup',
+            child: RideProgressCard(
+              icon: PhosphorIconsRegular.clock,
+              title: 'Driver arriving',
+              headline: '${(eta / 60).ceil()} min away',
+              arrival:
+                  'At your pickup by '
+                  '${Fmt.time(DateTime.now().add(Duration(seconds: eta)))}',
+            ),
+          ),
+        // The driver sheet already shows the car, tier, pickup and payment
+        // chips above the fold; only the finding sheet repeats what was
+        // booked, and the driver sheet adds where the ride goes.
+        if (!searching && drop != null)
+          RideExtrasSection(
+            title: 'Going to',
+            child: AppCard(
+              child: RouteTimeline(
+                stops: [
+                  for (final s in state.trip?.stops ?? const <TripStop>[])
+                    RouteTimelineStop(
+                      label: 'Stop',
+                      address: s.address ?? 'Pinned location',
+                    ),
+                  RouteTimelineStop(label: 'Drop-off', address: drop),
+                ],
+              ),
+            ),
+          ),
+        if (searching)
+          RideExtrasSection(
+            title: 'What you booked',
+            child: AppCard(
+              child: Row(
+                children: [
+                  VehicleGlyph(tier: tier ?? 'comfort', width: 72),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _tierLabel(state),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Text(
+                          [
+                            ?fare,
+                            _paysCash(state) ? 'Cash' : 'Card',
+                          ].join(' · '),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.tabular(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (searching && (pickup != null || drop != null))
+          RideExtrasSection(
+            title: 'Route',
+            child: AppCard(
+              child: RouteTimeline(
+                stops: [
+                  RouteTimelineStop(
+                    label: 'Pickup',
+                    address: pickup ?? 'Your pickup point',
+                  ),
+                  for (final s in state.trip?.stops ?? const <TripStop>[])
+                    RouteTimelineStop(
+                      label: 'Stop',
+                      address: s.address ?? 'Pinned location',
+                    ),
+                  RouteTimelineStop(
+                    label: 'Drop-off',
+                    address: drop ?? 'Your destination',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        RideExtrasSection(
+          title: 'Payment',
+          child: RideDetailRowsCard(
+            rows: [
+              if (fare != null)
+                RideDetailRow(
+                  label: 'Fare',
+                  value: fare,
+                  emphasis: true,
+                  icon: PhosphorIconsRegular.receipt,
+                ),
+              RideDetailRow(
+                label: 'Pay by',
+                value: _paysCash(state) ? 'Cash to your driver' : 'Card',
+                icon: _paysCash(state)
+                    ? PhosphorIconsRegular.money
+                    : PhosphorIconsRegular.creditCard,
+              ),
+            ],
+            footnote: searching
+                ? 'Cancelling now is free — no driver has been assigned yet.'
+                : 'Cancelling after a driver is assigned may carry a fee. '
+                      'You will see it before you confirm.',
+          ),
+        ),
+        RideExtrasSection(
+          title: 'Stay safe',
+          child: RideToolkitGrid(
+            perRow: 3,
+            actions: [
+              RideToolkitAction(
+                icon: PhosphorIconsRegular.export,
+                label: 'Share trip',
+                onTap: () => _shareTrip(context, state),
+              ),
+              if (hasTrip)
+                RideToolkitAction(
+                  icon: PhosphorIconsRegular.siren,
+                  label: 'SOS & contacts',
+                  danger: true,
+                  onTap: () => _openSafety(context, state),
+                ),
+              RideToolkitAction(
+                icon: PhosphorIconsRegular.headset,
+                label: 'Get help',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        SupportPage(support: sl<SupportRemoteDataSource>()),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        RideExtrasSection(
+          title: searching ? 'While you wait' : 'Meeting your driver',
+          child: RideDetailRowsCard(
+            rows: searching
+                ? const [
+                    RideDetailRow(
+                      icon: PhosphorIconsRegular.mapPin,
+                      label: 'Stay near your pickup point',
+                      value: '',
+                    ),
+                    RideDetailRow(
+                      icon: PhosphorIconsRegular.bellRinging,
+                      label: 'We’ll alert you when a driver accepts',
+                      value: '',
+                    ),
+                    RideDetailRow(
+                      icon: PhosphorIconsRegular.shieldCheck,
+                      label: 'Check the plate before you get in',
+                      value: '',
+                    ),
+                  ]
+                : const [
+                    RideDetailRow(
+                      icon: PhosphorIconsRegular.car,
+                      label: 'Match the plate and car before you get in',
+                      value: '',
+                    ),
+                    RideDetailRow(
+                      icon: PhosphorIconsRegular.shieldCheck,
+                      label: 'Share the ride PIN only inside the car',
+                      value: '',
+                    ),
+                    RideDetailRow(
+                      icon: PhosphorIconsRegular.chatCircle,
+                      label: 'Hard to find? Message or call your driver',
+                      value: '',
+                    ),
+                  ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        // The posters are fixed-height art: cap their text like the on-trip
+        // sheet does so large Dynamic Type cannot overflow them.
+        MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.5,
+          child: PromoCarousel(
+            [
+              PromoBannerData(
+                id: 'ride-poster-share',
+                headline: 'Let family follow your ride',
+                subline: 'Share a live trip link in one tap.',
+                image: PromoPhoto.shareTrip,
+                art: HomeArt.ride,
+                onTap: () => _shareTrip(context, state),
+              ),
+              PromoBannerData(
+                id: 'ride-poster-safety',
+                headline: 'Help is one tap away',
+                subline: 'SOS and your emergency contacts, on every ride.',
+                image: PromoPhoto.safetyRide,
+                art: HomeArt.someoneElse,
+                tone: PromoTone.sun,
+                onTap: hasTrip ? () => _openSafety(context, state) : null,
+              ),
+            ],
+            padding: EdgeInsets.zero,
+            autoAdvance: !AppMotion.reduced(context),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
       ],
     );
   }
@@ -571,11 +908,15 @@ class _RidePin extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Ride PIN',
-                    style: inkSectionLabel(context, theme.textTheme.titleMedium)),
+                Text(
+                  'Ride PIN',
+                  style: inkSectionLabel(context, theme.textTheme.titleMedium),
+                ),
                 const SizedBox(height: 2),
-                Text('Tell $who when you get in',
-                    style: theme.textTheme.bodySmall),
+                Text(
+                  'Tell $who when you get in',
+                  style: theme.textTheme.bodySmall,
+                ),
               ],
             ),
           ),
@@ -598,9 +939,13 @@ class _RidePin extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                       border: Border.all(color: AppColors.accent, width: 1.5),
                     ),
-              child: Text(d,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700, letterSpacing: 0)),
+              child: Text(
+                d,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
             ),
           ],
         ],
@@ -622,35 +967,43 @@ class _PickupSummary extends StatelessWidget {
     final cash = _paysCash(state);
     final pickup = state.trip?.pickup.address ?? state.pickupAddr;
     Widget chip(Widget icon, String label) => Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm, vertical: 4),
-          decoration: BoxDecoration(
-            color: dark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight,
-            borderRadius: BorderRadius.circular(AppSpacing.pill),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              icon,
-              const SizedBox(width: 4),
-              Text(label, style: theme.textTheme.labelMedium),
-            ],
-          ),
-        );
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: dark ? AppColors.surfaceMutedDark : AppColors.surfaceMutedLight,
+        borderRadius: BorderRadius.circular(AppSpacing.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          icon,
+          const SizedBox(width: 4),
+          Text(label, style: theme.textTheme.labelMedium),
+        ],
+      ),
+    );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: EdgeInsets.only(top: 2),
-          child: Icon(PhosphorIconsRegular.record, size: 20, color: AppColors.accent),
+          child: Icon(
+            PhosphorIconsRegular.record,
+            size: 20,
+            color: AppColors.accent,
+          ),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Pickup',
-                  style: inkSectionLabel(context, theme.textTheme.labelMedium)),
+              Text(
+                'Pickup',
+                style: inkSectionLabel(context, theme.textTheme.labelMedium),
+              ),
               Text(
                 pickup ?? 'Your pickup point',
                 style: theme.textTheme.bodyMedium,
@@ -662,20 +1015,29 @@ class _PickupSummary extends StatelessWidget {
                 spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xs,
                 children: [
-                  chip(const Icon(PhosphorIconsRegular.car,
-                          size: AppIconSize.inline),
-                      _tierLabel(state)),
                   chip(
-                      cash
-                          ? _HeroIcon(
-                              asset: 'cash',
+                    const Icon(
+                      PhosphorIconsRegular.car,
+                      size: AppIconSize.inline,
+                    ),
+                    _tierLabel(state),
+                  ),
+                  chip(
+                    cash
+                        ? _HeroIcon(
+                            asset: 'cash',
+                            size: AppIconSize.inline,
+                            fallback: const Icon(
+                              PhosphorIconsRegular.money,
                               size: AppIconSize.inline,
-                              fallback: const Icon(PhosphorIconsRegular.money,
-                                  size: AppIconSize.inline),
-                            )
-                          : const Icon(PhosphorIconsRegular.creditCard,
-                              size: AppIconSize.inline),
-                      cash ? 'Cash' : 'Card'),
+                            ),
+                          )
+                        : const Icon(
+                            PhosphorIconsRegular.creditCard,
+                            size: AppIconSize.inline,
+                          ),
+                    cash ? 'Cash' : 'Card',
+                  ),
                 ],
               ),
             ],
@@ -747,11 +1109,13 @@ class _DriverVehicleCard extends StatelessWidget {
     // into initials ("YD").
     final realName =
         (d == null || d.name.trim().isEmpty || d.name == 'Your driver')
-            ? null
-            : d.name.trim();
+        ? null
+        : d.name.trim();
     final vehicle = d?.vehicleLabel ?? '';
     final plate = d?.plate;
-    final muted = dark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final muted = dark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
     return AppCard(
       child: Row(
         children: [
@@ -771,7 +1135,9 @@ class _DriverVehicleCard extends StatelessWidget {
                     right: 0,
                     bottom: 0,
                     child: VehicleGlyph(
-                        tier: driverCardArtKey(d, tier), width: 80),
+                      tier: driverCardArtKey(d, tier),
+                      width: 80,
+                    ),
                   ),
                   Positioned(
                     left: 0,
@@ -780,7 +1146,9 @@ class _DriverVehicleCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: theme.colorScheme.surface, width: 2),
+                          color: theme.colorScheme.surface,
+                          width: 2,
+                        ),
                       ),
                       child: AppAvatar(name: realName, size: 48),
                     ),
@@ -800,14 +1168,17 @@ class _DriverVehicleCard extends StatelessWidget {
                 // "M H 1 2…", not "MH twelve".
                 if (plate != null)
                   Semantics(
-                    label: 'Number plate ${AppA11y.spell(Market.current.formatPlate(plate))}',
+                    label:
+                        'Number plate ${AppA11y.spell(Market.current.formatPlate(plate))}',
                     excludeSemantics: true,
                     child: _InkPlate(
                       child: Text(
                         Market.current.formatPlate(plate),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTypography.plate.copyWith(color: theme.colorScheme.onSurface),
+                        style: AppTypography.plate.copyWith(
+                          color: theme.colorScheme.onSurface,
+                        ),
                       ),
                     ),
                   ),
@@ -840,13 +1211,17 @@ class _DriverVehicleCard extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(PhosphorIconsFill.star,
-                              size: 16, color: AppColors.star),
+                          const Icon(
+                            PhosphorIconsFill.star,
+                            size: 16,
+                            color: AppColors.star,
+                          ),
                           const SizedBox(width: 2),
                           Text(
                             d == null ? '—' : d.rating.toStringAsFixed(1),
-                            style: theme.textTheme.labelMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
@@ -884,8 +1259,13 @@ class _OnMyWayButtonState extends State<_OnMyWayButton> {
     if (ok) {
       AppHaptics.success();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Couldn't reach your driver — try again, or call them.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Couldn't reach your driver — try again, or call them.",
+          ),
+        ),
+      );
     }
   }
 
@@ -902,8 +1282,11 @@ class _OnMyWayButtonState extends State<_OnMyWayButton> {
         ),
         child: Row(
           children: [
-            const Icon(PhosphorIconsFill.checkCircle,
-                size: 20, color: AppColors.success),
+            const Icon(
+              PhosphorIconsFill.checkCircle,
+              size: 20,
+              color: AppColors.success,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -940,10 +1323,12 @@ class _RideMenuButton extends StatelessWidget {
           case 'share':
             _shareTrip(context, state);
           case 'help':
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) =>
-                  SupportPage(support: sl<SupportRemoteDataSource>()),
-            ));
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    SupportPage(support: sl<SupportRemoteDataSource>()),
+              ),
+            );
           case 'cancel':
             _confirmCancel(context, feeWarning: true);
           case 'end-early':
@@ -971,10 +1356,11 @@ class _RideMenuButton extends StatelessWidget {
           const PopupMenuItem(
             value: 'end-early',
             child: ListTile(
-              leading: Icon(PhosphorIconsRegular.flag,
-                  color: AppColors.error),
-              title: Text('End trip here',
-                  style: TextStyle(color: AppColors.error)),
+              leading: Icon(PhosphorIconsRegular.flag, color: AppColors.error),
+              title: Text(
+                'End trip here',
+                style: TextStyle(color: AppColors.error),
+              ),
             ),
           )
         else
@@ -982,8 +1368,10 @@ class _RideMenuButton extends StatelessWidget {
             value: 'cancel',
             child: ListTile(
               leading: Icon(PhosphorIconsRegular.x, color: AppColors.error),
-              title:
-                  Text('Cancel ride', style: TextStyle(color: AppColors.error)),
+              title: Text(
+                'Cancel ride',
+                style: TextStyle(color: AppColors.error),
+              ),
             ),
           ),
       ],
@@ -1051,10 +1439,7 @@ class OnTripSheet extends StatelessWidget {
         // things a rider may need in a hurry.
         const SizedBox(height: AppSpacing.sm),
         Wrap(
-          children: [
-            _sosButton(context, state),
-            _shareButton(context, state),
-          ],
+          children: [_sosButton(context, state), _shareButton(context, state)],
         ),
         // The minutes are already in the headline's sub-line ("12 min to
         // destination"): here only the clock and the distance (A.21).
@@ -1063,13 +1448,18 @@ class OnTripSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              Icon(PhosphorIconsRegular.clock,
-                  size: 20, color: AppColors.accent),
+              Icon(
+                PhosphorIconsRegular.clock,
+                size: 20,
+                color: AppColors.accent,
+              ),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
-                child: Text(eta,
-                    style: theme.textTheme.titleSmall?.tabular(),
-                    maxLines: 2),
+                child: Text(
+                  eta,
+                  style: theme.textTheme.titleSmall?.tabular(),
+                  maxLines: 2,
+                ),
               ),
             ],
           ),
@@ -1083,6 +1473,203 @@ class OnTripSheet extends StatelessWidget {
         RideDetailsButton(state: state),
         const SizedBox(height: AppSpacing.md),
         _RideQuickActions(state: state),
+        // Below the fold: what the rider sees when they pull the sheet up.
+        _OnTripExtras(state: state),
+      ],
+    );
+  }
+}
+
+/// On trip, pulled up: the trip's progress, the driver and car, the route,
+/// the safety toolkit, the fare and payment, and posters for what the rider
+/// can do next. Every figure comes from the trip; a figure that is not
+/// known leaves its line out rather than showing a made-up one.
+class _OnTripExtras extends StatelessWidget {
+  const _OnTripExtras({required this.state});
+
+  final TripState state;
+
+  static String _clock(DateTime t) {
+    final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    return '$h:${t.minute.toString().padLeft(2, '0')} '
+        '${t.hour < 12 ? 'AM' : 'PM'}';
+  }
+
+  void _openContacts(BuildContext context) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) =>
+          EmergencyContactsPage(safety: sl<SafetyRemoteDataSource>()),
+    ),
+  );
+
+  void _openHelp(BuildContext context) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => SupportPage(support: sl<SupportRemoteDataSource>()),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final trip = state.trip;
+    final secs = state.liveEtaSec ?? trip?.durationS;
+    final left = state.liveRemainingM ?? trip?.distanceM;
+    final total = trip?.distanceM;
+    final progress = (left != null && total != null && total > 0)
+        ? 1 - left / total
+        : null;
+    // The minutes and the destination are already in the header: here the
+    // distance covered, and the arrival clock.
+    final headline = (progress != null && total != null && left != null)
+        ? '${Fmt.distance((total - left).clamp(0, total))} of ${Fmt.distance(total)}'
+        : left != null
+        ? '${Fmt.distance(left)} to go'
+        : '';
+    final currency =
+        trip?.currency ??
+        state.selectedFare?.currency ??
+        state.estimate?.currency;
+    final fare = state.displayFare;
+    final promo = trip?.promoCode;
+    final discount = trip?.promoDiscount ?? 0;
+    final pickupAddr = trip?.pickup.address ?? state.pickupAddr;
+    return Column(
+      key: const ValueKey('on-trip-extras'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (headline.isNotEmpty)
+          RideExtrasSection(
+            title: 'Trip progress',
+            child: RideProgressCard(
+              key: const ValueKey('on-trip-progress'),
+              title: 'Distance covered',
+              icon: PhosphorIconsRegular.navigationArrow,
+              headline: headline,
+              arrival: secs == null
+                  ? null
+                  : 'Expected at ${_clock(DateTime.now().add(Duration(seconds: secs)))}',
+              progress: progress,
+              startLabel: progress == null ? null : 'Pickup',
+              endLabel: progress == null ? null : 'Drop-off',
+            ),
+          ),
+        RideExtrasSection(
+          title: 'Your driver',
+          child: _DriverVehicleCard(
+            driver: state.driver,
+            tier: trip?.tier ?? state.selectedTier,
+          ),
+        ),
+        RideExtrasSection(
+          title: 'Safety',
+          child: RideToolkitGrid(
+            actions: [
+              RideToolkitAction(
+                key: const ValueKey('toolkit-sos'),
+                icon: PhosphorIconsRegular.siren,
+                label: 'SOS',
+                danger: true,
+                onTap: () => _openSafety(context, state),
+              ),
+              RideToolkitAction(
+                key: const ValueKey('toolkit-share'),
+                icon: PhosphorIconsRegular.export,
+                label: 'Share trip',
+                onTap: () => _shareTrip(context, state),
+              ),
+              RideToolkitAction(
+                key: const ValueKey('toolkit-contacts'),
+                icon: PhosphorIconsRegular.addressBook,
+                label: 'Contacts',
+                onTap: () => _openContacts(context),
+              ),
+              RideToolkitAction(
+                key: const ValueKey('toolkit-help'),
+                icon: PhosphorIconsRegular.headset,
+                label: 'Report issue',
+                onTap: () => _openHelp(context),
+              ),
+            ],
+          ),
+        ),
+        RideExtrasSection(
+          title: 'Trip details',
+          child: RideDetailRowsCard(
+            key: const ValueKey('on-trip-fare'),
+            rows: [
+              if (pickupAddr != null)
+                RideDetailRow(
+                  icon: PhosphorIconsRegular.mapPin,
+                  label: 'Pickup',
+                  value: pickupAddr,
+                ),
+              RideDetailRow(
+                icon: PhosphorIconsRegular.car,
+                label: 'Ride',
+                value: _tierLabel(state),
+              ),
+              if (promo != null && promo.isNotEmpty)
+                RideDetailRow(
+                  icon: PhosphorIconsRegular.tag,
+                  label: 'Promo $promo',
+                  value: discount > 0
+                      ? '−${Money.format(discount, currency: currency)}'
+                      : 'Applied',
+                  positive: true,
+                ),
+              RideDetailRow(
+                icon: _paysCash(state)
+                    ? PhosphorIconsRegular.money
+                    : PhosphorIconsRegular.creditCard,
+                label: 'Payment',
+                value: _paysCash(state) ? 'Cash' : 'Card',
+              ),
+              if (fare != null)
+                RideDetailRow(
+                  label: 'Estimated fare',
+                  value: Money.format(fare, currency: currency),
+                  emphasis: true,
+                ),
+            ],
+            footnote: 'The final fare is confirmed when the trip ends.',
+          ),
+        ),
+        RideExtrasSection(
+          title: 'Next up',
+          // Posters are fixed-ratio artwork: past 1.5x their copy would
+          // spill out of the frame, so their text stops growing there.
+          child: MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.5,
+            child: PromoCarousel([
+              PromoBannerData(
+                id: 'ride-poster-return',
+                headline: 'Plan your ride back',
+                subline: 'Pre-book a pickup from where you are headed.',
+                image: PromoPhoto.scheduleDusk,
+                art: HomeArt.prebook,
+                tone: PromoTone.mint,
+                onTap: () => _RideQuickActions(state: state)._preBook(context),
+              ),
+              PromoBannerData(
+                id: 'ride-poster-share',
+                headline: 'Let family follow your ride',
+                subline: 'Send a live trip link in one tap.',
+                image: PromoPhoto.shareTrip,
+                art: HomeArt.ride,
+                onTap: () => _shareTrip(context, state),
+              ),
+              PromoBannerData(
+                id: 'ride-poster-safety',
+                headline: 'Help is one tap away',
+                subline: 'Add emergency contacts for SOS on every ride.',
+                image: PromoPhoto.safetyRide,
+                art: HomeArt.someoneElse,
+                tone: PromoTone.sun,
+                onTap: () => _openContacts(context),
+              ),
+            ], padding: EdgeInsets.zero),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
       ],
     );
   }
@@ -1108,8 +1695,11 @@ class _RideStops extends StatelessWidget {
               children: [
                 const Padding(
                   padding: EdgeInsets.only(top: 2),
-                  child: Icon(PhosphorIconsRegular.flag,
-                      size: 20, color: AppColors.warning),
+                  child: Icon(
+                    PhosphorIconsRegular.flag,
+                    size: 20,
+                    color: AppColors.warning,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -1138,28 +1728,34 @@ class _RideQuickActions extends StatelessWidget {
 
   Future<void> _preBook(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
-    final trip = await Navigator.of(context).push<Trip>(MaterialPageRoute(
-      builder: (_) => PreBookPage(
-        repository: sl<TripRepository>(),
-        // Most pre-books from mid-ride are the ride back.
-        pickup: state.trip?.dropoff.point ?? state.dropoff,
-        pickupAddr: state.trip?.dropoff.address ?? state.dropoffAddr,
-        paymentMode: state.trip?.paymentMode ?? state.paymentMode,
-        payments: sl.isRegistered<PaymentsRemoteDataSource>()
-            ? sl<PaymentsRemoteDataSource>()
-            : null,
+    final trip = await Navigator.of(context).push<Trip>(
+      MaterialPageRoute(
+        builder: (_) => PreBookPage(
+          repository: sl<TripRepository>(),
+          // Most pre-books from mid-ride are the ride back.
+          pickup: state.trip?.dropoff.point ?? state.dropoff,
+          pickupAddr: state.trip?.dropoff.address ?? state.dropoffAddr,
+          paymentMode: state.trip?.paymentMode ?? state.paymentMode,
+          payments: sl.isRegistered<PaymentsRemoteDataSource>()
+              ? sl<PaymentsRemoteDataSource>()
+              : null,
+        ),
       ),
-    ));
+    );
     if (trip == null) return;
     final when = trip.scheduledAt;
     messenger
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(when == null
-            ? 'Ride scheduled. Find it in Account › Scheduled rides.'
-            : 'Ride scheduled for ${_formatSchedule(when)}. '
-                'Find it in Account › Scheduled rides.'),
-      ));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            when == null
+                ? 'Ride scheduled. Find it in Account › Scheduled rides.'
+                : 'Ride scheduled for ${_formatSchedule(when)}. '
+                      'Find it in Account › Scheduled rides.',
+          ),
+        ),
+      );
   }
 
   @override
@@ -1168,7 +1764,8 @@ class _RideQuickActions extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Not in the last kilometre: by then a stop is a detour, not a plan.
-        if (TripCubit.canAddStopTo(state) && !RideStatus.nearlyThere(state)) ...[
+        if (TripCubit.canAddStopTo(state) &&
+            !RideStatus.nearlyThere(state)) ...[
           _QuickActionCard(
             icon: PhosphorIconsRegular.mapPinPlus,
             hero: 'add_stop',
@@ -1244,10 +1841,12 @@ class _QuickActionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: theme.textTheme.titleSmall),
-                Text(subtitle,
-                    style: theme.textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -1278,7 +1877,9 @@ class _InkPlate extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface, width: 1.5),
+          color: Theme.of(context).colorScheme.onSurface,
+          width: 1.5,
+        ),
       ),
       child: child,
     );
@@ -1301,8 +1902,7 @@ class _HeroIcon extends StatelessWidget {
   /// its 3D renders come in a light and a dark set.
   static bool enabled(BuildContext context) =>
       AppClay3D.on ||
-      (AppColors.planLight &&
-          Theme.of(context).brightness == Brightness.light);
+      (AppColors.planLight && Theme.of(context).brightness == Brightness.light);
 
   @override
   Widget build(BuildContext context) {
@@ -1311,7 +1911,9 @@ class _HeroIcon extends StatelessWidget {
     return Image.asset(
       AppClay3D.on
           ? AppClay3D.heroAsset(
-              name, Theme.of(context).brightness == Brightness.dark)
+              name,
+              Theme.of(context).brightness == Brightness.dark,
+            )
           : 'assets/heroes/daylight/$name.png',
       package: 'design_system',
       width: size,
@@ -1420,7 +2022,8 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
       if (e.code == TripCubit.priceChangedCode) {
         setState(() {
           _adding = false;
-          _notice = 'The price changed while you were deciding. '
+          _notice =
+              'The price changed while you were deciding. '
               'Here is the new one.';
         });
         await _load();
@@ -1448,8 +2051,12 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
         ? 'your driver'
         : widget.driverName;
     return Padding(
-      padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg,
-          AppSpacing.lg + MediaQuery.viewPaddingOf(context).bottom),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.lg + MediaQuery.viewPaddingOf(context).bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1462,16 +2069,21 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
               const Icon(PhosphorIconsRegular.flag, color: AppColors.warning),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: Text(widget.stop.address ?? 'Pinned location',
-                    style: theme.textTheme.bodyLarge),
+                child: Text(
+                  widget.stop.address ?? 'Pinned location',
+                  style: theme.textTheme.bodyLarge,
+                ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
           if (_error != null)
-            Text(_error!,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: AppColors.error))
+            Text(
+              _error!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.error,
+              ),
+            )
           else if (q == null)
             const Center(
               child: Padding(
@@ -1481,9 +2093,12 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
             )
           else ...[
             if (_notice != null) ...[
-              Text(_notice!,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: AppColors.warningTextOf(context))),
+              Text(
+                _notice!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.warningTextOf(context),
+                ),
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
             AppCard(
@@ -1494,8 +2109,10 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('New fare', style: theme.textTheme.labelMedium),
-                        Text(Fmt.money(q.fareEstimate, q.currency),
-                            style: theme.textTheme.headlineSmall),
+                        Text(
+                          Fmt.money(q.fareEstimate, q.currency),
+                          style: theme.textTheme.headlineSmall,
+                        ),
                       ],
                     ),
                   ),
@@ -1508,8 +2125,10 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
                             : 'No change',
                         style: theme.textTheme.titleSmall,
                       ),
-                      Text('was ${Fmt.money(q.previousFare, q.currency)}',
-                          style: theme.textTheme.bodySmall),
+                      Text(
+                        'was ${Fmt.money(q.previousFare, q.currency)}',
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ],
@@ -1529,8 +2148,8 @@ class _AddStopConfirmSheetState extends State<AddStopConfirmSheet> {
             onPressed: _adding
                 ? null
                 : (_error != null && q == null)
-                    ? _load
-                    : (q == null ? null : _confirm),
+                ? _load
+                : (q == null ? null : _confirm),
           ),
           TextButton(
             onPressed: _adding ? null : () => Navigator.of(context).pop(false),
@@ -1567,7 +2186,8 @@ class _RideCardsSectionState extends State<RideCardsSection> {
   Future<void> _fetch() async {
     try {
       final cards =
-          await (widget.load ?? () => sl<ContentRemoteDataSource>().rideCards())();
+          await (widget.load ??
+              () => sl<ContentRemoteDataSource>().rideCards())();
       if (mounted) setState(() => _cards = cards);
     } catch (_) {
       // Promotions must never get in the way of the ride.
@@ -1582,14 +2202,20 @@ class _RideCardsSectionState extends State<RideCardsSection> {
       AppHaptics.selection();
       messenger
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(
-            content: Text('Code $value copied — add it when you book your next ride.')));
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Code $value copied — add it when you book your next ride.',
+            ),
+          ),
+        );
       return;
     }
     final ok = await (widget.openUrl ?? openExternalUrl)(value);
     if (!ok) {
       messenger.showSnackBar(
-          const SnackBar(content: Text("Couldn't open that link.")));
+        const SnackBar(content: Text("Couldn't open that link.")),
+      );
     }
   }
 
@@ -1609,7 +2235,10 @@ class _RideCardsSectionState extends State<RideCardsSection> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: dark
-                      ? const [AppColors.accentSoftDark, AppColors.surfaceMutedDark]
+                      ? const [
+                          AppColors.accentSoftDark,
+                          AppColors.surfaceMutedDark,
+                        ]
                       : [AppColors.accentSoft, AppColors.surfaceMutedLight],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -1626,10 +2255,12 @@ class _RideCardsSectionState extends State<RideCardsSection> {
                       children: [
                         Text(c.title, style: theme.textTheme.titleSmall),
                         const SizedBox(height: 2),
-                        Text(c.body,
-                            style: theme.textTheme.bodySmall,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis),
+                        Text(
+                          c.body,
+                          style: theme.textTheme.bodySmall,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   ),

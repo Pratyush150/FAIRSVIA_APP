@@ -1,5 +1,7 @@
 # Ride-list vehicle photos: sources and licences
 
+All four car tiers are white (owner request, 2026-09-25), so the list reads as one set.
+
 The vehicle pictures in the rider's "choose a ride" list (and the driver card,
 receipts and trip history, which use the same `VehicleGlyph`) are cut-outs made
 from free-licence Unsplash photos. Files: `packages/design_system/assets/vehicles/photo/`
@@ -14,8 +16,8 @@ attribution is not required. We record the sources anyway.
 |---|---|---|---|
 | `economy.webp` | Compact hatchback | https://unsplash.com/photos/NaqUwYUPekQ ("a white car parked on the side of the road", white VW Golf) | Background removed. Rear model script and maker badge painted out. Rear plate edge and tow hitch cut away. |
 | `comfort.webp`, `driver.webp` | Sedan | https://unsplash.com/photos/oa68pmfG-qk ("a white car on a white background", Hyundai Motor Group). This is the same photo as the Home "Ride" tile (CREDITS-home-tiles.md). | Background removed. Grille badge painted out. "SONATA" plate refilled as a blank plate. Mirrored to face left. |
-| `premium.webp` | Premium sedan | https://unsplash.com/photos/mzeZvq_dSpE ("a car is shown in a dimly lit room", dark grey Kia sedan) | Background removed. Bonnet badge painted out. "K4" plate refilled as a blank plate. |
-| `xl.webp` | 7-seat SUV (XL) | https://unsplash.com/photos/8zZ9AiNWKoI ("Dark blue suv parked on a reflective surface", VW Tiguan Allspace) | Background removed. Tailgate badge, "380 TSI" and model lettering, and the front wheel-cap logo painted out. Mirrored to face left. |
+| `premium.webp` | Premium sedan | https://unsplash.com/photos/kb9dTYzZuiQ ("White sedan on wet road beside green grass", white Toyota Mark II-era sedan, pure side view) | Background removed. The photo's green film grade neutralised so the paint reads white. No badge, lettering or plate is visible from this angle. |
+| `xl.webp` | 7-seat SUV (XL) | https://unsplash.com/photos/2xqFLkR0f4Y ("A white SUV parked in a parking lot with dark alloy wheels", large three-row body-on-frame SUV, pure side view) | Background removed. No badge, lettering or plate is visible from this angle. Mirrored to face left. |
 | `auto.webp` | Auto-rickshaw | https://unsplash.com/photos/wiug8R9aZSQ ("black and yellow vehicle near yellow wall and red door") | Background removed. Registration plate refilled as a blank plate. Mirrored to face left. |
 | `bike.webp` | Bike taxi | https://unsplash.com/photos/pQ3oaH_EQhI ("A blue and black motorcycle parked outdoors", Yamaha MT-09) | Background removed. Tank emblem, "MT-09" decal and "YAMAHA" fender lettering painted out. |
 
@@ -34,8 +36,8 @@ photos are not committed; the script's docstring says how to fetch them.
 Licence notes and caveats:
 - **Unsplash License:** free for commercial and non-commercial use, no attribution
   required. You may not sell unaltered copies or build a competing stock service.
-- **Trade dress:** these are real, recognisable models (VW Golf, Hyundai Sonata, Kia
-  K4, VW Tiguan Allspace, Yamaha MT-09). We removed the badges, lettering and
+- **Trade dress:** these are real, recognisable models (VW Golf, Hyundai Sonata, a
+  Toyota sedan, a large three-row SUV, Yamaha MT-09). We removed the badges, lettering and
   plate text we could find, but the stock licence gives no rights to a vehicle's
   design or trademarks. Tiny wheel-cap logos may remain on some wheels; at the
   list size (76 px wide) they are under one pixel. If legal wants zero brand
