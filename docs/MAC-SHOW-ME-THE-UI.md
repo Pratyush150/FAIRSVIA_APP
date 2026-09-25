@@ -80,39 +80,22 @@ flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
 | D2 | After sign-in: "**Allow location to get ride offers**" explainer *before* the iOS prompt; choose "Don't Allow" once → banner with **Open Settings** |
 | D3 | Account: profile card with rating ("New"), trips (last 7 days), plate; phone shown spaced "+91 98765 11111" |
 
-## 5. The three looks for the owner to choose between
+## 5. The shortlist (owner, 2026-09-25): four looks only
 
-Same tour (steps 01, 06, 10, 11, 14 are enough), rebuilt with one extra flag
-each. **On iOS they replace each other** (same bundle ID) — build, show,
-screenshot into `~/Desktop/ridevela-ui/<theme>/`, then the next.
+Build and show **only these four**. The other `THEME=` flags in the code
+(midnight, daylight, local, ink, indigo, lapis, marigold, copper, garnet) are
+off the shortlist — do not build or show them.
 
-| Theme flag | Plan | What's different |
+| Theme flag | Look | What to point out |
 |---|---|---|
-| *(none)* | Samarkand Turquoise (current) | White/black, teal-navy buttons, silver cars |
-| `--dart-define=THEME=midnight` | **A — Midnight Teal** | Dark by default (#0E0F11), bright teal #2BC4C4 buttons, flat silver cars with a teal stripe, rounder corners |
-| `--dart-define=THEME=daylight` | **B — Daylight 3D** | Light grey page, white sheets, deep teal #0A7C7C buttons, **3D cars** (teal/slate/sand/graphite), 3D Add-a-stop / Pre-book / check / cash icons |
-| `--dart-define=THEME=daynight` | **C — Day & Night** | B by day, A by night (follows the phone); the theme **doesn't switch mid-ride** — test: start a ride, switch the simulator to Dark (Settings → Developer → Dark Appearance, or `xcrun simctl ui $SIM appearance dark`), the app stays light until the ride ends |
+| *(none)* | **Samarkand Turquoise** (current) | Clean white/black, teal buttons, 3D cars in the list and on the map |
+| `--dart-define=THEME=daynight` | **C — Day & Night** | Light by day, dark by night (follows the phone); the theme **doesn't switch mid-ride** — test: start a ride, `xcrun simctl ui $SIM appearance dark`, it stays light until the ride ends |
+| `--dart-define=THEME=glass` | **F — Map Glass** | Floating **frosted** "Where to?" pill, compact ride card over the map, **plate tag under the car on the map**, glossy icon beads. Check the blur is smooth |
+| `--dart-define=THEME=clay3d` | **G — 3D Clay** | **Every icon is a 3D clay image**, coloured by meaning; one icon set for light and dark. Icons come from a colour bitmap font (sbix for iOS) — **check they show in colour on the iPhone**; blank boxes = sbix not used |
 
-**Three more looks, each with its own icons and art (not just colour):**
+Auto and Bike ride types are switched off — don't show them.
 
-| Theme flag | Plan | What's different — point these out |
-|---|---|---|
-| `--dart-define=THEME=local` | **D — Local Colour** | Anek font; Pune skyline art (Shaniwar Wada, auto, marigold sun) on the home sheet; **kolam-dot radar** when finding a driver (sheet and map); warm paper cards with "Rate card" chips; marigold completion badge; "Pay ₹X to <driver>: cash or UPI" strip |
-| `--dart-define=THEME=ink` | **E — Ink & Paper** | Thin **line-art icons** everywhere; serif headlines (Instrument Serif); **ink-drawn cars** in the list and on the map; receipt printed as a **ticket** (perforated edge, dotted leaders); hairline rules instead of cards; black buttons |
-| `--dart-define=THEME=glass` | **F — Map Glass** | No bottom sheet on home — a floating **frosted** "Where to?" pill; the ride card floats over the map and opens compact; **number-plate tag under the car on the map**; glossy icon beads; cards morph between steps. Check the blur is smooth on the iPhone |
-
-| `--dart-define=THEME=clay3d` | **G — 3D Clay** | **Every icon is a 3D clay image** (Airbnb-style), coloured by meaning; 3D cars; warm white page, deep teal buttons. Icons come from a colour bitmap font (sbix table for iOS) — **check the icons actually show in colour on the iPhone**; if they show as blank boxes, sbix isn't being used and we need an image fallback |
-
-The other `THEME=` flags in the code (indigo, lapis, marigold, copper, garnet)
-change colours only — the owner asked not to show those.
-
-**Auto and Bike ride types are switched off** (owner, 2026-09-24) — don't show them.
-
-On Android the owner already has these as separate apps ("RideVela A ·
-Midnight", "B · Daylight", "C · Day&Night") — the APKs are on nova-pc in
-`~/ubernav/build-variants/`.
-
-## 5b. Put all eight looks on the owner's iPhone (the "IPAs")
+## 5b. Put the four shortlisted looks on the owner's iPhone (the "IPAs")
 
 iOS gives every build the same bundle ID, so by default each look replaces
 the last. To have **all four side by side on the iPhone** (as on Android),
@@ -121,7 +104,7 @@ commit the Xcode change:
 
 ```sh
 cd ~/ubernav/apps/rider_app
-for pair in ":RideVela" "midnight:RideVela A" "daylight:RideVela B" "daynight:RideVela C" "local:RideVela D" "ink:RideVela E" "glass:RideVela F" "clay3d:RideVela G"; do
+for pair in ":RideVela" "daynight:RideVela C" "glass:RideVela F" "clay3d:RideVela G"; do
   t=${pair%%:*}; name=${pair#*:}
   SUF=${t:+.$t}
   flutter build ios --release \
