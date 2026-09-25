@@ -1,4 +1,4 @@
-# Mac: show the owner every screen, one by one (2026-09-24)
+# Mac: show the owner every screen, one by one (updated 2026-09-25, v2.12.0)
 
 **Who this is for:** the Claude session (or person) on the Mac at
 `/Users/parthbhimani/ubernav`. Follow it top to bottom. At every **SHOW** step,
@@ -7,64 +7,74 @@ screenshot, and wait for "next" before moving on.
 
 Rules: never commit `ios/Flutter/Secrets.xcconfig`; never force-push; this Mac
 only builds iOS — the backend and the fake drivers run on **nova-pc**
-(`ssh nova-pc`, already set up here).
+(`ssh nova-pc`, already set up here). Nothing in this file has been run on
+iOS yet: Android 2.12.0 was checked on nova-pc's emulator and the owner's
+Realme. Treat every row as "expected", not "already seen on an iPhone".
+
+**Current version: 2.12.0 (build 7200)** for both apps. The look is the final
+**Plan F "Map Glass"**, which is the default build (no THEME flag). Don't
+build other THEME flags.
 
 ---
 
 ## 1. Get the latest code and the server address
 
 ```sh
-cd ~/ubernav && git pull --ff-only
+cd ~/ubernav && git pull --ff-only          # must reach 57a586b or later
 URL=$(ssh nova-pc 'docker logs ridevela_tunnel 2>&1 | grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" | tail -1')/api/v1
 curl -s "$URL/health"        # must print {"status":"ok",...}
 mkdir -p ~/Desktop/ridevela-ui
 ```
 Use the **https tunnel** URL, not the Tailscale `http://` one (iOS blocks
-plain http in release builds).
+plain http in release builds). The quick-tunnel URL changes whenever
+nova-pc's internet drops. If `/health` fails, run
+`ssh nova-pc 'docker restart ridevela_tunnel'`, wait 10 s, and fetch the URL
+again.
 
 ## 2. Build and start the rider app
-
-Simulator is fine for showing the UI (fastest); use the cabled iPhone if the
-owner wants it in hand (`flutter devices` for its id).
 
 ```sh
 open -a Simulator            # an iPhone 16/17 simulator
 SIM=$(xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -1)
-xcrun simctl location $SIM set 18.5204,73.8567          # Pune
+xcrun simctl location $SIM set 18.5204,73.8567          # pilot area
 cd ~/ubernav/apps/rider_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM \
   --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
   --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=1.8.0 --build-number=5040
+  --build-name=2.12.0 --build-number=7200
 ```
-(Release on a simulator not supported by your Flutter? use `--profile`.)
-Screenshot command for every SHOW step:
-`xcrun simctl io $SIM screenshot ~/Desktop/ridevela-ui/<theme>/<NN-name>.png`
+If release mode isn't supported on the simulator, use `--profile`. For a
+cabled iPhone, use its id from `flutter devices`.
 
-## 3. The tour (default "Samarkand Turquoise" theme)
+Screenshot for every SHOW step:
+`xcrun simctl io $SIM screenshot ~/Desktop/ridevela-ui/<NN-name>.png`
 
-Start the helpers **on nova-pc** from a second terminal when a step says so.
+## 3. Rider tour
+
+On **nova-pc**, run helpers from a second terminal when a step says so:
 `F=~/ubernav/tools/fake-driver-simulator; P='START_LAT=18.5300 START_LNG=73.8475'`
 
 | # | Do | SHOW — what the owner should see |
 |---|---|---|
-| 01 | App opens | Splash: Road-V mark + "RideVela", a bar filling, gone in ≤1.5 s |
-| 02 | Sign in screen | 64 px mark top-left; phone field starts with an **"IN +91" chip**, hint "98765 43210"; "Terms" and "Privacy Policy" are underlined links (tap one: a *Draft* page — no public URL yet) |
-| 03 | Type any 10-digit number (e.g. 98765 11111) → Continue | Code screen; the code is shown on screen as **"Dev code: 123456"** — type it |
-| 04 | Name → Continue, allow location | Home: map on Pune, "Where to?" |
-| 05 | Account menu → Appearance | Light / Dark / Same as phone — flip to Dark and back: the whole app recolours instantly |
-| 06 | Where to? → type "Shivajinagar" → "Shivajinagar District Court" | Choose a ride: silver 3/4-view cars; rows say **"Pickup in N min · Drop 4:38 PM"**; an **ⓘ** per row (tap → itemised fare that adds up); **Cash / Add card right above Confirm**; prices in whole rupees; tiers with no car nearby are dimmed and say so |
-| 07 | nova-pc: `ssh nova-pc "cd $F && $P node idle-driver.mjs 3"` then Confirm | **Finding your driver**: rings spreading from the pickup on the map; sheet "Economy · ₹75 · Cash", "To Shivajinagar District Court" |
-| 08 | Wait 45 s | "**Still looking…** Drivers nearby are busy." |
-| 09 | Cancel ride → a reason | Back home |
-| 10 | nova-pc: `ssh nova-pc "cd $F && $P APPROACH_S=240 WAIT_AT_PICKUP_S=120 node slow-ride.mjs 3"` then book the same ride | **Driver on the way**: headline "**Priya arriving in N min**" / "Meet at your pickup spot"; card: the **number plate is the biggest text** (MH 12 AB 1234), car below, name + ★ rating; **Ride PIN in four boxes**; grey **Safety** pill; Message button |
-| 11 | Tap **Safety** | Call buttons **112 / Police 100 / Ambulance 108**, Send SOS alert, Share trip status (don't press SOS) |
-| 12 | Wait for arrival | "Priya has arrived", "I'm on my way" button |
-| 13 | Trip starts | In-trip: "**On the way to** Shivajinagar…" shown once; **Safety + Share** pills; ETA line; under 500 m "**Arriving soon**" and Add a stop disappears |
-| 14 | Stop slow-ride (Ctrl-C); for a finished ride run `ssh nova-pc "cd $F && $P node demo-live-ride.mjs"` and book again (≈90 s) | **Ride completed**: big check, **one "Total ₹75" line with Details ⌄** (tap: breakdown), "Pay ₹75 in cash", stars, Add to favourites, tips **₹20 / ₹50 / ₹100 / Custom**, **Done pinned at the bottom** |
-| 15 | Pickup text anywhere | Landmark/road first: "Mote Mangal Karyalay Road, Dattwadi, Pune" — never "204, …, Maharashtra 411002, India" |
-
-If slow-ride leaves a trip open: `ssh nova-pc "docker exec ubernav_postgres psql -U ubernav -d ubernav -c \"UPDATE trips SET status='cancelled' WHERE status='in_progress' AND updated_at < now() - interval '30 minutes'\""` — only if the owner agrees; it touches shared data.
+| 01 | App opens | Splash: RideVela mark + a **teal animated loader**, gone in ≤1.5 s |
+| 02 | Sign in: any 10-digit number → Continue → type the **"Dev code: 123456"** shown on screen → name → allow location | Home |
+| 03 | Home | Floating frosted **"Where to?"** bar with a **teal→mint gradient ring that keeps turning** and a soft glow. The leading icon is an **animated location pin** (plays once). "Later ⌄" sits on the right |
+| 04 | Scroll Home | Recent places; the **Ride / Pre-book / For others / Saved places** photo tiles, each with a thin teal rim; a **swipeable poster strip** (Offers, Plan tomorrow's ride, Help is one tap away, Let family follow your ride) that moves on every 5 s, has dots, and **shimmers** every ~6 s; promo banners below. No city name in any marketing copy |
+| 05 | Press and hold a tile or poster | It shrinks slightly and **glows teal** |
+| 06 | Bottom nav → **Offers** | The Offers tab icon is an **animated gift** (it also plays in the page header). Real codes: WELCOME50, AIRPORT100, WEEKEND20 |
+| 07 | Account → Appearance | Light / Dark / Same as phone. It must recolour instantly at any time, **including mid-ride**, without resetting the ride |
+| 08 | Where to? → type a place | Each result shows its **distance (e.g. "2.4 km") under the pin on the left**. Type nonsense → animated **"No places found"**. While loading → teal loader, not a grey spinner |
+| 09 | Pick "Shivajinagar District Court" | **Choose a ride**: 4 tiers, **all white cars, shown whole (not cropped)**: Economy hatchback, Comfort sedan, Premium sedan, XL SUV. All tiers are bright. Picking one → **animated tick + small bounce**. Cash / Card sits above Confirm |
+| 10 | Drag the Choose-ride sheet fully up | Not empty: **Compare rides** (seats · pickup · fare per tier), **About this fare** (distance, minutes, surge line), **Safety on every ride** tiles, posters |
+| 11 | "Later ⌄" (or the Pre-book tile) | **Pre-book**: a standard **12-hour clock with AM/PM** (no 24 h dial), and **Cash / Card chips**. With no card saved it starts on Cash and Card says "Add card". It books and confirms |
+| 12 | nova-pc: `ssh nova-pc "cd $F && $P node idle-driver.mjs 3"`, then Confirm | **Finding your driver**: radar rings on the map, glued in place while you pan. The search runs for up to 3 min |
+| 13 | Drag that sheet fully up | What you booked (car picture, fare, payment), route, "Cancelling now is free", Stay safe tools, while-you-wait tips, posters |
+| 14 | Cancel; nova-pc: `ssh nova-pc "cd $F && $P APPROACH_S=240 WAIT_AT_PICKUP_S=120 node slow-ride.mjs 3"`; book again | **Driver on the way**: plate biggest, car, name + ★, Ride PIN, Call + Message. Pulled up: a **car gliding toward a pickup pin** as the real ETA falls, "At your pickup by h:mm AM/PM", route, payment, safety tools (the **SOS tile pulses red**), meeting tips, posters |
+| 15 | Driver arrives | "has arrived" with an **arrived animation** |
+| 16 | Trip starts | "On the way to …" shown once; Safety, Share and Call. Pulled up: **Trip progress** with a **car sliding along the bar**, arrival time, your driver, safety tiles, trip details (fare, payment, promo), "Plan your ride back" poster |
+| 17 | For a finished ride: `ssh nova-pc "cd $F && $P node demo-live-ride.mjs"`, then book | **Ride completed** at 75% of the screen: **full confetti burst** (no longer clipped), one "Total ₹…" line with Details, stars, tips (tap an amount = selected, tap again = removed, no extra confirm), **Done pinned**. Pulled higher: Your trip card, **Plan your return / Book this trip again**, Receipt / Get help, posters |
+| 18 | Trips tab → tap a past trip | **Your trip** page: route map snapshot with distance/time pills, car + date + total, pickup→drop timeline, driver + plate, fare breakdown, payment, Share receipt / Get help |
+| 19 | Map anywhere | **Solid pins**: teal pickup with a white dot, dark drop-off with a white square; your location is a **blue dot with a halo** |
 
 ## 4. Driver app
 
@@ -72,39 +82,36 @@ If slow-ride leaves a trip open: `ssh nova-pc "docker exec ubernav_postgres psql
 cd ~/ubernav/apps/driver_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
   --dart-define=MARKET=in --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=1.8.0 --build-number=5040
+  --build-name=2.12.0 --build-number=7200
 ```
 | # | SHOW |
 |---|---|
-| D1 | Splash and sign-in carry a small **"Driver" pill** next to the mark |
-| D2 | After sign-in: "**Allow location to get ride offers**" explainer *before* the iOS prompt; choose "Don't Allow" once → banner with **Open Settings** |
-| D3 | Account: profile card with rating ("New"), trips (last 7 days), plate; phone shown spaced "+91 98765 11111" |
+| D1 | Offline sheet: "You're offline", earned today, **fatigue bar** ("Online today: Xm of 12h"), **Quests** card with progress, Go online |
+| D2 | **Drag the offline/online sheet up** (new: it was not draggable before): Today tiles (earned, trips, online time, per trip), Busy areas nearby, **Your rates** (acceptance / cancellation), **Tips for drivers** poster carousel, Help |
+| D3 | Go online: radar animation, busy areas shaded, **Destination** button (go-home mode: pick Home / search / map; max 2 per day; only offers trips that end closer to home) |
+| D4 | Accept an offer → going to pickup / waiting / on trip. **Drag up**: rider card with **★ rating**, route timeline, trip length / progress, fare + **"Collect cash at drop-off"** for cash rides, tools (Safety & SOS, Share, Message, Navigate), driver tip poster |
+| D5 | Complete the trip | Trip complete + money animation; **"Rate your rider" stars + Done are always visible, pinned at the bottom**. Drag up: this trip, today's total, quests (quest done → **trophy animation**) |
+| D6 | Earnings dashboard (Account / Earnings) | Daily and weekly figures in whole rupees |
 
-## 5. FINAL LOOK (owner, 2026-09-25): Plan F "Map Glass" — the default
+## 5. Install on the iPhone
 
-Glass is now the **default build** — no THEME flag needed; the normal
-"RideVela Rider" and "RideVela Driver" apps ARE the final version (git tag
-`ui-final-glass-v2.0.0`). Do not build the other THEME flags.
-
-What to check on the iPhone: floating **frosted** "Where to?" pill; compact
-ride card over the map; **plate tag under the car on the map**; glossy icon
-beads; the driver app's floating offline card and glass buttons. **Appearance
-(Account -> Appearance) must switch Light/Dark instantly at any time,
-including mid-ride**, without resetting the ride, map or car. Check the blur
-is smooth.
-
-## 5b. Install on the iPhone
-
-Just the two normal apps (sections 2 and 4) with `--build-name=2.0.0
---build-number=6000` — no THEME flag, no bundle-ID changes needed.
+Build the same two apps (sections 2 and 4) on the cabled iPhone with
+`--build-name=2.12.0 --build-number=7200`. No THEME flag, no bundle-ID changes.
 
 ## 6. Report back
 
-Commit nothing but notes. Write what you saw per step (✅ / ❌ + screenshot
-name) into `docs/ios-ui-tour-<date>.md`, `git add` just that file, commit
+Commit only notes. For each step, write ✅ or ❌ plus the screenshot name into
+`docs/ios-ui-tour-<date>.md`. `git add` just that file, commit
 "docs: iOS UI tour results" and push. Anything that differs from the SHOW
-column is a finding — describe it, don't fix it on the Mac.
+column is a finding: describe it, don't fix it on the Mac.
 
-**Known placeholders (not bugs):** Terms/Privacy are Draft pages; the 3D icons
-in B/C are stand-ins (Microsoft Fluent 3D, MIT) until commissioned art; Android
-SMS auto-read is not built; driver photos aren't uploaded yet (letter avatar).
+**Known open items (not bugs):**
+- Terms and Privacy are Draft pages.
+- LottieFiles animation licences are not yet confirmed (see
+  `packages/design_system/assets/lottie/CREDITS.md`).
+- The "share your ride" poster shows a person (Unsplash, no model release).
+- Ride-tier photos are recognisable real car models (trade-dress question
+  open).
+- Driver photos aren't uploaded yet (letter avatar).
+- Pickup addresses in the pilot data are Pune; that is test data, not
+  marketing copy.
