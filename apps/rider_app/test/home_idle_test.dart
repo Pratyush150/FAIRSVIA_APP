@@ -346,7 +346,8 @@ void main() {
   testWidgets('offers page lists promos', (tester) async {
     await pump(tester, offersPage());
     await tester.pumpAndSettle();
-    expect(find.byType(OfferCard), findsOneWidget);
+    // The first (here only) offer leads as the photo hero.
+    expect(find.byType(OfferHero), findsOneWidget);
   });
 
   // The app launches in several markets (Central Asia / Middle East first):

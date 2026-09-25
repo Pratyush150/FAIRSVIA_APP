@@ -112,20 +112,25 @@ class AppSheet extends StatelessWidget {
   Widget _sized(BuildContext context, MediaQueryData media, Widget body) {
     final range = _heightConstraints(media);
     final exact = height;
+    double? tight;
     if (exact != null && !fullScreen) {
       final cap = media.size.height - media.padding.top - AppSpacing.md;
-      final h = exact.clamp(0.0, cap < 0 ? 0.0 : cap);
-      return SizedBox(height: h, child: body);
+      tight = exact.clamp(0.0, cap < 0 ? 0.0 : cap);
     }
+    // One tree for both (an exact height only swaps the constraints): a
+    // different wrapper would rebuild the sheet's scroll view mid-drag and
+    // cut off a drag that started on it.
     return TweenAnimationBuilder<double>(
       tween: Tween(end: range.minHeight),
       duration: AppMotion.of(context, AppMotion.slower),
       curve: AppMotion.standard,
       builder: (context, floor, child) => ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: floor < range.maxHeight ? floor : range.maxHeight,
-          maxHeight: range.maxHeight,
-        ),
+        constraints: tight != null
+            ? BoxConstraints.tightFor(height: tight)
+            : BoxConstraints(
+                minHeight: floor < range.maxHeight ? floor : range.maxHeight,
+                maxHeight: range.maxHeight,
+              ),
         child: child,
       ),
       child: body,

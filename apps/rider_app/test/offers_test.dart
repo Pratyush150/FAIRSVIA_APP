@@ -151,8 +151,10 @@ void main() {
       expect(find.text('Airport run'), findsOneWidget);
       expect(find.text('On fares over ₹400 · 2 uses left · Ends 3 Oct 2030'),
           findsOneWidget);
-      expect(find.text('Apply to next ride'), findsNWidgets(2));
-      await tester.tap(find.text('Apply to next ride').first);
+      // The hero's full label, the ticket's short pill (same spoken label).
+      expect(find.text('Apply to next ride'), findsOneWidget);
+      expect(find.text('Apply'), findsOneWidget);
+      await tester.tap(find.text('Apply to next ride'));
       expect(applied, welcome);
     });
 
@@ -167,7 +169,7 @@ void main() {
       );
       expect(find.text('Applied — will be used on your next ride'),
           findsOneWidget);
-      expect(find.text('Apply to next ride'), findsOneWidget); // the other
+      expect(find.text('Apply'), findsOneWidget); // the other
       await tester.tap(find.text('Remove'));
       expect(removed, isTrue);
     });

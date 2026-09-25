@@ -18,10 +18,16 @@ part of 'ride_sheets.dart';
 ///   next one in the fling's direction;
 /// - Reduce Motion: the sheet snaps without animating.
 ///
-/// The drag is taken anywhere on the sheet that is not itself scrolling;
-/// once the content is scrolled to an end, pulling on past that end moves
-/// the sheet instead (the Android overscroll). Pinned footers (Confirm,
-/// Done) stay on the sheet's bottom edge at every size.
+/// The drag is taken anywhere on the sheet, the scrolling content included
+/// (Uber / Google Maps): a drag up first grows the sheet to expanded, and
+/// only once it is there does the content scroll; a drag down with the
+/// content at its top shrinks the sheet (to rest, on trip on to the peek).
+/// The sheet's scroll view does this through [_SheetScrollController] — it
+/// is handed the controller as its [PrimaryScrollController] — so the same
+/// holds under Android clamping and iOS bouncing physics. Any other scroll
+/// view nested deeper still moves the sheet once it is scrolled to an end
+/// (its overscroll). Pinned footers (Confirm, Done) stay on the sheet's
+/// bottom edge at every size.
 
 /// The phases whose sheet can be dragged.
 bool _draggablePhase(TripPhase p) => switch (p) {
@@ -69,6 +75,14 @@ mixin _SheetDrag<T extends StatefulWidget>
 
   final GlobalKey _dragBoxKey = GlobalKey();
 
+  /// True while a drag on the sheet's scroll view is moving the sheet.
+  bool _innerDrag = false;
+
+  /// Handed to the sheet's scroll view: routes its drags to the sheet first.
+  late final _SheetScrollController _sheetScroll = _SheetScrollController(
+    this,
+  );
+
   /// The height to hand [AppSheet.height] (null: the rest sizing).
   double? get sheetHeight => _dragHeight;
 
@@ -91,6 +105,7 @@ mixin _SheetDrag<T extends StatefulWidget>
   @override
   void dispose() {
     _snapAnim.dispose();
+    _sheetScroll.dispose();
     super.dispose();
   }
 
@@ -103,6 +118,7 @@ mixin _SheetDrag<T extends StatefulWidget>
     _dragHeight = null;
     _restPx = null;
     _overscrollDrag = false;
+    _innerDrag = false;
   }
 
   double get _screenHeight => MediaQuery.sizeOf(context).height;
@@ -215,8 +231,42 @@ mixin _SheetDrag<T extends StatefulWidget>
     _animateTo(to, snaps[to]!);
   }
 
+  /// A drag on the sheet's scroll view, [grow] pixels (positive: finger up,
+  /// the sheet taller). Takes what the sheet can use — up until expanded;
+  /// down, only while the content is at its top ([contentAtTop]) and until
+  /// the lowest size — and returns it; the scroll view gets the rest.
+  double _innerTake(double grow, {required bool contentAtTop}) {
+    if (!mounted || !_draggablePhase(dragPhase) || grow == 0) return 0;
+    if (!contentAtTop && grow < 0) return 0;
+    // At rest the rest size is the sheet's size now.
+    if (_dragHeight == null) _restPx = _currentHeight();
+    final snaps = _snapHeights();
+    final h = _dragHeight ?? _restPx!;
+    final room = grow > 0 ? snaps.values.last - h : snaps.values.first - h;
+    if (room.abs() < 0.5 || room.sign != grow.sign) return 0;
+    final take = grow.abs() < room.abs() ? grow : room;
+    if (!_innerDrag) {
+      _innerDrag = true;
+      _beginDrag();
+    }
+    _dragBy(take);
+    return take;
+  }
+
+  /// The drag on the sheet's scroll view ended ([velocity]: px/s, negative =
+  /// finger up). Snaps the sheet if that drag moved it; returns whether the
+  /// sheet is (going) expanded, so the content may take the fling.
+  bool? _innerRelease(double velocity) {
+    if (!_innerDrag) return null;
+    _innerDrag = false;
+    _endDrag(velocity);
+    return _target == _SheetSnap.expanded;
+  }
+
   bool _onScroll(ScrollNotification n) {
     if (n.metrics.axis != Axis.vertical) return false;
+    // The sheet's own scroll view already hands its drags to the sheet.
+    if (_innerDrag) return false;
     if (n is OverscrollNotification && n.dragDetails != null) {
       if (!_overscrollDrag) {
         _overscrollDrag = true;
@@ -233,6 +283,13 @@ mixin _SheetDrag<T extends StatefulWidget>
   /// Wraps the built sheet in the drag: a vertical drag anywhere on it that
   /// an inner scroll view does not take, and its overscroll.
   Widget draggable(Widget sheet) {
+    // Every platform (not just the mobile default): the sheet's scroll
+    // view takes this controller, which moves the sheet before the content.
+    sheet = PrimaryScrollController(
+      controller: _sheetScroll,
+      automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+      child: sheet,
+    );
     if (!_draggablePhase(dragPhase)) {
       return KeyedSubtree(key: _dragBoxKey, child: sheet);
     }
@@ -250,5 +307,58 @@ mixin _SheetDrag<T extends StatefulWidget>
         child: sheet,
       ),
     );
+  }
+}
+
+/// The sheet scroll view's controller: its positions offer every drag to the
+/// sheet ([_SheetDrag._innerTake]) before scrolling, and a release to the
+/// sheet's snap before any fling of the content.
+class _SheetScrollController extends ScrollController {
+  _SheetScrollController(this.host) : super(debugLabel: 'ride sheet');
+
+  final _SheetDrag host;
+
+  @override
+  ScrollPosition createScrollPosition(
+    ScrollPhysics physics,
+    ScrollContext context,
+    ScrollPosition? oldPosition,
+  ) => _SheetScrollPosition(
+    host: host,
+    physics: physics,
+    context: context,
+    oldPosition: oldPosition,
+    debugLabel: debugLabel,
+  );
+}
+
+class _SheetScrollPosition extends ScrollPositionWithSingleContext {
+  _SheetScrollPosition({
+    required this.host,
+    required super.physics,
+    required super.context,
+    super.oldPosition,
+    super.debugLabel,
+  });
+
+  final _SheetDrag host;
+
+  @override
+  void applyUserOffset(double delta) {
+    // [delta]: the finger's move, positive = down (the sheet shorter).
+    final atTop = hasPixels && pixels <= minScrollExtent;
+    final taken = host._innerTake(-delta, contentAtTop: atTop);
+    final left = delta + taken;
+    if (left != 0) super.applyUserOffset(left);
+  }
+
+  @override
+  void goBallistic(double velocity) {
+    // [velocity]: scroll px/s, positive = content forward (finger up).
+    final expanded = host._innerRelease(-velocity);
+    if (expanded == null) return super.goBallistic(velocity);
+    // The drag moved the sheet: its snap takes the fling, unless the sheet
+    // is at expanded and the fling runs on up into the content.
+    super.goBallistic(expanded && velocity > 0 ? velocity : 0);
   }
 }

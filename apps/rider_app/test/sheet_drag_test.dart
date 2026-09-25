@@ -319,6 +319,116 @@ void main() {
     });
   }
 
+  /// Nested scroll (owner, 2026-09-25): a drag up anywhere on the sheet —
+  /// the list included — grows the sheet first; only at expanded does the
+  /// list scroll; with the list at its top, a drag down shrinks the sheet.
+  /// On both Android clamping and iOS bouncing physics.
+  final platforms = TargetPlatformVariant(const {
+    TargetPlatform.android,
+    TargetPlatform.iOS,
+  });
+  {
+    group('nested scroll', () {
+      const small = Size(360, 640);
+      final choose = phases['choose ride']!;
+
+      // The sheet's own scroll view (the one the sheet drag coordinates).
+      ScrollableState sheetScrollable(WidgetTester tester) => tester
+          .stateList<ScrollableState>(find.byType(Scrollable))
+          .singleWhere((s) => s.position.debugLabel == 'ride sheet');
+      ScrollPosition sheetScroll(WidgetTester tester) =>
+          sheetScrollable(tester).position;
+
+      /// A point on the list, inside the sheet's scroll view.
+      Offset onList(WidgetTester tester) {
+        final box = sheetScrollable(tester).context.findRenderObject()!
+            as RenderBox;
+        return box.localToGlobal(
+          Offset(box.size.width / 2, box.size.height * 0.4),
+        );
+      }
+
+      Future<void> dragOnList(WidgetTester tester, double dy) async {
+        final g = await tester.startGesture(onList(tester));
+        // Small steady steps (no fling), then a pause before lifting.
+        const steps = 20;
+        for (var i = 0; i < steps; i++) {
+          await g.moveBy(Offset(0, dy / steps));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pump(const Duration(milliseconds: 300));
+        await g.up();
+        await settle(tester);
+      }
+
+      testWidgets('at rest, a drag up on the list grows the sheet first', (
+        tester,
+      ) async {
+        await pump(tester, choose, size: small, textScale: 1.3);
+        final rest = sheetHeight(tester);
+        final pos = sheetScroll(tester);
+        // The list really is scrollable here, so this is the nested case.
+        expect(pos.maxScrollExtent, greaterThan(0));
+        expect(pos.pixels, 0);
+        await dragOnList(tester, -(expandedPx(small.height) - rest));
+        expect(sheetHeight(tester), closeTo(expandedPx(small.height), 1));
+        // The whole drag went to the sheet: the list has not moved.
+        expect(sheetScroll(tester).pixels, closeTo(0, 0.5));
+        expect(find.bySemanticsLabel('Collapse'), findsOneWidget);
+        expectFooterOnScreen(tester, TripPhase.choosingRide, small);
+        expect(tester.takeException(), isNull);
+      }, variant: platforms);
+
+      testWidgets('a short drag up on the list does not scroll it', (
+        tester,
+      ) async {
+        await pump(tester, choose, size: small, textScale: 1.3);
+        final rest = sheetHeight(tester);
+        final g = await tester.startGesture(onList(tester));
+        for (var i = 0; i < 10; i++) {
+          await g.moveBy(const Offset(0, -6));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        // Mid-drag: the sheet has grown by the drag, the list has not moved.
+        expect(sheetHeight(tester), greaterThan(rest + 20));
+        expect(sheetScroll(tester).pixels, 0);
+        await tester.pump(const Duration(milliseconds: 300));
+        await g.up();
+        await settle(tester);
+      }, variant: platforms);
+
+      testWidgets('at expanded the list scrolls; at its top a drag down '
+          'collapses the sheet', (tester) async {
+        // Large text: the list overflows even the expanded sheet.
+        await pump(tester, choose, size: small, textScale: 2.0);
+        final rest = sheetHeight(tester);
+        await tester.tap(find.bySemanticsLabel('Expand'));
+        await settle(tester);
+        final expanded = expandedPx(small.height);
+        expect(sheetHeight(tester), closeTo(expanded, 1));
+        expect(sheetScroll(tester).maxScrollExtent, greaterThan(0));
+
+        // Up at expanded: the list scrolls, the sheet stays.
+        await dragOnList(tester, -60);
+        expect(sheetHeight(tester), closeTo(expanded, 1));
+        final scrolled = sheetScroll(tester).pixels;
+        expect(scrolled, greaterThan(0));
+
+        // Down while the list is scrolled: the list comes back first.
+        await dragOnList(tester, scrolled - 1);
+        expect(sheetHeight(tester), closeTo(expanded, 1));
+
+        // Down with the list at its top: the sheet goes back to rest.
+        await dragOnList(tester, expanded - rest + 40);
+        expect(sheetScroll(tester).pixels, closeTo(0, 0.5));
+        expect(sheetHeight(tester), closeTo(rest, 1));
+        expect(find.bySemanticsLabel('Expand'), findsOneWidget);
+        expectFooterOnScreen(tester, TripPhase.choosingRide, small);
+        expect(tester.takeException(), isNull);
+      }, variant: platforms);
+    });
+  }
+
   testWidgets('each new phase opens at its rest size again', (tester) async {
     await pump(tester, phases['driver en route']!);
     final rest = sheetHeight(tester);

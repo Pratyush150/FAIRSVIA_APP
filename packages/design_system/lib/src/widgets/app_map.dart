@@ -57,6 +57,22 @@ class AppMapMarker {
   final double? heading;
 }
 
+/// A "busy area" drawn on the map: a soft disc whose opacity follows
+/// [intensity] (0–1). Used by the driver app to shade recent ride demand.
+class MapHeatSpot {
+  const MapHeatSpot({
+    required this.point,
+    required this.intensity,
+    this.radiusM = 550,
+  });
+
+  final LatLng point;
+  final double intensity;
+
+  /// Disc radius in metres (≈ half a demand-grid cell).
+  final double radiusM;
+}
+
 /// Shared map built on the **Google Maps SDK**. Public API stays in latlong2
 /// [LatLng] (converted internally) so callers don't depend on the maps package.
 /// The driver marker **glides** between GPS updates and **rotates** to its travel
@@ -82,7 +98,24 @@ class AppMap extends StatefulWidget {
     this.pulseAt,
     this.driverCarAsset,
     this.driverPlateTag,
+    this.heatSpots = const [],
   });
+
+  /// Soft teal discs for busy areas (driver demand shading). Each spot is two
+  /// concentric circles — a wide faint halo and a denser core — so
+  /// neighbouring cells blend like a heatmap instead of reading as pins.
+  final List<MapHeatSpot> heatSpots;
+
+  /// The (radius, fill opacity) layers drawn for one heat spot. Opacity is
+  /// capped low so street names stay readable through the shading.
+  static List<(double radiusM, double opacity)> heatLayers(MapHeatSpot s) {
+    final k = s.intensity.clamp(0.0, 1.0);
+    if (k <= 0) return const [];
+    return [
+      (s.radiusM * 1.6, 0.06 + 0.08 * k),
+      (s.radiusM, 0.08 + 0.14 * k),
+    ];
+  }
 
   /// Plan F: the driver's number plate, drawn as a small tag just under the
   /// car on the map ("find your car"). Null (every other build) draws none.
@@ -784,6 +817,25 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       _pulseTimer = null;
       _pulseClock.stop();
     }
+  }
+
+  Set<gmaps.Circle> _buildHeat() {
+    if (widget.heatSpots.isEmpty) return const {};
+    final colour = AppColors.highlight;
+    return {
+      for (final (i, spot) in widget.heatSpots.indexed)
+        for (final (j, (radius, opacity)) in AppMap.heatLayers(spot).indexed)
+          gmaps.Circle(
+            circleId: gmaps.CircleId('heat${i}_$j'),
+            center: _g(spot.point),
+            radius: radius,
+            strokeWidth: 0,
+            fillColor: colour.withValues(alpha: opacity),
+            // Under the route and markers.
+            zIndex: 0,
+            consumeTapEvents: false,
+          ),
+    };
   }
 
   Set<gmaps.Circle> _buildPulse(bool reduceMotion) {
@@ -1673,7 +1725,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           : (AppVariant.local ? mapLightStyleWarm : mapLightStyle),
       markers: _buildMarkers(),
       polylines: _withKolamLine(reduceMotion),
-      circles: _buildPulse(reduceMotion),
+      circles: {..._buildPulse(reduceMotion), ..._buildHeat()},
       padding: widget.boundsPadding,
       myLocationEnabled: false,
       myLocationButtonEnabled: false,
