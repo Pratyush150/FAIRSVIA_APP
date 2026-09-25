@@ -342,7 +342,7 @@ class _PreBookPageState extends State<PreBookPage> {
                     const Center(
                       child: Padding(
                         padding: EdgeInsets.all(AppSpacing.lg),
-                        child: CircularProgressIndicator(),
+                        child: BrandLoader(size: 56, label: 'Fetching fares'),
                       ),
                     )
                   else if (_estimate != null) ...[

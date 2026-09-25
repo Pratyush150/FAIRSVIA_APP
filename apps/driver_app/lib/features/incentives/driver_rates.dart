@@ -22,19 +22,24 @@ class _DriverRatesState extends State<DriverRates> {
   @override
   void initState() {
     super.initState();
-    widget.load().then((s) {
-      if (mounted) setState(() => (_stats = s, _loading = false));
-    }).catchError((Object _) {
-      if (mounted) setState(() => (_failed = true, _loading = false));
-    });
+    widget
+        .load()
+        .then((s) {
+          if (mounted) setState(() => (_stats = s, _loading = false));
+        })
+        .catchError((Object _) {
+          if (mounted) setState(() => (_failed = true, _loading = false));
+        });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     if (_failed) {
-      return Text('Rates unavailable right now',
-          style: theme.textTheme.bodySmall);
+      return Text(
+        'Rates unavailable right now',
+        style: theme.textTheme.bodySmall,
+      );
     }
     final s = _stats;
     const pending = '…';
@@ -89,8 +94,8 @@ class _DriverRatesState extends State<DriverRates> {
     final tip = s.acceptanceLow
         ? ' Keep acceptance above 70% to stay first in line.'
         : s.cancellationHigh
-            ? ' Try to keep cancellations under 10%.'
-            : '';
+        ? ' Try to keep cancellations under 10%.'
+        : '';
     return '${parts.join(', ')}. Rider no-shows never count against you.$tip';
   }
 }

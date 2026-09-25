@@ -58,7 +58,8 @@ class AppCard extends StatelessWidget {
     // Tappable: the Home cards' press — a slight shrink and a soft accent
     // halo while held (the halo alone under Reduce Motion).
     return PressScale(
-      scale: 0.98,
+      scale: 0.96,
+      rim: true,
       glow: PressScale.brandGlow(isDark),
       glowRadius: radius,
       child: Material(

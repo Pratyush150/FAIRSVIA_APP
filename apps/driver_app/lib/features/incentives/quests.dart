@@ -23,8 +23,18 @@ String questEndsLabel(DateTime endsAt, {DateTime? now}) {
   }
   if (sameDay) return time;
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   return '${endsAt.day} ${months[endsAt.month - 1]}, $time';
 }
@@ -70,7 +80,9 @@ class QuestTile extends StatelessWidget {
                     ? PhosphorIconsFill.checkCircle
                     : PhosphorIconsRegular.flag,
                 size: 18,
-                color: done ? AppColors.success : AppColors.iconNeutralFor(dark),
+                color: done
+                    ? AppColors.success
+                    : AppColors.iconNeutralFor(dark),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -90,8 +102,9 @@ class QuestTile extends StatelessWidget {
               value: quest.fraction,
               minHeight: 6,
               color: done ? AppColors.success : AppColors.accent,
-              backgroundColor:
-                  dark ? AppColors.borderDark : AppColors.borderLight,
+              backgroundColor: dark
+                  ? AppColors.borderDark
+                  : AppColors.borderLight,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -150,7 +163,10 @@ class _DriverQuestsCardState extends State<DriverQuestsCard> {
     _sub = widget.completions?.listen((e) {
       final title = e['title'] as String? ?? 'Quest';
       final id = e['questId'] as String?;
-      _celebrate(id, '$title complete · ${Fmt.money((e['bonus'] as num?)?.toDouble() ?? 0, e['currency'] as String?)} bonus added');
+      _celebrate(
+        id,
+        '$title complete · ${Fmt.money((e['bonus'] as num?)?.toDouble() ?? 0, e['currency'] as String?)} bonus added',
+      );
       unawaited(_load());
     });
   }
@@ -174,8 +190,10 @@ class _DriverQuestsCardState extends State<DriverQuestsCard> {
       if (!q.completed) {
         DriverQuestsCard.seenUnfinished.add(q.id);
       } else if (DriverQuestsCard.seenUnfinished.remove(q.id)) {
-        _celebrate(q.id,
-            '${q.title} complete · ${Fmt.money(q.bonus, q.currency)} bonus added');
+        _celebrate(
+          q.id,
+          '${q.title} complete · ${Fmt.money(q.bonus, q.currency)} bonus added',
+        );
       }
     }
     setState(() => _quests = qs);
@@ -214,10 +232,13 @@ class _DriverQuestsCardState extends State<DriverQuestsCard> {
         children: [
           AppCard(
             key: const Key('quests-card'),
-            onTap: widget.onOpenAll ??
-                () => Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => QuestsPage(load: widget.load),
-                    )),
+            onTap:
+                widget.onOpenAll ??
+                () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => QuestsPage(load: widget.load),
+                  ),
+                ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -225,8 +246,10 @@ class _DriverQuestsCardState extends State<DriverQuestsCard> {
                   children: [
                     Text('Quests', style: theme.textTheme.labelLarge),
                     const Spacer(),
-                    Text(more > 0 ? '+$more more' : 'See all',
-                        style: theme.textTheme.bodySmall),
+                    Text(
+                      more > 0 ? '+$more more' : 'See all',
+                      style: theme.textTheme.bodySmall,
+                    ),
                     const Icon(PhosphorIconsRegular.caretRight, size: 14),
                   ],
                 ),
@@ -239,9 +262,11 @@ class _DriverQuestsCardState extends State<DriverQuestsCard> {
                       Expanded(
                         child: Semantics(
                           liveRegion: true,
-                          child: Text(_celebrating!,
-                              key: const Key('quest-celebration'),
-                              style: theme.textTheme.bodyMedium),
+                          child: Text(
+                            _celebrating!,
+                            key: const Key('quest-celebration'),
+                            style: theme.textTheme.bodyMedium,
+                          ),
                         ),
                       ),
                     ],
@@ -291,26 +316,31 @@ class _QuestsPageState extends State<QuestsPage> {
               return const AppListSkeleton(rows: 4, hasTrailing: false);
             }
             if (snap.hasError) {
-              return ListView(children: const [
-                SizedBox(height: 120),
-                Center(child: Text("Couldn't load quests. Pull to retry.")),
-              ]);
+              return ListView(
+                children: const [
+                  SizedBox(height: 120),
+                  Center(child: Text("Couldn't load quests. Pull to retry.")),
+                ],
+              );
             }
             final qs = snap.data ?? const [];
             if (qs.isEmpty) {
-              return ListView(children: [
-                const SizedBox(height: 120),
-                Center(
-                  child: Text('No quests right now — check back later.',
-                      style: theme.textTheme.bodyMedium),
-                ),
-              ]);
+              return ListView(
+                children: [
+                  const SizedBox(height: 120),
+                  Center(
+                    child: Text(
+                      'No quests right now — check back later.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              );
             }
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.lg),
               itemCount: qs.length + 1,
-              separatorBuilder: (_, _) =>
-                  const SizedBox(height: AppSpacing.md),
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
               itemBuilder: (context, i) {
                 if (i == 0) {
                   return Text(

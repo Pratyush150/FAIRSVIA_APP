@@ -88,11 +88,13 @@ class _ToolkitTile extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(a.icon,
-                      size: 24,
-                      color: a.danger
-                          ? AppColors.error
-                          : theme.colorScheme.onSurface),
+                  if (a.danger)
+                    _DangerPulse(
+                      child: Icon(a.icon, size: 24, color: AppColors.error),
+                    )
+                  else
+                    Icon(a.icon,
+                        size: 24, color: theme.colorScheme.onSurface),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     a.label,
@@ -107,6 +109,82 @@ class _ToolkitTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A red ring that ripples out from the SOS icon a few times when the tile
+/// appears, so the emergency action is found at a glance. A bounded number
+/// of pulses (not an endless loop), so it never keeps a test from settling
+/// or nags through a whole ride; nothing under Reduce Motion.
+class _DangerPulse extends StatefulWidget {
+  const _DangerPulse({required this.child});
+
+  final Widget child;
+
+  static const pulses = 4;
+
+  @override
+  State<_DangerPulse> createState() => _DangerPulseState();
+}
+
+class _DangerPulseState extends State<_DangerPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (!reduce) {
+      _c.repeat(count: _DangerPulse.pulses).whenCompleteOrCancel(() {
+        if (mounted) _c.value = 0;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _c,
+            builder: (context, _) {
+              final t = _c.value;
+              if (t == 0) return const SizedBox.shrink();
+              return IgnorePointer(
+                child: Container(
+                  key: const ValueKey('toolkit-danger-pulse'),
+                  width: 24 + 28 * t,
+                  height: 24 + 28 * t,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.error.withValues(alpha: 0.28 * (1 - t)),
+                  ),
+                ),
+              );
+            },
+          ),
+          widget.child,
+        ],
       ),
     );
   }

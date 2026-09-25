@@ -1548,6 +1548,7 @@ class _OnTripExtras extends StatelessWidget {
                   ? null
                   : 'Expected at ${_clock(DateTime.now().add(Duration(seconds: secs)))}',
               progress: progress,
+              glyph: Icons.directions_car_filled,
               startLabel: progress == null ? null : 'Pickup',
               endLabel: progress == null ? null : 'Drop-off',
             ),

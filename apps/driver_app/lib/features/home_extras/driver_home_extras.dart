@@ -38,14 +38,16 @@ class _DriverTodaySectionState extends State<DriverTodaySection> {
         future: _future,
         builder: (context, snap) {
           if (snap.hasError) {
-            return DriverInfoList(items: [
-              DriverInfoItem(
-                icon: PhosphorIconsRegular.arrowClockwise,
-                title: "Couldn't load today's figures",
-                detail: 'Tap to try again',
-                onTap: () => setState(() => _future = widget.load()),
-              ),
-            ]);
+            return DriverInfoList(
+              items: [
+                DriverInfoItem(
+                  icon: PhosphorIconsRegular.arrowClockwise,
+                  title: "Couldn't load today's figures",
+                  detail: 'Tap to try again',
+                  onTap: () => setState(() => _future = widget.load()),
+                ),
+              ],
+            );
           }
           final e = snap.data;
           final loading = e == null;
@@ -53,23 +55,29 @@ class _DriverTodaySectionState extends State<DriverTodaySection> {
             onTap: widget.onOpen,
             stats: [
               DriverStat(
-                  label: 'Earned',
-                  value: loading ? '…' : Fmt.money(e.total),
-                  icon: PhosphorIconsRegular.wallet),
+                label: 'Earned',
+                value: loading ? '…' : Fmt.money(e.total),
+                icon: PhosphorIconsRegular.wallet,
+              ),
               DriverStat(
-                  label: 'Trips',
-                  value: loading ? '…' : '${e.trips}',
-                  icon: PhosphorIconsRegular.car),
+                label: 'Trips',
+                value: loading ? '…' : '${e.trips}',
+                icon: PhosphorIconsRegular.car,
+              ),
               DriverStat(
-                  label: 'Online',
-                  value: loading ? '…' : _hours(e.onlineSeconds),
-                  icon: PhosphorIconsRegular.clock),
+                label: 'Online',
+                value: loading ? '…' : _hours(e.onlineSeconds),
+                icon: PhosphorIconsRegular.clock,
+              ),
               DriverStat(
-                  label: 'Per trip',
-                  value: loading
-                      ? '…'
-                      : (e.trips == 0 ? '—' : Fmt.money((e.total / e.trips).roundToDouble())),
-                  icon: PhosphorIconsRegular.chartLineUp),
+                label: 'Per trip',
+                value: loading
+                    ? '…'
+                    : (e.trips == 0
+                          ? '—'
+                          : Fmt.money((e.total / e.trips).roundToDouble())),
+                icon: PhosphorIconsRegular.chartLineUp,
+              ),
             ],
           );
         },
@@ -96,8 +104,8 @@ class DriverBusyAreasSection extends StatelessWidget {
           title: c.intensity >= 0.66
               ? 'Very busy area'
               : c.intensity >= 0.33
-                  ? 'Busy area'
-                  : 'Some requests',
+              ? 'Busy area'
+              : 'Some requests',
           detail: c.count == 1
               ? '1 recent request'
               : '${c.count} recent requests',
@@ -138,19 +146,27 @@ Future<void> showDriverExplainer(
     builder: (context) => SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
-            AppSpacing.x20, 0, AppSpacing.x20, AppSpacing.x20),
+          AppSpacing.x20,
+          0,
+          AppSpacing.x20,
+          AppSpacing.x20,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(children: [
-              AppIconBadge(icon: icon),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Text(title,
-                    style: Theme.of(context).textTheme.titleLarge),
-              ),
-            ]),
+            Row(
+              children: [
+                AppIconBadge(icon: icon),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: AppSpacing.lg),
             for (final p in points)
               Padding(
@@ -187,7 +203,8 @@ List<DriverPoster> driverTipPosters(
   return [
     DriverPoster(
       title: 'Complete quests for bonuses',
-      body: 'Finish the trip targets on your quests and the bonus is added '
+      body:
+          'Finish the trip targets on your quests and the bonus is added '
           'to your earnings automatically.',
       cta: 'See quests',
       icon: PhosphorIconsRegular.star,
@@ -197,7 +214,8 @@ List<DriverPoster> driverTipPosters(
     ),
     DriverPoster(
       title: 'Take a break — safety first',
-      body: 'Rest regularly. After your online-time limit the app pauses '
+      body:
+          'Rest regularly. After your online-time limit the app pauses '
           'new requests so you can recharge.',
       cta: 'How breaks work',
       icon: PhosphorIconsRegular.moonStars,
@@ -217,7 +235,8 @@ List<DriverPoster> driverTipPosters(
     ),
     DriverPoster(
       title: 'Heading home? Use go-home mode',
-      body: 'Set a destination and only get trips that take you '
+      body:
+          'Set a destination and only get trips that take you '
           'towards it.',
       cta: 'How it works',
       icon: PhosphorIconsRegular.house,
@@ -248,14 +267,16 @@ List<Widget> driverWaitingExtras(
 ) {
   final hasDriver = sl.isRegistered<DriverRemoteDataSource>();
   final hasIncentives = sl.isRegistered<IncentivesRemoteDataSource>();
-  void openEarnings() => Navigator.of(context).push(MaterialPageRoute<void>(
-        builder: (_) =>
-            DriverEarningsPage(driver: sl<DriverRemoteDataSource>()),
-      ));
-  void openQuests() => Navigator.of(context).push(MaterialPageRoute<void>(
-        builder: (_) =>
-            QuestsPage(load: sl<IncentivesRemoteDataSource>().quests),
-      ));
+  void openEarnings() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => DriverEarningsPage(driver: sl<DriverRemoteDataSource>()),
+    ),
+  );
+  void openQuests() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => QuestsPage(load: sl<IncentivesRemoteDataSource>().quests),
+    ),
+  );
   return [
     if (hasDriver)
       DriverTodaySection(
@@ -276,38 +297,44 @@ List<Widget> driverWaitingExtras(
           onQuests: hasIncentives
               ? openQuests
               : () => showDriverExplainer(
-                    context,
-                    icon: PhosphorIconsRegular.star,
-                    title: 'Quests',
-                    points: const [
-                      'Quests are trip targets with a bonus.',
-                      'Progress shows on this sheet while a quest is live.',
-                    ],
-                  ),
+                  context,
+                  icon: PhosphorIconsRegular.star,
+                  title: 'Quests',
+                  points: const [
+                    'Quests are trip targets with a bonus.',
+                    'Progress shows on this sheet while a quest is live.',
+                  ],
+                ),
         ),
       ),
     ),
     if (sl.isRegistered<SupportRemoteDataSource>())
       DriverExtraSection(
         title: 'Help',
-        child: DriverInfoList(items: [
-          DriverInfoItem(
-            icon: PhosphorIconsRegular.headset,
-            title: 'Driver support',
-            detail: 'Payments, trips, account questions',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => SupportPage(
-                  support: sl<SupportRemoteDataSource>(), isDriver: true),
-            )),
-          ),
-          if (hasDriver)
+        child: DriverInfoList(
+          items: [
             DriverInfoItem(
-              icon: PhosphorIconsRegular.receipt,
-              title: 'Earnings and payouts',
-              detail: 'Daily and weekly breakdown',
-              onTap: openEarnings,
+              icon: PhosphorIconsRegular.headset,
+              title: 'Driver support',
+              detail: 'Payments, trips, account questions',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SupportPage(
+                    support: sl<SupportRemoteDataSource>(),
+                    isDriver: true,
+                  ),
+                ),
+              ),
             ),
-        ]),
+            if (hasDriver)
+              DriverInfoItem(
+                icon: PhosphorIconsRegular.receipt,
+                title: 'Earnings and payouts',
+                detail: 'Daily and weekly breakdown',
+                onTap: openEarnings,
+              ),
+          ],
+        ),
       ),
   ];
 }

@@ -79,10 +79,10 @@ class _NoShowTimerState extends State<NoShowTimer> {
         content: Text(
           fee != null
               ? 'The trip is cancelled and the rider is charged the '
-                  '${Fmt.money(fee)} no-show fee — your share goes to your '
-                  'earnings.'
+                    '${Fmt.money(fee)} no-show fee — your share goes to your '
+                    'earnings.'
               : 'The trip is cancelled and the rider is charged the '
-                  'no-show fee — your share goes to your earnings.',
+                    'no-show fee — your share goes to your earnings.',
         ),
         actions: [
           TextButton(
@@ -110,7 +110,8 @@ class _NoShowTimerState extends State<NoShowTimer> {
     if (!done) {
       return Semantics(
         container: true,
-        label: 'Waiting for the rider. No-show option in '
+        label:
+            'Waiting for the rider. No-show option in '
             '${(left / 60).ceil()} ${left > 60 ? 'minutes' : 'minute'}.',
         child: ExcludeSemantics(
           child: Row(
@@ -121,15 +122,18 @@ class _NoShowTimerState extends State<NoShowTimer> {
                 child: CircularProgressIndicator(
                   value: progress,
                   strokeWidth: 3,
-                  backgroundColor:
-                      dark ? AppColors.borderDark : AppColors.borderLight,
+                  backgroundColor: dark
+                      ? AppColors.borderDark
+                      : AppColors.borderLight,
                   valueColor: AlwaysStoppedAnimation(AppColors.accent),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: Text('Waiting for rider',
-                    style: theme.textTheme.bodyMedium),
+                child: Text(
+                  'Waiting for rider',
+                  style: theme.textTheme.bodyMedium,
+                ),
               ),
               Text(
                 NoShowTimer.clock(left),
@@ -152,7 +156,7 @@ class _NoShowTimerState extends State<NoShowTimer> {
           child: Text(
             widget.fee != null
                 ? "Rider hasn't come? You can cancel and get the "
-                    '${Fmt.money(widget.fee!)} no-show fee.'
+                      '${Fmt.money(widget.fee!)} no-show fee.'
                 : "Rider hasn't come? You can cancel with a no-show fee.",
             style: theme.textTheme.bodyMedium,
           ),

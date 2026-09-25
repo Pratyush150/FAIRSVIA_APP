@@ -94,7 +94,8 @@ class ContextCard extends StatelessWidget {
       container: true,
       label: semanticLabel,
       child: PressScale(
-        scale: 0.98,
+        scale: 0.96,
+        rim: true,
         glow: PressScale.brandGlow(dark),
         glowRadius: radius,
         child: card,

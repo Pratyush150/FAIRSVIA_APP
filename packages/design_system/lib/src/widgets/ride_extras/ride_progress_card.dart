@@ -19,6 +19,7 @@ class RideProgressCard extends StatelessWidget {
     this.startLabel,
     this.endLabel,
     this.icon,
+    this.glyph,
   });
 
   final String title;
@@ -32,6 +33,10 @@ class RideProgressCard extends StatelessWidget {
   final String? startLabel;
   final String? endLabel;
   final IconData? icon;
+
+  /// Drawn riding along the bar at [progress] (e.g. a car on the trip), and
+  /// glides to each new value. Null keeps the plain bar.
+  final IconData? glyph;
 
   @override
   Widget build(BuildContext context) {
@@ -77,15 +82,10 @@ class RideProgressCard extends StatelessWidget {
                   style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
             if (p != null) ...[
               const SizedBox(height: AppSpacing.sm),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppSpacing.pill),
-                child: LinearProgressIndicator(
-                  key: const ValueKey('ride-progress-bar'),
-                  value: p,
-                  minHeight: 6,
-                  color: AppColors.accent,
-                  backgroundColor: theme.dividerColor,
-                ),
+              _TrackWithGlyph(
+                progress: p,
+                glyph: glyph,
+                track: theme.dividerColor,
               ),
             ],
             if (startLabel != null || endLabel != null) ...[
@@ -112,6 +112,73 @@ class RideProgressCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The progress bar, animated: the fill (and [glyph], when given) glides to
+/// each new [progress] instead of jumping. One-shot tweens, so tests settle;
+/// Reduce Motion snaps straight to the value.
+class _TrackWithGlyph extends StatelessWidget {
+  const _TrackWithGlyph({
+    required this.progress,
+    required this.glyph,
+    required this.track,
+  });
+
+  final double progress;
+  final IconData? glyph;
+  final Color track;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    const glyphSize = 22.0;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: progress),
+      duration: reduce ? Duration.zero : const Duration(milliseconds: 900),
+      curve: Curves.easeOutCubic,
+      builder: (context, v, _) {
+        final bar = ClipRRect(
+          borderRadius: BorderRadius.circular(AppSpacing.pill),
+          child: LinearProgressIndicator(
+            key: const ValueKey('ride-progress-bar'),
+            value: v,
+            minHeight: 6,
+            color: AppColors.accent,
+            backgroundColor: track,
+          ),
+        );
+        if (glyph == null) return bar;
+        return SizedBox(
+          height: glyphSize + 4,
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final x = (c.maxWidth - glyphSize) * v;
+              return Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.centerLeft,
+                children: [
+                  bar,
+                  Positioned(
+                    left: x,
+                    child: Container(
+                      key: const ValueKey('ride-progress-glyph'),
+                      width: glyphSize,
+                      height: glyphSize,
+                      decoration: BoxDecoration(
+                        color: AppColors.accent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(glyph, size: 14, color: Colors.white),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

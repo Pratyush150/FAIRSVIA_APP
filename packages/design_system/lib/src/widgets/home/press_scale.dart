@@ -1,4 +1,7 @@
+import 'package:flutter/material.dart' show Theme;
 import 'package:flutter/widgets.dart';
+
+import '../sweep_border.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_motion.dart';
@@ -21,7 +24,12 @@ class PressScale extends StatefulWidget {
     this.scale = 0.96,
     this.glow,
     this.glowRadius = BorderRadius.zero,
+    this.rim = false,
   });
+
+  /// Draws a static brand gradient hairline (teal → mint) round the card
+  /// and a soft resting shadow, so the card reads as a lit surface.
+  final bool rim;
 
   final Widget child;
   final bool enabled;
@@ -34,10 +42,10 @@ class PressScale extends StatefulWidget {
   /// The brand halo for tappable cards: the accent, soft in light mode and a
   /// little stronger in dark mode, where a glow has to carry further.
   static Color brandGlow(bool dark) =>
-      AppColors.accent.withValues(alpha: dark ? 0.42 : 0.28);
+      AppColors.accent.withValues(alpha: dark ? 0.6 : 0.45);
 
   /// Blur of the halo; small enough to stay inside the 16 dp page gutters.
-  static const double glowBlur = 18;
+  static const double glowBlur = 20;
 
   @override
   State<PressScale> createState() => _PressScaleState();
@@ -56,20 +64,34 @@ class _PressScaleState extends State<PressScale> {
     final scaleOn = widget.enabled && !reduced;
     final glow = widget.enabled ? widget.glow : null;
     Widget child = widget.child;
-    if (glow != null) {
+    if (widget.rim) {
+      final dark = Theme.of(context).brightness == Brightness.dark;
+      child = CustomPaint(
+        foregroundPainter: _RimPainter(widget.glowRadius, dark),
+        child: child,
+      );
+    }
+    if (glow != null || widget.rim) {
       child = AnimatedContainer(
         duration: AppMotion.normal,
         curve: AppMotion.standard,
         decoration: BoxDecoration(
           borderRadius: widget.glowRadius,
           boxShadow: [
-            BoxShadow(
-              // Same shadow shape either way, so it cross-fades instead of
-              // popping in.
-              color: _down ? glow : glow.withValues(alpha: 0),
-              blurRadius: PressScale.glowBlur,
-              spreadRadius: 1,
-            ),
+            if (glow != null)
+              BoxShadow(
+                // Same shadow shape either way, so it cross-fades instead of
+                // popping in.
+                color: _down ? glow : glow.withValues(alpha: 0),
+                blurRadius: PressScale.glowBlur,
+                spreadRadius: _down ? 2 : 1,
+              ),
+            if (widget.rim)
+              BoxShadow(
+                color: AppColors.black.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
           ],
         ),
         child: child,
@@ -90,4 +112,37 @@ class _PressScaleState extends State<PressScale> {
       ),
     );
   }
+}
+
+/// The static gradient hairline of a [PressScale.rim] card.
+class _RimPainter extends CustomPainter {
+  _RimPainter(this.radius, this.dark);
+
+  final BorderRadius radius;
+  final bool dark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final rect = (Offset.zero & size).deflate(0.6);
+    canvas.drawRRect(
+      radius.toRRect(rect),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.accent.withValues(alpha: 0.85),
+            SweepBorder.mint.withValues(alpha: dark ? 0.6 : 0.75),
+            AppColors.accent.withValues(alpha: 0.35),
+          ],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RimPainter old) =>
+      old.radius != radius || old.dark != dark;
 }

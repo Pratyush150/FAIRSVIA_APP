@@ -353,13 +353,17 @@ class HomeSearchBar extends StatelessWidget {
             height: 56,
             child: Row(
               children: [
-                const SizedBox(width: AppSpacing.lg),
-                Icon(
-                  PhosphorIconsRegular.magnifyingGlass,
-                  color: theme.colorScheme.onSurface,
-                  size: AppIconSize.row,
+                const SizedBox(width: AppSpacing.sm),
+                // A small location animation that plays each time the Home
+                // bar is built and holds on the pin (still frame under
+                // Reduce Motion). One-shot, not an endless loop: a loop here
+                // never lets a Home widget test settle.
+                const LottieMoment.location(
+                  key: ValueKey('where-to-location-anim'),
+                  size: 40,
+                  repeat: false,
                 ),
-                const SizedBox(width: AppSpacing.md),
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: ExcludeSemantics(
                     child: Text(

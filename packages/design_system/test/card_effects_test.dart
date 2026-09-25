@@ -62,6 +62,8 @@ class _CountingCanvas extends Fake implements Canvas {
 }
 
 void main() {
+  setUpAll(() => SweepBorder.debugDisableLoops = true);
+
   group('PressScale glow', () {
     Widget tile({bool reduce = false, bool enabled = true}) => _app(
       PressScale(
@@ -139,27 +141,34 @@ void main() {
   });
 
   group('SweepBorder', () {
-    Widget bar({bool reduce = false, int laps = 2}) => _app(
-      SweepBorder(
-        laps: laps,
-        child: const SizedBox(width: 300, height: 56),
-      ),
+    Widget bar({bool reduce = false}) => _app(
+      const SweepBorder(child: SizedBox(width: 300, height: 56)),
       reduce: reduce,
     );
 
-    testWidgets('runs its laps, then goes dark and stops ticking', (
+    tearDown(() => SweepBorder.debugDisableLoops = true);
+
+    testWidgets('loops continuously while visible, paused by TickerMode', (
       tester,
     ) async {
+      SweepBorder.debugDisableLoops = false;
       await tester.pumpWidget(bar());
       await tester.pump(const Duration(milliseconds: 1200));
       expect(_lit(tester), isTrue);
-      // A finite run: pumpAndSettle returns (the Home's tests rely on it).
-      await tester.pumpAndSettle();
-      expect(_lit(tester), isFalse);
+      // Still turning long after a few laps: it never stops on its own.
+      await tester.pump(const Duration(seconds: 30));
+      expect(_lit(tester), isTrue);
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      // Covered route / backgrounded app: the ticker is muted.
+      await tester.pumpWidget(
+        TickerMode(enabled: false, child: bar()),
+      );
+      await tester.pump();
       expect(tester.binding.hasScheduledFrame, isFalse);
+      await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('the light sits in its own repaint layer over the child', (
+    testWidgets('glow + ring sit over the child in its own repaint layer', (
       tester,
     ) async {
       await tester.pumpWidget(bar());
@@ -170,35 +179,58 @@ void main() {
         ),
         findsWidgets,
       );
-      await tester.pumpAndSettle();
-    });
-
-    testWidgets('Reduce Motion: draws nothing, schedules nothing', (
-      tester,
-    ) async {
-      await tester.pumpWidget(bar(reduce: true));
       expect(
         find.descendant(
           of: find.byType(SweepBorder),
-          matching: find.byType(CustomPaint),
+          matching: find.byType(DecoratedBox),
         ),
-        findsNothing,
+        findsWidgets,
       );
+    });
+
+    testWidgets('Reduce Motion: static gradient ring, schedules nothing', (
+      tester,
+    ) async {
+      SweepBorder.debugDisableLoops = false;
+      await tester.pumpWidget(bar(reduce: true));
+      expect(_lit(tester), isTrue);
       await tester.pump();
       expect(tester.binding.hasScheduledFrame, isFalse);
     });
+  });
 
-    testWidgets('a new replayKey runs the laps again', (tester) async {
-      Widget keyed(int k) => _app(
-        SweepBorder(replayKey: k, child: const SizedBox(width: 300, height: 56)),
+  group('card rim', () {
+    testWidgets('rim cards paint a gradient hairline and a resting shadow', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(
+          PressScale(
+            rim: true,
+            glow: PressScale.brandGlow(false),
+            glowRadius: BorderRadius.circular(16),
+            child: const SizedBox(width: 120, height: 80),
+          ),
+        ),
       );
-      await tester.pumpWidget(keyed(1));
-      await tester.pumpAndSettle();
-      expect(_lit(tester), isFalse);
-      await tester.pumpWidget(keyed(2));
-      await tester.pump(const Duration(milliseconds: 800));
-      expect(_lit(tester), isTrue);
-      await tester.pumpAndSettle();
+      final box = tester.widget<AnimatedContainer>(
+        find.descendant(
+          of: find.byType(PressScale),
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
+      expect((box.decoration! as BoxDecoration).boxShadow, hasLength(2));
+      expect(
+        find.descendant(
+          of: find.byType(PressScale),
+          matching: find.byType(CustomPaint),
+        ),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('press glow is clearly visible', (tester) async {
+      expect(PressScale.brandGlow(false).a, greaterThanOrEqualTo(0.4));
     });
   });
 

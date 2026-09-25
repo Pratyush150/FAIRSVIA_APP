@@ -13,7 +13,12 @@ class TripPullUpSheet extends StatefulWidget {
     required this.extras,
     this.stageKey,
     this.initiallyExpanded = false,
+    this.footer,
   });
+
+  /// Pinned below the scrolling content (never scrolled or clipped away):
+  /// the trip-complete "Rate your rider" stars + Done.
+  final Widget? footer;
 
   final Widget child;
   final Widget extras;
@@ -53,7 +58,10 @@ class _TripPullUpSheetState extends State<TripPullUpSheet> {
       },
       child: AppSheet(
         onHandleTap: () => _set(!_expanded),
-        handleLabel: _expanded ? 'Collapse trip details' : 'Expand trip details',
+        handleLabel: _expanded
+            ? 'Collapse trip details'
+            : 'Expand trip details',
+        footer: widget.footer,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -110,7 +118,8 @@ class DriverTripExtras extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = trip;
     final passenger = t.passenger;
-    final name = passenger?.displayName ??
+    final name =
+        passenger?.displayName ??
         _orNull(riderName) ??
         _orNull(t.riderName) ??
         'Your rider';
@@ -128,18 +137,23 @@ class DriverTripExtras extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         _Section(
           title: 'Route',
-          child: RouteTimeline(stops: [
-            RouteTimelineStop(
-                label: 'Pickup',
-                address: _orNull(t.pickup.address) ?? 'Pinned location'),
-            for (var i = 0; i < t.stops.length; i++)
+          child: RouteTimeline(
+            stops: [
               RouteTimelineStop(
+                label: 'Pickup',
+                address: _orNull(t.pickup.address) ?? 'Pinned location',
+              ),
+              for (var i = 0; i < t.stops.length; i++)
+                RouteTimelineStop(
                   label: 'Stop ${i + 1}',
-                  address: _orNull(t.stops[i].address) ?? 'Pinned location'),
-            RouteTimelineStop(
+                  address: _orNull(t.stops[i].address) ?? 'Pinned location',
+                ),
+              RouteTimelineStop(
                 label: 'Drop-off',
-                address: _orNull(t.dropoff.address) ?? 'Pinned location'),
-          ]),
+                address: _orNull(t.dropoff.address) ?? 'Pinned location',
+              ),
+            ],
+          ),
         ),
         if (_progress(context) case final p?) ...[
           const SizedBox(height: AppSpacing.md),
@@ -153,8 +167,9 @@ class DriverTripExtras extends StatelessWidget {
           onShare: onShare,
           onMessage: onMessage,
           onNavigate: onNavigate,
-          navigateLabel:
-              stage == TripExtrasStage.onTrip ? 'To drop-off' : 'To pickup',
+          navigateLabel: stage == TripExtrasStage.onTrip
+              ? 'To drop-off'
+              : 'To pickup',
         ),
         const SizedBox(height: AppSpacing.md),
         DriverTipPoster(tip: _tipFor(stage)),
@@ -176,12 +191,16 @@ class DriverTripExtras extends StatelessWidget {
           if (total != null && total > 0) {
             fraction = (1 - rem / total).clamp(0.0, 1.0);
             if (dur != null) {
-              lines.add('About ${Fmt.duration((dur * rem / total).round())} left');
+              lines.add(
+                'About ${Fmt.duration((dur * rem / total).round())} left',
+              );
             }
           }
         } else if (total != null) {
-          lines.add('Trip ${Market.current.legDistance(total)}'
-              '${dur != null ? ' · ${Fmt.duration(dur)}' : ''}');
+          lines.add(
+            'Trip ${Market.current.legDistance(total)}'
+            '${dur != null ? ' · ${Fmt.duration(dur)}' : ''}',
+          );
         }
       case TripExtrasStage.toPickup:
       case TripExtrasStage.waiting:
@@ -189,8 +208,10 @@ class DriverTripExtras extends StatelessWidget {
           lines.add('${Market.current.legDistance(rem.round())} to pickup');
         }
         if (total != null) {
-          lines.add('Then ${Market.current.legDistance(total)} to drop-off'
-              '${dur != null ? ' · about ${Fmt.duration(dur)}' : ''}');
+          lines.add(
+            'Then ${Market.current.legDistance(total)} to drop-off'
+            '${dur != null ? ' · about ${Fmt.duration(dur)}' : ''}',
+          );
         }
     }
     if (lines.isEmpty) return null;
@@ -219,13 +240,13 @@ class DriverTripExtras extends StatelessWidget {
 }
 
 String _tipFor(TripExtrasStage s) => switch (s) {
-      TripExtrasStage.toPickup =>
-        'Stop where it is safe and legal. Riders find you faster when you stay close to the pin.',
-      TripExtrasStage.waiting =>
-        'Confirm the start code before the rider gets in. It keeps both of you on the right trip.',
-      TripExtrasStage.onTrip =>
-        'Smooth braking and a steady speed earn the best ratings. Keep your eyes on the road.',
-    };
+  TripExtrasStage.toPickup =>
+    'Stop where it is safe and legal. Riders find you faster when you stay close to the pin.',
+  TripExtrasStage.waiting =>
+    'Confirm the start code before the rider gets in. It keeps both of you on the right trip.',
+  TripExtrasStage.onTrip =>
+    'Smooth braking and a steady speed earn the best ratings. Keep your eyes on the road.',
+};
 
 String? _orNull(String? s) {
   final t = s?.trim();
@@ -304,12 +325,18 @@ class _RiderCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(PhosphorIconsRegular.note,
-                    size: 18, color: AppColors.accent),
+                Icon(
+                  PhosphorIconsRegular.note,
+                  size: 18,
+                  color: AppColors.accent,
+                ),
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
-                    child: Text('Pickup note · $n',
-                        style: theme.textTheme.bodyMedium)),
+                  child: Text(
+                    'Pickup note · $n',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
               ],
             ),
           ],
@@ -337,31 +364,41 @@ class _FareCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  fare != null ? Fmt.money(fare, trip.currency) : 'Set at the end of the trip',
+                  fare != null
+                      ? Fmt.money(fare, trip.currency)
+                      : 'Set at the end of the trip',
                   style: fare != null
                       ? theme.textTheme.headlineSmall
                       : theme.textTheme.bodyMedium,
                 ),
               ),
-              Icon(cash ? PhosphorIconsRegular.money : PhosphorIconsRegular.creditCard,
-                  size: 20,
-                  color: AppColors.iconNeutralFor(
-                      theme.brightness == Brightness.dark)),
+              Icon(
+                cash
+                    ? PhosphorIconsRegular.money
+                    : PhosphorIconsRegular.creditCard,
+                size: 20,
+                color: AppColors.iconNeutralFor(
+                  theme.brightness == Brightness.dark,
+                ),
+              ),
               const SizedBox(width: AppSpacing.xs),
               Text(cash ? 'Cash' : 'Card', style: theme.textTheme.titleSmall),
             ],
           ),
           if (trip.promoDiscount > 0) ...[
             const SizedBox(height: 2),
-            Text('Includes a ${Fmt.money(trip.promoDiscount, trip.currency)} rider promo',
-                style: theme.textTheme.bodySmall),
+            Text(
+              'Includes a ${Fmt.money(trip.promoDiscount, trip.currency)} rider promo',
+              style: theme.textTheme.bodySmall,
+            ),
           ],
           const SizedBox(height: AppSpacing.sm),
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: (cash ? AppColors.warning : AppColors.accent)
-                  .withValues(alpha: 0.12),
+              color: (cash ? AppColors.warning : AppColors.accent).withValues(
+                alpha: 0.12,
+              ),
               borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
             ),
             child: Text(
@@ -395,13 +432,29 @@ class _Toolkit extends StatelessWidget {
   Widget build(BuildContext context) {
     final tiles = <Widget>[
       if (onSafety != null)
-        _Tile(icon: PhosphorIconsRegular.shieldCheck, label: 'Safety & SOS', onTap: onSafety!),
+        _Tile(
+          icon: PhosphorIconsRegular.shieldCheck,
+          label: 'Safety & SOS',
+          onTap: onSafety!,
+        ),
       if (onShare != null)
-        _Tile(icon: PhosphorIconsRegular.export, label: 'Share trip', onTap: onShare!),
+        _Tile(
+          icon: PhosphorIconsRegular.export,
+          label: 'Share trip',
+          onTap: onShare!,
+        ),
       if (onMessage != null)
-        _Tile(icon: PhosphorIconsRegular.chatCircle, label: 'Message', onTap: onMessage!),
+        _Tile(
+          icon: PhosphorIconsRegular.chatCircle,
+          label: 'Message',
+          onTap: onMessage!,
+        ),
       if (onNavigate != null)
-        _Tile(icon: PhosphorIconsRegular.navigationArrow, label: navigateLabel, onTap: onNavigate!),
+        _Tile(
+          icon: PhosphorIconsRegular.navigationArrow,
+          label: navigateLabel,
+          onTap: onNavigate!,
+        ),
     ];
     if (tiles.isEmpty) return const SizedBox.shrink();
     return _Section(
@@ -434,16 +487,21 @@ class _Tile extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 48),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(icon, size: 20, color: AppColors.accentInk),
                 const SizedBox(width: AppSpacing.xs),
                 Flexible(
-                  child: Text(label,
-                      style: theme.textTheme.labelLarge
-                          ?.copyWith(color: AppColors.accentInk)),
+                  child: Text(
+                    label,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: AppColors.accentInk,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -481,13 +539,19 @@ class DriverTipPoster extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Driver tip',
-                    style: theme.textTheme.labelLarge
-                        ?.copyWith(color: Colors.white)),
+                Text(
+                  'Driver tip',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: Colors.white,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(tip,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: Colors.white)),
+                Text(
+                  tip,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white,
+                  ),
+                ),
               ],
             ),
           ),
@@ -547,9 +611,11 @@ class _DriverCompletedExtrasState extends State<DriverCompletedExtras> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (fare != null)
-                        Text('Fare · ${Fmt.money(fare, t.currency)}'
-                            ' · ${t.paymentMode == 'cash' ? 'Cash' : 'Card'}',
-                            style: theme.textTheme.titleMedium),
+                        Text(
+                          'Fare · ${Fmt.money(fare, t.currency)}'
+                          ' · ${t.paymentMode == 'cash' ? 'Cash' : 'Card'}',
+                          style: theme.textTheme.titleMedium,
+                        ),
                       if (t.distanceM != null || t.durationS != null)
                         Text(
                           [
@@ -560,14 +626,20 @@ class _DriverCompletedExtrasState extends State<DriverCompletedExtras> {
                           style: theme.textTheme.bodySmall,
                         ),
                       const SizedBox(height: AppSpacing.sm),
-                      RouteTimeline(stops: [
-                        RouteTimelineStop(
+                      RouteTimeline(
+                        stops: [
+                          RouteTimelineStop(
                             label: 'Pickup',
-                            address: _orNull(t.pickup.address) ?? 'Pinned location'),
-                        RouteTimelineStop(
+                            address:
+                                _orNull(t.pickup.address) ?? 'Pinned location',
+                          ),
+                          RouteTimelineStop(
                             label: 'Drop-off',
-                            address: _orNull(t.dropoff.address) ?? 'Pinned location'),
-                      ]),
+                            address:
+                                _orNull(t.dropoff.address) ?? 'Pinned location',
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -577,15 +649,18 @@ class _DriverCompletedExtrasState extends State<DriverCompletedExtras> {
         if (widget.todayTotal != null) ...[
           _Section(
             title: 'Today so far',
-            child: Text(Fmt.money(widget.todayTotal!),
-                style: theme.textTheme.headlineSmall),
+            child: Text(
+              Fmt.money(widget.todayTotal!),
+              style: theme.textTheme.headlineSmall,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
         ],
         ?widget.quests,
         const SizedBox(height: AppSpacing.md),
         const DriverTipPoster(
-          tip: 'A short stretch and some water between trips keeps you sharp for the next one.',
+          tip:
+              'A short stretch and some water between trips keeps you sharp for the next one.',
         ),
       ],
     );

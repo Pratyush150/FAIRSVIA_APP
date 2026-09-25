@@ -39,9 +39,9 @@ class LocationPrimingPage extends StatefulWidget {
   final LocationFixOpener openFix;
 
   static Route<LocationAccess?> route() => MaterialPageRoute<LocationAccess?>(
-        fullscreenDialog: true,
-        builder: (_) => const LocationPrimingPage(),
-      );
+    fullscreenDialog: true,
+    builder: (_) => const LocationPrimingPage(),
+  );
 
   @override
   State<LocationPrimingPage> createState() => _LocationPrimingPageState();
@@ -134,19 +134,22 @@ class _LocationPrimingPageState extends State<LocationPrimingPage>
                   const _Reason(
                     icon: PhosphorIconsRegular.broadcast,
                     title: 'Ride offers near you',
-                    body: 'Requests are sent to drivers close to the '
+                    body:
+                        'Requests are sent to drivers close to the '
                         'rider. Without your location you get none.',
                   ),
                   const _Reason(
                     icon: PhosphorIconsRegular.path,
                     title: 'Riders see you coming',
-                    body: 'Your rider follows the car to the pickup, and '
+                    body:
+                        'Your rider follows the car to the pickup, and '
                         'the trip is measured along the road you drive.',
                   ),
                   const _Reason(
                     icon: PhosphorIconsRegular.navigationArrow,
                     title: 'Keeps working while you navigate',
-                    body: 'While you are online, location keeps updating when '
+                    body:
+                        'While you are online, location keeps updating when '
                         'you switch to a maps app or lock the screen. Your '
                         'phone shows a notification or location indicator '
                         'the whole time.',
@@ -154,7 +157,8 @@ class _LocationPrimingPageState extends State<LocationPrimingPage>
                   const _Reason(
                     icon: PhosphorIconsRegular.shieldCheck,
                     title: 'Only while you are online',
-                    body: 'When you go offline, RideVela stops sending your '
+                    body:
+                        'When you go offline, RideVela stops sending your '
                         'location.',
                   ),
                 ],

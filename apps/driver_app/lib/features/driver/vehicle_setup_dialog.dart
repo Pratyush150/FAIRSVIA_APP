@@ -27,10 +27,8 @@ class VehicleSetupDialog extends StatefulWidget {
 
 class _VehicleSetupDialogState extends State<VehicleSetupDialog> {
   late final _make = TextEditingController(text: widget.initial?.vehicleMake);
-  late final _model =
-      TextEditingController(text: widget.initial?.vehicleModel);
-  late final _color =
-      TextEditingController(text: widget.initial?.vehicleColor);
+  late final _model = TextEditingController(text: widget.initial?.vehicleModel);
+  late final _color = TextEditingController(text: widget.initial?.vehicleColor);
   late final _plate = TextEditingController(text: widget.initial?.plateNumber);
   late String _tier = widget.initial?.vehicleTier ?? 'economy';
   bool _saving = false;
@@ -144,8 +142,7 @@ class _VehicleSetupDialogState extends State<VehicleSetupDialog> {
               controller: _color,
               enabled: !_saving,
               textCapitalization: TextCapitalization.words,
-              decoration:
-                  const InputDecoration(labelText: 'Colour (optional)'),
+              decoration: const InputDecoration(labelText: 'Colour (optional)'),
             ),
             const SizedBox(height: AppSpacing.sm),
             TextField(
@@ -170,10 +167,9 @@ class _VehicleSetupDialogState extends State<VehicleSetupDialog> {
               const SizedBox(height: AppSpacing.md),
               Text(
                 _error!,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: AppColors.error),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppColors.error),
               ),
             ],
           ],

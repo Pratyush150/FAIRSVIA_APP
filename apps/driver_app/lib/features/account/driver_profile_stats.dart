@@ -72,7 +72,7 @@ class _DriverProfileStatsState extends State<DriverProfileStats> {
             child: _Stat(
               label: rated
                   ? '${widget.ratingCount} '
-                      '${widget.ratingCount == 1 ? 'rating' : 'ratings'}'
+                        '${widget.ratingCount == 1 ? 'rating' : 'ratings'}'
                   : 'No ratings yet',
               value: rated ? widget.ratingAvg.toStringAsFixed(1) : 'New',
               leading: rated

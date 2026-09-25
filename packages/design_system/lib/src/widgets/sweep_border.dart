@@ -5,16 +5,18 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_motion.dart';
 
-/// A light that travels around its child's outline: a short gradient "comet"
-/// (brand accent into highlight) drawn on top of the child's own border.
-/// Made for the Home's "Where to?" bar — it runs a few laps when the bar
-/// first shows (and again on [replayKey] change), then fades out, leaving the
-/// bar's own border. It never loops forever: the Home is on screen for a long
-/// time and a constant chase would be noise (and battery).
+/// A living border for the Home's "Where to?" bar: a brand gradient ring
+/// (teal → mint → teal) that rotates slowly and continuously round the
+/// child's outline, over a soft teal outer glow. It runs the whole time the
+/// Home is visible; Flutter's [TickerMode] pauses it when the route is
+/// covered or the app is backgrounded, so it costs nothing off screen.
 ///
-/// Cost: the light is a foreground [CustomPainter] repainted straight from
-/// the animation (no widget rebuilds), inside its own [RepaintBoundary], so a
-/// lap repaints one ring, not the Home. Reduce Motion: nothing is drawn.
+/// Cost: the ring is a foreground [CustomPainter] repainted straight from
+/// the animation (no widget rebuilds), and the child sits in its own
+/// [RepaintBoundary], so a frame repaints one ring, not the Home.
+///
+/// Reduce Motion (or [debugDisableLoops], set in tests so `pumpAndSettle`
+/// can settle): the same gradient ring and glow, drawn once, not moving.
 ///
 /// The ring follows a rounded rectangle of [borderRadius]; null means a
 /// stadium (fully rounded ends, radius = half the height).
@@ -24,37 +26,55 @@ class SweepBorder extends StatefulWidget {
     required this.child,
     this.borderRadius,
     this.width = 2,
-    this.laps = 2,
     this.lapDuration = defaultLap,
     this.colors,
+    this.glow = true,
     this.replayKey,
   });
 
   final Widget child;
   final BorderRadius? borderRadius;
 
-  /// Stroke width of the light, centred on the outline's inset edge so it
-  /// covers a border of about the same width.
+  /// Stroke width of the ring, drawn just inside the outline so it covers a
+  /// border of about the same width.
   final double width;
 
-  /// How many times the light goes round before it fades.
-  final int laps;
+  /// Time for one full turn of the gradient.
   final Duration lapDuration;
 
-  /// The comet's colours from tail to head; defaults to [brandColors].
+  /// The ring's gradient stops round the loop; defaults to [brandColors].
   final List<Color>? colors;
 
-  /// Change it to run the laps again (e.g. when the Home returns).
+  /// Whether to draw the soft outer glow under the ring.
+  final bool glow;
+
+  /// Kept for callers that restart the effect; the loop restarts from the
+  /// top of its turn when it changes.
   final Object? replayKey;
 
-  static const Duration defaultLap = Duration(milliseconds: 2400);
+  static const Duration defaultLap = Duration(milliseconds: 5000);
 
-  /// Tail → head: transparent accent, accent, the highlight at the head.
+  /// Test hook: when true, looping effects ([SweepBorder] and the poster
+  /// shimmer) draw their static frame and schedule no frames, so widget
+  /// tests' `pumpAndSettle` settles. Set in `flutter_test_config.dart`.
+  static bool debugDisableLoops = false;
+
+  /// Mint highlight used in the brand sweep.
+  static const Color mint = Color(0xFF7CF2D2);
+
+  /// Teal → mint → teal, closing on itself so the rotation has no seam.
   static List<Color> brandColors(bool dark) => [
-    AppColors.accent.withValues(alpha: 0),
     AppColors.accent,
-    AppColors.highlightFor(dark),
+    dark ? mint : AppColors.highlightFor(dark),
+    mint,
+    AppColors.accent,
+    AppColors.accent.withValues(alpha: 0.55),
+    AppColors.accent,
   ];
+
+  /// The outer glow colour.
+  static Color glowColor(bool dark) =>
+      AppColors.accent.withValues(alpha: dark ? 0.45 : 0.32);
 
   @override
   State<SweepBorder> createState() => _SweepBorderState();
@@ -64,30 +84,33 @@ class _SweepBorderState extends State<SweepBorder>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: widget.lapDuration * widget.laps,
+    duration: widget.lapDuration,
   );
-  bool _reduced = false;
-  bool _started = false;
+  bool _still = false;
+
+  void _sync() {
+    _still = AppMotion.reduced(context) || SweepBorder.debugDisableLoops;
+    if (_still) {
+      _c.stop();
+    } else if (!_c.isAnimating) {
+      _c.repeat();
+    }
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _reduced = AppMotion.reduced(context);
-    if (_reduced) {
-      _c.stop();
-    } else if (!_started) {
-      _started = true;
-      _c.forward();
-    }
+    _sync();
   }
 
   @override
   void didUpdateWidget(SweepBorder old) {
     super.didUpdateWidget(old);
-    _c.duration = widget.lapDuration * widget.laps;
-    if (old.replayKey != widget.replayKey && !_reduced) {
-      _c.forward(from: 0);
+    _c.duration = widget.lapDuration;
+    if (old.replayKey != widget.replayKey && !_still) {
+      _c.repeat();
     }
+    _sync();
   }
 
   @override
@@ -98,17 +121,30 @@ class _SweepBorderState extends State<SweepBorder>
 
   @override
   Widget build(BuildContext context) {
-    if (_reduced) return widget.child;
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final r = widget.borderRadius;
+    Widget child = RepaintBoundary(child: widget.child);
+    if (widget.glow) {
+      final shadow = BoxShadow(
+        color: SweepBorder.glowColor(dark),
+        blurRadius: 16,
+        spreadRadius: 1,
+      );
+      child = DecoratedBox(
+        decoration: r == null
+            ? ShapeDecoration(shape: const StadiumBorder(), shadows: [shadow])
+            : BoxDecoration(borderRadius: r, boxShadow: [shadow]),
+        child: child,
+      );
+    }
     return CustomPaint(
       foregroundPainter: _SweepPainter(
         progress: _c,
-        laps: widget.laps,
         colors: widget.colors ?? SweepBorder.brandColors(dark),
         width: widget.width,
-        radius: widget.borderRadius,
+        radius: r,
       ),
-      child: RepaintBoundary(child: widget.child),
+      child: child,
     );
   }
 }
@@ -116,44 +152,29 @@ class _SweepBorderState extends State<SweepBorder>
 class _SweepPainter extends CustomPainter {
   _SweepPainter({
     required this.progress,
-    required this.laps,
     required this.colors,
     required this.width,
     required this.radius,
   }) : super(repaint: progress);
 
   final Animation<double> progress;
-  final int laps;
   final List<Color> colors;
   final double width;
   final BorderRadius? radius;
 
-  /// Share of the run over which the light fades in, and out at the end.
-  static const double _fade = 0.12;
-
   @override
   void paint(Canvas canvas, Size size) {
-    final t = progress.value;
-    if (t <= 0 || t >= 1 || size.isEmpty) return;
-    final alpha = (math.min(t, 1 - t) / _fade).clamp(0.0, 1.0);
+    if (size.isEmpty) return;
     final rect = (Offset.zero & size).deflate(width / 2);
     final r = radius ?? BorderRadius.circular(size.height / 2);
     final rrect = r.toRRect(rect);
-    // The comet covers a quarter turn, its head at the rotation angle.
-    final angle = t * laps * 2 * math.pi;
+    final angle = progress.value * 2 * math.pi;
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = width
+      ..isAntiAlias = true
       ..shader = SweepGradient(
-        colors: [
-          for (final c in colors) c.withValues(alpha: c.a * alpha),
-          colors.first.withValues(alpha: 0),
-        ],
-        stops: [
-          for (var i = 0; i < colors.length; i++)
-            0.75 + 0.25 * i / (colors.length - 1) - (i == colors.length - 1 ? 0.001 : 0),
-          1.0,
-        ],
+        colors: colors,
         transform: GradientRotation(angle),
       ).createShader(rect);
     canvas.drawRRect(rrect, paint);
@@ -162,7 +183,6 @@ class _SweepPainter extends CustomPainter {
   @override
   bool shouldRepaint(_SweepPainter old) =>
       old.progress != progress ||
-      old.laps != laps ||
       old.width != width ||
       old.radius != radius ||
       !_sameColors(old.colors, colors);

@@ -82,12 +82,14 @@ class _FatigueStatusBarState extends State<FatigueStatusBar> {
   void _onReminder(Map<String, dynamic> data) {
     if (!mounted) return;
     final secs = (data['sessionSeconds'] as num?)?.round() ?? 0;
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-      content: Text(
-        "You've been online ${FatigueStatus.hm(secs)} straight. "
-        'A short break helps you stay sharp.',
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(
+          "You've been online ${FatigueStatus.hm(secs)} straight. "
+          'A short break helps you stay sharp.',
+        ),
       ),
-    ));
+    );
   }
 
   @override
@@ -108,7 +110,8 @@ class _FatigueStatusBarState extends State<FatigueStatusBar> {
             )
           else ...[
             Semantics(
-              label: 'Online today ${FatigueStatus.hm(s.onlineSeconds)} '
+              label:
+                  'Online today ${FatigueStatus.hm(s.onlineSeconds)} '
                   'of ${FatigueStatus.hm(s.limitSeconds)}',
               excludeSemantics: true,
               child: Row(
@@ -164,7 +167,7 @@ class FatigueWarningBanner extends StatelessWidget {
     final body = status.overLimit
         ? "No new trips. You'll go offline when this trip ends, then rest $rest."
         : "At ${FatigueStatus.hm(status.limitSeconds)} online you'll stop "
-            'getting trips and must rest $rest.';
+              'getting trips and must rest $rest.';
     return Semantics(
       container: true,
       liveRegion: true,

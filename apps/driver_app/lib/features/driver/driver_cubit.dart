@@ -22,10 +22,11 @@ class DriverCubit extends Cubit<DriverState> {
     LocationAccessCheck? checkLocation,
     Duration acceptGrace = const Duration(seconds: 5),
     Duration presenceInterval = const Duration(seconds: 30),
-  })  : _checkLocation = checkLocation ?? checkLocationAccess,
-        _acceptGrace = acceptGrace, // ignore: prefer_initializing_formals
-        _presenceInterval = presenceInterval, // ignore: prefer_initializing_formals
-        super(const DriverState());
+  }) : _checkLocation = checkLocation ?? checkLocationAccess,
+       _acceptGrace = acceptGrace, // ignore: prefer_initializing_formals
+       _presenceInterval =
+           presenceInterval, // ignore: prefer_initializing_formals
+       super(const DriverState());
 
   final RealtimeClient _realtime;
   final DriverRemoteDataSource _remote;
@@ -65,16 +66,28 @@ class DriverCubit extends Cubit<DriverState> {
     // later reconnected fine at the socket level but never heard an offer,
     // assignment, cancellation or up/down edge.
     _subs
-      ..add(_realtime.on('trip:offer').listen(
-          (d) => _onOffer(RideOffer.fromJson(d))))
-      ..add(_realtime.on('trip:offer_expired').listen(
-          (d) => _onOfferExpired(tripId: d['tripId'] as String?)))
-      ..add(_realtime.on('trip:assigned').listen((d) => _onAssigned(
-            d['tripId'] as String,
-            // Route from the driver's car to the pickup, so the map can show
-            // exactly where they're collecting the rider from.
-            approachPolyline: d['driverPolyline'] as String?,
-          )))
+      ..add(
+        _realtime
+            .on('trip:offer')
+            .listen((d) => _onOffer(RideOffer.fromJson(d))),
+      )
+      ..add(
+        _realtime
+            .on('trip:offer_expired')
+            .listen((d) => _onOfferExpired(tripId: d['tripId'] as String?)),
+      )
+      ..add(
+        _realtime
+            .on('trip:assigned')
+            .listen(
+              (d) => _onAssigned(
+                d['tripId'] as String,
+                // Route from the driver's car to the pickup, so the map can show
+                // exactly where they're collecting the rider from.
+                approachPolyline: d['driverPolyline'] as String?,
+              ),
+            ),
+      )
       ..add(_realtime.on('trip:cancelled').listen(_onTripCancelled))
       // The RIDER can end the ride early (POST /trips/:id/end-early): the
       // server completes it and sends both apps the receipt.
@@ -93,9 +106,11 @@ class DriverCubit extends Cubit<DriverState> {
       // trip after a dropped socket so the driver's screen stays truthful.
       ..add(_realtime.reconnects.listen((_) => _onReconnect()))
       // Surface socket up/down edges so the UI can show a reconnecting banner.
-      ..add(_realtime.connection.listen((up) {
-        if (up != state.connected) emit(state.copyWith(connected: up));
-      }));
+      ..add(
+        _realtime.connection.listen((up) {
+          if (up != state.connected) emit(state.copyWith(connected: up));
+        }),
+      );
     await _connectRealtime(token);
     // If this app was killed and reopened mid-trip, restore the live trip
     // screen instead of showing the idle "go online" home.
@@ -146,8 +161,8 @@ class DriverCubit extends Cubit<DriverState> {
   /// request instead of racing it.
   Future<void>? _restoring;
 
-  Future<void> _restoreActiveTrip() =>
-      _restoring ??= _doRestoreActiveTrip().whenComplete(() => _restoring = null);
+  Future<void> _restoreActiveTrip() => _restoring ??= _doRestoreActiveTrip()
+      .whenComplete(() => _restoring = null);
 
   Future<void> _doRestoreActiveTrip() async {
     try {
@@ -196,7 +211,16 @@ class DriverCubit extends Cubit<DriverState> {
       // If the rider cancelled while we were offline, drop back to online.
       if (fresh.status == TripStatus.cancelled ||
           fresh.status == TripStatus.completed) {
-        emit(state.copyWith(phase: DriverPhase.online, trip: null, riderName: null, riderComingAt: null, stopsReached: 0, stopsChangedAt: null));
+        emit(
+          state.copyWith(
+            phase: DriverPhase.online,
+            trip: null,
+            riderName: null,
+            riderComingAt: null,
+            stopsReached: 0,
+            stopsChangedAt: null,
+          ),
+        );
       } else {
         emit(state.copyWith(trip: fresh));
       }
@@ -213,11 +237,13 @@ class DriverCubit extends Cubit<DriverState> {
     // tell them what to fix instead.
     final access = await _checkLocation();
     if (access != LocationAccess.granted) {
-      emit(state.copyWith(
-        busy: false,
-        error: locationAccessMessage(access),
-        locationIssue: access,
-      ));
+      emit(
+        state.copyWith(
+          busy: false,
+          error: locationAccessMessage(access),
+          locationIssue: access,
+        ),
+      );
       return;
     }
     try {
@@ -227,11 +253,13 @@ class DriverCubit extends Cubit<DriverState> {
       _startPresenceSync();
     } on ApiException catch (e) {
       final needsOnboarding = e.message.toLowerCase().contains('onboarding');
-      emit(state.copyWith(
-        busy: false,
-        error: e.message,
-        needsOnboarding: needsOnboarding,
-      ));
+      emit(
+        state.copyWith(
+          busy: false,
+          error: e.message,
+          needsOnboarding: needsOnboarding,
+        ),
+      );
     }
   }
 
@@ -240,9 +268,11 @@ class DriverCubit extends Cubit<DriverState> {
   /// Settings noticed on resume — so the offline sheet's banner matches.
   void setLocationIssue(LocationAccess? issue) {
     if (isClosed || state.locationIssue == issue) return;
-    emit(state.copyWith(
-      locationIssue: issue == LocationAccess.granted ? null : issue,
-    ));
+    emit(
+      state.copyWith(
+        locationIssue: issue == LocationAccess.granted ? null : issue,
+      ),
+    );
   }
 
   Future<void> goOffline() async {
@@ -250,7 +280,9 @@ class DriverCubit extends Cubit<DriverState> {
     _stopPresenceSync();
     try {
       await _remote.setStatus('offline');
-    } catch (_) {/* best effort */}
+    } catch (_) {
+      /* best effort */
+    }
     _realtime.emit('driver:status', {'status': 'offline'});
     emit(state.copyWith(phase: DriverPhase.offline, offer: null));
   }
@@ -317,13 +349,16 @@ class DriverCubit extends Cubit<DriverState> {
       if (++_offlineStrikes < 2) return;
       _stopPresenceSync();
       _cancelAcceptTimer();
-      emit(state.copyWith(
-        phase: DriverPhase.offline,
-        offer: null,
-        busy: false,
-        error: 'The server no longer has you online. Go online again to '
-            'keep receiving requests.',
-      ));
+      emit(
+        state.copyWith(
+          phase: DriverPhase.offline,
+          offer: null,
+          busy: false,
+          error:
+              'The server no longer has you online. Go online again to '
+              'keep receiving requests.',
+        ),
+      );
     } catch (_) {
       // Transient network error: try again on the next tick.
     }
@@ -345,7 +380,9 @@ class DriverCubit extends Cubit<DriverState> {
     // validates heading 0..360 and speed 0..400, so an out-of-range value gets
     // the WHOLE ping rejected and the driver silently drops out of the dispatch
     // pool (never receives offers). Clamp to valid ranges before sending.
-    final h = (heading.isFinite && heading >= 0 && heading <= 360) ? heading : 0.0;
+    final h = (heading.isFinite && heading >= 0 && heading <= 360)
+        ? heading
+        : 0.0;
     final s = (speed.isFinite && speed >= 0 && speed <= 400) ? speed : 0.0;
     _realtime.emit('driver:location', {
       'lat': lat,
@@ -380,12 +417,14 @@ class DriverCubit extends Cubit<DriverState> {
             state.offer?.tripId != offer.tripId) {
           return;
         }
-        emit(state.copyWith(
-          phase: _idlePhase,
-          offer: null,
-          busy: false,
-          error: 'That ride was taken or cancelled',
-        ));
+        emit(
+          state.copyWith(
+            phase: _idlePhase,
+            offer: null,
+            busy: false,
+            error: 'That ride was taken or cancelled',
+          ),
+        );
       },
     );
   }
@@ -427,9 +466,8 @@ class DriverCubit extends Cubit<DriverState> {
   /// Where an offer that went away (declined, expired, lost) returns to: the
   /// trip-complete sheet if the driver hadn't finished with it yet, else the
   /// plain online screen.
-  DriverPhase get _idlePhase => state.lastTripId != null
-      ? DriverPhase.completed
-      : DriverPhase.online;
+  DriverPhase get _idlePhase =>
+      state.lastTripId != null ? DriverPhase.completed : DriverPhase.online;
 
   Future<void> markArrived() async {
     final trip = state.trip;
@@ -437,11 +475,13 @@ class DriverCubit extends Cubit<DriverState> {
     emit(state.copyWith(busy: true, error: null));
     try {
       await _remote.arrived(trip.id);
-      emit(state.copyWith(
-        phase: DriverPhase.arrived,
-        busy: false,
-        arrivedAt: DateTime.now(),
-      ));
+      emit(
+        state.copyWith(
+          phase: DriverPhase.arrived,
+          busy: false,
+          arrivedAt: DateTime.now(),
+        ),
+      );
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));
     }
@@ -474,8 +514,12 @@ class DriverCubit extends Cubit<DriverState> {
       emit(state.copyWith(busy: false, error: e.message));
       return;
     } catch (_) {
-      emit(state.copyWith(
-          busy: false, error: 'Could not complete the trip. Try again.'));
+      emit(
+        state.copyWith(
+          busy: false,
+          error: 'Could not complete the trip. Try again.',
+        ),
+      );
       return;
     }
 
@@ -496,26 +540,30 @@ class DriverCubit extends Cubit<DriverState> {
   }
 
   Future<void> _enterCompleted(
-      String tripId, Map<String, dynamic> receipt) async {
+    String tripId,
+    Map<String, dynamic> receipt,
+  ) async {
     // The trip is completed server-side now — move to `completed` IMMEDIATELY so
     // a follow-up failure (e.g. loading earnings) can't leave the driver stranded
     // on the trip screen re-tapping "Complete" on an already-completed trip.
     final isCash = receipt['paymentMode'] == 'cash';
     final cash = isCash ? (receipt['fareFinal'] as num?)?.toDouble() : null;
-    emit(state.copyWith(
-      phase: DriverPhase.completed,
-      trip: null,
-      riderComingAt: null,
-      stopsReached: 0,
-      stopsChangedAt: null,
-      riderName: null,
-      unreadMessages: 0,
-      busy: false,
-      lastTripId: tripId,
-      riderRating: null,
-      cashToCollect: cash,
-      endNote: completionNote(receipt),
-    ));
+    emit(
+      state.copyWith(
+        phase: DriverPhase.completed,
+        trip: null,
+        riderComingAt: null,
+        stopsReached: 0,
+        stopsChangedAt: null,
+        riderName: null,
+        unreadMessages: 0,
+        busy: false,
+        lastTripId: tripId,
+        riderRating: null,
+        cashToCollect: cash,
+        endNote: completionNote(receipt),
+      ),
+    );
 
     // Earnings total is a nice-to-have on the completion sheet — load it
     // best-effort, never reverting the completion above.
@@ -546,12 +594,14 @@ class DriverCubit extends Cubit<DriverState> {
 
   /// Dismiss the completion sheet and go back online.
   void dismissCompleted() {
-    emit(state.copyWith(
-      phase: DriverPhase.online,
-      lastTripId: null,
-      riderRating: null,
-      endNote: null,
-    ));
+    emit(
+      state.copyWith(
+        phase: DriverPhase.online,
+        lastTripId: null,
+        riderRating: null,
+        endNote: null,
+      ),
+    );
   }
 
   void _onOffer(RideOffer offer) {
@@ -578,38 +628,42 @@ class DriverCubit extends Cubit<DriverState> {
     if (state.phase != DriverPhase.offered) return;
     if (tripId != null && state.offer?.tripId != tripId) return;
     _cancelAcceptTimer();
-    emit(state.copyWith(
-      phase: _idlePhase,
-      offer: null,
-      busy: false,
-      error: state.busy ? 'That ride was taken or cancelled' : null,
-    ));
+    emit(
+      state.copyWith(
+        phase: _idlePhase,
+        offer: null,
+        busy: false,
+        error: state.busy ? 'That ride was taken or cancelled' : null,
+      ),
+    );
   }
 
   Future<void> _onAssigned(String tripId, {String? approachPolyline}) async {
     try {
       final trip = await _remote.getTrip(tripId);
       _cancelAcceptTimer();
-      emit(state.copyWith(
-        phase: DriverPhase.enRoute,
-        trip: trip,
-        riderComingAt: null,
-      stopsReached: 0,
-      stopsChangedAt: null,
-        offer: null,
-        busy: false,
-        approachPolyline: approachPolyline,
-        // The Trip model carries no rider profile; keep the name from the
-        // offer card so the chat header can address the rider by name.
-        riderName: state.offer?.riderName ?? trip.riderName,
-        // Accepting from the trip-complete sheet closes it: the new trip
-        // takes over. The skipped rider rating can still be given later
-        // (POST /trips/:id/rating accepts it after the fact).
-        lastTripId: null,
-        riderRating: null,
-        cashToCollect: null,
-        endNote: null,
-      ));
+      emit(
+        state.copyWith(
+          phase: DriverPhase.enRoute,
+          trip: trip,
+          riderComingAt: null,
+          stopsReached: 0,
+          stopsChangedAt: null,
+          offer: null,
+          busy: false,
+          approachPolyline: approachPolyline,
+          // The Trip model carries no rider profile; keep the name from the
+          // offer card so the chat header can address the rider by name.
+          riderName: state.offer?.riderName ?? trip.riderName,
+          // Accepting from the trip-complete sheet closes it: the new trip
+          // takes over. The skipped rider rating can still be given later
+          // (POST /trips/:id/rating accepts it after the fact).
+          lastTripId: null,
+          riderRating: null,
+          cashToCollect: null,
+          endNote: null,
+        ),
+      );
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));
     }
@@ -628,7 +682,8 @@ class DriverCubit extends Cubit<DriverState> {
   void _onRiderComing(Map<String, dynamic> data) {
     final tripId = data['tripId'] as String?;
     if (tripId == null || tripId != state.trip?.id) return;
-    if (state.phase != DriverPhase.enRoute && state.phase != DriverPhase.arrived) {
+    if (state.phase != DriverPhase.enRoute &&
+        state.phase != DriverPhase.arrived) {
       return;
     }
     emit(state.copyWith(riderComingAt: DateTime.now()));
@@ -661,11 +716,17 @@ class DriverCubit extends Cubit<DriverState> {
     }
   }
 
-  static double _metersBetween(double aLat, double aLng, double bLat, double bLng) {
+  static double _metersBetween(
+    double aLat,
+    double aLng,
+    double bLat,
+    double bLng,
+  ) {
     const r = 6371000.0;
     final dLat = (bLat - aLat) * math.pi / 180;
     final dLng = (bLng - aLng) * math.pi / 180;
-    final h = math.pow(math.sin(dLat / 2), 2) +
+    final h =
+        math.pow(math.sin(dLat / 2), 2) +
         math.cos(aLat * math.pi / 180) *
             math.cos(bLat * math.pi / 180) *
             math.pow(math.sin(dLng / 2), 2);
@@ -676,17 +737,21 @@ class DriverCubit extends Cubit<DriverState> {
     final tripId = data['tripId'] as String?;
     final added = (data['added'] as num?)?.toDouble();
     if (added == null || added <= 0) return;
-    if (tripId != null && state.lastTripId != null && tripId != state.lastTripId) {
+    if (tripId != null &&
+        state.lastTripId != null &&
+        tripId != state.lastTripId) {
       return;
     }
     final cash = data['paymentMode'] == 'cash';
-    emit(state.copyWith(
-      cashToCollect: cash && state.cashToCollect != null
-          ? state.cashToCollect! + added
-          : state.cashToCollect,
-      lastEarned: state.lastEarned != null ? state.lastEarned! + added : null,
-      error: 'The rider added a ${Fmt.money(added)} tip',
-    ));
+    emit(
+      state.copyWith(
+        cashToCollect: cash && state.cashToCollect != null
+            ? state.cashToCollect! + added
+            : state.cashToCollect,
+        lastEarned: state.lastEarned != null ? state.lastEarned! + added : null,
+        error: 'The rider added a ${Fmt.money(added)} tip',
+      ),
+    );
   }
 
   void _onServerStatus(Map<String, dynamic> data) {
@@ -706,12 +771,14 @@ class DriverCubit extends Cubit<DriverState> {
         // Make the server match the screen even if a reconnect re-announce
         // raced this event and put us back online without our knowledge.
         _realtime.emit('driver:status', {'status': 'offline'});
-        emit(state.copyWith(
-          phase: DriverPhase.offline,
-          offer: null,
-          busy: false,
-          error: _forcedOfflineMessage(reason),
-        ));
+        emit(
+          state.copyWith(
+            phase: DriverPhase.offline,
+            offer: null,
+            busy: false,
+            error: _forcedOfflineMessage(reason),
+          ),
+        );
       case 'online':
         // Only the connect-time snapshot may put us online on its own: it
         // means the server still holds our presence from before a relaunch.
@@ -748,18 +815,21 @@ class DriverCubit extends Cubit<DriverState> {
     // A refused `driver:status` (e.g. the reconnect re-announce hit "Documents
     // are not verified yet") means we are NOT online server-side — don't keep
     // showing "Online" with no offers ever coming.
-    final refusedOnline = data['event'] == 'driver:status' &&
+    final refusedOnline =
+        data['event'] == 'driver:status' &&
         code >= 400 &&
         code < 500 &&
         state.isOnline &&
         state.trip == null;
     if (refusedOnline) _cancelAcceptTimer();
-    emit(state.copyWith(
-      phase: refusedOnline ? DriverPhase.offline : null,
-      offer: refusedOnline ? null : state.offer,
-      busy: refusedOnline ? false : null,
-      error: message,
-    ));
+    emit(
+      state.copyWith(
+        phase: refusedOnline ? DriverPhase.offline : null,
+        offer: refusedOnline ? null : state.offer,
+        busy: refusedOnline ? false : null,
+        error: message,
+      ),
+    );
   }
 
   /// Cancel the trip as a rider no-show (only offered once the wait at the
@@ -787,19 +857,21 @@ class DriverCubit extends Cubit<DriverState> {
 
   void _backToOnline({String? error}) {
     _cancelAcceptTimer();
-    emit(state.copyWith(
-      phase: DriverPhase.online,
-      trip: null,
-      riderComingAt: null,
-      arrivedAt: null,
-      stopsReached: 0,
-      stopsChangedAt: null,
-      riderName: null,
-      unreadMessages: 0,
-      offer: null,
-      busy: false,
-      error: error,
-    ));
+    emit(
+      state.copyWith(
+        phase: DriverPhase.online,
+        trip: null,
+        riderComingAt: null,
+        arrivedAt: null,
+        stopsReached: 0,
+        stopsChangedAt: null,
+        riderName: null,
+        unreadMessages: 0,
+        offer: null,
+        busy: false,
+        error: error,
+      ),
+    );
   }
 
   void _onTripCancelled(dynamic data) {
@@ -817,18 +889,20 @@ class DriverCubit extends Cubit<DriverState> {
 
   void _onCancelledByRider() {
     _cancelAcceptTimer();
-    emit(state.copyWith(
-      phase: DriverPhase.online,
-      trip: null,
-      riderComingAt: null,
-      stopsReached: 0,
-      stopsChangedAt: null,
-      riderName: null,
-      unreadMessages: 0,
-      offer: null,
-      busy: false,
-      error: 'The rider cancelled the trip',
-    ));
+    emit(
+      state.copyWith(
+        phase: DriverPhase.online,
+        trip: null,
+        riderComingAt: null,
+        stopsReached: 0,
+        stopsChangedAt: null,
+        riderName: null,
+        unreadMessages: 0,
+        offer: null,
+        busy: false,
+        error: 'The rider cancelled the trip',
+      ),
+    );
   }
 
   @override

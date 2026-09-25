@@ -197,6 +197,7 @@ double _simHeading = 90;
 
 List<({double lat, double lng})> _simPath = const [];
 int _simIdx = 0;
+
 /// Dev/demo override for the simulated car's speed in m/s (mock mode only):
 /// `--dart-define=SIM_SPEED_MPS=20`. Defaults to ~50 km/h city driving.
 const String _simSpeedEnv = String.fromEnvironment('SIM_SPEED_MPS');
@@ -223,7 +224,8 @@ double _distM(({double lat, double lng}) a, ({double lat, double lng}) b) {
   final dLng = (b.lng - a.lng) * pi / 180;
   final la1 = a.lat * pi / 180;
   final la2 = b.lat * pi / 180;
-  final h = sin(dLat / 2) * sin(dLat / 2) +
+  final h =
+      sin(dLat / 2) * sin(dLat / 2) +
       cos(la1) * cos(la2) * sin(dLng / 2) * sin(dLng / 2);
   return 2 * r * asin(min(1.0, sqrt(h)));
 }
@@ -265,7 +267,8 @@ List<({double lat, double lng})> simulatedRemainingPath() {
   }
   if (cur.lat != from.lat || cur.lng != from.lng) {
     _simHeading =
-        ((atan2(cur.lng - from.lng, cur.lat - from.lat) * 180 / pi) + 360) % 360;
+        ((atan2(cur.lng - from.lng, cur.lat - from.lat) * 180 / pi) + 360) %
+        360;
   }
   _simCurrent = cur;
   return cur;
@@ -279,15 +282,16 @@ Stream<Position> driverPositionStream() {
     return Stream<Position>.multi((controller) {
       _simCurrent ??= (lat: mock.lat, lng: mock.lng);
       controller.add(
-        _mockPositionAt(_simCurrent!.lat, _simCurrent!.lng, heading: _simHeading),
+        _mockPositionAt(
+          _simCurrent!.lat,
+          _simCurrent!.lng,
+          heading: _simHeading,
+        ),
       );
-      final timer = Timer.periodic(
-        const Duration(milliseconds: _tickMs),
-        (_) {
-          final p = _advanceSim();
-          controller.add(_mockPositionAt(p.lat, p.lng, heading: _simHeading));
-        },
-      );
+      final timer = Timer.periodic(const Duration(milliseconds: _tickMs), (_) {
+        final p = _advanceSim();
+        controller.add(_mockPositionAt(p.lat, p.lng, heading: _simHeading));
+      });
       controller.onCancel = timer.cancel;
     });
   }
@@ -313,8 +317,10 @@ LocationSettings _platformLocationSettings() {
         setOngoing: true,
         // The Road-V as a white silhouette (res/drawable/ic_stat_ridevela.xml).
         // The default, the colour launcher icon, shows as a grey blob.
-        notificationIcon:
-            AndroidResource(name: 'ic_stat_ridevela', defType: 'drawable'),
+        notificationIcon: AndroidResource(
+          name: 'ic_stat_ridevela',
+          defType: 'drawable',
+        ),
       ),
     );
   }

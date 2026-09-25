@@ -116,7 +116,8 @@ class PromoBanner extends StatelessWidget {
     child: Builder(
       builder: (context) => PressScale(
         enabled: onTap != null,
-        scale: 0.98,
+        scale: 0.96,
+        rim: true,
         glow: PressScale.brandGlow(
           Theme.of(context).brightness == Brightness.dark,
         ),

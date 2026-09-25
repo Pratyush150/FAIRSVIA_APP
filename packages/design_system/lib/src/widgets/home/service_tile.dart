@@ -98,6 +98,7 @@ class ServiceTile extends StatelessWidget {
       onTap: onTap,
       child: PressScale(
         enabled: onTap != null,
+        rim: true,
         glow: PressScale.brandGlow(dark),
         glowRadius: radius,
         child: SizedBox(
