@@ -22,3 +22,12 @@ C Day&Night. D/E/F and the new palettes are proposals — each can become a
 **Finding to act on regardless of the pick:** the shipped light route colour
 #0FA3A8 is only 2.49:1 against the light map (target 3:1); success/warning
 text colours are under 4.5:1 — see colour-palette-options.md.
+
+## DECISION 2026-09-25 — final look: Plan F "Map Glass"
+
+The owner picked **F (Map Glass)** after comparing all looks on a real phone.
+It is now the default build (`AppColors.variant` defaults to `glass`); git tag
+**`ui-final-glass-v2.0.0`** marks the baseline we iterate on. Other looks stay
+in code behind `THEME=` (turquoise = the previous default) but are not shipped.
+Appearance switching is no longer held during a ride (owner: it must change
+whenever the user wants, without affecting anything else).

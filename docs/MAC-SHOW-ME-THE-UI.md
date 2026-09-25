@@ -80,55 +80,23 @@ flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
 | D2 | After sign-in: "**Allow location to get ride offers**" explainer *before* the iOS prompt; choose "Don't Allow" once → banner with **Open Settings** |
 | D3 | Account: profile card with rating ("New"), trips (last 7 days), plate; phone shown spaced "+91 98765 11111" |
 
-## 5. The shortlist (owner, 2026-09-25): four looks only
+## 5. FINAL LOOK (owner, 2026-09-25): Plan F "Map Glass" — the default
 
-Build and show **only these four**. The other `THEME=` flags in the code
-(midnight, daylight, local, ink, indigo, lapis, marigold, copper, garnet) are
-off the shortlist — do not build or show them.
+Glass is now the **default build** — no THEME flag needed; the normal
+"RideVela Rider" and "RideVela Driver" apps ARE the final version (git tag
+`ui-final-glass-v2.0.0`). Do not build the other THEME flags.
 
-| Theme flag | Look | What to point out |
-|---|---|---|
-| *(none)* | **Samarkand Turquoise** (current) | Clean white/black, teal buttons, 3D cars in the list and on the map |
-| `--dart-define=THEME=daynight` | **C — Day & Night** | Light by day, dark by night (follows the phone); the theme **doesn't switch mid-ride** — test: start a ride, `xcrun simctl ui $SIM appearance dark`, it stays light until the ride ends |
-| `--dart-define=THEME=glass` | **F — Map Glass** | Floating **frosted** "Where to?" pill, compact ride card over the map, **plate tag under the car on the map**, glossy icon beads. Check the blur is smooth |
-| `--dart-define=THEME=clay3d` | **G — 3D Clay** | **Every icon is a 3D clay image**, coloured by meaning; one icon set for light and dark. Icons come from a colour bitmap font (sbix for iOS) — **check they show in colour on the iPhone**; blank boxes = sbix not used |
+What to check on the iPhone: floating **frosted** "Where to?" pill; compact
+ride card over the map; **plate tag under the car on the map**; glossy icon
+beads; the driver app's floating offline card and glass buttons. **Appearance
+(Account -> Appearance) must switch Light/Dark instantly at any time,
+including mid-ride**, without resetting the ride, map or car. Check the blur
+is smooth.
 
-Auto and Bike ride types are switched off — don't show them.
+## 5b. Install on the iPhone
 
-## 5b. Put the four shortlisted looks on the owner's iPhone (the "IPAs")
-
-iOS gives every build the same bundle ID, so by default each look replaces
-the last. To have **all four side by side on the iPhone** (as on Android),
-give each its own bundle ID and name — only in your local build, don't
-commit the Xcode change:
-
-```sh
-cd ~/ubernav/apps/rider_app
-for pair in ":RideVela" "daynight:RideVela C" "glass:RideVela F" "clay3d:RideVela G"; do
-  t=${pair%%:*}; name=${pair#*:}
-  SUF=${t:+.$t}
-  flutter build ios --release \
-    --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
-    --dart-define=ALLOW_SERVER_OVERRIDE=true ${t:+--dart-define=THEME=$t} \
-    --build-name=1.8.0 --build-number=5040
-  # per-look bundle id + name, then install on the cabled iPhone
-  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier in.novarobotics.ubernav.rider$SUF" build/ios/iphoneos/Runner.app/Info.plist
-  /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $name" build/ios/iphoneos/Runner.app/Info.plist
-  codesign --force --sign "Apple Development" --entitlements ios/Runner/Runner.entitlements build/ios/iphoneos/Runner.app 2>/dev/null \
-    || codesign --force --sign "Apple Development" build/ios/iphoneos/Runner.app
-  xcrun devicectl device install app --device <iphone-udid> build/ios/iphoneos/Runner.app
-done
-```
-If re-signing after changing the bundle ID fails (free Apple ID: each new
-bundle ID needs its own provisioning profile), instead set the bundle ID in
-Xcode (Runner → Signing & Capabilities) per look and `flutter run --release`
-each one — slower but reliable. Free-account installs expire after 7 days.
-Also install the driver app (section 4) once.
-
-**What's new in 1.7.0 to point out:** real 3D cars in the ride list (the
-current look, B and C; A keeps flat silver cars), the booked car shown
-top-down on the map and turning with the road, the driver card shows the
-driver over their 3D car, and a new auto-rickshaw icon.
+Just the two normal apps (sections 2 and 4) with `--build-name=2.0.0
+--build-number=6000` — no THEME flag, no bundle-ID changes needed.
 
 ## 6. Report back
 

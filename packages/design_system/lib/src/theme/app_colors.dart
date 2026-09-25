@@ -27,7 +27,11 @@ class AppColors {
   /// - `daynight`: Plan C (B by day, A by night, following the phone).
   /// Build-time, so every token stays `const` and variants cost nothing at
   /// run time. See docs/plans/visual-direction-v2.md.
-  static const String variant = String.fromEnvironment('THEME');
+  /// The shipped look is **Plan F "Map Glass"** (owner's final pick,
+  /// 2026-09-25): a build with no THEME flag is Glass. `THEME=turquoise`
+  /// builds the previous default; the other flags remain for comparison.
+  static const String _themeFlag = String.fromEnvironment('THEME');
+  static const String variant = _themeFlag == '' ? 'glass' : _themeFlag;
   static const bool turquoise = variant != 'mono';
 
   /// Plan A's dark tokens (midnight, and daynight's night side).
