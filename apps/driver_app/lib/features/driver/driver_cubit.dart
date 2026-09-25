@@ -545,7 +545,7 @@ class DriverCubit extends Cubit<DriverState> {
         approachPolyline: approachPolyline,
         // The Trip model carries no rider profile; keep the name from the
         // offer card so the chat header can address the rider by name.
-        riderName: state.offer?.riderName,
+        riderName: state.offer?.riderName ?? trip.riderName,
       ));
     } on ApiException catch (e) {
       emit(state.copyWith(busy: false, error: e.message));

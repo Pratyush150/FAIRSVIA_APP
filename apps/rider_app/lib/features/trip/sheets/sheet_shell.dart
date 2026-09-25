@@ -162,18 +162,12 @@ String? _tripEtaLine(TripState state) {
 void _openSafety(BuildContext context, TripState state) {
   final tripId = state.trip?.id;
   if (tripId == null) return;
-  final car = state.driver;
-  final carLine = car == null
-      ? ''
-      : ' Car: ${car.vehicleLabel}${car.plate != null ? ', plate ${car.plate}' : ''}.'
-          ' Driver: ${car.name}.';
   final at = state.driverLocation;
   final where = at == null
       ? ''
       : ' Where I am: https://maps.google.com/?q=${at.lat.toStringAsFixed(5)},${at.lng.toStringAsFixed(5)}';
   final cubit = context.read<TripCubit>();
-  final share = "I'm on a ${AppBrand.name} ride to "
-      '${state.dropoffAddr ?? 'my destination'}.$carLine$where';
+  final share = '${riderTripShareText(state)}$where';
   showSafetySheet(
     context,
     tripId: tripId,
@@ -213,14 +207,21 @@ Widget _shareButton(BuildContext context, TripState state) => _RidePill(
     );
 
 void _shareTrip(BuildContext context, TripState state) {
+  shareTripText(context, riderTripShareText(state));
+}
+
+/// `I'm on a RideVela ride to PLACE. Car: VEHICLE, plate PLATE. Driver: NAME.`
+/// — shared by the Share pill, the ••• menu and the safety
+/// sheet. No live-tracking link: the backend issues none yet, so none is
+/// invented here.
+String riderTripShareText(TripState state) {
   final d = state.driver;
-  final car = d == null
-      ? ''
-      : ' Car: ${d.vehicleLabel}${d.plate != null ? ', plate ${d.plate}' : ''}. Driver: ${d.name}.';
-  shareTripText(
-    context,
-    "I'm on a ${AppBrand.name} ride to "
-    '${state.dropoffAddr ?? 'my destination'}.$car',
+  return tripShareText(
+    brand: AppBrand.name,
+    destination: state.dropoffAddr,
+    vehicle: d?.vehicleLabel,
+    plate: d?.plate,
+    driverName: d?.name,
   );
 }
 
@@ -307,11 +308,23 @@ void _openTripChat(BuildContext context, TripState state) {
         tripId: tripId,
         currentUserId: userId,
         title: state.driver?.name ?? 'Driver',
+        // "White Maruti Suzuki Dzire · MH 12 AB 1234" under the name.
+        subtitle: _chatSubtitle(state),
         chat: sl<ChatRemoteDataSource>(),
         realtime: sl<RealtimeClient>(),
       ),
     ),
   ).then((_) => cubit.setChatOpen(false)));}
+
+String? _chatSubtitle(TripState state) {
+  final d = state.driver;
+  if (d == null) return null;
+  final parts = [
+    if (d.vehicleLabel.isNotEmpty) d.vehicleLabel,
+    if (d.plate != null) Market.current.formatPlate(d.plate!),
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
+}
 
 class _InfoCard extends StatelessWidget {
   const _InfoCard({required this.child});
@@ -329,11 +342,15 @@ class _Busy extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const SizedBox(
-          height: 22,
-          width: 22,
-          child: CircularProgressIndicator(strokeWidth: 2.4),
-        ),
+        // A calm looping sand-glass while the request goes through (a plain
+        // spinner under Reduce Motion — LottieMoment draws nothing then).
+        MediaQuery.maybeDisableAnimationsOf(context) ?? false
+            ? const SizedBox(
+                height: 22,
+                width: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              )
+            : const LottieMoment.loading(size: 40),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Text(label, style: Theme.of(context).textTheme.titleMedium),

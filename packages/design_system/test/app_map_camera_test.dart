@@ -1,4 +1,5 @@
 import 'package:design_system/design_system.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The rider's live-tracking camera rules, tested as pure functions so they
@@ -135,17 +136,133 @@ void main() {
     test('floors a burst so the marker cannot strobe', () {
       expect(
         AppMap.glideFor(const Duration(milliseconds: 50)),
-        const Duration(milliseconds: 400),
+        const Duration(milliseconds: 600),
       );
       expect(AppMap.glideFor(Duration.zero),
-          const Duration(milliseconds: 400));
+          const Duration(milliseconds: 600));
     });
 
     test('caps a stalled stream so the car cannot crawl indefinitely', () {
       expect(
         AppMap.glideFor(const Duration(seconds: 30)),
-        const Duration(milliseconds: 2500),
+        const Duration(milliseconds: 1600),
       );
+    });
+  });
+
+  group('lerpBearing', () {
+    test('turns the short way through north', () {
+      expect(AppMap.lerpBearing(350, 10, 0.5), closeTo(0, 1e-9));
+      expect(AppMap.lerpBearing(10, 350, 0.5), closeTo(0, 1e-9));
+      expect(AppMap.lerpBearing(350, 10, 0.25), closeTo(355, 1e-9));
+    });
+
+    test('ends exactly on the target and starts on the source', () {
+      expect(AppMap.lerpBearing(90, 200, 0), closeTo(90, 1e-9));
+      expect(AppMap.lerpBearing(90, 200, 1), closeTo(200, 1e-9));
+    });
+
+    test('never sweeps more than 180 degrees', () {
+      for (var a = 0.0; a < 360; a += 23) {
+        for (var b = 0.0; b < 360; b += 31) {
+          final mid = AppMap.lerpBearing(a, b, 0.5);
+          final half = ((mid - a + 540) % 360 - 180).abs();
+          expect(half, lessThanOrEqualTo(90 + 1e-9));
+        }
+      }
+    });
+  });
+
+  group('turnProgress', () {
+    test('eases from 0, finishes early in the glide and holds', () {
+      expect(AppMap.turnProgress(0), 0);
+      expect(AppMap.turnProgress(AppMap.turnShare), closeTo(1, 1e-9));
+      expect(AppMap.turnProgress(1), 1);
+      // Gentle start: slower than linear at first.
+      expect(AppMap.turnProgress(0.06), lessThan(0.1));
+    });
+  });
+
+  group('screenPoint', () {
+    const size = Size(400, 800);
+    const target = LatLng(18.52, 73.85);
+
+    test('the camera target sits at the centre of the padded area', () {
+      final p = AppMap.screenPoint(target, target, 16, size,
+          const EdgeInsets.fromLTRB(40, 96, 40, 300));
+      expect(p.dx, closeTo(200, 1e-6));
+      expect(p.dy, closeTo(96 + (800 - 396) / 2, 1e-6));
+    });
+
+    test('north is up and east is right', () {
+      final north = AppMap.screenPoint(
+          const LatLng(18.53, 73.85), target, 16, size, EdgeInsets.zero);
+      final east = AppMap.screenPoint(
+          const LatLng(18.52, 73.86), target, 16, size, EdgeInsets.zero);
+      expect(north.dy, lessThan(400));
+      expect(north.dx, closeTo(200, 1e-6));
+      expect(east.dx, greaterThan(200));
+    });
+
+    test('distance on screen doubles with each zoom level', () {
+      const p = LatLng(18.521, 73.851);
+      final a = AppMap.screenPoint(p, target, 15, size, EdgeInsets.zero);
+      final b = AppMap.screenPoint(p, target, 16, size, EdgeInsets.zero);
+      final c = const Offset(200, 400);
+      expect((b - c).distance, closeTo((a - c).distance * 2, 1e-6));
+    });
+
+    test('pixelsPerMetre agrees with the projection', () {
+      // 100 m east at the equator, zoom 16.
+      const eq = LatLng(0, 0);
+      final px = AppMap.screenPoint(
+              const LatLng(0, 100 / 111319.49), eq, 16, size, EdgeInsets.zero)
+          .dx - 200;
+      expect(px, closeTo(100 * AppMap.pixelsPerMetre(0, 16), 0.05));
+    });
+  });
+
+  group('CalmPulse ring timing', () {
+    test('a calm period, three rings evenly staggered', () {
+      expect(CalmPulse.period, const Duration(milliseconds: 2400));
+      final r = CalmPulse.all(0.4);
+      expect(r, hasLength(3));
+      expect(CalmPulse.ring(0.4, 1), CalmPulse.ring(0.4 + 1 / 3, 0));
+    });
+
+    test('a ring is invisible at both ends, so the loop never pops', () {
+      expect(CalmPulse.ring(0, 0).$2, 0);
+      expect(CalmPulse.ring(0.9999, 0).$2, lessThan(0.001));
+      // Continuous across the wrap: the ring leaving and the one arriving
+      // are both (nearly) transparent.
+      final before = CalmPulse.ring(0.999, 0).$2;
+      final after = CalmPulse.ring(0.001, 0).$2;
+      expect((before - after).abs(), lessThan(0.01));
+    });
+
+    test('opacity never exceeds the soft peak', () {
+      for (var t = 0.0; t < 1; t += 0.01) {
+        for (final (spread, o) in CalmPulse.all(t)) {
+          expect(o, inInclusiveRange(0, CalmPulse.peak));
+          expect(spread, inInclusiveRange(0, 1));
+        }
+      }
+    });
+
+    test('spread eases out: quick off the pin, settling at the edge', () {
+      final early = CalmPulse.ring(0.1, 0).$1; // 10% of the time
+      expect(early, greaterThan(0.2));
+      final late = CalmPulse.ring(0.9, 0).$1 - CalmPulse.ring(0.8, 0).$1;
+      expect(late, lessThan(0.05));
+    });
+
+    test('grows monotonically through its life', () {
+      var last = -1.0;
+      for (var t = 0.0; t < 1; t += 0.02) {
+        final s = CalmPulse.ring(t, 0).$1;
+        expect(s, greaterThanOrEqualTo(last));
+        last = s;
+      }
     });
   });
 }

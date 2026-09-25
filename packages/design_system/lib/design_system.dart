@@ -44,6 +44,15 @@ export 'src/widgets/blurred_scrim.dart';
 export 'src/widgets/brand_splash.dart';
 export 'src/widgets/ink_paper.dart';
 
+// Rider Home building blocks (services row, promo banners, context cards,
+// brand footer).
+export 'src/widgets/home/home_art.dart';
+export 'src/widgets/home/press_scale.dart';
+export 'src/widgets/home/service_tile.dart';
+export 'src/widgets/home/promo_banner.dart';
+export 'src/widgets/home/context_card.dart';
+export 'src/widgets/home/brand_footer.dart';
+
 // Re-export flutter_animate so apps get the `.animate()` API (and our reveal
 // helpers) from a single design_system import.
 export 'package:flutter_animate/flutter_animate.dart';
@@ -54,3 +63,4 @@ export 'package:latlong2/latlong.dart' show LatLng;
 // The one utility-icon family for every app (audit: Phosphor Regular by
 // default, Fill only for a state — a rated star, a favourite, a selection).
 export 'src/theme/phosphor_icons.dart';
+export 'src/widgets/lottie_moment.dart';

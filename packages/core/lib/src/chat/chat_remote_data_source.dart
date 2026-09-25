@@ -12,8 +12,7 @@ class ChatRemoteDataSource {
 
   Future<List<ChatMessage>> history(String tripId) async {
     try {
-      final res =
-          await _dio.get<List<dynamic>>('/trips/$tripId/messages');
+      final res = await _dio.get<List<dynamic>>('/trips/$tripId/messages');
       return (res.data ?? const [])
           .cast<Map<String, dynamic>>()
           .map(ChatMessage.fromJson)

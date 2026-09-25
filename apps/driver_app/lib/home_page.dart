@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_models/shared_models.dart';
 
 import 'features/account/driver_profile_stats.dart';
+import 'features/driver/call_rider_button.dart';
 import 'features/driver/driver_cubit.dart';
 import 'features/driver/location_priming_page.dart';
 import 'features/driver/location_stream.dart';
@@ -801,6 +802,7 @@ class _BottomSheet extends StatelessWidget {
           distanceLabel: _distanceLabel(myLocation, pickup, 'pickup', route),
           note: state.trip?.pickupNote,
           passenger: state.trip?.passenger,
+          riderPhone: state.trip?.riderPhone,
           stopsAhead: state.trip?.stops ?? const [],
           stopsInfoOnly: true,
           stopAdded: _recently(state.stopsChangedAt),
@@ -810,6 +812,7 @@ class _BottomSheet extends StatelessWidget {
           cubit: cubit,
           busy: state.busy,
           tripId: state.trip?.id,
+          riderPhone: state.trip?.riderPhone,
         );
       case DriverPhase.onTrip:
         final dropoff = state.trip == null
@@ -997,6 +1000,9 @@ class _CompletedSheet extends StatelessWidget {
         ),
         if (state.lastEarned != null) ...[
           const SizedBox(height: AppSpacing.xs),
+          // Banknotes flutter once over the earnings (not under Reduce
+          // Motion).
+          const Center(child: LottieMoment.money(size: 56)),
           Center(
             child: Text(
                 "Today's earnings · ${Fmt.money(state.lastEarned!)}",
@@ -1066,6 +1072,7 @@ class _LifecycleSheet extends StatelessWidget {
     this.distanceLabel,
     this.note,
     this.passenger,
+    this.riderPhone,
     this.stopsAhead = const [],
     this.stopsInfoOnly = false,
     this.stopAdded = false,
@@ -1091,6 +1098,10 @@ class _LifecycleSheet extends StatelessWidget {
   /// is collecting them, not the booker, so their name and number are what
   /// matters at the kerb.
   final TripPassenger? passenger;
+
+  /// The rider's number for "Call rider" (heading to the pickup only — once
+  /// on the trip they are in the car). Null hides the button.
+  final String? riderPhone;
 
   /// Stops still ahead on this leg, in order.
   final List<TripStop> stopsAhead;
@@ -1118,6 +1129,7 @@ class _LifecycleSheet extends StatelessWidget {
                 child: Text(title, style: theme.textTheme.headlineSmall),
               ),
             ),
+            if (riderPhone != null) CallRiderButton(phone: riderPhone!),
             if (tripId != null) ...[
               IconButton(
                 tooltip: 'Safety',
@@ -1402,6 +1414,7 @@ void openDriverChat(BuildContext context, String tripId) {
         tripId: tripId,
         currentUserId: userId,
         title: riderName ?? 'Rider',
+        peerRole: 'rider',
         chat: sl<ChatRemoteDataSource>(),
         realtime: sl<RealtimeClient>(),
       ),
@@ -1410,10 +1423,18 @@ void openDriverChat(BuildContext context, String tripId) {
 }
 
 class _StartTripSheet extends StatefulWidget {
-  const _StartTripSheet({required this.cubit, required this.busy, this.tripId});
+  const _StartTripSheet({
+    required this.cubit,
+    required this.busy,
+    this.tripId,
+    this.riderPhone,
+  });
   final DriverCubit cubit;
   final bool busy;
   final String? tripId;
+
+  /// Waiting at the pickup: "Call rider" when they have not come out.
+  final String? riderPhone;
 
   @override
   State<_StartTripSheet> createState() => _StartTripSheetState();
@@ -1467,6 +1488,8 @@ class _StartTripSheetState extends State<_StartTripSheet> {
                     style: theme.textTheme.headlineSmall),
               ),
             ),
+            if (widget.riderPhone != null)
+              CallRiderButton(phone: widget.riderPhone!),
             if (widget.tripId != null) ...[
               IconButton(
                 tooltip: 'Safety',

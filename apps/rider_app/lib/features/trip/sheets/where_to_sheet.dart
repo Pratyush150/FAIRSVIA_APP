@@ -173,9 +173,19 @@ class _LaterChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(PhosphorIconsRegular.clock,
-                  size: AppIconSize.inline,
-                  color: theme.colorScheme.onSurface),
+              // A small calendar in a soft teal badge — lighter and clearer
+              // than a clock for "book for later".
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: AppColors.accentSoft,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(PhosphorIconsRegular.calendarDots,
+                    size: 16, color: AppColors.accentInk),
+              ),
               const SizedBox(width: 6),
               Text('Later', style: theme.textTheme.labelMedium),
               Icon(PhosphorIconsRegular.caretDown,
@@ -296,3 +306,89 @@ class _QuickDestination extends StatelessWidget {
     );
   }
 }
+
+/// The redesigned Home's search hero: "Where to?" in a 56 dp, fully rounded
+/// field with a 1.5 dp accent border, and the same "Later" chip as the
+/// classic sheet on the right. Tapping the field opens the destination search.
+class HomeSearchBar extends StatelessWidget {
+  const HomeSearchBar({super.key, required this.onTap, this.onSchedule});
+
+  final VoidCallback onTap;
+
+  /// Opens pre-booking; null hides the "Later" chip.
+  final VoidCallback? onSchedule;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final shape = StadiumBorder(
+      side: BorderSide(color: AppColors.inkFor(isDark), width: 1.5),
+    );
+    return Semantics(
+      container: true,
+      button: true,
+      label: 'Where to?',
+      child: Material(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: shape,
+          child: SizedBox(
+            height: 56,
+            child: Row(
+              children: [
+                const SizedBox(width: AppSpacing.lg),
+                Icon(PhosphorIconsRegular.magnifyingGlass,
+                    color: theme.colorScheme.onSurface, size: AppIconSize.row),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: ExcludeSemantics(
+                    child: Text(
+                      'Where to?',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                if (onSchedule != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.xs),
+                    child: _LaterChip(onTap: onSchedule!),
+                  )
+                else
+                  const SizedBox(width: AppSpacing.lg),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The "Location required" gate, for the redesigned Home to show in place of
+/// its search bar while no real position is known (booking stays blocked).
+class LocationRequiredCard extends StatelessWidget {
+  const LocationRequiredCard({super.key, required this.issue, this.onFix});
+
+  final LocationIssue issue;
+  final VoidCallback? onFix;
+
+  @override
+  Widget build(BuildContext context) =>
+      _LocationRequiredGate(issue: issue, onFix: onFix);
+}
+
+/// "Later" from the Home: the same pre-book flow the classic sheet opens.
+Future<void> openHomePreBook(BuildContext context, TripState state) =>
+    _openPreBook(context, state);
+
+/// "Book for someone": the same passenger dialog the ride-options sheet uses.
+/// Returns null if the rider backs out.
+Future<TripPassenger?> askHomePassenger(BuildContext context) =>
+    _askPassenger(context, null);

@@ -142,10 +142,72 @@ void main() {
       expect(map.polylines.map((p) => p.polylineId.value),
           contains('kolam_line'));
     } else {
-      expect(ids.where((i) => i.startsWith('pulse')), hasLength(3));
+      // The rings are a Flutter layer over the map now (smooth, 60 fps), not
+      // map circles re-sent over the platform channel.
+      expect(ids.where((i) => i.startsWith('pulse')), isEmpty);
+      expect(
+          find.descendant(
+              of: find.byType(AppMap),
+              matching: find.byType(RepaintBoundary)),
+          findsWidgets);
+      expect(tester.takeException(), isNull);
       expect(map.polylines.map((p) => p.polylineId.value),
           isNot(contains('kolam_line')));
     }
+  });
+
+  testWidgets('the live pickup radar animates without rebuilding the map',
+      (tester) async {
+    if (AppVariant.local) return; // Plan D keeps its kolam circles.
+    Widget app(LatLng? pulse) => MaterialApp(
+          theme: AppTheme.light,
+          home: SizedBox(
+            width: 400,
+            height: 600,
+            child: AppMap(
+              initialCenter: const LatLng(18.519, 73.855),
+              pulseAt: pulse,
+            ),
+          ),
+        );
+    await tester.pumpWidget(app(null));
+    final bare = find
+        .descendant(of: find.byType(AppMap), matching: find.byType(CustomPaint))
+        .evaluate()
+        .length;
+    final bareMap = tester.state(find.byType(gmaps.GoogleMap));
+    await tester.pumpWidget(app(const LatLng(18.519, 73.855)));
+    // Starting the search must not recreate the native map view.
+    expect(identical(bareMap, tester.state(find.byType(gmaps.GoogleMap))),
+        isTrue);
+    // Let the one-off rebuilds settle (the marker bitmaps each end in a
+    // setState), so what is left is only the steady animation.
+    for (var i = 0; i < 10; i++) {
+      final a = tester.widget<gmaps.GoogleMap>(find.byType(gmaps.GoogleMap));
+      await tester.pump(const Duration(milliseconds: 100));
+      if (identical(
+          a, tester.widget<gmaps.GoogleMap>(find.byType(gmaps.GoogleMap)))) {
+        break;
+      }
+    }
+    final before = tester.widget<gmaps.GoogleMap>(find.byType(gmaps.GoogleMap));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    // The rings repaint on their own ticker: the GoogleMap widget (and so
+    // every marker/circle sent to the platform) is not rebuilt per frame.
+    expect(
+        identical(
+            before, tester.widget<gmaps.GoogleMap>(find.byType(gmaps.GoogleMap))),
+        isTrue);
+    expect(
+        find
+            .descendant(
+                of: find.byType(AppMap), matching: find.byType(CustomPaint))
+            .evaluate()
+            .length,
+        greaterThan(bare));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox()); // dispose the ticker
   });
 
   testWidgets('pay strip reads as one sentence and is at least 48 tall',

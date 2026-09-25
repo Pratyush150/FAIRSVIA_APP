@@ -85,6 +85,8 @@ class Trip extends Equatable {
     required this.dropoff,
     this.pickupNote,
     this.passenger,
+    this.riderName,
+    this.riderPhone,
     this.routePolyline,
     this.stops = const [],
     this.distanceM,
@@ -114,6 +116,14 @@ class Trip extends Equatable {
   /// Set when this ride was booked for somebody else — see [TripPassenger].
   /// Null on an ordinary ride, where the booker is the passenger.
   final TripPassenger? passenger;
+
+  /// The rider (the booker), as the assigned driver sees them — only on the
+  /// driver's view of a live trip (`GET /trips/:id`, `/trips/active`). Null for
+  /// the rider's own view, on finished trips and on older backends.
+  /// [riderPhone] drives the driver's "Call rider" button; in the pilot it is
+  /// the rider's real number (production should hand out a masked one).
+  final String? riderName;
+  final String? riderPhone;
 
   /// Ordered intermediate stops (empty for a direct trip).
   final List<TripStop> stops;
@@ -158,6 +168,8 @@ class Trip extends Equatable {
         dropoff: TripEndpoint.fromJson(json['dropoff'] as Map<String, dynamic>),
         pickupNote: json['pickupNote'] as String?,
         passenger: TripPassenger.fromJson(json['passenger']),
+        riderName: _riderField(json, 'name'),
+        riderPhone: _riderField(json, 'phone'),
         stops: (json['stops'] as List<dynamic>? ?? const [])
             .map((s) => TripStop.fromJson(s as Map<String, dynamic>))
             .toList(),
@@ -177,6 +189,13 @@ class Trip extends Equatable {
         cancellationFee: (json['cancellationFee'] as num?)?.toDouble(),
       );
 
+  static String? _riderField(Map<String, dynamic> json, String key) {
+    final rider = json['rider'];
+    if (rider is! Map) return null;
+    final v = (rider[key] as String?)?.trim();
+    return (v == null || v.isEmpty) ? null : v;
+  }
+
   static DateTime? _parseDate(dynamic v) =>
       v is String ? DateTime.tryParse(v)?.toLocal() : null;
 
@@ -189,6 +208,8 @@ class Trip extends Equatable {
         dropoff,
         pickupNote,
         passenger,
+        riderName,
+        riderPhone,
         stops,
         routePolyline,
         distanceM,

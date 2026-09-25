@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -11,6 +12,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_variant.dart';
 import 'kolam.dart';
 import 'map_styles.dart';
+import 'pulse_radar.dart';
 import 'route_progress.dart';
 import 'vehicle_glyph.dart';
 
@@ -166,9 +168,14 @@ class AppMap extends StatefulWidget {
   /// Draws the "finding your driver" radar here: three rings spreading from
   /// the pickup every [pulsePeriod] (audit 3.8). Null draws nothing. With the
   /// system's Reduce Motion / Remove animations on, the rings stand still.
+  ///
+  /// The rings are painted by Flutter in a layer over the map at the display
+  /// frame rate, positioned from the camera the map reports on every move —
+  /// not as Google Maps circles re-sent over the platform channel ~12 times a
+  /// second, which is what made the old radar flicker.
   final LatLng? pulseAt;
 
-  static const Duration pulsePeriod = Duration(milliseconds: 1600);
+  static const Duration pulsePeriod = CalmPulse.period;
 
   /// Ring radius range in metres: a ring starts at the pin and spreads to a
   /// couple of blocks, the distance a nearby driver would come from.
@@ -179,12 +186,40 @@ class AppMap extends StatefulWidget {
   /// Pure so the drawing rule can be tested without a map.
   @visibleForTesting
   static List<(double, double)> pulseRings(double t) => [
-        for (var i = 0; i < 3; i++)
-          () {
-            final p = (t + i / 3) % 1.0;
-            return (pulseMinM + (pulseMaxM - pulseMinM) * p, (1 - p) * 0.55);
-          }(),
+        for (final (spread, opacity) in CalmPulse.all(t))
+          (pulseMinM + (pulseMaxM - pulseMinM) * spread, opacity),
       ];
+
+  /// Where [p] sits on screen, in logical pixels, for a flat north-up camera
+  /// on [target] at [zoom] over a map of [size] with [padding] (the camera
+  /// target is the centre of the padded area). Web Mercator, 256-px tiles —
+  /// the projection Google Maps uses. Pure math, so the radar can follow the
+  /// map every frame without a platform call.
+  @visibleForTesting
+  static Offset screenPoint(LatLng p, LatLng target, double zoom, Size size,
+      EdgeInsets padding) {
+    final world = 256 * math.pow(2, zoom).toDouble();
+    double x(double lng) => (lng + 180) / 360 * world;
+    double y(double lat) {
+      final s = math.sin(lat.clamp(-85.0, 85.0) * math.pi / 180);
+      return (0.5 - math.log((1 + s) / (1 - s)) / (4 * math.pi)) * world;
+    }
+
+    var dx = x(p.longitude) - x(target.longitude);
+    // Take the short way across the antimeridian.
+    if (dx > world / 2) dx -= world;
+    if (dx < -world / 2) dx += world;
+    final dy = y(p.latitude) - y(target.latitude);
+    final cx = padding.left + (size.width - padding.horizontal) / 2;
+    final cy = padding.top + (size.height - padding.vertical) / 2;
+    return Offset(cx + dx, cy + dy);
+  }
+
+  /// Logical pixels per metre at [lat] and [zoom] (Web Mercator).
+  @visibleForTesting
+  static double pixelsPerMetre(double lat, double zoom) =>
+      math.pow(2, zoom).toDouble() /
+      (156543.03392 * math.cos(lat * math.pi / 180));
 
   /// Plan D (`THEME=local`): the pickup radar is a kolam, not rings — the
   /// [Kolam] dot grid laid out on the ground at [kolamUnitM] metres a step.
@@ -349,7 +384,30 @@ class AppMap extends StatefulWidget {
   /// crawling, and a burst can't make it strobe.
   @visibleForTesting
   static Duration glideFor(Duration gap) =>
-      Duration(milliseconds: gap.inMilliseconds.clamp(400, 2500));
+      Duration(milliseconds: gap.inMilliseconds.clamp(600, 1600));
+
+  /// Turns smaller than this are GPS heading noise, not the car turning; the
+  /// marker holds its angle rather than wobbling on every fix.
+  static const double headingDeadbandDeg = 4;
+
+  /// The angle between [from] and [to] at [t] (0..1), always the short way
+  /// round the compass: 350° → 10° sweeps 20° through north, never 340° back.
+  /// Result in [0, 360). Pure, for tests.
+  @visibleForTesting
+  static double lerpBearing(double from, double to, double t) {
+    var delta = (to - from) % 360;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    return (from + delta * t) % 360;
+  }
+
+  /// How far through its turn the car is at glide progress [t]: the turn
+  /// eases in and out over the first [turnShare] of the glide, so the car
+  /// points along the road early and then simply drives.
+  static const double turnShare = 0.6;
+  @visibleForTesting
+  static double turnProgress(double t) =>
+      Curves.easeInOut.transform((t / turnShare).clamp(0.0, 1.0));
 
   /// Whether a rebuild from [old] to [next] carries a recenter request the
   /// camera should honour. A request is suppressed while [fitBounds] frames
@@ -497,19 +555,31 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     _pulseTimer?.cancel();
+    _camera.dispose();
     _driverAnim.dispose();
     super.dispose();
   }
 
   // --- Pickup radar ----------------------------------------------------------
-  // Circles are platform objects, so they are re-sent on a ~12 fps tick rather
-  // than every frame: smooth enough for a slow spreading ring, and cheap on
-  // the platform channel.
+  // The rings (every plan but D) are a Flutter overlay: see [_PickupPulse].
+  // Plan D's kolam is still drawn as map circles re-sent on a ~12 fps tick
+  // (a dot grid laid on the ground, not a candidate for the overlay yet).
   Timer? _pulseTimer;
   final Stopwatch _pulseClock = Stopwatch();
 
+  // The camera as the map last reported it, for the overlay to follow. Fed
+  // from onCameraMove (synchronous data, no platform round-trip) and read by
+  // the painter directly, so a camera move repaints the rings without
+  // rebuilding the map.
+  late final ValueNotifier<gmaps.CameraPosition> _camera =
+      ValueNotifier(gmaps.CameraPosition(
+    target: _g(widget.initialCenter),
+    zoom: widget.initialZoom,
+  ));
+
   void _syncPulse(bool reduceMotion) {
-    final want = widget.pulseAt != null && !reduceMotion;
+    final want =
+        AppVariant.local && widget.pulseAt != null && !reduceMotion;
     if (want && _pulseTimer == null) {
       _pulseClock
         ..reset()
@@ -526,7 +596,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
 
   Set<gmaps.Circle> _buildPulse(bool reduceMotion) {
     final at = widget.pulseAt;
-    if (at == null) return const {};
+    // Rings are the overlay's job; only Plan D's kolam is drawn as circles.
+    if (at == null || !AppVariant.local) return const {};
     final period = AppVariant.local
         ? Kolam.period.inMilliseconds
         : AppMap.pulsePeriod.inMilliseconds;
@@ -697,9 +768,13 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       if (_distanceMeters(from, next) > 1.0) {
         // Ease out of whatever angle is currently on screen, so the car turns
         // through the corner rather than snapping to the new bearing.
-        _driverBearingFrom = _currentDriverBearing();
-        _driverBearing = _driverMarker(widget.markers)?.heading ??
+        final shown = _currentDriverBearing();
+        final want = _driverMarker(widget.markers)?.heading ??
             _bearing(from, next);
+        _driverBearingFrom = shown;
+        // Ignore heading jitter: only turn for a real change of direction.
+        final turn = (want - shown + 540) % 360 - 180;
+        _driverBearing = turn.abs() < AppMap.headingDeadbandDeg ? shown : want;
       }
       _driverFrom = from;
       _driverTo = next;
@@ -711,6 +786,9 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           ? _driverAnim.duration!
           : now.difference(_lastFixAt!);
       _lastFixAt = now;
+      // Linear in position: each glide starts from the point on screen now
+      // (mid-glide included) at the pace of the ping stream, so consecutive
+      // glides join at an even speed instead of stop-starting at every fix.
       _driverAnim.duration = AppMap.glideFor(gap);
       _driverAnim
         ..reset()
@@ -743,10 +821,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   /// (350° → 10°) sweeps 20°, not 340° the wrong way.
   double _currentDriverBearing() {
     final t = _driverAnim.isAnimating ? _driverAnim.value : 1.0;
-    var delta = (_driverBearing - _driverBearingFrom) % 360;
-    if (delta > 180) delta -= 360;
-    if (delta < -180) delta += 360;
-    return (_driverBearingFrom + delta * t) % 360;
+    return AppMap.lerpBearing(
+        _driverBearingFrom, _driverBearing, AppMap.turnProgress(t));
   }
 
   /// Heading-up street view centred on the car (zoom 17, slight tilt).
@@ -1298,7 +1374,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     _syncPolylines();
     _syncPulse(reduceMotion);
-    return gmaps.GoogleMap(
+    final pulseAt = widget.pulseAt;
+    final map = gmaps.GoogleMap(
       initialCameraPosition: gmaps.CameraPosition(
         target: _g(widget.initialCenter),
         zoom: widget.initialZoom,
@@ -1346,6 +1423,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
       onCameraMove: (pos) {
         _lastCameraTarget = pos.target;
         _lastCameraZoom = pos.zoom;
+        _camera.value = pos;
       },
       onCameraIdle: () {
         final start = _gestureStartTarget;
@@ -1374,5 +1452,159 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         }
       },
     );
+    // Always a Stack with the map first, radar or not: switching between a
+    // bare map and a Stack would re-parent the GoogleMap and recreate the
+    // native view (a visible flash) the moment a search starts or ends.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        map,
+        // Above the map, below everything the app stacks on top of AppMap.
+        // Never takes touches: pans and taps go straight to the map.
+        if (pulseAt != null && !AppVariant.local)
+          IgnorePointer(
+            child: _PickupPulse(
+              at: pulseAt,
+              camera: _camera,
+              padding: widget.boundsPadding,
+              still: reduceMotion,
+            ),
+          ),
+      ],
+    );
   }
+}
+
+/// The "finding your driver" rings round the pickup, painted by Flutter over
+/// the map at the display frame rate. One [AnimationController] for the
+/// widget's life, started at the wall-clock phase ([CalmPulse.phaseNow]) so a
+/// rebuild never restarts the loop; the painter repaints on the ticker and on
+/// camera moves without rebuilding anything.
+class _PickupPulse extends StatefulWidget {
+  const _PickupPulse({
+    required this.at,
+    required this.camera,
+    required this.padding,
+    required this.still,
+  });
+
+  final LatLng at;
+  final ValueListenable<gmaps.CameraPosition> camera;
+  final EdgeInsets padding;
+  final bool still;
+
+  @override
+  State<_PickupPulse> createState() => _PickupPulseState();
+}
+
+class _PickupPulseState extends State<_PickupPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: CalmPulse.period);
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_PickupPulse old) {
+    super.didUpdateWidget(old);
+    if (old.still != widget.still) _sync();
+  }
+
+  void _sync() {
+    if (widget.still) {
+      _c
+        ..stop()
+        ..value = CalmPulse.stillPhase;
+    } else if (!_c.isAnimating) {
+      _c
+        ..value = CalmPulse.phaseNow()
+        ..repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _PickupPulsePainter(
+          at: widget.at,
+          camera: widget.camera,
+          progress: _c,
+          padding: widget.padding,
+          color: AppColors.highlight,
+        ),
+      ),
+    );
+  }
+}
+
+class _PickupPulsePainter extends CustomPainter {
+  _PickupPulsePainter({
+    required this.at,
+    required this.camera,
+    required this.progress,
+    required this.padding,
+    required this.color,
+  }) : super(repaint: Listenable.merge([camera, progress]));
+
+  final LatLng at;
+  final ValueListenable<gmaps.CameraPosition> camera;
+  final Animation<double> progress;
+  final EdgeInsets padding;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cam = camera.value;
+    final target = LatLng(cam.target.latitude, cam.target.longitude);
+    final centre = AppMap.screenPoint(at, target, cam.zoom, size, padding);
+    final ppm = AppMap.pixelsPerMetre(at.latitude, cam.zoom);
+    // Metres on the ground, but kept to a readable size on screen whatever
+    // the zoom: never a speck, never a disc swallowing the map.
+    final maxR = (AppMap.pulseMaxM * ppm).clamp(56.0, 150.0);
+    final minR = (AppMap.pulseMinM * ppm).clamp(8.0, maxR * 0.3);
+    if (centre.dx < -maxR ||
+        centre.dy < -maxR ||
+        centre.dx > size.width + maxR ||
+        centre.dy > size.height + maxR) {
+      return; // pickup off screen
+    }
+    for (final (spread, opacity) in CalmPulse.all(progress.value)) {
+      if (opacity <= 0.002) continue;
+      final r = minR + (maxR - minR) * spread;
+      canvas.drawCircle(
+        centre,
+        r,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              color.withValues(alpha: opacity * 0.12),
+              color.withValues(alpha: opacity * 0.24),
+              color.withValues(alpha: opacity * 0.6),
+              color.withValues(alpha: 0),
+            ],
+            stops: const [0.0, 0.72, 0.94, 1.0],
+          ).createShader(Rect.fromCircle(center: centre, radius: r)),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PickupPulsePainter old) =>
+      old.at != at ||
+      old.padding != padding ||
+      old.color != color ||
+      old.camera != camera ||
+      old.progress != progress;
 }

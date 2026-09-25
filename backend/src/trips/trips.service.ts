@@ -58,6 +58,14 @@ const CANCELLABLE: TripStatus[] = [
   TripStatus.arrived,
 ];
 
+/** Statuses in which rider and driver can phone each other: from the match
+ *  until the ride ends. Outside this window neither number is exposed. */
+const CONTACTABLE: TripStatus[] = [
+  TripStatus.accepted,
+  TripStatus.arrived,
+  TripStatus.in_progress,
+];
+
 /** A driver may walk away from a ride only before it starts. */
 const DRIVER_CANCELLABLE: TripStatus[] = [
   TripStatus.accepted,
@@ -873,7 +881,11 @@ export class TripsService {
     if (trip.riderId !== userId && trip.driverId !== userId) {
       throw new ForbiddenException('Not your trip');
     }
-    return { ...this.serialize(trip, userId), ...(await this.driverSnapshot(trip)) };
+    return {
+      ...this.serialize(trip, userId),
+      ...(await this.driverSnapshot(trip)),
+      ...(await this.riderSnapshot(trip, userId)),
+    };
   }
 
   /**
@@ -921,6 +933,10 @@ export class TripsService {
         id: driver.id,
         name: driver.fullName ?? 'Your driver',
         rating: Number(driver.ratingAvg ?? 5),
+        // Only while the ride is live — history never re-exposes a number.
+        // PILOT ONLY: the driver's real number; production must use a
+        // masked/proxy number instead.
+        phone: CONTACTABLE.includes(trip.status) ? driver.phone : undefined,
       },
       vehicle: {
         make: driver.driverProfile?.vehicleMake,
@@ -929,6 +945,29 @@ export class TripsService {
         plate: driver.driverProfile?.plateNumber,
       },
       driverLocation,
+    };
+  }
+
+  /**
+   * The rider as the assigned driver needs them: name + phone for the "Call
+   * rider" button on the en-route / arrived / on-trip screens. Only for the
+   * driver of this trip and only while it is live (accepted → in progress);
+   * the rider never gets this block and a finished trip never re-exposes it.
+   * PILOT ONLY: this is the rider's real number (users.phone). Production
+   * must hand out a masked/proxy number instead.
+   */
+  private async riderSnapshot(trip: Trip, viewerId: string) {
+    if (!trip.driverId || viewerId !== trip.driverId) return {};
+    if (!CONTACTABLE.includes(trip.status)) return {};
+    const rider = await this.prisma.user
+      .findUnique({
+        where: { id: trip.riderId },
+        select: { id: true, fullName: true, phone: true },
+      })
+      .catch(() => null);
+    if (!rider) return {};
+    return {
+      rider: { id: rider.id, name: rider.fullName ?? 'Rider', phone: rider.phone },
     };
   }
 
@@ -952,7 +991,11 @@ export class TripsService {
       orderBy: { requestedAt: 'desc' },
     });
     if (!trip) return null;
-    return { ...this.serialize(trip, userId), ...(await this.driverSnapshot(trip)) };
+    return {
+      ...this.serialize(trip, userId),
+      ...(await this.driverSnapshot(trip)),
+      ...(await this.riderSnapshot(trip, userId)),
+    };
   }
 
   async cancelTrip(userId: string, tripId: string, reason?: string) {

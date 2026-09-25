@@ -125,7 +125,16 @@ class _CompletedSheetState extends State<CompletedSheet> {
             // Reduce Motion).
             const Center(child: LocalDoneArt(size: 104))
           else
-          Center(
+          // Confetti bursts once behind the check (not under Reduce Motion).
+          Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              const Positioned(
+                top: -70,
+                child: LottieMoment.confetti(size: 220),
+              ),
+              Center(
             child: _HeroIcon(
               asset: 'done',
               size: 72,
@@ -148,6 +157,8 @@ class _CompletedSheetState extends State<CompletedSheet> {
                     color: AppColors.accent, size: 32),
               ),
             ),
+          ),
+            ],
           ),
           const SizedBox(height: AppSpacing.md),
           // Announced as it appears: the ride's last change of moment.
@@ -203,9 +214,9 @@ class _CompletedSheetState extends State<CompletedSheet> {
               padding: const EdgeInsets.only(top: AppSpacing.md),
               child: Row(
                 children: [
-                  const Icon(PhosphorIconsRegular.money,
-                      size: 16, color: AppColors.warning),
-                  const SizedBox(width: AppSpacing.sm),
+                  // Banknotes flutter once beside the cash reminder.
+                  const LottieMoment.money(size: 32),
+                  const SizedBox(width: AppSpacing.xs),
                   // Wraps at large text sizes instead of running off the edge.
                   Expanded(
                     child: Text(

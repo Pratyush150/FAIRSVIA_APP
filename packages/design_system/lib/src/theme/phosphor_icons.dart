@@ -40,6 +40,7 @@ abstract final class PhosphorIconsRegular {
   static const IconData briefcase = IconData(0xe0ee, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData broadcast = IconData(0xe0f2, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData calendarBlank = IconData(0xe10a, fontFamily: _regularFamily, fontPackage: 'design_system');
+  static const IconData calendarDots = IconData(0xe7b4, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData calendarCheck = IconData(0xe712, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData calendarX = IconData(0xe10c, fontFamily: _regularFamily, fontPackage: 'design_system');
   static const IconData car = IconData(0xe112, fontFamily: _regularFamily, fontPackage: 'design_system');
@@ -171,6 +172,7 @@ abstract final class PhosphorIconsLight {
   static const IconData briefcase = IconData(0xe0ee, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData broadcast = IconData(0xe0f2, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData calendarBlank = IconData(0xe10a, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
+  static const IconData calendarDots = IconData(0xe7b4, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData calendarCheck = IconData(0xe712, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData calendarX = IconData(0xe10c, fontFamily: 'PhosphorLight', fontPackage: 'design_system');
   static const IconData car = IconData(0xe112, fontFamily: 'PhosphorLight', fontPackage: 'design_system');

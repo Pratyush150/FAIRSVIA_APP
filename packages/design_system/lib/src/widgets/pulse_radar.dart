@@ -7,8 +7,49 @@ import '../theme/app_variant.dart';
 import 'kolam.dart';
 import '../theme/app_ink.dart';
 
+/// The one timing rule for every "finding your driver" ring — the sheet's
+/// [PulseRadar] and the map's pickup radar (`AppMap.pulseAt`) — so the two
+/// breathe together, slowly, instead of strobing.
+///
+/// Three rings, staggered by a third of [period]. Each one grows on an
+/// ease-out (fast off the pin, settling as it spreads) and fades in over its
+/// first few percent, then out, so a ring is invisible at both ends of its
+/// life: the loop never "pops" when a ring wraps back to the centre.
+abstract final class CalmPulse {
+  static const Duration period = Duration(milliseconds: 2400);
+  static const int rings = 3;
+
+  /// Peak opacity a ring reaches.
+  static const double peak = 0.5;
+
+  /// Ring [i] at loop time [t] (0..1): (spread 0..1, opacity 0..[peak]).
+  /// Pure, for tests.
+  static (double, double) ring(double t, int i) {
+    final p = ((t + i / rings) % 1.0 + 1.0) % 1.0;
+    final spread = Curves.easeOutCubic.transform(p);
+    // Fade in over the first 12%, then out on an ease-in so the tail lingers.
+    final fadeIn = (p / 0.12).clamp(0.0, 1.0);
+    final fadeOut = math.pow(1.0 - p, 1.6).toDouble();
+    return (spread, peak * fadeIn * fadeOut);
+  }
+
+  /// All [rings] at loop time [t].
+  static List<(double, double)> all(double t) =>
+      [for (var i = 0; i < rings; i++) ring(t, i)];
+
+  /// Where in the loop the wall clock is. Starting an animation here rather
+  /// than at 0 means a widget that is rebuilt or remounted (a sheet swap, a
+  /// status-text change) picks the rings up where they were, with no restart.
+  static double phaseNow([Duration p = period]) =>
+      (DateTime.now().millisecondsSinceEpoch % p.inMilliseconds) /
+      p.inMilliseconds;
+
+  /// Still frame for Reduce Motion: rings spread evenly, fully drawn.
+  static const double stillPhase = 0.2;
+}
+
 /// An animated "searching" radar — concentric rings that expand and fade out,
-/// with a soft rotating sweep and a steady centre dot. Replaces a bland spinner
+/// round a steady centre dot, on the calm [CalmPulse] timing. Replaces a spinner
 /// on the rider's "finding your driver" state with something that reads as the
 /// system actively looking around the map.
 ///
@@ -37,7 +78,7 @@ class _PulseRadarState extends State<PulseRadar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
       vsync: this,
-      duration: AppVariant.local ? Kolam.period : const Duration(seconds: 3));
+      duration: AppVariant.local ? Kolam.period : CalmPulse.period);
   bool _still = false;
 
   // Reduce Motion / Remove animations: the rings hold still (audit 4.2).
@@ -48,9 +89,13 @@ class _PulseRadarState extends State<PulseRadar>
     if (_still) {
       _c
         ..stop()
-        ..value = 0;
+        ..value = AppVariant.local ? 0 : CalmPulse.stillPhase;
     } else if (!_c.isAnimating) {
-      _c.repeat();
+      // Resume from the wall-clock phase, not 0: one controller for the
+      // widget's life, and even a remount does not visibly restart the rings.
+      _c
+        ..value = CalmPulse.phaseNow(_c.duration!)
+        ..repeat();
     }
   }
 
@@ -98,8 +143,6 @@ class _RadarPainter extends CustomPainter {
   final double progress; // 0..1, looping
   final Color color;
 
-  static const int _rings = 3;
-
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
@@ -107,47 +150,41 @@ class _RadarPainter extends CustomPainter {
 
     // Plan E (THEME=ink): three thin teal circles, no fill, no sweep.
     if (InkPaper.on) {
-      for (var i = 0; i < _rings; i++) {
-        final t = (progress + i / _rings) % 1.0;
+      for (final (spread, opacity) in CalmPulse.all(progress)) {
         canvas.drawCircle(
           center,
-          maxR * (0.25 + 0.75 * t),
+          maxR * (0.25 + 0.75 * spread),
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1
-            ..color = color.withValues(alpha: 1 - t * 0.85),
+            ..color = color.withValues(alpha: opacity * 1.6),
         );
       }
       return;
     }
 
-    // Expanding, fading concentric rings, phase-staggered so one is always
-    // near the centre as the outer one dissolves.
-    for (var i = 0; i < _rings; i++) {
-      final t = (progress + i / _rings) % 1.0;
-      final r = maxR * t;
-      final opacity = (1.0 - t) * 0.55;
-      final ring = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = color.withValues(alpha: opacity);
-      canvas.drawCircle(center, r, ring);
-
-      final fill = Paint()
-        ..style = PaintingStyle.fill
-        ..color = color.withValues(alpha: opacity * 0.12);
-      canvas.drawCircle(center, r, fill);
+    // Expanding, fading concentric rings on the shared calm timing: soft
+    // filled discs with a feathered rim, no hard stroke edge.
+    for (final (spread, opacity) in CalmPulse.all(progress)) {
+      if (opacity <= 0.002) continue;
+      final r = maxR * (0.18 + 0.82 * spread);
+      canvas.drawCircle(
+        center,
+        r,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              color.withValues(alpha: opacity * 0.10),
+              color.withValues(alpha: opacity * 0.22),
+              color.withValues(alpha: opacity * 0.55),
+              color.withValues(alpha: 0),
+            ],
+            stops: const [0.0, 0.7, 0.93, 1.0],
+          ).createShader(Rect.fromCircle(center: center, radius: r)),
+      );
     }
 
-    // Rotating sweep wedge.
-    final sweepAngle = progress * 2 * math.pi;
-    final sweep = Paint()
-      ..shader = SweepGradient(
-        startAngle: sweepAngle,
-        endAngle: sweepAngle + math.pi / 2,
-        colors: [color.withValues(alpha: 0.0), color.withValues(alpha: 0.22)],
-      ).createShader(Rect.fromCircle(center: center, radius: maxR));
-    canvas.drawCircle(center, maxR, sweep);
+    // (No rotating sweep: a wedge spinning every loop read as busy, not calm.)
 
     // Steady centre dot.
     canvas.drawCircle(

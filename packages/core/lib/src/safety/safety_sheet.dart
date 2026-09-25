@@ -1,6 +1,7 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../network/api_exception.dart';
@@ -20,6 +21,12 @@ Uri phoneCallUri(String phone) {
 /// driver's "Call rider"). Returns false when the number is unusable or the
 /// device has no dialler (tablets, simulators); the caller can then fall back
 /// to a message. [launch] is injectable for tests.
+///
+/// PILOT PRIVACY NOTE: the numbers dialled here are the other party's real
+/// phone number (driver ↔ rider). That is acceptable for the closed pilot
+/// only; production should route calls through masked/proxy numbers (e.g. a
+/// telephony provider's number-masking session per trip) so neither side
+/// ever learns the other's real number.
 Future<bool> dialPhone(
   String phone, {
   Future<bool> Function(Uri uri)? launch,
@@ -27,22 +34,77 @@ Future<bool> dialPhone(
   final uri = phoneCallUri(phone);
   if (uri.path.replaceAll('+', '').isEmpty) return false;
   try {
-    return await (launch ?? launchUrl)(uri);
+    return await (launch ?? _launchExternal)(uri);
   } catch (_) {
     return false;
   }
 }
 
-/// Opens the messaging app with [text] pre-filled (the user picks who to send
-/// it to), falling back to the clipboard when no SMS app can be opened.
+/// `tel:` must leave the app for the system dialler.
+Future<bool> _launchExternal(Uri uri) =>
+    launchUrl(uri, mode: LaunchMode.externalApplication);
+
+/// Hands [text] to the platform share UI. [origin] anchors the popover on
+/// iPad (required there, ignored on phones).
+typedef TripTextSharer = Future<void> Function(String text, Rect? origin);
+
+Future<void> _platformShare(String text, Rect? origin) async {
+  await SharePlus.instance.share(
+    ShareParams(text: text, sharePositionOrigin: origin),
+  );
+}
+
+/// What [shareTripText] uses to reach the share sheet. Replaced in tests so a
+/// widget test can assert on the shared text without a platform channel.
+@visibleForTesting
+TripTextSharer tripTextSharer = _platformShare;
+
+/// The rider's "Share trip status" text — who is driving, which car, where
+/// to. [trackingUrl] is appended only when a live-tracking link really exists
+/// (none is issued today; never invent one).
+String tripShareText({
+  required String brand,
+  String? destination,
+  String? vehicle,
+  String? plate,
+  String? driverName,
+  String? trackingUrl,
+}) {
+  final b = StringBuffer(
+      "I'm on a $brand ride to ${_orNull(destination) ?? 'my destination'}.");
+  final car = _orNull(vehicle);
+  final plateNo = _orNull(plate);
+  if (car != null || plateNo != null) {
+    b.write(' Car: ');
+    if (car != null) b.write(car);
+    if (plateNo != null) b.write('${car != null ? ', ' : ''}plate $plateNo');
+    b.write('.');
+  }
+  final name = _orNull(driverName);
+  if (name != null) b.write(' Driver: $name.');
+  final url = _orNull(trackingUrl);
+  if (url != null) b.write(' Track it live: $url');
+  return b.toString();
+}
+
+String? _orNull(String? s) {
+  final t = s?.trim();
+  return (t == null || t.isEmpty) ? null : t;
+}
+
+/// Opens the phone's native share sheet (WhatsApp, SMS, Telegram, mail…)
+/// with [text]; the user picks the app and the person. Only if the share
+/// sheet itself fails does it fall back to copying the text to the clipboard.
 Future<void> shareTripText(BuildContext context, String text) async {
   final messenger = ScaffoldMessenger.of(context);
+  Rect? origin;
+  final box = context.findRenderObject();
+  if (box is RenderBox && box.hasSize) {
+    origin = box.localToGlobal(Offset.zero) & box.size;
+  }
   try {
-    final sms = Uri(scheme: 'sms', queryParameters: {'body': text});
-    if (await canLaunchUrl(sms)) {
-      await launchUrl(sms, mode: LaunchMode.externalApplication);
-      return;
-    }
+    await tripTextSharer(text, origin);
+    return;
   } catch (_) {
     // fall through to the clipboard fallback
   }

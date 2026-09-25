@@ -568,4 +568,49 @@ describe('TripsService', () => {
       expect(res.driver.name).toBe('Ava');
     });
   });
+
+  // Pilot calling: the rider's "Call" dials the driver, the driver's "Call
+  // rider" dials the rider. Real numbers (pilot only — production masks them),
+  // exposed only to the other party and only while the ride is live.
+  describe('TripsService.getTrip — phone numbers for calling', () => {
+    function setup(status: string) {
+      const { svc, prisma } = make();
+      prisma.trip.findUnique.mockResolvedValue({
+        id: 'trip-1',
+        riderId: 'rider-1',
+        driverId: 'driver-1',
+        status,
+        pickupLat: 1,
+        pickupLng: 2,
+        dropoffLat: 3,
+        dropoffLng: 4,
+      });
+      prisma.user.findUnique.mockImplementation(async ({ where }: any) =>
+        where.id === 'driver-1'
+          ? { id: 'driver-1', fullName: 'Ava', phone: '+998901112233', ratingAvg: 4.9, driverProfile: null }
+          : { id: 'rider-1', fullName: 'Rustam', phone: '+998907778899' },
+      );
+      return svc;
+    }
+
+    it('gives the rider the driver phone while the ride is live', async () => {
+      const res = (await setup('accepted').getTrip('rider-1', 'trip-1')) as Record<string, any>;
+      expect(res.driver.phone).toBe('+998901112233');
+      expect(res.rider).toBeUndefined(); // the rider gets no rider block
+    });
+
+    it('gives the driver the rider name and phone while the ride is live', async () => {
+      for (const status of ['accepted', 'arrived', 'in_progress']) {
+        const res = (await setup(status).getTrip('driver-1', 'trip-1')) as Record<string, any>;
+        expect(res.rider).toEqual({ id: 'rider-1', name: 'Rustam', phone: '+998907778899' });
+      }
+    });
+
+    it('exposes neither number once the ride is over', async () => {
+      const asRider = (await setup('completed').getTrip('rider-1', 'trip-1')) as Record<string, any>;
+      expect(asRider.driver.phone).toBeUndefined();
+      const asDriver = (await setup('completed').getTrip('driver-1', 'trip-1')) as Record<string, any>;
+      expect(asDriver.rider).toBeUndefined();
+    });
+  });
 });

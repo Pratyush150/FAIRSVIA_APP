@@ -22,6 +22,7 @@ dependencies:
   flutter_animate: ^4.5.2
   skeletonizer: ^2.1.3
   animations: ^2.0.11
+  lottie: ^3.6.1
 
 dev_dependencies:
   flutter_test:
@@ -50,7 +51,13 @@ flutter:
     # Plan G "3D Clay" (THEME=clay3d): hero-size copies of the 3D icon renders
     # (tool/icons3d/build.py HEROES), light and dark.
     - assets/heroes/clay3d/
+    # Lottie: ride-complete confetti, cash/earnings money (assets/lottie/CREDITS.md).
+    - assets/lottie/
     - assets/heroes/clay3d_dark/
+    # Rider Home: 3D clay art for service tiles and promo banners, cropped
+    # from the clay renders (vehicles/clay, docs/brand/icons3d), light + dark.
+    - assets/home/
+    - assets/home_dark/
   # skeletonizer (and our icons) rely on the Material icon font.
   uses-material-design: true
   fonts:

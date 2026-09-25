@@ -752,6 +752,10 @@ export class DispatchService {
         id: driverId,
         name: driver?.fullName ?? 'Your driver',
         rating: Number(driver?.ratingAvg ?? 5),
+        // The rider's "Call" button dials this. PILOT ONLY: this is the
+        // driver's real number. Production must hand out a masked/proxy
+        // number (per-trip telephony session) instead of users.phone.
+        phone: driver?.phone ?? undefined,
       },
       vehicle: {
         make: driver?.driverProfile?.vehicleMake,

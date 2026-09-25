@@ -503,7 +503,8 @@ class _ScheduleRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(PhosphorIconsRegular.clock, size: 20),
+            Icon(PhosphorIconsRegular.calendarDots,
+                size: 20, color: AppColors.accentInk),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(

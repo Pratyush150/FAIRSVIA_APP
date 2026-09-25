@@ -291,6 +291,7 @@ describe('DispatchService', () => {
       prisma.user.findUnique.mockResolvedValue({
         id: 'driver-A',
         fullName: 'Ava',
+        phone: '+998901112233',
         ratingAvg: 4.9,
         driverProfile: {
           vehicleMake: 'Toyota',
@@ -328,6 +329,19 @@ describe('DispatchService', () => {
       expect(body).toContain('4821'); // the code they read to the driver
       expect(body).toContain('Ava');
       expect(body).toContain('ABC123');
+    });
+
+    it('trip:accepted carries the driver phone so the rider can call', async () => {
+      const { internals, trip, realtime } = assignable() as any;
+      await internals.assign(trip, 'driver-A');
+      const call = (realtime.emitToUser.mock.calls as unknown[][]).find(
+        (c) => c[1] === 'trip:accepted',
+      );
+      expect(call).toBeDefined();
+      expect(call![0]).toBe('rider-1');
+      expect((call![2] as any).driver).toEqual(
+        expect.objectContaining({ name: 'Ava', phone: '+998901112233' }),
+      );
     });
 
     it('sends nothing on an ordinary ride', async () => {

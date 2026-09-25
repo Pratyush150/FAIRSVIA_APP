@@ -75,6 +75,13 @@ async function main() {
   dSock.emit('trip:accept', { tripId: offer.tripId });
   const accepted = await acceptedP;
   assert(accepted.vehicle.plate, 'rider sees vehicle plate');
+  // Pilot calling: the rider's "Call" button needs the driver's number, and
+  // the driver's "Call rider" needs the rider's (real numbers in the pilot;
+  // production masks them).
+  assert(accepted.driver.phone === driver.user.phone, 'rider sees driver phone');
+  const callView = await api(`/trips/${trip.id}`, { token: driver.token });
+  assert(callView.rider?.phone === rider.user.phone, 'driver sees rider phone');
+  console.log(`• call numbers  driver=${accepted.driver.phone} rider=${callView.rider.phone}`);
   console.log(
     `• rider ← trip:accepted  car=${accepted.vehicle.make} ${accepted.vehicle.model} plate=${accepted.vehicle.plate}`,
   );

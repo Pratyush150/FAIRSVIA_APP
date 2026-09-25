@@ -1,5 +1,6 @@
 import 'package:design_system/design_system.dart';
 import 'package:bloc_test/bloc_test.dart';
+import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -66,6 +67,48 @@ void main() {
     await tester.tap(find.text('Call'));
     await tester.pumpAndSettle();
     expect(dialled, ['+1 305-555-0123']);
+  });
+
+  testWidgets('Call opens the dialler on tel:<driver number>', (tester) async {
+    final launched = <Uri>[];
+    await pump(
+      tester,
+      const TripState(phase: TripPhase.driverEnRoute, driver: driverWithPhone),
+      dialer: (p) => dialPhone(p, launch: (uri) async {
+        launched.add(uri);
+        return true;
+      }),
+    );
+    await tester.tap(find.text('Call'));
+    await tester.pumpAndSettle();
+    expect(launched.map((u) => u.toString()), ['tel:+13055550123']);
+  });
+
+  testWidgets('••• Share trip status opens the share sheet with the trip', (
+    tester,
+  ) async {
+    final original = tripTextSharer;
+    addTearDown(() => tripTextSharer = original);
+    final shared = <String>[];
+    tripTextSharer = (text, _) async => shared.add(text);
+
+    await pump(
+      tester,
+      const TripState(
+        phase: TripPhase.driverEnRoute,
+        driver: driverWithPhone,
+        dropoffAddr: 'Chorsu Bazaar',
+      ),
+    );
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share trip status'));
+    await tester.pumpAndSettle();
+
+    expect(shared, [
+      "I'm on a ${AppBrand.name} ride to Chorsu Bazaar. Car: Toyota Prius, "
+          'plate ABC123. Driver: Ava.',
+    ]);
   });
 
   testWidgets('Call button is hidden when no phone is known', (tester) async {

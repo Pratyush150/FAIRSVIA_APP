@@ -118,9 +118,12 @@ void main() {
   test('radar rings spread out and fade, evenly spaced', () {
     final rings = AppMap.pulseRings(0);
     expect(rings, hasLength(3));
-    // Start of the cycle: one ring at the pin, fully visible.
+    // Start of the cycle: one ring at the pin, fading in from nothing (no
+    // pop as it is born).
     expect(rings.first.$1, AppMap.pulseMinM);
-    expect(rings.first.$2, closeTo(0.55, 1e-9));
+    expect(rings.first.$2, 0);
+    // Shortly after, it is visible.
+    expect(AppMap.pulseRings(0.1).first.$2, greaterThan(0.2));
     // A ring near the end of its spread is almost gone.
     final late = AppMap.pulseRings(0.99).first;
     expect(late.$1, closeTo(AppMap.pulseMaxM, 3));

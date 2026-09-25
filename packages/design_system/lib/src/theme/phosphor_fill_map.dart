@@ -21,6 +21,7 @@ IconData phosphorFillTwin(IconData icon) {
     0xe0ee => const IconData(0xe0ee, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // briefcase
     0xe0f2 => const IconData(0xe0f2, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // broadcast
     0xe10a => const IconData(0xe10a, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // calendarBlank
+    0xe7b4 => const IconData(0xe7b4, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // calendarDots
     0xe712 => const IconData(0xe712, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // calendarCheck
     0xe10c => const IconData(0xe10c, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // calendarX
     0xe112 => const IconData(0xe112, fontFamily: 'PhosphorFill', fontPackage: 'design_system'), // car

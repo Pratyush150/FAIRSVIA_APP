@@ -2,6 +2,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_models/shared_models.dart';
 
+import '../chat/chat_widgets.dart';
 import '../network/api_exception.dart';
 import 'format.dart';
 import 'support_page.dart' show supportStatusColor;
@@ -31,6 +32,9 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
   bool _loading = true;
   bool _sending = false;
 
+  /// Messages on screen at first load don't pop in; later ones do.
+  Set<String>? _initialIds;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +58,7 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
       if (!mounted) return;
       setState(() {
         _ticket = t;
+        _initialIds ??= {for (final m in t.messages) m.id};
         _loading = false;
       });
       _scrollToEnd();
@@ -109,7 +114,11 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
                   alignment: Alignment.centerLeft,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+                      AppSpacing.lg,
+                      0,
+                      AppSpacing.lg,
+                      AppSpacing.sm,
+                    ),
                     child: Text(
                       Fmt.status(t.status),
                       style: TextStyle(
@@ -125,7 +134,10 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
       body: Column(
         children: [
           Expanded(child: _body(t)),
-          if (t != null && !t.isClosed) _composer() else if (t != null) _closed(),
+          if (t != null && !t.isClosed)
+            _composer()
+          else if (t != null)
+            _closed(),
         ],
       ),
     );
@@ -146,7 +158,11 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(PhosphorIconsRegular.warningCircle, color: AppColors.error, size: 40),
+              const Icon(
+                PhosphorIconsRegular.warningCircle,
+                color: AppColors.error,
+                size: 40,
+              ),
               const SizedBox(height: AppSpacing.md),
               Text(
                 _error is ApiException
@@ -165,52 +181,61 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
         ),
       );
     }
+    final msgs = t.messages;
+    bool joins(SupportMessage? a, SupportMessage b) =>
+        a != null &&
+        a.isFromAdmin == b.isFromAdmin &&
+        a.createdAt != null &&
+        b.createdAt != null &&
+        chatSameDay(a.createdAt!, b.createdAt!) &&
+        b.createdAt!.difference(a.createdAt!).abs() <= chatGroupWindow;
     return ListView.builder(
       controller: _scroll,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      itemCount: t.messages.length,
-      itemBuilder: (context, i) => _Bubble(message: t.messages[i]),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      itemCount: msgs.length,
+      itemBuilder: (context, i) {
+        final m = msgs[i];
+        final prev = i > 0 ? msgs[i - 1] : null;
+        final next = i + 1 < msgs.length ? msgs[i + 1] : null;
+        final at = m.createdAt?.toLocal();
+        final newDay =
+            at != null &&
+            (prev?.createdAt == null ||
+                !chatSameDay(prev!.createdAt!.toLocal(), at));
+        return Column(
+          key: ValueKey(m.id),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (newDay) ChatDaySeparator(label: chatDayLabel(at)),
+            ChatBubble(
+              text: m.body,
+              mine: !m.isFromAdmin,
+              senderName: 'Support',
+              senderLabel: m.isFromAdmin ? 'Support' : null,
+              time: at,
+              first: newDay || !joins(prev, m),
+              last: next == null || !joins(m, next),
+              animateIn: !(_initialIds?.contains(m.id) ?? true),
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget _composer() {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-            AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _reply,
-                enabled: !_sending,
-                minLines: 1,
-                maxLines: 4,
-                textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration(
-                  hintText: 'Write a reply…',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            IconButton.filled(
-              tooltip: 'Send message',
-              onPressed: _sending ? null : _send,
-              icon: _sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(PhosphorIconsRegular.paperPlaneRight),
-            ),
-          ],
-        ),
-      ),
+    return ChatComposer(
+      controller: _reply,
+      sending: _sending,
+      enabled: !_sending,
+      onSend: _send,
+      hintText: 'Write a reply…',
+      submitOnEnter: false,
     );
   }
 
@@ -223,65 +248,6 @@ class _SupportThreadPageState extends State<SupportThreadPage> {
           'This ticket is closed.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ),
-    );
-  }
-}
-
-class _Bubble extends StatelessWidget {
-  const _Bubble({required this.message});
-  final SupportMessage message;
-
-  @override
-  Widget build(BuildContext context) {
-    final admin = message.isFromAdmin;
-    final theme = Theme.of(context);
-    return Align(
-      alignment: admin ? Alignment.centerLeft : Alignment.centerRight,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
-        ),
-        decoration: BoxDecoration(
-          color: admin
-              ? theme.colorScheme.surfaceContainerHighest
-              : AppColors.accent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              admin ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-          children: [
-            if (admin)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  'Support',
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-            Text(
-              message.body,
-              style: TextStyle(color: admin ? null : Colors.white),
-            ),
-            if (message.createdAt != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Text(
-                  Fmt.dateTime(message.createdAt),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: admin
-                        ? theme.textTheme.bodySmall?.color
-                        : Colors.white70,
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-          ],
         ),
       ),
     );
