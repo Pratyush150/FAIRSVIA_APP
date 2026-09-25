@@ -84,7 +84,7 @@ class _QuestsViewState extends State<QuestsView> {
           const SizedBox(height: AppSpacing.md),
           Expanded(
             child: qs == null
-                ? const Center(child: CircularProgressIndicator())
+                ? const AppListSkeleton(rows: 5, padding: EdgeInsets.zero)
                 : qs.isEmpty
                     ? const Center(child: Text('No quests yet.'))
                     : ListView.separated(

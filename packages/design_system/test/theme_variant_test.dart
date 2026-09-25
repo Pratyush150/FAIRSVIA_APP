@@ -150,7 +150,7 @@ void main() {
     } else {
       final img = tester.widget<Image>(find.byType(Image));
       expect((img.image as AssetImage).assetName,
-          'packages/design_system/assets/vehicles/$set/xl.png');
+          'packages/design_system/assets/vehicles/$set/xl.${set.startsWith('photo') ? 'webp' : 'png'}');
     }
   });
 }

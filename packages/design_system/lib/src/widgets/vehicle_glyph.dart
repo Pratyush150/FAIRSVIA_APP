@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// A side-view car illustration per ride type — a compact hatchback, a
-/// sedan, a tall MPV and a long black premium sedan — so the ride list reads
-/// at a glance, the way ride-hailing apps show each class. Drawn here (our
-/// own artwork), so it scales crisply and needs no image assets.
+/// A picture of the vehicle per ride type — a compact hatchback, a sedan, a
+/// premium sedan, a seven-seat SUV, and India's auto-rickshaw and bike taxi —
+/// so the ride list reads at a glance. The shipped look uses realistic photo
+/// cut-outs (see [artSet]); a drawn side-view glyph (our own artwork) is the
+/// fallback and the `mono` look.
 class VehicleGlyph extends StatelessWidget {
   const VehicleGlyph({super.key, required this.tier, this.width = 64});
 
@@ -18,20 +19,26 @@ class VehicleGlyph extends StatelessWidget {
   final double width;
 
   /// Which illustrated set the build uses, or null for the drawn glyphs:
-  /// - the shipped turquoise build, Plan B (daylight) and Plan C (daynight):
-  ///   the Blender clay 3D set (docs/brand/vehicles/clay), with its dark-mode
-  ///   render in dark mode;
+  /// - the shipped Plan F glass build, Plan B (daylight) and Plan C
+  ///   (daynight): realistic photo cut-outs (Unsplash-licensed photos,
+  ///   backgrounds removed, badges and plates painted out; sources in
+  ///   docs/brand/CREDITS-ride-vehicles.md, built by
+  ///   docs/brand/vehicles/photo/build.py), with a dark-sheet grade in dark
+  ///   mode;
   /// - Plan A (midnight): the flat silver 3/4-view cars, so A stays visibly
   ///   its own look;
   /// - `mono`: the drawn glyphs (the art is in colour);
-  /// - `ink` (Plan E): monochrome pen line drawings of the same Blender
+  /// - `ink` (Plan E): monochrome pen line drawings of the Blender clay
   ///   models (docs/brand/vehicles/clay/render_ink.py), light and dark.
   static String? artSet(bool dark) => switch (AppColors.variant) {
         'mono' => null,
         'midnight' => 'midnight',
         'ink' => dark ? 'ink_dark' : 'ink',
-        _ => dark ? 'clay_dark' : 'clay',
+        _ => dark ? 'photo_dark' : 'photo',
       };
+
+  /// File type of each set: the photo cut-outs ship as small WebP files.
+  static String _ext(String set) => set.startsWith('photo') ? 'webp' : 'png';
 
   /// The map-marker (top-down) art for [asset], a path under
   /// `packages/design_system/assets/vehicles/top/`. Callers name the shared
@@ -46,7 +53,8 @@ class VehicleGlyph extends StatelessWidget {
         // The neutral light-grey sedan: a real car whose model is known but
         // has no art of its own (the rider's driver card).
         'driver' => tier,
-        // The clay set also has India's auto-rickshaw and bike taxi.
+        // The photo and clay sets also have India's auto-rickshaw and bike
+        // taxi.
         'auto' || 'bike' when AppColors.variant != 'midnight' => tier,
         _ => 'comfort',
       };
@@ -68,12 +76,14 @@ class VehicleGlyph extends StatelessWidget {
       child: set == null
           ? painted
           : Image.asset(
-              'packages/design_system/assets/vehicles/$set/${_file(tier)}.png',
+              'packages/design_system/assets/vehicles/$set/${_file(tier)}.${_ext(set)}',
               width: width,
               height: width * 0.625,
-              // The clay renders are square with room above the roof; cover
-              // crops that to the 16:10 slot so the car itself fills the row.
-              fit: BoxFit.cover,
+              // Contain, never cover: the whole vehicle is always shown.
+              // (Cover cropped the square renders to the 16:10 slot and cut
+              // off wheels and roofs.) The photo set is already framed 16:10
+              // with the vehicle inside the canvas, so it fills the slot.
+              fit: BoxFit.contain,
               // A missing asset must never blank the ride list.
               errorBuilder: (_, _, _) => painted,
             ),

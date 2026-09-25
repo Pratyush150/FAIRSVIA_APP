@@ -32,7 +32,11 @@ void main() {
 
   test('an uncaught app error is forwarded to Sentry', () async {
     reportError(StateError('ridevela-probe'), StackTrace.current);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    // Poll rather than wait a fixed 50 ms: under a loaded full-suite run the
+    // async send can take longer, which made this test flaky.
+    for (var i = 0; i < 40 && transport.sent.isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
 
     expect(transport.sent, hasLength(1));
   });

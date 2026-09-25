@@ -4,6 +4,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_elevation.dart';
 import '../theme/app_ink.dart';
 import '../theme/app_spacing.dart';
+import 'home/press_scale.dart';
 
 /// A rounded surface panel. Borderless by default — content is grouped by
 /// space, not boxes. `outlined` adds a hairline (use where a panel must read
@@ -54,14 +55,21 @@ class AppCard extends StatelessWidget {
     if (onTap == null) {
       return DecoratedBox(decoration: decoration, child: content);
     }
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
-        decoration: decoration,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: radius,
-          child: content,
+    // Tappable: the Home cards' press — a slight shrink and a soft accent
+    // halo while held (the halo alone under Reduce Motion).
+    return PressScale(
+      scale: 0.98,
+      glow: PressScale.brandGlow(isDark),
+      glowRadius: radius,
+      child: Material(
+        color: Colors.transparent,
+        child: Ink(
+          decoration: decoration,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            child: content,
+          ),
         ),
       ),
     );

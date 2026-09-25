@@ -65,15 +65,10 @@ class _SplashPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Depend on the theme: the ink colours below must follow a light/dark
-    // switch made while the app is open.
-    Theme.of(context);
-    return Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation(AppColors.accent),
-        ),
-      ),
+    // The brand loader (teal Lottie arc) while the session restores; a still
+    // arc under Reduce Motion.
+    return const Scaffold(
+      body: Center(child: BrandLoader(size: 56, label: 'Starting')),
     );
   }
 }

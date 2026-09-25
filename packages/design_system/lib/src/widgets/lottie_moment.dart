@@ -28,99 +28,150 @@ enum LottieEnd {
 /// confetti fades out after its burst instead of leaving debris.
 class LottieMoment extends StatefulWidget {
   const LottieMoment.confetti({super.key, this.size = 220, this.repeat = false})
-      : asset = 'confetti',
-        holdAt = 1.0,
-        end = LottieEnd.vanish,
-        stillAt = null,
-        tint = null;
+    : asset = 'confetti',
+      holdAt = 1.0,
+      end = LottieEnd.vanish,
+      stillAt = null,
+      tint = null;
 
   /// Holds at frame ~60 of 121: all notes stacked (they land by frame 22
   /// and only start to fly off at 104).
   const LottieMoment.money({super.key, this.size = 48, this.repeat = false})
-      : asset = 'money',
-        holdAt = moneyHoldAt,
-        end = LottieEnd.hold,
-        stillAt = null,
-        tint = null;
+    : asset = 'money',
+      holdAt = moneyHoldAt,
+      end = LottieEnd.hold,
+      stillAt = null,
+      tint = null;
 
   /// Looping loader ("Sandy Loading") for waits like "Requesting your ride".
   const LottieMoment.loading({super.key, this.size = 56, this.repeat = true})
-      : asset = 'loading',
-        holdAt = 1.0,
-        end = LottieEnd.hold,
-        stillAt = null,
-        tint = null;
+    : asset = 'loading',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = null,
+      tint = null;
 
   /// Looping radar sweep around a pin: "Finding your driver".
-  const LottieMoment.searching(
-      {super.key, this.size = 96, this.repeat = true})
-      : asset = 'searching',
-        holdAt = 1.0,
-        end = LottieEnd.hold,
-        stillAt = 0.3,
-        tint = null;
+  const LottieMoment.searching({super.key, this.size = 96, this.repeat = true})
+    : asset = 'searching',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 0.3,
+      tint = null;
 
   /// A pin drops and lands with a ripple: the driver has arrived. Plays once
   /// and holds on the landed pin.
   const LottieMoment.arrived({super.key, this.size = 72, this.repeat = false})
-      : asset = 'arrived',
-        holdAt = 1.0,
-        end = LottieEnd.hold,
-        stillAt = 1.0,
-        tint = null;
+    : asset = 'arrived',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 1.0,
+      tint = null;
 
   /// A magnifier looking around: no cars nearby. Loops gently.
   const LottieMoment.noCars({super.key, this.size = 96, this.repeat = true})
-      : asset = 'no_cars',
-        holdAt = 1.0,
-        end = LottieEnd.hold,
-        stillAt = 0.3,
-        tint = null;
+    : asset = 'no_cars',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 0.3,
+      tint = null;
 
   /// A teal check with a small burst: payment or tip went through. Plays
   /// once and holds on the check.
   const LottieMoment.success({super.key, this.size = 64, this.repeat = false})
-      : asset = 'success',
-        holdAt = 1.0,
-        end = LottieEnd.hold,
-        stillAt = 1.0,
-        tint = null;
+    : asset = 'success',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 1.0,
+      tint = null;
 
   /// A star fills with a little sparkle: thanks for rating. Plays once and
   /// holds on the gold star.
   const LottieMoment.thanks({super.key, this.size = 48, this.repeat = false})
-      : asset = 'thanks',
-        holdAt = 1.0,
-        end = LottieEnd.hold,
-        stillAt = 1.0,
-        tint = null;
+    : asset = 'thanks',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 1.0,
+      tint = null;
 
   /// A finger flips a location toggle on and the pin rises: turn location
   /// on. Loops; the still frame is the "on" state.
   const LottieMoment.location({super.key, this.size = 96, this.repeat = true})
-      : asset = 'location',
-        holdAt = 1.0,
-        end = LottieEnd.hold,
-        stillAt = 1.0,
-        tint = null;
+    : asset = 'location',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 1.0,
+      tint = null;
 
   /// Wi-Fi bars that drop and cross out: offline. Loops; the still frame is
   /// the crossed-out signal.
-  const LottieMoment.offline(
-      {super.key, this.size = 56, this.repeat = true, this.tint})
-      : asset = 'offline',
-        holdAt = 1.0,
-        end = LottieEnd.hold,
-        stillAt = offlineStillAt;
+  const LottieMoment.offline({
+    super.key,
+    this.size = 56,
+    this.repeat = true,
+    this.tint,
+  }) : asset = 'offline',
+       holdAt = 1.0,
+       end = LottieEnd.hold,
+       stillAt = offlineStillAt;
 
   /// A shield draws itself and fills with a check: SOS sent, help is on the
   /// way. Calm, not an alarm. Plays once and holds on the filled shield.
   const LottieMoment.sos({super.key, this.size = 88, this.repeat = false})
-      : asset = 'sos',
-        holdAt = 1.0,
-        end = LottieEnd.hold,
-        stillAt = 1.0,
-        tint = null;
+    : asset = 'sos',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 1.0,
+      tint = null;
+
+  /// The brand loader: a teal arc that sweeps round and closes. Replaces the
+  /// stock CircularProgressIndicator in waits (see [BrandLoader]). Under
+  /// Reduce Motion it holds on the near-full arc.
+  const LottieMoment.spinner({
+    super.key,
+    this.size = 40,
+    this.repeat = true,
+    this.tint,
+  }) : asset = 'spinner',
+       holdAt = 1.0,
+       end = LottieEnd.hold,
+       stillAt = 0.55;
+
+  /// An open, empty box with a moth drifting out: nothing here yet (no
+  /// trips, no earnings). Plays once and holds on the moth in flight: an
+  /// empty state that loops forever is noise (and never lets a test settle).
+  const LottieMoment.emptyBox({super.key, this.size = 120, this.repeat = false})
+    : asset = 'empty_box',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 1.0,
+      tint = null;
+
+  /// A sad magnifier: a search that found nothing. Plays once and holds.
+  const LottieMoment.noResults({super.key, this.size = 96, this.repeat = false})
+    : asset = 'no_results',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 1.0,
+      tint = null;
+
+  /// A gift box drops, its lid lands and a bow pops out: offers. Plays once
+  /// and holds on the wrapped gift.
+  const LottieMoment.gift({super.key, this.size = 112, this.repeat = false})
+    : asset = 'gift',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 1.0,
+      tint = null;
+
+  /// A gold trophy rises with laurels: a quest completed. Plays once and
+  /// holds on the trophy.
+  const LottieMoment.trophy({super.key, this.size = 72, this.repeat = false})
+    : asset = 'trophy',
+      holdAt = 1.0,
+      end = LottieEnd.hold,
+      stillAt = 1.0,
+      tint = null;
 
   /// Progress of the offline loop where the signal is crossed out.
   static const double offlineStillAt = 0.8;
@@ -214,11 +265,14 @@ class _LottieMomentState extends State<LottieMoment>
             onLoaded: _start,
             delegates: widget.tint == null
                 ? null
-                : LottieDelegates(values: [
-                    ValueDelegate.color(const ['**'], value: widget.tint),
-                    ValueDelegate.strokeColor(const ['**'],
-                        value: widget.tint),
-                  ]),
+                : LottieDelegates(
+                    values: [
+                      ValueDelegate.color(const ['**'], value: widget.tint),
+                      ValueDelegate.strokeColor(const [
+                        '**',
+                      ], value: widget.tint),
+                    ],
+                  ),
             width: size,
             height: size,
             fit: BoxFit.contain,

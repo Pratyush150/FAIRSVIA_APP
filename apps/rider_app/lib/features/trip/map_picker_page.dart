@@ -261,21 +261,25 @@ class _MapPickerPageState extends State<MapPickerPage> {
   }
 }
 
-/// A teardrop pin whose tip points at the map centre. Nudged up by half its
-/// height so the tip — not the centre of the glyph — rests on the coordinate.
+/// A solid teardrop pin ([MapPinMark], the same art as the map's stop pins)
+/// whose tip points at the map centre: lifted by the tip's distance below the
+/// box centre so the tip — not the middle of the glyph — rests on the
+/// coordinate.
 class _CenterPin extends StatelessWidget {
   const _CenterPin();
 
+  static const double _scale = 1.2;
+
   @override
   Widget build(BuildContext context) {
-    // Depend on the theme: the ink colours below must follow a light/dark
+    // Depend on the theme: the ink colour below must follow a light/dark
     // switch made while the app is open.
     Theme.of(context);
+    final h = MapMarkerArt.pinSize.height * _scale;
+    final lift = (MapMarkerArt.pinAnchor.dy - 0.5) * h;
     return Transform.translate(
-      // Hero pin: 48 (audit 2.1 — 24/20/16 utility, 32/40/48 hero); lifted
-      // by just under half its height so the tip sits on the map centre.
-      offset: const Offset(0, -22),
-      child: Icon(PhosphorIconsRegular.mapPin, size: 48, color: AppColors.accent),
+      offset: Offset(0, -lift),
+      child: MapPinMark(fill: AppColors.accent, scale: _scale),
     );
   }
 }

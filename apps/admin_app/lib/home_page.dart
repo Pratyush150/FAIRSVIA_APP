@@ -501,7 +501,7 @@ class _TicketDialogState extends State<_TicketDialog> {
               const Divider(),
               Expanded(
                 child: _loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const AppListSkeleton(rows: 6)
                     : _error != null
                         ? Center(child: Text(_error!))
                         : ListView(
@@ -753,7 +753,8 @@ class _OverviewView extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = state.stats;
     if (s == null) {
-      return const Center(child: CircularProgressIndicator());
+      // Shimmering rows while the dashboard numbers load.
+      return const AppListSkeleton(rows: 5, hasLeading: false);
     }
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.xl),

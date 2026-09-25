@@ -11,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_variant.dart';
 import 'kolam.dart';
+import 'map_marker_art.dart';
 import 'map_styles.dart';
 import 'pulse_radar.dart';
 import 'route_progress.dart';
@@ -671,8 +672,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   }
 
   gmaps.BitmapDescriptor? _meIcon; // rider's blue "you are here" dot
-  gmaps.BitmapDescriptor? _pickupIcon; // black ring, white centre
-  gmaps.BitmapDescriptor? _dropoffIcon; // black square, white centre
+  gmaps.BitmapDescriptor? _pickupIcon; // solid ink pin, white dot
+  gmaps.BitmapDescriptor? _dropoffIcon; // solid dark pin, white square
   // Follow mode: suspended once the user pans until the next recenter.
   bool _userPanned = false;
   // Camera moves WE started, which must not be mistaken for the user taking
@@ -1377,15 +1378,20 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
                   : m.kind == MapMarkerKind.dropoff && _dropoffIcon != null
                       ? _dropoffIcon!
                       : _iconFor(m.kind);
-      final centred = isDriver ||
-          isMe ||
-          m.kind == MapMarkerKind.pickup ||
+      // Drawn stop pins hang from their tip; the car and the me-dot are
+      // centred; the default fallback pins anchor bottom-centre.
+      final drawnPin = (m.kind == MapMarkerKind.pickup && _pickupIcon != null) ||
           (m.kind == MapMarkerKind.dropoff && _dropoffIcon != null);
+      final centred = isDriver || isMe;
       out.add(gmaps.Marker(
         markerId: gmaps.MarkerId('${m.kind.name}_${i++}'),
         position: _g(point),
         icon: icon,
-        anchor: centred ? const Offset(0.5, 0.5) : const Offset(0.5, 1.0),
+        anchor: centred
+            ? const Offset(0.5, 0.5)
+            : drawnPin
+                ? MapMarkerArt.pinAnchor
+                : const Offset(0.5, 1.0),
         zIndexInt: isDriver ? 3 : (isMe ? 2 : 1),
         rotation: isDriver ? _currentDriverBearing() : (m.heading ?? 0),
         // A position we know is out of date is drawn faded: the rider can see
@@ -1619,40 +1625,16 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     }
   }
 
-  /// Ride-hailing stop pins: pickup = a black ring with a white centre,
-  /// drop-off = a black square with a white centre. White outer edge so both
-  /// read on the light and the dark basemap.
+  /// Ride-hailing stop pins ([MapMarkerArt]): solid teardrop pins with a
+  /// white rim and shadow — pickup in the brand ink with a white dot,
+  /// drop-off near-black with a white square. Anchored on the tip.
   Future<void> _makeStopIcons() async {
-    Future<gmaps.BitmapDescriptor?> draw(bool square) async {
-      const dim = 64.0;
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      const c = Offset(dim / 2, dim / 2);
-      final white = Paint()..color = Colors.white;
-      final black = Paint()..color = Colors.black;
-      final shadow = Paint()
-        ..color = const Color(0x40000000)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
-      if (square) {
-        canvas.drawRect(Rect.fromCenter(center: c + const Offset(0, 1.5), width: 40, height: 40), shadow);
-        canvas.drawRect(Rect.fromCenter(center: c, width: 40, height: 40), white);
-        canvas.drawRect(Rect.fromCenter(center: c, width: 32, height: 32), black);
-        canvas.drawRect(Rect.fromCenter(center: c, width: 11, height: 11), white);
-      } else {
-        canvas.drawCircle(c + const Offset(0, 1.5), 20, shadow);
-        canvas.drawCircle(c, 20, white);
-        canvas.drawCircle(c, 16, black);
-        canvas.drawCircle(c, 6, white);
-      }
-      final img = await recorder.endRecording().toImage(dim.toInt(), dim.toInt());
-      final data = await img.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) return null;
-      return gmaps.BitmapDescriptor.bytes(data.buffer.asUint8List(), width: 22);
-    }
-
     try {
-      final pickup = await draw(false);
-      final dropoff = await draw(true);
+      Future<gmaps.BitmapDescriptor> draw(MapMarkerArtKind k) async =>
+          gmaps.BitmapDescriptor.bytes(await MapMarkerArt.render(k),
+              width: MapMarkerArt.pinSize.width);
+      final pickup = await draw(MapMarkerArtKind.pickup);
+      final dropoff = await draw(MapMarkerArtKind.dropoff);
       if (mounted) {
         setState(() {
           _pickupIcon = pickup;
@@ -1664,22 +1646,13 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     }
   }
 
-  /// Uber-style "you are here" dot: blue disc, white ring, soft halo.
+  /// "You are here" ([MapMarkerArt.paintMe]): blue gradient core, white
+  /// ring, translucent halo with a crisp outer ring.
   Future<void> _makeMeIcon() async {
     try {
-      const dim = 72.0;
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      const center = Offset(dim / 2, dim / 2);
-      canvas.drawCircle(center, 34, Paint()..color = const Color(0x334285F4));
-      canvas.drawCircle(center, 15, Paint()..color = Colors.white);
-      canvas.drawCircle(center, 11, Paint()..color = const Color(0xFF4285F4));
-      final img =
-          await recorder.endRecording().toImage(dim.toInt(), dim.toInt());
-      final data = await img.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) return;
-      final icon =
-          gmaps.BitmapDescriptor.bytes(data.buffer.asUint8List(), width: 24);
+      final icon = gmaps.BitmapDescriptor.bytes(
+          await MapMarkerArt.render(MapMarkerArtKind.me),
+          width: MapMarkerArt.meSize.width);
       if (mounted) setState(() => _meIcon = icon);
     } catch (_) {
       // Fall back to the default marker.

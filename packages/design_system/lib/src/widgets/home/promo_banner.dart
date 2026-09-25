@@ -113,10 +113,16 @@ class PromoBanner extends StatelessWidget {
     // The InkWell's tap is excluded with its subtree; expose it here so
     // screen-reader activation works.
     onTap: onTap,
-    child: PressScale(
-      enabled: onTap != null,
-      scale: 0.98,
-      child: AspectRatio(aspectRatio: 16 / 10, child: child),
+    child: Builder(
+      builder: (context) => PressScale(
+        enabled: onTap != null,
+        scale: 0.98,
+        glow: PressScale.brandGlow(
+          Theme.of(context).brightness == Brightness.dark,
+        ),
+        glowRadius: BorderRadius.circular(radius),
+        child: AspectRatio(aspectRatio: 16 / 10, child: child),
+      ),
     ),
   );
 
@@ -414,6 +420,27 @@ abstract final class PromoPhoto {
   static const String cityDay = '$_dir/city_day.jpg';
 
   static const List<String> all = [cityNight, airport, cityDay];
+
+  // Home poster carousel (webp, 1200x750).
+
+  /// Light trails along an empty road at night.
+  static const String offersNight = '$_dir/offers_night.webp';
+
+  /// A city's highways lighting up at dusk, seen from above.
+  static const String scheduleDusk = '$_dir/schedule_dusk.webp';
+
+  /// A rider's view from the back seat at night.
+  static const String safetyRide = '$_dir/safety_ride.webp';
+
+  /// A passenger in the back seat of a car.
+  static const String shareTrip = '$_dir/share_trip.webp';
+
+  static const List<String> posters = [
+    offersNight,
+    scheduleDusk,
+    safetyRide,
+    shareTrip,
+  ];
 }
 
 /// Placeholder promos for the Home until a promos API exists. Neutral,

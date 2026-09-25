@@ -237,6 +237,7 @@ class _OffersList extends StatelessWidget {
             padding: EdgeInsets.only(top: AppSpacing.xxl),
             child: EmptyState(
               icon: PhosphorIconsRegular.tag,
+              art: LottieMoment.gift(),
               title: 'No offers right now',
               message: 'New offers will show up here.',
             ),

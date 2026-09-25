@@ -16,9 +16,14 @@ class AppListSkeleton extends StatelessWidget {
     this.hasLeading = true,
     this.hasTrailing = true,
     this.padding = const EdgeInsets.all(AppSpacing.lg),
+    this.shrinkWrap = false,
   });
 
   final int rows;
+
+  /// True inside another scroll view (a ListView's children): the rows take
+  /// their own height instead of expanding to fill.
+  final bool shrinkWrap;
   final bool hasLeading;
   final bool hasTrailing;
   final EdgeInsets padding;
@@ -28,6 +33,7 @@ class AppListSkeleton extends StatelessWidget {
     return Skeletonizer(
       child: ListView.separated(
         padding: padding,
+        shrinkWrap: shrinkWrap,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: rows,
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),

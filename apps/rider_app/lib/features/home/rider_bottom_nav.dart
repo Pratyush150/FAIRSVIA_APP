@@ -84,6 +84,12 @@ class RiderTabScaffold extends StatefulWidget {
       .findAncestorStateOfType<_RiderTabScaffoldState>()
       ?._select(RiderTab.home);
 
+  /// Switches the enclosing frame to [tab] (e.g. a Home poster opening
+  /// Offers). No-op outside a [RiderTabScaffold].
+  static void goTo(BuildContext context, RiderTab tab) => context
+      .findAncestorStateOfType<_RiderTabScaffoldState>()
+      ?._select(tab);
+
   @override
   State<RiderTabScaffold> createState() => _RiderTabScaffoldState();
 }

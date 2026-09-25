@@ -8,6 +8,7 @@ import 'package:shared_models/shared_models.dart';
 
 import 'features/home/home_cards.dart';
 import 'features/home/home_data.dart';
+import 'features/home/home_posters.dart';
 import 'features/home/idle_home.dart';
 import 'features/home/rider_bottom_nav.dart';
 import 'features/trip/destination_search_page.dart';
@@ -456,6 +457,16 @@ class _RiderHomeViewState extends State<_RiderHomeView>
       );
     }
     return [for (final p in kMockPromos) p.copyWith(onTap: _openSearch)];
+  }
+
+  /// Home safety poster: where SOS contacts are managed.
+  void _openEmergencyContacts() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            EmergencyContactsPage(safety: sl<SafetyRemoteDataSource>()),
+      ),
+    );
   }
 
   SavedPlace? get _savedHere => _hasRealLocation
@@ -1093,10 +1104,14 @@ class _RiderHomeViewState extends State<_RiderHomeView>
       addressLabel: _hasRealLocation ? _myLocationAddr : null,
       isSaved: _savedHere != null,
       onToggleSaved: _hasRealLocation ? _toggleSavedHere : null,
-      searchBar: HomeSearchBar(
-        // Booking stays gated without a real fix, as on the classic sheet.
-        onTap: issue == null ? _openSearch : fix,
-        onSchedule: () => openHomePreBook(context, state),
+      // A light runs round the bar's border a couple of times when the Home
+      // shows (off under Reduce Motion), drawing the eye to "Where to?".
+      searchBar: SweepBorder(
+        child: HomeSearchBar(
+          // Booking stays gated without a real fix, as on the classic sheet.
+          onTap: issue == null ? _openSearch : fix,
+          onSchedule: () => openHomePreBook(context, state),
+        ),
       ),
       sections: [
         if (issue != null)
@@ -1123,6 +1138,16 @@ class _RiderHomeViewState extends State<_RiderHomeView>
             ServiceItem('For others', HomeArt.someoneElse, _bookForSomeone),
             ServiceItem('Saved places', HomeArt.saved, _openSavedPlaces),
           ],
+        ),
+        // Poster carousel: offers, pre-book, safety, live-trip sharing —
+        // each poster opens the feature it advertises.
+        PromoCarousel(
+          homePosters(
+            onOffers: () => RiderTabScaffold.goTo(context, RiderTab.offers),
+            onSchedule: () => openHomePreBook(context, state),
+            onSafety: _openEmergencyContacts,
+            onRide: issue == null ? _openSearch : fix,
+          ),
         ),
         // The contextual slot: one card at a time (rate a ride today; an
         // active ride or an offer can take it later).

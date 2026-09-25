@@ -407,9 +407,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                           ),
                           child: Row(
                             children: [
-                              const AppIconBadge(
-                                  icon: PhosphorIconsRegular.mapPin,
-                                  tone: AppIconBadgeTone.neutral),
+                              _LeadingPin(distanceM: p.distanceM),
                               const SizedBox(width: AppSpacing.md),
                               Expanded(
                                 child: Column(
@@ -429,20 +427,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                                   ],
                                 ),
                               ),
-                              if (p.distanceM != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                      left: AppSpacing.sm),
-                                  child: Text(
-                                    Fmt.distance(p.distanceM!),
-                                    style: theme.textTheme.bodySmall
-                                        ?.tabular(),
-                                  ),
-                                )
-                              else
-                                Icon(PhosphorIconsRegular.arrowUpRight,
-                                    size: 20,
-                                    color: theme.colorScheme.outline),
+                              Icon(PhosphorIconsRegular.arrowUpRight,
+                                  size: 20,
+                                  color: theme.colorScheme.outline),
                             ],
                           ),
                         ),
@@ -455,6 +442,48 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                     child: const Center(child: CircularProgressIndicator()),
                   ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A search result's leading pin with the straight-line distance from the
+/// rider in small type directly under it ("2.4 km" / "0.4 mi", per market).
+/// With no distance (rider location unknown, or the provider gave none) it is
+/// just the pin — nothing is guessed.
+class _LeadingPin extends StatelessWidget {
+  const _LeadingPin({required this.distanceM});
+
+  final int? distanceM;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = distanceM;
+    const badge = AppIconBadge(
+        icon: PhosphorIconsRegular.mapPin, tone: AppIconBadgeTone.neutral);
+    if (d == null) return badge;
+    final theme = Theme.of(context);
+    return SizedBox(
+      // Exactly the badge's width so every row's text column lines up (and the
+      // divider indent still matches); a long label shrinks to fit.
+      width: AppIconBadge.size,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          badge,
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              Fmt.distance(d),
+              key: const ValueKey('search-row-distance'),
+              maxLines: 1,
+              style: theme.textTheme.labelSmall?.tabular().copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
             ),
           ),
         ],

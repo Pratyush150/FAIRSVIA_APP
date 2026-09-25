@@ -580,6 +580,9 @@ Future<DateTime?> _pickCupertino(BuildContext context) async {
                 minimumDate: floor,
                 maximumDate: now.add(const Duration(days: 30)),
                 minuteInterval: 5,
+                // A 12-hour wheel with an AM/PM column, whatever the phone's
+                // 24-hour setting.
+                use24hFormat: false,
                 onDateTimeChanged: (d) => picked = d,
               ),
             ),
@@ -591,6 +594,14 @@ Future<DateTime?> _pickCupertino(BuildContext context) async {
   if (ok != true) return null;
   return picked.isBefore(floor) ? floor : picked;
 }
+
+/// Wraps a time picker so it is always the plain 12-hour clock face with an
+/// AM/PM toggle — even on a phone set to 24-hour time, which otherwise turns
+/// the Material dial into a two-ring 0–23 clock.
+Widget twelveHourClock(BuildContext context, Widget? child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+      child: child ?? const SizedBox.shrink(),
+    );
 
 /// Asks for a future pickup time — the native wheel on Apple platforms, the
 /// Material date + time pickers elsewhere — clamped to the backend's rule
@@ -611,6 +622,9 @@ Future<DateTime?> pickRideTime(BuildContext context) async {
   final time = await showTimePicker(
     context: context,
     initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+    initialEntryMode: TimePickerEntryMode.dial,
+    helpText: 'Pickup time',
+    builder: twelveHourClock,
   );
   if (time == null) return null;
   final when = DateTime(

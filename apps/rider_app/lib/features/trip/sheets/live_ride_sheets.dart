@@ -1145,6 +1145,9 @@ class _RideQuickActions extends StatelessWidget {
         pickup: state.trip?.dropoff.point ?? state.dropoff,
         pickupAddr: state.trip?.dropoff.address ?? state.dropoffAddr,
         paymentMode: state.trip?.paymentMode ?? state.paymentMode,
+        payments: sl.isRegistered<PaymentsRemoteDataSource>()
+            ? sl<PaymentsRemoteDataSource>()
+            : null,
       ),
     ));
     if (trip == null) return;

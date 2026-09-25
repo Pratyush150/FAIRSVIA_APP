@@ -71,9 +71,23 @@ void main() {
     expect(find.text('Panther Coffee'), findsOneWidget);
     expect(find.text('350 ft'), findsOneWidget);
     expect(find.text('0.4 mi'), findsOneWidget);
-    // A row without a distance keeps the plain arrow, no label.
+    // The distance sits directly under the row's leading pin (left side),
+    // horizontally centred on it.
+    final row = find
+        .ancestor(
+            of: find.text('Panther Coffee'), matching: find.byType(InkWell))
+        .first;
+    final badge = find.descendant(of: row, matching: find.byType(AppIconBadge));
+    final label = find.text('350 ft');
+    final badgeRect = tester.getRect(badge);
+    final labelRect = tester.getRect(label);
+    expect(labelRect.top, greaterThanOrEqualTo(badgeRect.bottom));
+    expect(labelRect.center.dx, closeTo(badgeRect.center.dx, 1));
+    expect(labelRect.right,
+        lessThan(tester.getRect(find.text('Panther Coffee')).left));
+    // A row without a distance is just the pin — no label, nothing guessed.
     expect(find.text('Somewhere unknown'), findsOneWidget);
-    expect(find.byIcon(PhosphorIconsRegular.arrowUpRight), findsOneWidget);
+    expect(find.byKey(const ValueKey('search-row-distance')), findsNWidgets(2));
   });
 
   testWidgets('sends no position when the rider location is unknown', (
@@ -99,6 +113,33 @@ void main() {
       ),
     ).called(1);
     expect(find.text('Panther Coffee'), findsOneWidget);
-    expect(find.byIcon(PhosphorIconsRegular.arrowUpRight), findsOneWidget);
+    // Location unknown → no distance label under the pin.
+    expect(find.byKey(const ValueKey('search-row-distance')), findsNothing);
+  });
+
+  testWidgets('a long distance shrinks to the pin width instead of '
+      'overflowing', (tester) async {
+    when(
+      () => repo.autocomplete(
+        any(),
+        sessionToken: any(named: 'sessionToken'),
+        near: any(named: 'near'),
+      ),
+    ).thenAnswer((_) async => [_p('a', 'Far away', 1234567)]);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: DestinationSearchPage(initialPickup: me)),
+    );
+    await tester.pump();
+    await typeQuery(tester, 'fa');
+
+    final label = find.byKey(const ValueKey('search-row-distance'));
+    expect(label, findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final badge = tester.getRect(find.byType(AppIconBadge).last);
+    // FittedBox scales the text down to the badge's width.
+    final fitted = tester.getRect(
+        find.ancestor(of: label, matching: find.byType(FittedBox)));
+    expect(fitted.width, lessThanOrEqualTo(badge.width + 0.01));
   });
 }

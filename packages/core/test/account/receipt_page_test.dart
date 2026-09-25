@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -89,7 +90,8 @@ void main() {
     );
 
     expect(find.text('- \$5'), findsOneWidget);
-    expect(find.text('\$7'), findsOneWidget);
+    // The total heads the page and closes the fare card.
+    expect(find.text('\$7'), findsNWidgets(2));
     expect(find.text('\$12'), findsNothing);
     expect(find.text('Paid in cash'), findsNothing);
   });
@@ -157,7 +159,7 @@ void main() {
       // Headline fare and total are still the authoritative numbers.
       expect(find.text('Fare'), findsOneWidget);
       expect(find.text('\$7.57'), findsOneWidget);
-      expect(find.text('\$9.57'), findsOneWidget);
+      expect(find.text('\$9.57'), findsNWidgets(2)); // summary + Total
     });
 
     testWidgets('surge and promo lines are hidden at 1x / no discount',
@@ -190,7 +192,8 @@ void main() {
       );
       expect(find.text('Base fare'), findsNothing);
       expect(find.text('Booking fee'), findsNothing);
-      expect(find.text('\$10'), findsNWidgets(2)); // Fare + Total
+      // Summary total + Fare + Total.
+      expect(find.text('\$10'), findsNWidgets(3));
     });
   });
 
@@ -272,7 +275,111 @@ void main() {
       const Receipt(tripId: 't1', fare: 10, currency: 'USD', method: 'cash'),
     );
 
-    expect(find.text('\$10'), findsNWidgets(2)); // Fare + Total
+    // Summary total + Fare + Total.
+    expect(find.text('\$10'), findsNWidgets(3));
     expect(find.text('Paid in cash'), findsOneWidget);
+  });
+
+  group('Your trip layout', () {
+    final full = Trip(
+      id: 't1',
+      status: TripStatus.completed,
+      tier: 'comfort',
+      pickup: const TripEndpoint(
+          point: GeoPoint(25.77, -80.19),
+          address: 'Terminal 2 Departures, International Airport Road'),
+      dropoff: const TripEndpoint(
+          point: GeoPoint(25.79, -80.13),
+          address: 'Harbour View Residences, Tower B, Marina Walk, Block 7'),
+      fareFinal: 24.5,
+      completedAt: DateTime(2026, 9, 10, 19, 44),
+      distanceM: 8400,
+      durationS: 1260,
+      driverName: 'Aziz Karimov',
+      driverVehicleLabel: 'Silver Chevrolet Cobalt',
+      driverPlate: '01A123BC',
+      myRating: 4,
+      hasMyRatingField: true,
+    );
+    const receipt = Receipt(
+      tripId: 't1',
+      fare: 24.5,
+      currency: 'USD',
+      tip: 2,
+      method: 'card',
+      cardLabel: 'Visa •4242',
+      status: 'succeeded',
+      breakdown: FareBreakdown(
+        baseFare: 3,
+        distanceFare: 14,
+        timeFare: 5.75,
+        bookingFee: 1.75,
+      ),
+    );
+
+    Future<void> pump(WidgetTester tester,
+        {double scale = 1, VoidCallback? onGetHelp}) async {
+      tester.view.physicalSize = const Size(360, 800) * 3;
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      when(() => payments.receipt('t1')).thenAnswer((_) async => receipt);
+      await tester.pumpWidget(MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
+        home: ReceiptPage(
+            payments: payments, trip: full, onGetHelp: onGetHelp),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('titles the page, maps the route and lays out every block',
+        (tester) async {
+      var helped = 0;
+      await pump(tester, onGetHelp: () => helped++);
+      expect(find.text('Your trip'), findsOneWidget);
+      expect(find.byType(RouteSnapshot), findsOneWidget);
+      expect(find.byType(RouteTimeline), findsOneWidget);
+      expect(find.text('Pickup'), findsOneWidget);
+      expect(find.text('Drop-off'), findsOneWidget);
+      expect(find.text('Comfort · Completed'), findsOneWidget);
+      expect(find.text('Aziz Karimov'), findsOneWidget);
+      expect(find.text('Silver Chevrolet Cobalt'), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsFill.star), findsNWidgets(4));
+      expect(find.text('\$26.50'), findsOneWidget); // the summary total
+      await tester.scrollUntilVisible(find.text('Paid with Visa •4242'), 200);
+      expect(find.text('Fare breakdown'), findsOneWidget);
+      expect(find.text('\$26.50'), findsNWidgets(2)); // summary + Total
+
+      await tester.drag(find.byType(ListView), const Offset(0, -2000));
+      await tester.pumpAndSettle();
+      expect(find.text('Share receipt'), findsOneWidget);
+      await tester.tap(find.text('Get help with this trip'));
+      expect(helped, 1);
+    });
+
+    testWidgets('no help action without a support route', (tester) async {
+      await pump(tester);
+      await tester.drag(find.byType(ListView), const Offset(0, -2000));
+      await tester.pumpAndSettle();
+      expect(find.text('Share receipt'), findsOneWidget);
+      expect(find.text('Get help with this trip'), findsNothing);
+    });
+
+    for (final scale in [1.0, 1.5, 2.0]) {
+      testWidgets('no overflow at 360dp and ${scale}x text', (tester) async {
+        await pump(tester, scale: scale, onGetHelp: () {});
+        expect(tester.takeException(), isNull);
+        // Walk the whole page so every block lays out.
+        for (var i = 0; i < 6; i++) {
+          await tester.drag(find.byType(ListView), const Offset(0, -500));
+          await tester.pumpAndSettle();
+        }
+        expect(find.textContaining('Trip ID'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }

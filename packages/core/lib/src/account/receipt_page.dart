@@ -1,21 +1,33 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_models/shared_models.dart';
 
+import '../di/injector.dart';
 import '../trip/payments_remote_data_source.dart';
 import 'format.dart';
+import 'support_page.dart';
+import 'support_remote_data_source.dart';
 import 'widgets/async_content.dart';
 
-/// Standalone receipt for a single trip (`GET /payments/:id/receipt`).
-/// Opened from trip history. Shows the fare breakdown and, for drivers, the
-/// payout split.
+/// "Your trip": the detail page for one finished trip, opened from trip
+/// history. Top to bottom: a route snapshot (the trip's route drawn to scale
+/// over a schematic street pattern, with the distance and time on glass
+/// pills), the day and total, the pickup → drop-off timeline, who drove in
+/// which car, the fare breakdown and how it was paid (`GET
+/// /payments/:id/receipt`), then Share receipt / Get help. The driver's own
+/// copy ([showPayout]) names the rider and adds the payout split.
 class ReceiptPage extends StatelessWidget {
   const ReceiptPage({
     super.key,
     required this.payments,
     required this.trip,
     this.showPayout = false,
+    this.onGetHelp,
   });
+
+  /// The page title.
+  static const String title = 'Your trip';
 
   final PaymentsRemoteDataSource payments;
   final Trip trip;
@@ -23,22 +35,517 @@ class ReceiptPage extends StatelessWidget {
   /// Driver view shows platform fee + payout; rider view hides them.
   final bool showPayout;
 
+  /// "Get help". Defaults to opening Help & support when the app has
+  /// registered its support API; without either, the action is hidden.
+  final VoidCallback? onGetHelp;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Receipt')),
+      appBar: AppBar(title: const Text(title)),
       body: AsyncContent<Receipt>(
         load: () => payments.receipt(trip.id),
-        builder: (context, r, _) => _body(context, r),
+        builder: (context, r, _) => _TripDetail(
+          trip: trip,
+          receipt: r,
+          showPayout: showPayout,
+          onGetHelp: onGetHelp ?? _defaultHelp(context),
+        ),
       ),
     );
   }
 
-  Widget _body(BuildContext context, Receipt r) {
+  VoidCallback? _defaultHelp(BuildContext context) {
+    if (!sl.isRegistered<SupportRemoteDataSource>()) return null;
+    return () => Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => SupportPage(
+            support: sl<SupportRemoteDataSource>(),
+            isDriver: showPayout,
+          ),
+        ));
+  }
+}
+
+Color _mutedOf(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+
+/// "economy" → "Economy", "xl" → "XL".
+String _tierLabel(String tier) {
+  final t = tier.trim();
+  if (t.isEmpty) return 'Ride';
+  if (t.length <= 2) return t.toUpperCase();
+  return t[0].toUpperCase() + t.substring(1).replaceAll('_', ' ');
+}
+
+class _TripDetail extends StatelessWidget {
+  const _TripDetail({
+    required this.trip,
+    required this.receipt,
+    required this.showPayout,
+    required this.onGetHelp,
+  });
+
+  final Trip trip;
+  final Receipt receipt;
+  final bool showPayout;
+  final VoidCallback? onGetHelp;
+
+  List<LatLng> get _path {
+    final poly = trip.routePolyline;
+    if (poly != null && poly.isNotEmpty) {
+      try {
+        final pts = decodePolyline(poly);
+        if (pts.length >= 2) return pts;
+      } catch (_) {
+        // A malformed polyline falls back to the two ends.
+      }
+    }
+    return [
+      LatLng(trip.pickup.point.lat, trip.pickup.point.lng),
+      LatLng(trip.dropoff.point.lat, trip.dropoff.point.lng),
+    ];
+  }
+
+  String _shareText() {
+    final r = receipt;
+    final when = trip.completedAt ?? trip.scheduledAt ?? trip.requestedAt;
+    return [
+      '${AppBrand.name} trip receipt',
+      if (when != null) Fmt.dateTime(when),
+      'From: ${trip.pickup.address ?? 'Pickup'}',
+      'To: ${trip.dropoff.address ?? 'Destination'}',
+      'Fare: ${Fmt.money(r.chargedAmount ?? r.fare, r.currency)}',
+      if (r.tip > 0) 'Tip: ${Fmt.money(r.tip, r.currency)}',
+      if (r.isRefunded)
+        'Refunded: ${Fmt.money(r.refundedAmount, r.currency)}',
+      'Total: ${Fmt.money(r.total, r.currency)}',
+      if (r.isCash) 'Paid in cash',
+      if (!r.isCash && r.cardLabel != null) 'Paid with ${r.cardLabel}',
+    ].join('\n');
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final muted = _mutedOf(context);
+    final r = receipt;
+    final when = trip.completedAt ?? trip.scheduledAt ?? trip.requestedAt;
+    final meta = [
+      if (trip.distanceM != null && trip.distanceM! > 0)
+        Fmt.distance(trip.distanceM!),
+      if (trip.durationS != null && trip.durationS! > 0)
+        Fmt.duration(trip.durationS!),
+    ];
+
+    final stops = <RouteTimelineStop>[
+      RouteTimelineStop(
+          label: 'Pickup', address: trip.pickup.address ?? 'Pickup point'),
+      for (var i = 0; i < trip.stops.length; i++)
+        RouteTimelineStop(
+          label: trip.stops.length == 1 ? 'Stop' : 'Stop ${i + 1}',
+          address: trip.stops[i].address ?? 'Stop',
+        ),
+      RouteTimelineStop(
+          label: 'Drop-off',
+          address: trip.dropoff.address ?? 'Destination'),
+    ];
+
     final children = <Widget>[
-        _ReceiptHeader(trip: trip, showPayout: showPayout),
-        Divider(height: AppSpacing.xl, color: theme.dividerColor),
+      // --- Route snapshot ------------------------------------------------
+      RouteSnapshot(
+        path: _path,
+        semanticLabel: 'Route map from '
+            '${trip.pickup.address ?? 'pickup'} to '
+            '${trip.dropoff.address ?? 'destination'}',
+        overlay: meta.isEmpty
+            ? null
+            : Positioned(
+                left: AppSpacing.md,
+                bottom: AppSpacing.md,
+                right: AppSpacing.md,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      if (trip.distanceM != null && trip.distanceM! > 0)
+                        _MapPill(
+                            icon: PhosphorIconsRegular.path,
+                            text: Fmt.distance(trip.distanceM!)),
+                      if (trip.durationS != null && trip.durationS! > 0)
+                        _MapPill(
+                            icon: PhosphorIconsRegular.clock,
+                            text: Fmt.duration(trip.durationS!)),
+                    ],
+                  ),
+                ),
+              ),
+      ),
+      const SizedBox(height: AppSpacing.lg),
+
+      // --- Summary: when, ride type, total ------------------------------
+      _Summary(trip: trip, receipt: r, when: when),
+      const SizedBox(height: AppSpacing.lg),
+
+      // --- Route timeline -------------------------------------------------
+      _Section(child: RouteTimeline(stops: stops)),
+
+      // --- Driver (or rider) + vehicle -----------------------------------
+      if (_PersonCard.hasContent(trip, showPayout)) ...[
+        const SizedBox(height: AppSpacing.md),
+        _Section(child: _PersonCard(trip: trip, showPayout: showPayout)),
+      ],
+
+      // --- Fare + payment ---------------------------------------------------
+      const SizedBox(height: AppSpacing.md),
+      _Section(
+        ticket: InkPaper.on,
+        child: _FareCard(receipt: r, showPayout: showPayout),
+      ),
+
+      // --- Actions -----------------------------------------------------------
+      const SizedBox(height: AppSpacing.lg),
+      SecondaryButton(
+        label: 'Share receipt',
+        icon: PhosphorIconsRegular.export,
+        onPressed: () => SharePlus.instance.share(
+          ShareParams(text: _shareText(), subject: 'Trip receipt'),
+        ),
+      ),
+      if (onGetHelp != null) ...[
+        const SizedBox(height: AppSpacing.sm),
+        SecondaryButton(
+          label: 'Get help with this trip',
+          icon: PhosphorIconsRegular.headset,
+          onPressed: onGetHelp,
+        ),
+      ],
+      const SizedBox(height: AppSpacing.sm),
+      Text(
+        'Trip ID ${trip.id}',
+        textAlign: TextAlign.center,
+        style: theme.textTheme.bodySmall?.copyWith(color: muted),
+      ),
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xl),
+      children: children,
+    );
+  }
+}
+
+/// A glass pill over the route snapshot (a solid chip outside Plan F).
+class _MapPill extends StatelessWidget {
+  const _MapPill({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.onSurface),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: theme.textTheme.labelLarge
+                ?.copyWith(fontWeight: FontWeight.w600)
+                .tabular(),
+          ),
+        ],
+      ),
+    );
+    const radius = BorderRadius.all(Radius.circular(AppSpacing.pill));
+    if (AppGlass.enabled) {
+      return GlassSurface(strong: true, borderRadius: radius, child: content);
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: dark ? 0.9 : 0.95),
+        borderRadius: radius,
+        boxShadow: AppElevation.sm,
+      ),
+      child: content,
+    );
+  }
+}
+
+/// One content block of the page: a hairline-outlined card (the ink build's
+/// ruled section, or its paper ticket for the fare).
+class _Section extends StatelessWidget {
+  const _Section({required this.child, this.ticket = false});
+
+  final Widget child;
+  final bool ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    if (ticket) {
+      return TicketPaper(fill: Theme.of(context).colorScheme.surface, child: child);
+    }
+    return AppCard(
+      outlined: true,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: child,
+    );
+  }
+}
+
+class _Summary extends StatelessWidget {
+  const _Summary({required this.trip, required this.receipt, required this.when});
+
+  final Trip trip;
+  final Receipt receipt;
+  final DateTime? when;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = _mutedOf(context);
+    final dayLine =
+        when == null ? 'Trip' : '${Fmt.dayLabel(when!)} · ${Fmt.time(when)}';
+    final sub = [
+      _tierLabel(trip.tier),
+      if (receipt.isRefunded)
+        'Refunded'
+      else if (trip.status == TripStatus.completed)
+        'Completed',
+    ].join(' · ');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 64,
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: theme.brightness == Brightness.dark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+          ),
+          child: ExcludeSemantics(
+            child: VehicleGlyph(tier: trip.tier, width: 56),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                dayLine,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
+              Text(sub,
+                  style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        // The total never squeezes the date: scales down at large text.
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 120),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Semantics(
+              label: 'Total ${Fmt.money(receipt.total, receipt.currency)}',
+              excludeSemantics: true,
+              child: Text(
+                Fmt.money(receipt.total, receipt.currency),
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w800)
+                    .tabular(),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Who drove (the rider, on the driver's own copy) and in which car.
+class _PersonCard extends StatelessWidget {
+  const _PersonCard({required this.trip, required this.showPayout});
+
+  final Trip trip;
+  final bool showPayout;
+
+  static String? _name(Trip trip, bool showPayout) {
+    final n = showPayout
+        ? (trip.passenger?.name ?? trip.riderName)
+        : trip.driverName;
+    final t = n?.trim();
+    return (t == null || t.isEmpty) ? null : t;
+  }
+
+  static bool hasContent(Trip trip, bool showPayout) =>
+      _name(trip, showPayout) != null ||
+      (!showPayout &&
+          (trip.driverVehicleLabel != null || trip.driverPlate != null));
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = _mutedOf(context);
+    final dark = theme.brightness == Brightness.dark;
+    final name = _name(trip, showPayout);
+    final vehicle = showPayout ? null : trip.driverVehicleLabel?.trim();
+    final plate = showPayout ? null : trip.driverPlate?.trim();
+    final rating = trip.myRating;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            AppAvatar(
+              name: name,
+              imageUrl: showPayout ? null : trip.driverAvatarUrl,
+              size: 48,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    name ?? (showPayout ? 'Your rider' : 'Your driver'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  if (rating != null && rating > 0)
+                    Semantics(
+                      label: 'You rated $rating out of 5',
+                      excludeSemantics: true,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 1; i <= 5; i++)
+                            Icon(
+                              i <= rating
+                                  ? PhosphorIconsFill.star
+                                  : PhosphorIconsRegular.star,
+                              size: 14,
+                              color: i <= rating
+                                  ? AppColors.star
+                                  : AppColors.iconNeutralFor(dark),
+                            ),
+                        ],
+                      ),
+                    )
+                  else
+                    Text(
+                      showPayout ? 'Your rider' : 'Your driver',
+                      style:
+                          theme.textTheme.bodyMedium?.copyWith(color: muted),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if ((vehicle != null && vehicle.isNotEmpty) ||
+            (plate != null && plate.isNotEmpty)) ...[
+          Divider(height: AppSpacing.xl, color: theme.dividerColor),
+          Row(
+            children: [
+              Icon(PhosphorIconsRegular.car,
+                  size: 20, color: AppColors.iconNeutralFor(dark)),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  (vehicle == null || vehicle.isEmpty)
+                      ? _tierLabel(trip.tier)
+                      : vehicle,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+              if (plate != null && plate.isNotEmpty) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Semantics(
+                      label:
+                          'Plate ${AppA11y.spell(Market.current.formatPlate(plate))}',
+                      excludeSemantics: true,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm, vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusSm),
+                          border: Border.all(
+                              color: dark
+                                  ? AppColors.borderDark
+                                  : AppColors.borderLight,
+                              width: 1.5),
+                        ),
+                        child: Text(
+                          Market.current.formatPlate(plate),
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FareCard extends StatelessWidget {
+  const _FareCard({required this.receipt, required this.showPayout});
+
+  final Receipt receipt;
+  final bool showPayout;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final muted = _mutedOf(context);
+    final r = receipt;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          header: true,
+          child: Text('Fare breakdown',
+              style: InkPaper.on
+                  ? inkSectionLabel(context, theme.textTheme.titleMedium)
+                  : theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         // Itemised lines first (when the backend recorded them), then the
         // authoritative fare — a clamp/minimum can move it off the sum.
         if (r.breakdown != null) ...[
@@ -46,13 +553,13 @@ class ReceiptPage extends StatelessWidget {
             breakdown: r.breakdown!,
             currency: r.currency,
             showTip: false,
-            style: theme.textTheme.bodyMedium,
+            style: theme.textTheme.bodyMedium?.copyWith(color: muted),
           ),
-          Divider(height: AppSpacing.md, color: theme.dividerColor),
+          Divider(height: AppSpacing.lg, color: theme.dividerColor),
         ],
         _row(context, 'Fare', Fmt.money(r.chargedAmount ?? r.fare, r.currency)),
         if (r.tip > 0) _row(context, 'Tip', Fmt.money(r.tip, r.currency)),
-        // Refund sits above the divider so "Total" is what was actually paid.
+        // Refund sits above the total so "Total" is what was actually paid.
         if (r.isRefunded)
           _row(
             context,
@@ -65,30 +572,67 @@ class ReceiptPage extends StatelessWidget {
             child: TearLine(),
           )
         else
-          const Divider(height: AppSpacing.xl),
+          Divider(height: AppSpacing.lg, color: theme.dividerColor),
         _row(context, 'Total', Fmt.money(r.total, r.currency), bold: true),
-        if (r.isCash || r.cardLabel != null)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xs),
+        if (r.isCash || r.cardLabel != null || r.status != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: dark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.035),
+              borderRadius: BorderRadius.circular(AppSpacing.radius),
+            ),
             child: Row(
               children: [
                 Icon(
-                  r.isCash ? PhosphorIconsRegular.money : PhosphorIconsRegular.creditCard,
-                  size: 16,
-                  color: AppColors.iconNeutralFor(
-                      theme.brightness == Brightness.dark),
+                  r.isCash
+                      ? PhosphorIconsRegular.money
+                      : PhosphorIconsRegular.creditCard,
+                  size: 20,
+                  color: AppColors.iconNeutralFor(dark),
                 ),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  r.isCash ? 'Paid in cash' : 'Paid with ${r.cardLabel}',
-                  style: theme.textTheme.bodyMedium,
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    r.isCash
+                        ? 'Paid in cash'
+                        : (r.cardLabel != null
+                            ? 'Paid with ${r.cardLabel}'
+                            : 'Card payment'),
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w500),
+                  ),
                 ),
+                if (r.status != null) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 120),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: AppStatusChip(
+                        label: Fmt.status(r.status!),
+                        // Success green text on its tint is under 4.5:1;
+                        // only a failure earns colour.
+                        tone: r.status == 'failed'
+                            ? StatusTone.warning
+                            : StatusTone.neutral,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
+        ],
         if (showPayout && r.driverPayout != null) ...[
           const SizedBox(height: AppSpacing.lg),
-          Text('Payout', style: theme.textTheme.titleMedium),
+          Text('Payout',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpacing.sm),
           if (r.platformFee != null)
             _row(context, 'Platform fee',
@@ -96,54 +640,26 @@ class ReceiptPage extends StatelessWidget {
           _row(context, 'You earn', Fmt.money(r.driverPayout!, r.currency),
               bold: true),
         ],
-        const SizedBox(height: AppSpacing.lg),
-        if (r.status != null)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: AppStatusChip(
-              label: 'Payment ${Fmt.status(r.status!).toLowerCase()}',
-              // Success green text on its tint is under 4.5:1; only a
-              // failure earns colour.
-              tone: r.status == 'failed'
-                  ? StatusTone.warning
-                  : StatusTone.neutral,
-            ),
-          ),
-    ];
-    // THEME=ink (Plan E): the receipt is printed on a paper ticket.
-    if (InkPaper.on) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.lg),
-        children: [
-          TicketPaper(
-            // White on the paper page (the sheet version is paper on white).
-            fill: theme.colorScheme.surface,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: children,
-            ),
-          ),
-        ],
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      children: children,
+      ],
     );
   }
 
   Widget _row(BuildContext context, String label, String value,
       {bool bold = false}) {
     if (InkPaper.on) return _inkRow(context, label, value, bold: bold);
+    final theme = Theme.of(context);
     final style = bold
-        ? Theme.of(context).textTheme.titleMedium
-        : Theme.of(context).textTheme.bodyLarge;
+        ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)
+        : theme.textTheme.bodyLarge;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [Text(label, style: style), Text(value, style: style)],
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: Text(label, style: style)),
+          const SizedBox(width: AppSpacing.md),
+          Text(value, style: style?.tabular()),
+        ],
       ),
     );
   }
@@ -246,144 +762,14 @@ class FareBreakdownRows extends StatelessWidget {
       : Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: style),
+            // The label wraps at large text instead of pushing the amount
+            // off the edge.
+            Expanded(child: Text(label, style: style)),
+            const SizedBox(width: AppSpacing.md),
             Text(value, style: style?.tabular()),
           ],
         ),
       );
-}
-
-/// The top of the receipt: the day and time, the route as two dots joined by
-/// a line (pickup hollow, destination filled), and who drove in which car.
-class _ReceiptHeader extends StatelessWidget {
-  const _ReceiptHeader({required this.trip, required this.showPayout});
-  final Trip trip;
-
-  /// The driver's own receipt names the rider instead of the driver.
-  final bool showPayout;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final muted = dark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final ink = theme.colorScheme.onSurface;
-    final when = trip.completedAt ?? trip.scheduledAt ?? trip.requestedAt;
-    String? first(String? n) {
-      final t = n?.trim();
-      return (t == null || t.isEmpty) ? null : t.split(RegExp(r'\s+')).first;
-    }
-
-    final who = showPayout
-        ? first(trip.passenger?.name ?? trip.riderName)
-        : first(trip.driverName);
-    final people = [
-      if (who != null) 'with $who',
-      if (!showPayout && trip.driverVehicleLabel != null)
-        trip.driverVehicleLabel!,
-      if (!showPayout && trip.driverPlate != null)
-        Market.current.formatPlate(trip.driverPlate!),
-    ].join(' · ');
-    final meta = [
-      if (trip.distanceM != null && trip.distanceM! > 0)
-        Fmt.distance(trip.distanceM!),
-      if (trip.durationS != null && trip.durationS! > 0)
-        Fmt.duration(trip.durationS!),
-    ].join(' · ');
-
-    Widget stop(String text, {required bool end}) => Text(
-          text,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: end ? FontWeight.w600 : FontWeight.w400,
-          ),
-        );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                when == null
-                    ? 'Trip'
-                    : '${Fmt.dayLabel(when)} · ${Fmt.time(when)}',
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-            ExcludeSemantics(child: VehicleGlyph(tier: trip.tier, width: 64)),
-          ],
-        ),
-        if (meta.isNotEmpty)
-          Text(meta,
-              style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
-        const SizedBox(height: AppSpacing.md),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: 16,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 6),
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: ink, width: 2),
-                      ),
-                    ),
-                    Expanded(
-                      child: Container(
-                        width: 2,
-                        margin: const EdgeInsets.symmetric(vertical: 3),
-                        color: muted.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: ink,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Semantics(
-                      label: 'From',
-                      child: stop(trip.pickup.address ?? 'Pickup', end: false),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Semantics(
-                      label: 'To',
-                      child: stop(trip.dropoff.address ?? 'Destination',
-                          end: true),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (people.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          Text(people,
-              style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
-        ],
-      ],
-    );
-  }
 }

@@ -38,9 +38,12 @@ flutter:
   # and docs/brand/). 2.0x/ folders are picked up as resolution variants.
   assets:
     # Shipped look (Plan F "Map Glass", the default build — no THEME flag)
-    # and the other clay-art looks: side-view clay cars, light + dark.
-    - assets/vehicles/clay/
-    - assets/vehicles/clay_dark/
+    # and Plans B/C: realistic photo cut-out vehicles for the ride list,
+    # light + dark, 1x/2x/3x WebP (docs/brand/CREDITS-ride-vehicles.md).
+    # The Blender clay renders (assets/vehicles/clay*) are kept in the repo
+    # as source art but no longer bundled.
+    - assets/vehicles/photo/
+    - assets/vehicles/photo_dark/
     # Top-down map markers (every build; ink swaps to ink_top/).
     - assets/vehicles/top/
     # Rider Home: 3D clay art for service tiles and promo banners, cropped

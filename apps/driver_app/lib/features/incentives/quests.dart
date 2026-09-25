@@ -234,7 +234,7 @@ class _DriverQuestsCardState extends State<DriverQuestsCard> {
                 if (_celebrating != null)
                   Row(
                     children: [
-                      const LottieMoment.success(size: 28),
+                      const LottieMoment.trophy(size: 36),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Semantics(
@@ -287,7 +287,8 @@ class _QuestsPageState extends State<QuestsPage> {
           future: _future,
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
+              // Shimmering quest rows instead of a bare spinner.
+              return const AppListSkeleton(rows: 4, hasTrailing: false);
             }
             if (snap.hasError) {
               return ListView(children: const [

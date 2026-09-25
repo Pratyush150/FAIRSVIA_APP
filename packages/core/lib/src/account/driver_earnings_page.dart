@@ -158,11 +158,18 @@ class EarningsDashboard extends StatelessWidget {
         if (e.recentTrips.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-            child: Text(
-              today
-                  ? 'No trips yet today. Go online to start earning.'
-                  : 'No trips in the last 7 days.',
-              style: theme.textTheme.bodyMedium,
+            child: Column(
+              children: [
+                const LottieMoment.emptyBox(size: 96),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  today
+                      ? 'No trips yet today. Go online to start earning.'
+                      : 'No trips in the last 7 days.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
             ),
           )
         else

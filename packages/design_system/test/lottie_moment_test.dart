@@ -21,8 +21,9 @@ void main() {
     return tester.widget<LottieBuilder>(find.byType(LottieBuilder));
   }
 
-  testWidgets('money holds on the stacked notes, not the last frame',
-      (tester) async {
+  testWidgets('money holds on the stacked notes, not the last frame', (
+    tester,
+  ) async {
     final lottie = await pumpMoment(tester, const LottieMoment.money());
     expect(lottie.controller, isNotNull);
     expect(lottie.controller!.value, closeTo(LottieMoment.moneyHoldAt, 1e-6));
@@ -37,12 +38,14 @@ void main() {
   });
 
   testWidgets('reduce motion draws nothing', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
-      home: MediaQuery(
-        data: MediaQueryData(disableAnimations: true),
-        child: LottieMoment.money(),
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: LottieMoment.money(),
+        ),
       ),
-    ));
+    );
     expect(find.byType(LottieBuilder), findsNothing);
   });
 
@@ -53,6 +56,10 @@ void main() {
         LottieMoment.success(),
         LottieMoment.thanks(),
         LottieMoment.sos(),
+        LottieMoment.gift(),
+        LottieMoment.trophy(),
+        LottieMoment.emptyBox(),
+        LottieMoment.noResults(),
       ]) {
         final l = await pumpMoment(tester, m);
         expect(l.controller!.value, 1.0, reason: m.asset);
@@ -67,6 +74,7 @@ void main() {
         LottieMoment.noCars(),
         LottieMoment.location(),
         LottieMoment.offline(),
+        LottieMoment.spinner(),
       ]) {
         final l = await pumpMoment(tester, m);
         expect(l.controller!.isAnimating, isTrue, reason: m.asset);
@@ -74,15 +82,18 @@ void main() {
       }
     });
 
-    testWidgets('reduce motion shows a still frame, in a fixed box',
-        (tester) async {
+    testWidgets('reduce motion shows a still frame, in a fixed box', (
+      tester,
+    ) async {
       await tester.runAsync(() async {
-        await tester.pumpWidget(const MaterialApp(
-          home: MediaQuery(
-            data: MediaQueryData(disableAnimations: true),
-            child: Center(child: LottieMoment.offline(size: 40)),
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(disableAnimations: true),
+              child: Center(child: LottieMoment.offline(size: 40)),
+            ),
           ),
-        ));
+        );
         for (var i = 0; i < 20; i++) {
           await Future<void>.delayed(const Duration(milliseconds: 50));
           await tester.pump();
@@ -90,23 +101,90 @@ void main() {
       });
       await tester.pump(const Duration(seconds: 2));
       final l = tester.widget<LottieBuilder>(find.byType(LottieBuilder));
-      expect(l.controller!.value,
-          closeTo(LottieMoment.offlineStillAt, 1e-6));
+      expect(l.controller!.value, closeTo(LottieMoment.offlineStillAt, 1e-6));
       expect(l.controller!.isAnimating, isFalse);
       expect(tester.getSize(find.byType(LottieMoment)), const Size(40, 40));
     });
 
     testWidgets('every moment file loads', (tester) async {
       for (final name in const [
-        'searching', 'arrived', 'no_cars', 'success',
-        'thanks', 'location', 'offline', 'sos',
+        'searching',
+        'arrived',
+        'no_cars',
+        'success',
+        'thanks',
+        'location',
+        'offline',
+        'sos',
+        'spinner',
+        'empty_box',
+        'no_results',
+        'gift',
+        'trophy',
       ]) {
-        final comp = await tester.runAsync(() => AssetLottie(
-                'packages/design_system/assets/lottie/$name.json')
-            .load());
+        final comp = await tester.runAsync(
+          () => AssetLottie(
+            'packages/design_system/assets/lottie/$name.json',
+          ).load(),
+        );
         expect(comp, isNotNull, reason: name);
         expect(comp!.duration, greaterThan(Duration.zero), reason: name);
       }
+    });
+  });
+
+  group('brand loader and empty-state art', () {
+    testWidgets('BrandLoader is a looping spinner with a spoken label', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final l = await pumpMoment(tester, const BrandLoader(size: 48));
+      expect(l.controller!.isAnimating, isTrue);
+      expect(find.bySemanticsLabel('Loading'), findsOneWidget);
+      expect(tester.getSize(find.byType(BrandLoader)), const Size(48, 48));
+      handle.dispose();
+    });
+
+    testWidgets('BrandLoader under Reduce Motion holds a still arc', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(disableAnimations: true),
+              child: Center(child: BrandLoader()),
+            ),
+          ),
+        );
+        for (var i = 0; i < 20; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          await tester.pump();
+        }
+      });
+      await tester.pump(const Duration(seconds: 2));
+      final l = tester.widget<LottieBuilder>(find.byType(LottieBuilder));
+      expect(l.controller!.value, closeTo(0.55, 1e-6));
+      expect(l.controller!.isAnimating, isFalse);
+    });
+
+    testWidgets('EmptyState shows art in place of the icon medallion', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: EmptyState(
+              icon: Icons.inbox,
+              art: LottieMoment.noResults(),
+              title: 'No matches',
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(LottieMoment), findsOneWidget);
+      expect(find.byIcon(Icons.inbox), findsNothing);
+      expect(find.text('No matches'), findsOneWidget);
     });
   });
 }

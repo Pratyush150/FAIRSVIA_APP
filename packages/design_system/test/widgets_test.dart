@@ -32,7 +32,10 @@ void main() {
           onPressed: () => tapped = true,
         ),
       ));
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      // The brand arc, tinted to the button's ink.
+      final spin = tester.widget<LottieMoment>(find.byType(LottieMoment));
+      expect(spin.asset, 'spinner');
+      expect(spin.tint, isNotNull);
       await tester.tap(find.byType(PrimaryButton));
       expect(tapped, isFalse);
     });

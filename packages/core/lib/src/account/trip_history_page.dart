@@ -566,7 +566,7 @@ class _EmptyTrips extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.xl, vertical: AppSpacing.huge),
       children: [
-        const Center(child: HomeArtImage(HomeArt.ride, size: 140)),
+        const Center(child: LottieMoment.emptyBox(size: 140)),
         const SizedBox(height: AppSpacing.lg),
         Text(
           'No trips yet',

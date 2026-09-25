@@ -114,11 +114,13 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                   onPressed: _load, child: const Text('Try again')),
             )
           else if (contacts == null)
-            const Center(
-                child: Padding(
-              padding: EdgeInsets.all(AppSpacing.xl),
-              child: CircularProgressIndicator(),
-            ))
+            // Shimmering rows in the contacts' shape while they load.
+            const AppListSkeleton(
+              rows: 2,
+              hasTrailing: false,
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+            )
           else if (contacts.isEmpty)
             EmptyState(
               icon: PhosphorIconsRegular.addressBook,

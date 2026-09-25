@@ -10,6 +10,8 @@ class PreBookPage extends StatefulWidget {
     this.pickup,
     this.pickupAddr,
     this.paymentMode = 'card',
+    this.paymentMethodId,
+    this.payments,
     this.initialWhen,
     this.initialDropoff,
     this.initialDropoffAddr,
@@ -18,7 +20,16 @@ class PreBookPage extends StatefulWidget {
   final TripRepository repository;
   final GeoPoint? pickup;
   final String? pickupAddr;
+
+  /// The payment the page starts on; the rider can switch it here.
   final String paymentMode;
+
+  /// The saved card to start on (card mode), if one was already chosen.
+  final String? paymentMethodId;
+
+  /// Source of the rider's saved cards for the Card / Cash choice. Null (in
+  /// tests) leaves the choice to Card or Cash alone.
+  final PaymentsRemoteDataSource? payments;
 
   /// Pre-selected time (tests; a future "book again at the same time").
   final DateTime? initialWhen;
@@ -43,10 +54,16 @@ class _PreBookPageState extends State<PreBookPage> {
   bool _booking = false;
   String? _error;
   String? _notice;
+  late String _mode;
+  String? _methodId;
+  List<Map<String, dynamic>> _cards = const [];
 
   @override
   void initState() {
     super.initState();
+    _mode = widget.paymentMode;
+    _methodId = widget.paymentMethodId;
+    unawaited(_loadCards());
     _pickup = widget.pickup;
     _pickupAddr = widget.pickupAddr;
     _when = widget.initialWhen;
@@ -57,13 +74,98 @@ class _PreBookPageState extends State<PreBookPage> {
     }
   }
 
+  /// Best-effort: without the list the chips still offer Card and Cash.
+  Future<void> _loadCards() async {
+    final payments = widget.payments;
+    if (payments == null) return;
+    try {
+      final cards = await payments.methods();
+      if (!mounted) return;
+      setState(() {
+        _cards = cards;
+        // "Card" can't be the selection when there is no card on file — the
+        // server would refuse the booking — so start on Cash instead.
+        if (cards.isEmpty && _mode == 'card') _mode = 'cash';
+      });
+    } catch (_) {}
+  }
+
+  /// The saved card in effect: the chosen one, else the default, else the
+  /// first. Null with no saved cards.
+  Map<String, dynamic>? get _activeCard {
+    if (_cards.isEmpty) return null;
+    for (final c in _cards) {
+      if (c['id'] == _methodId) return c;
+    }
+    for (final c in _cards) {
+      if (c['isDefault'] == true) return c;
+    }
+    return _cards.first;
+  }
+
+  void _setMode(String mode, {String? methodId}) => setState(() {
+    _mode = mode;
+    _methodId = mode == 'cash' ? null : (methodId ?? _methodId);
+    if (_error != null && _paymentError) _error = null;
+  });
+
+  bool _paymentError = false;
+
+  Future<void> _tapCard() async {
+    final payments = widget.payments;
+    if (payments != null && _cards.isEmpty) {
+      // No card on file: add one, then pay with it.
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PaymentMethodsPage(
+            payments: payments,
+            stripeCardAdder: sl.isRegistered<StripeCardAdder>()
+                ? sl<StripeCardAdder>()
+                : null,
+          ),
+        ),
+      );
+      await _loadCards();
+      if (mounted && _cards.isNotEmpty) _setMode('card');
+      return;
+    }
+    if (_cards.length > 1) {
+      final picked = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetCtx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final c in _cards)
+                ListTile(
+                  leading: const Icon(PhosphorIconsRegular.creditCard),
+                  title: Text(_PaymentModeToggle._cardLabel(c)),
+                  trailing: c['id'] == _activeCard?['id']
+                      ? Icon(
+                          PhosphorIconsRegular.check,
+                          color: AppColors.accent,
+                        )
+                      : null,
+                  onTap: () => Navigator.of(sheetCtx).pop(c['id'] as String),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (picked != null) _setMode('card', methodId: picked);
+      return;
+    }
+    _setMode('card');
+  }
+
   Future<PlaceDetails?> _search(GeoPoint? near) {
-    return Navigator.of(context).push<PlaceDetails>(MaterialPageRoute(
-      builder: (_) => DestinationSearchPage(
-        singleDestination: true,
-        initialPickup: near,
+    return Navigator.of(context).push<PlaceDetails>(
+      MaterialPageRoute(
+        builder: (_) =>
+            DestinationSearchPage(singleDestination: true, initialPickup: near),
       ),
-    ));
+    );
   }
 
   Future<void> _choosePickup() async {
@@ -112,8 +214,11 @@ class _PreBookPageState extends State<PreBookPage> {
           _tier = e.tiers.isEmpty
               ? null
               : e.tiers
-                  .firstWhere((t) => t.capacity > 1, orElse: () => e.tiers.first)
-                  .tier;
+                    .firstWhere(
+                      (t) => t.capacity > 1,
+                      orElse: () => e.tiers.first,
+                    )
+                    .tier;
         }
       });
     } on ApiException catch (e) {
@@ -140,6 +245,7 @@ class _PreBookPageState extends State<PreBookPage> {
       _booking = true;
       _error = null;
       _notice = null;
+      _paymentError = false;
     });
     try {
       final trip = await widget.repository.createTrip(
@@ -148,7 +254,10 @@ class _PreBookPageState extends State<PreBookPage> {
         tier: tier.tier,
         pickupAddr: _pickupAddr,
         dropoffAddr: _dropoffAddr,
-        paymentMode: widget.paymentMode,
+        paymentMode: _mode,
+        paymentMethodId: _mode == 'card'
+            ? (_activeCard?['id'] as String?)
+            : null,
         scheduledAt: _when,
         quotedFare: tier.fare,
         quotedSurge: _estimate?.surge,
@@ -157,11 +266,17 @@ class _PreBookPageState extends State<PreBookPage> {
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.code == TripCubit.priceChangedCode) {
-        setState(() => _notice = 'Prices changed while you were booking. '
-            'Check the new fare, then schedule.');
+        setState(
+          () => _notice =
+              'Prices changed while you were booking. '
+              'Check the new fare, then schedule.',
+        );
         await _reestimate();
       } else {
-        setState(() => _error = e.message);
+        setState(() {
+          _error = e.message;
+          _paymentError = e.code == 'PAYMENT_METHOD_REQUIRED';
+        });
       }
     } finally {
       if (mounted) setState(() => _booking = false);
@@ -180,7 +295,11 @@ class _PreBookPageState extends State<PreBookPage> {
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
                 children: [
                   AppCard(
                     padding: EdgeInsets.zero,
@@ -245,28 +364,75 @@ class _PreBookPageState extends State<PreBookPage> {
                   ],
                   if (_notice != null) ...[
                     const SizedBox(height: AppSpacing.md),
-                    Text(_notice!,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: AppColors.warningTextOf(context))),
+                    Text(
+                      _notice!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.warningTextOf(context),
+                      ),
+                    ),
                   ],
                   if (_error != null) ...[
                     const SizedBox(height: AppSpacing.md),
-                    Text(_error!,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: AppColors.error)),
+                    Text(
+                      _error!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.lg),
-              child: PrimaryButton(
-                label: tier == null
-                    ? 'Schedule ride'
-                    : 'Schedule ${tier.label} · ${Fmt.money(tier.fare, tier.currency)}',
-                loading: _booking,
-                onPressed: _ready && !_booking ? _book : null,
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.lg,
+                AppSpacing.lg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // How it's paid sits right above the button that commits
+                  // to it, as on the ride-options sheet.
+                  Row(
+                    children: [
+                      Expanded(
+                        key: const Key('prebook-pay-card'),
+                        child: _PayChip(
+                          icon: PhosphorIconsRegular.creditCard,
+                          label: _activeCard != null
+                              ? _PaymentModeToggle._cardLabel(_activeCard!)
+                              : (widget.payments != null ? 'Add card' : 'Card'),
+                          selected: _mode == 'card',
+                          trailing: _cards.length > 1
+                              ? PhosphorIconsRegular.caretDown
+                              : null,
+                          onTap: _tapCard,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        key: const Key('prebook-pay-cash'),
+                        child: _PayChip(
+                          icon: PhosphorIconsRegular.money,
+                          label: 'Cash',
+                          selected: _mode == 'cash',
+                          onTap: () => _setMode('cash'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  PrimaryButton(
+                    label: tier == null
+                        ? 'Schedule ride'
+                        : 'Schedule ${tier.label} · ${Fmt.money(tier.fare, tier.currency)}',
+                    loading: _booking,
+                    onPressed: _ready && !_booking ? _book : null,
+                  ),
+                ],
               ),
             ),
           ],
@@ -301,7 +467,9 @@ class _PreBookRow extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.md),
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
         child: Row(
           children: [
             Icon(icon, color: iconColor, size: 24),
@@ -318,8 +486,8 @@ class _PreBookRow extends StatelessWidget {
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: placeholder
                           ? (dark
-                              ? AppColors.textTertiaryDark
-                              : AppColors.textTertiaryLight)
+                                ? AppColors.textTertiaryDark
+                                : AppColors.textTertiaryLight)
                           : null,
                     ),
                   ),
@@ -374,15 +542,18 @@ class _PreBookTier extends StatelessWidget {
                     children: [
                       Text(tier.label, style: theme.textTheme.titleMedium),
                       Text(
-                          tier.capacity == 1
-                              ? '1 seat'
-                              : '${tier.capacity} seats',
-                          style: theme.textTheme.bodySmall),
+                        tier.capacity == 1
+                            ? '1 seat'
+                            : '${tier.capacity} seats',
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),
-                Text(Fmt.money(tier.fare, tier.currency),
-                    style: theme.textTheme.titleMedium),
+                Text(
+                  Fmt.money(tier.fare, tier.currency),
+                  style: theme.textTheme.titleMedium,
+                ),
               ],
             ),
           ),

@@ -4,6 +4,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
+import 'lottie_moment.dart';
 
 /// Full-width primary CTA with a built-in loading state, a tactile press-scale,
 /// and a light haptic on tap. One primary action per screen — this is it.
@@ -101,14 +102,12 @@ class _PrimaryButtonState extends State<PrimaryButton> {
           child: AnimatedSwitcher(
             duration: AppMotion.fast,
             child: w.loading
+                // The brand arc, in the button's ink (payment, confirm…).
                 ? SizedBox(
                     key: ValueKey('loading'),
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.4,
-                      valueColor: AlwaysStoppedAnimation(onFill),
-                    ),
+                    height: 26,
+                    width: 26,
+                    child: LottieMoment.spinner(size: 26, tint: onFill),
                   )
                 : Row(
                     key: const ValueKey('label'),

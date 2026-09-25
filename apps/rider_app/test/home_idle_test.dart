@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rider_app/features/home/home_cards.dart';
 import 'package:rider_app/features/home/home_data.dart';
+import 'package:rider_app/features/home/home_posters.dart';
 import 'package:rider_app/features/home/idle_home.dart';
 import 'package:rider_app/features/home/rider_bottom_nav.dart';
 import 'package:rider_app/home_page.dart';
@@ -141,6 +142,14 @@ void main() {
           ServiceItem('For others', HomeArt.someoneElse, () {}),
           ServiceItem('Saved places', HomeArt.saved, () {}),
         ],
+      ),
+      PromoCarousel(
+        homePosters(
+          onOffers: () {},
+          onSchedule: () {},
+          onSafety: () {},
+          onRide: () {},
+        ),
       ),
       if (unrated != null)
         HomeSection(

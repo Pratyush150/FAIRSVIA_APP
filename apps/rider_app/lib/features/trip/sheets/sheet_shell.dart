@@ -529,6 +529,10 @@ Future<void> _openPreBook(BuildContext context, TripState state) async {
         pickup: state.pickup,
         pickupAddr: state.pickupAddr,
         paymentMode: state.paymentMode,
+        paymentMethodId: state.selectedMethodId,
+        payments: sl.isRegistered<PaymentsRemoteDataSource>()
+            ? sl<PaymentsRemoteDataSource>()
+            : null,
       ),
     ),
   );

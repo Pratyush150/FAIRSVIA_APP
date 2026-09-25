@@ -275,7 +275,9 @@ void main() {
     var booked = false;
     await _show(tester, const [], onBookRide: () => booked = true);
     expect(find.text('No trips yet'), findsOneWidget);
-    expect(find.byType(HomeArtImage), findsOneWidget);
+    expect(find.byType(LottieMoment), findsOneWidget);
+    expect(tester.widget<LottieMoment>(find.byType(LottieMoment)).asset,
+        'empty_box');
     await tester.tap(find.text('Book a ride'));
     expect(booked, isTrue);
   });
@@ -403,8 +405,8 @@ void _screenshots() {
 
   Future<void> shoot(WidgetTester tester, String name,
       {required bool dark, required List<Trip> list, double scale = 1,
-      bool driver = false, Widget? home}) async {
-    tester.view.physicalSize = const Size(360, 800) * 2.625;
+      bool driver = false, Widget? home, double height = 800}) async {
+    tester.view.physicalSize = Size(360, height) * 2.625;
     tester.view.devicePixelRatio = 2.625;
     addTearDown(tester.view.reset);
     AppColors.syncBrightness(dark ? Brightness.dark : Brightness.light);
@@ -468,7 +470,9 @@ void _screenshots() {
             tripId: '1',
             fare: 75,
             currency: 'INR',
-            method: 'cash',
+            tip: 10,
+            method: 'card',
+            cardLabel: 'Visa •4242',
             status: 'succeeded',
             breakdown: FareBreakdown(
               baseFare: 30,
@@ -477,11 +481,13 @@ void _screenshots() {
               bookingFee: 3,
             ),
           ));
-      await shoot(tester, 'receipt-${dark ? 'dark' : 'light'}',
+      await shoot(tester, 'yourtrip_${dark ? 'dark' : 'light'}',
           dark: dark,
           list: const [],
+          height: 1320,
           home: ReceiptPage(
             payments: payments,
+            onGetHelp: () {},
             trip: Trip(
               id: '1',
               status: TripStatus.completed,
@@ -500,6 +506,8 @@ void _screenshots() {
               driverName: 'Priya Sharma',
               driverVehicleLabel: 'White Maruti Dzire',
               driverPlate: 'MH12AB1234',
+              myRating: 5,
+              hasMyRatingField: true,
             ),
           ));
     });

@@ -32,10 +32,12 @@ export 'src/widgets/message_bubble.dart';
 export 'src/widgets/otp_input.dart';
 export 'src/widgets/map_placeholder.dart';
 export 'src/widgets/app_map.dart';
+export 'src/widgets/map_marker_art.dart';
 export 'src/widgets/route_progress.dart' hide distanceMeters;
 export 'src/widgets/map_geo.dart';
 export 'src/widgets/connection_banner.dart';
 export 'src/widgets/app_skeleton.dart';
+export 'src/widgets/sweep_border.dart';
 export 'src/widgets/pulse_radar.dart';
 export 'src/widgets/kolam.dart';
 export 'src/widgets/local_art.dart';
@@ -43,6 +45,8 @@ export 'src/widgets/recenter_pill.dart';
 export 'src/widgets/blurred_scrim.dart';
 export 'src/widgets/brand_splash.dart';
 export 'src/widgets/ink_paper.dart';
+export 'src/widgets/route_timeline.dart';
+export 'src/widgets/route_snapshot.dart';
 
 // Rider Home building blocks (services row, promo banners, context cards,
 // brand footer).
@@ -50,6 +54,7 @@ export 'src/widgets/home/home_art.dart';
 export 'src/widgets/home/press_scale.dart';
 export 'src/widgets/home/service_tile.dart';
 export 'src/widgets/home/promo_banner.dart';
+export 'src/widgets/home/promo_carousel.dart';
 export 'src/widgets/home/context_card.dart';
 export 'src/widgets/home/brand_footer.dart';
 
@@ -63,4 +68,5 @@ export 'package:latlong2/latlong.dart' show LatLng;
 // The one utility-icon family for every app (audit: Phosphor Regular by
 // default, Fill only for a state — a rated star, a favourite, a selection).
 export 'src/theme/phosphor_icons.dart';
+export 'src/widgets/brand_loader.dart';
 export 'src/widgets/lottie_moment.dart';
