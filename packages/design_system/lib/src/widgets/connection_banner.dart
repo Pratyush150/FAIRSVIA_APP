@@ -4,6 +4,7 @@ import '../theme/phosphor_icons.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
+import 'lottie_moment.dart';
 
 /// A slim bar at the top of the screen reporting realtime connectivity.
 ///
@@ -95,14 +96,10 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
                           Icon(PhosphorIconsRegular.check,
                               size: 16, color: ink)
                         else
-                          SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(ink),
-                            ),
-                          ),
+                          // Wi-Fi bars dropping and crossing out, in the
+                          // banner's ink so it reads on the ochre. Fixed 20px
+                          // box; a still crossed-out frame under Reduce Motion.
+                          LottieMoment.offline(size: 20, tint: ink),
                         const SizedBox(width: AppSpacing.sm),
                         Flexible(
                           child: Text(

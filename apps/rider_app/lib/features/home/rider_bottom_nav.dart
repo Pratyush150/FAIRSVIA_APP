@@ -78,6 +78,12 @@ class RiderTabScaffold extends StatefulWidget {
   final bool showNav;
   final ValueChanged<RiderTab>? onTabChanged;
 
+  /// Switches the enclosing frame back to Home (e.g. "Book a ride" on an
+  /// empty Trips tab). No-op outside a [RiderTabScaffold].
+  static void goHome(BuildContext context) => context
+      .findAncestorStateOfType<_RiderTabScaffoldState>()
+      ?._select(RiderTab.home);
+
   @override
   State<RiderTabScaffold> createState() => _RiderTabScaffoldState();
 }

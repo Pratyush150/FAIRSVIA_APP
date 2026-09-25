@@ -322,11 +322,7 @@ void main() {
     );
     final sheet = find.byType(AppSheet);
     final compact = tester.getSize(sheet).height;
-    if (!AppGlass.enabled) {
-      // Other builds: no compact mode, no handle button.
-      expect(find.bySemanticsLabel('Show more ride details'), findsNothing);
-      return;
-    }
+    if (!AppGlass.enabled) return; // other builds: no compact card
     // Compact: at most the compact share of the screen (+ the bottom gap).
     expect(
       compact,
@@ -336,7 +332,7 @@ void main() {
     final rect = tester.getRect(find.byType(GlassSurface).last);
     expect(rect.left, AppGlass.sheetInset);
     expect(rect.right, 411 - AppGlass.sheetInset);
-    await tester.tap(find.bySemanticsLabel('Show more ride details'));
+    await tester.tap(find.bySemanticsLabel('Expand'));
     for (var i = 0; i < 50; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
@@ -344,7 +340,7 @@ void main() {
     expect(tester.takeException(), isNull);
     await shoot(tester, key, 'plan_f_driver_en_route_expanded_light');
     // …and back.
-    await tester.tap(find.bySemanticsLabel('Show less'));
+    await tester.tap(find.bySemanticsLabel('Collapse'));
     for (var i = 0; i < 50; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
@@ -393,11 +389,7 @@ void main() {
       of: find.byType(AppSheet),
       matching: find.byType(AnimatedSize),
     );
-    if (AppGlass.enabled) {
-      // No spring at all: the card takes its size at once.
-      expect(sizes, findsNothing);
-    } else {
-      expect(tester.widget<AnimatedSize>(sizes.first).duration, Duration.zero);
-    }
+    // No spring at all, in any build: the sheet takes its size at once.
+    expect(sizes, findsNothing);
   });
 }

@@ -89,3 +89,15 @@ the session scratchpad and are not in the repo.
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE
 ```
+
+## Realistic Home tiles (2026-09-25)
+
+`packages/design_system/assets/home/` and `home_dark/` (ride, prebook, someone_else,
+saved, add_stop, coins, star, tag) are now original Blender 4.2 Cycles renders,
+built procedurally by the scripts in `docs/brand/icons-realistic/` (no third-party
+models). The only third-party input is the lighting environment:
+
+- HDRI **"Studio Small 09"** from Poly Haven (https://polyhaven.com/a/studio_small_09),
+  2k .hdr, licence **CC0** (public domain, no attribution required; credited here
+  anyway). Downloaded at render time to `~/.cache/ridevela-3d/`, not committed.
+- Printed text on the calendar page / tag uses Lato Black (SIL OFL 1.1), rasterised.

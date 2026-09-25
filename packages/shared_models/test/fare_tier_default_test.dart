@@ -11,8 +11,15 @@ void main() {
     expect(FareTier.defaultTier(tiers), 'comfort');
   });
 
-  test('pre-selects nothing when no car of any type is nearby', () {
-    expect(FareTier.defaultTier([tier('economy', null), tier('xl', null)]), isNull);
+  // Every ride type can be booked (the search keeps looking for a while), so
+  // with no car nearby the first roomy ride is still pre-selected.
+  test('pre-selects the first roomy ride when no car of any type is nearby', () {
+    expect(FareTier.defaultTier([tier('economy', null), tier('xl', null)]), 'economy');
+    expect(
+      FareTier.defaultTier([tier('bike', null, capacity: 1), tier('economy', null)]),
+      'economy',
+    );
+    expect(FareTier.defaultTier([]), isNull);
   });
 
   test('skips the one-seat bike when a roomier ride is available', () {

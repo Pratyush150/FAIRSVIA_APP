@@ -41,4 +41,14 @@ export class CreatePromoDto {
 
   @IsOptional() @IsISO8601()
   expiresAt?: string;
+
+  /** Show on the rider's Offers page. */
+  @IsOptional() @IsBoolean()
+  listed?: boolean;
+
+  @IsOptional() @IsString() @MaxLength(60)
+  title?: string;
+
+  @IsOptional() @IsString() @MaxLength(200)
+  description?: string;
 }

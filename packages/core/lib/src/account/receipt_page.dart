@@ -37,11 +37,8 @@ class ReceiptPage extends StatelessWidget {
   Widget _body(BuildContext context, Receipt r) {
     final theme = Theme.of(context);
     final children = <Widget>[
-        Text(Fmt.dateTime(trip.completedAt ?? trip.requestedAt),
-            style: theme.textTheme.bodyMedium),
-        const SizedBox(height: AppSpacing.xs),
-        _Trip(trip: trip),
-        const SizedBox(height: AppSpacing.lg),
+        _ReceiptHeader(trip: trip, showPayout: showPayout),
+        Divider(height: AppSpacing.xl, color: theme.dividerColor),
         // Itemised lines first (when the backend recorded them), then the
         // authoritative fare — a clamp/minimum can move it off the sum.
         if (r.breakdown != null) ...[
@@ -103,7 +100,14 @@ class ReceiptPage extends StatelessWidget {
         if (r.status != null)
           Align(
             alignment: Alignment.centerLeft,
-            child: Chip(label: Text('Payment: ${Fmt.status(r.status!)}')),
+            child: AppStatusChip(
+              label: 'Payment ${Fmt.status(r.status!).toLowerCase()}',
+              // Success green text on its tint is under 4.5:1; only a
+              // failure earns colour.
+              tone: r.status == 'failed'
+                  ? StatusTone.warning
+                  : StatusTone.neutral,
+            ),
           ),
     ];
     // THEME=ink (Plan E): the receipt is printed on a paper ticket.
@@ -251,30 +255,134 @@ class FareBreakdownRows extends StatelessWidget {
       );
 }
 
-class _Trip extends StatelessWidget {
-  const _Trip({required this.trip});
+/// The top of the receipt: the day and time, the route as two dots joined by
+/// a line (pickup hollow, destination filled), and who drove in which car.
+class _ReceiptHeader extends StatelessWidget {
+  const _ReceiptHeader({required this.trip, required this.showPayout});
   final Trip trip;
+
+  /// The driver's own receipt names the rider instead of the driver.
+  final bool showPayout;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final muted = dark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final ink = theme.colorScheme.onSurface;
+    final when = trip.completedAt ?? trip.scheduledAt ?? trip.requestedAt;
+    String? first(String? n) {
+      final t = n?.trim();
+      return (t == null || t.isEmpty) ? null : t.split(RegExp(r'\s+')).first;
+    }
+
+    final who = showPayout
+        ? first(trip.passenger?.name ?? trip.riderName)
+        : first(trip.driverName);
+    final people = [
+      if (who != null) 'with $who',
+      if (!showPayout && trip.driverVehicleLabel != null)
+        trip.driverVehicleLabel!,
+      if (!showPayout && trip.driverPlate != null)
+        Market.current.formatPlate(trip.driverPlate!),
+    ].join(' · ');
+    final meta = [
+      if (trip.distanceM != null && trip.distanceM! > 0)
+        Fmt.distance(trip.distanceM!),
+      if (trip.durationS != null && trip.durationS! > 0)
+        Fmt.duration(trip.durationS!),
+    ].join(' · ');
+
+    Widget stop(String text, {required bool end}) => Text(
+          text,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            fontWeight: end ? FontWeight.w600 : FontWeight.w400,
+          ),
+        );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _point(theme, PhosphorIconsRegular.record, trip.pickup.address ?? 'Pickup'),
-        const SizedBox(height: AppSpacing.xs),
-        _point(theme, PhosphorIconsRegular.mapPin, trip.dropoff.address ?? 'Destination'),
-      ],
-    );
-  }
-
-  Widget _point(ThemeData theme, IconData icon, String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20, color: AppColors.accent),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                when == null
+                    ? 'Trip'
+                    : '${Fmt.dayLabel(when)} · ${Fmt.time(when)}',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            ExcludeSemantics(child: VehicleGlyph(tier: trip.tier, width: 64)),
+          ],
+        ),
+        if (meta.isNotEmpty)
+          Text(meta,
+              style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
+        const SizedBox(height: AppSpacing.md),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 16,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: ink, width: 2),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 3),
+                        color: muted.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: ink,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      label: 'From',
+                      child: stop(trip.pickup.address ?? 'Pickup', end: false),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Semantics(
+                      label: 'To',
+                      child: stop(trip.dropoff.address ?? 'Destination',
+                          end: true),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (people.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          Text(people,
+              style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
+        ],
       ],
     );
   }

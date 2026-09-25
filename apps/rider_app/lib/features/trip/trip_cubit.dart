@@ -93,7 +93,7 @@ class TripCubit extends Cubit<TripState> {
   void _subscribe() {
     if (_subs.isNotEmpty) return; // init() is one-shot per cubit
     _subs
-      ..add(_realtime.on('trip:matching').listen((_) => _onMatching()))
+      ..add(_realtime.on('trip:matching').listen(_onMatching))
       ..add(_realtime.on('trip:accepted').listen(_onAccepted))
       ..add(_realtime.on('trip:driver_location').listen(_onDriverLocation))
       ..add(_realtime.on('trip:message').listen(_onMessage))
@@ -436,10 +436,20 @@ class TripCubit extends Cubit<TripState> {
     });
   }
 
-  void _onMatching() {
+  void _onMatching(Map<String, dynamic> data) {
     if (state.phase == TripPhase.requesting ||
         state.phase == TripPhase.searching) {
-      emit(state.copyWith(phase: TripPhase.searching));
+      // How long the server keeps looking: its own deadline, or the window
+      // length counted from now (an older server sends neither).
+      final endsAt = DateTime.tryParse('${data['searchEndsAt'] ?? ''}');
+      final windowSec = data['searchWindowSec'];
+      emit(state.copyWith(
+        phase: TripPhase.searching,
+        searchEndsAt: endsAt?.toLocal() ??
+            (windowSec is num
+                ? DateTime.now().add(Duration(seconds: windowSec.toInt()))
+                : state.searchEndsAt),
+      ));
     }
   }
 
@@ -695,6 +705,41 @@ class TripCubit extends Cubit<TripState> {
 
   void _setPhase(TripPhase phase) => emit(state.copyWith(phase: phase));
 
+  /// The offer picked on the Offers page, held outside the per-ride state so
+  /// the resets between rides (`const TripState()`) don't drop it.
+  AvailablePromo? _offer;
+
+  @override
+  void emit(TripState state) => super.emit(
+        state.offerPromo == _offer ? state : state.copyWith(offerPromo: _offer),
+      );
+
+  /// "Apply to next ride" from the Offers page / a Home offer banner. When
+  /// the ride sheet is already open, the code is applied right away.
+  Future<void> selectOffer(AvailablePromo offer) async {
+    _offer = offer;
+    emit(state.copyWith(offerPromo: offer));
+    if (state.phase == TripPhase.choosingRide) await applyPromo(offer.code);
+  }
+
+  /// Drops the picked offer (and its applied quote, if it is the one applied).
+  void clearOffer() {
+    final code = _offer?.code;
+    _offer = null;
+    emit(state.copyWith(
+      offerPromo: null,
+      appliedPromo: state.appliedPromo?.code == code ? null : state.appliedPromo,
+      promoError: state.appliedPromo?.code == code ? null : state.promoError,
+    ));
+  }
+
+  /// Applies the picked offer to a fresh ride sheet, if there is one.
+  Future<void> _applyOffer() async {
+    final offer = _offer;
+    if (offer == null || state.phase != TripPhase.choosingRide) return;
+    await applyPromo(offer.code);
+  }
+
   Future<void> chooseDestination({
     required GeoPoint pickup,
     String? pickupAddr,
@@ -720,6 +765,7 @@ class TripCubit extends Cubit<TripState> {
         stops: const [],
       ));
       unawaited(loadPaymentMethods());
+      await _applyOffer();
     } on ApiException catch (e) {
       emit(state.copyWith(phase: TripPhase.error, error: e.message));
     }
@@ -744,7 +790,13 @@ class TripCubit extends Cubit<TripState> {
         state.copyWith(paymentMode: 'card', selectedMethodId: methodId),
       );
 
-  void selectTier(String tier) => emit(state.copyWith(selectedTier: tier));
+  /// Picks a tier; an applied promo is re-priced against the new fare so the
+  /// discount on the sheet and Confirm stays true.
+  Future<void> selectTier(String tier) async {
+    emit(state.copyWith(selectedTier: tier));
+    final applied = state.appliedPromo;
+    if (applied != null) await applyPromo(applied.code);
+  }
 
   /// Max intermediate stops (mirrors the backend cap).
   static const int maxStops = 3;
@@ -781,6 +833,7 @@ class TripCubit extends Cubit<TripState> {
         appliedPromo: null,
         promoError: null,
       ));
+      await _applyOffer();
     } on ApiException catch (e) {
       emit(state.copyWith(phase: TripPhase.choosingRide, error: e.message));
     }
@@ -809,8 +862,15 @@ class TripCubit extends Cubit<TripState> {
     }
   }
 
-  void removePromo() =>
-      emit(state.copyWith(appliedPromo: null, promoError: null));
+  /// Removes the applied code; if it came from a picked offer, that offer is
+  /// dropped too (the rider said no to it).
+  void removePromo() {
+    if (_offer != null && _offer?.code == state.appliedPromo?.code) {
+      clearOffer();
+      return;
+    }
+    emit(state.copyWith(appliedPromo: null, promoError: null));
+  }
 
   void setPaymentMode(String mode) => emit(state.copyWith(
         paymentMode: mode,
@@ -837,7 +897,11 @@ class TripCubit extends Cubit<TripState> {
   Future<void> confirmRide() async {
     final s = state;
     if (s.pickup == null || s.dropoff == null || s.selectedTier == null) return;
-    emit(state.copyWith(phase: TripPhase.requesting, error: null));
+    emit(state.copyWith(
+      phase: TripPhase.requesting,
+      error: null,
+      searchEndsAt: null, // a new search gets its own window
+    ));
     try {
       final trip = await _repository.createTrip(
         pickup: s.pickup!,
@@ -860,6 +924,10 @@ class TripCubit extends Cubit<TripState> {
         quotedFare: s.selectedFare?.fare,
         quotedSurge: s.estimate?.surge,
       );
+      // The picked offer has been spent on this ride.
+      if (s.appliedPromo != null && s.appliedPromo?.code == _offer?.code) {
+        _offer = null;
+      }
       // A scheduled ride isn't dispatched now — confirm it and return to idle
       // (it will surface again from the scheduled-rides list at its time).
       if (trip.status == TripStatus.scheduled) {
@@ -1020,7 +1088,26 @@ class TripCubit extends Cubit<TripState> {
 
   void reset() {
     _resetTracking();
+    selectedTip = null;
     emit(const TripState());
+  }
+
+  /// The tip the rider has tapped on the completed sheet, not yet sent. A tap
+  /// selects it, a second tap clears it; it is charged when they tap Done
+  /// (owner: no separate "Add tip" confirm step).
+  double? selectedTip;
+
+  /// Done on the completed sheet: send the selected tip (if any and not sent
+  /// yet), then close the ride. A failed tip keeps the sheet open with the
+  /// error so the rider can retry or clear the tip.
+  Future<void> finishRide() async {
+    final tip = selectedTip;
+    final alreadyTipped = (state.tipAmount ?? 0) > 0;
+    if (tip != null && tip > 0 && !alreadyTipped) {
+      await tipDriver(tip);
+      if (state.error != null) return;
+    }
+    reset();
   }
 
   @override

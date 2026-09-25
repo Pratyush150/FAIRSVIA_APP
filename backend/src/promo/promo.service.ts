@@ -5,6 +5,20 @@ import { CreatePromoDto } from './dto/create-promo.dto';
 import { UpdatePromoDto } from './dto/update-promo.dto';
 import { isSerializationFailure } from '../common/prisma/serialization';
 
+/** A promo as the rider's Offers page shows it. */
+export interface AvailablePromo {
+  code: string;
+  title: string;
+  description: string | null;
+  kind: string;
+  value: number;
+  maxDiscount: number | null;
+  minFare: number;
+  expiresAt: string | null;
+  /** How many more times THIS rider can use it (>= 1 — spent ones are omitted). */
+  usesLeftForMe: number;
+}
+
 /** Outcome of pricing a promo code against a fare subtotal. */
 export interface PromoQuote {
   code: string;
@@ -172,6 +186,47 @@ export class PromoService {
     return round2(Math.min(discount, subtotal));
   }
 
+  /**
+   * Rider-facing Offers list: promos that are listed, active, unexpired, not
+   * globally exhausted, and that this rider still has uses left on. Soonest
+   * expiry first (open-ended last), then newest.
+   */
+  async available(userId: string): Promise<AvailablePromo[]> {
+    const now = new Date();
+    const promos = await this.prisma.promoCode.findMany({
+      where: {
+        listed: true,
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      orderBy: [{ expiresAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }],
+      take: 50,
+    });
+    const open = promos.filter(
+      (p) => p.usageLimit == null || p.usedCount < p.usageLimit,
+    );
+    if (open.length === 0) return [];
+    const mine = await this.prisma.promoRedemption.groupBy({
+      by: ['promoId'],
+      where: { userId, promoId: { in: open.map((p) => p.id) } },
+      _count: { _all: true },
+    });
+    const used = new Map(mine.map((m) => [m.promoId, m._count._all]));
+    return open
+      .map((p) => ({
+        code: p.code,
+        title: p.title ?? p.code,
+        description: p.description ?? null,
+        kind: p.kind,
+        value: Number(p.value),
+        maxDiscount: p.maxDiscount == null ? null : Number(p.maxDiscount),
+        minFare: Number(p.minSubtotal),
+        expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
+        usesLeftForMe: p.perUserLimit - (used.get(p.id) ?? 0),
+      }))
+      .filter((p) => p.usesLeftForMe > 0);
+  }
+
   // --- Admin management ---
 
   list() {
@@ -190,6 +245,9 @@ export class PromoService {
         perUserLimit: dto.perUserLimit ?? 1,
         active: dto.active ?? true,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        listed: dto.listed ?? false,
+        title: dto.title?.trim() || null,
+        description: dto.description?.trim() || null,
       },
     });
   }
@@ -201,6 +259,11 @@ export class PromoService {
     if (dto.perUserLimit != null) data.perUserLimit = dto.perUserLimit;
     if (dto.expiresAt !== undefined) {
       data.expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+    }
+    if (dto.listed != null) data.listed = dto.listed;
+    if (dto.title !== undefined) data.title = dto.title?.trim() || null;
+    if (dto.description !== undefined) {
+      data.description = dto.description?.trim() || null;
     }
     return this.prisma.promoCode.update({
       where: { code: code.trim().toUpperCase() },

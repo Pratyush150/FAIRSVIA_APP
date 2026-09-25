@@ -1535,4 +1535,28 @@ void main() {
     );
   });
 
+
+  // The server's search window reaches the finding sheet via trip:matching.
+  blocTest<TripCubit, TripState>(
+    'trip:matching records when the driver search ends',
+    setUp: () {
+      scripted = ScriptedRealtimeClient();
+      when(() => repo.activeTripDetails()).thenAnswer((_) async => null);
+    },
+    build: () => TripCubit(repo, scripted, payments, ratings),
+    seed: () => const TripState(phase: TripPhase.requesting),
+    act: (c) async {
+      await c.init('token');
+      scripted.push('trip:matching', {
+        'tripId': 't1',
+        'searchWindowSec': 180,
+        'searchEndsAt': '2026-09-25T10:03:00.000Z',
+      });
+    },
+    skip: 0,
+    verify: (c) {
+      expect(c.state.phase, TripPhase.searching);
+      expect(c.state.searchEndsAt?.toUtc(), DateTime.utc(2026, 9, 25, 10, 3));
+    },
+  );
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
@@ -10,6 +10,12 @@ import { QuotePromoDto } from './dto/quote-promo.dto';
 @UseGuards(JwtAuthGuard)
 export class PromoController {
   constructor(private readonly promo: PromoService) {}
+
+  /** Offers page: listed promos this rider can still use. */
+  @Get('available')
+  available(@CurrentUser() user: AuthUser) {
+    return this.promo.available(user.userId);
+  }
 
   @Post('quote')
   @HttpCode(HttpStatus.OK)

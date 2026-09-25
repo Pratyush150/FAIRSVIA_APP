@@ -212,11 +212,79 @@ Future<void> _actOn(
   }
 }
 
-/// The Offers tab: the same promo cards as the Home, as a page of their own.
-class OffersPage extends StatelessWidget {
-  const OffersPage({super.key, required this.promos});
+/// Real offers (`GET /promos/available`) as Home promo banners: the photo
+/// look, the offer's title as the headline. Tapping one picks it for the next
+/// ride ([onPick]); the caller then opens the destination search.
+List<PromoBannerData> promosFromOffers(
+  List<AvailablePromo> offers, {
+  required void Function(AvailablePromo offer) onPick,
+}) {
+  const tones = PromoTone.values;
+  return [
+    for (var i = 0; i < offers.length; i++)
+      PromoBannerData(
+        id: 'offer-${offers[i].code}',
+        headline: offers[i].title,
+        subline: '${offers[i].headline} · code ${offers[i].code}',
+        image: PromoPhoto.all[i % PromoPhoto.all.length],
+        art: HomeArt.tag,
+        tone: tones[i % tones.length],
+        onTap: () => onPick(offers[i]),
+      ),
+  ];
+}
 
-  final List<PromoBannerData> promos;
+/// "Ends 3 Oct" / "Ends today" for an offer's expiry.
+String offerExpiryLabel(DateTime when, {DateTime? now}) {
+  final n = now ?? DateTime.now();
+  final d = when.toLocal();
+  if (d.year == n.year && d.month == n.month && d.day == n.day) {
+    return 'Ends today';
+  }
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  final year = d.year == n.year ? '' : ' ${d.year}';
+  return 'Ends ${d.day} ${months[d.month - 1]}$year';
+}
+
+/// The Offers tab: the promos this rider can use right now, from the server.
+/// Each card says what it gives and on what terms, with "Apply to next ride"
+/// (the next ride sheet then carries the code, priced) and "Copy code".
+class OffersPage extends StatefulWidget {
+  const OffersPage({
+    super.key,
+    required this.load,
+    required this.onApply,
+    required this.onRemove,
+    this.selectedCode,
+  });
+
+  /// Fetches the offers (throws on a network/API error).
+  final Future<List<AvailablePromo>> Function() load;
+  final void Function(AvailablePromo offer) onApply;
+  final VoidCallback onRemove;
+
+  /// The code already picked for the next ride, if any.
+  final String? selectedCode;
+
+  @override
+  State<OffersPage> createState() => _OffersPageState();
+}
+
+class _OffersPageState extends State<OffersPage> {
+  late Future<List<AvailablePromo>> _future = widget.load();
+
+  Future<void> _refresh() async {
+    final f = widget.load();
+    setState(() {
+      _future = f;
+    });
+    try {
+      await f;
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -225,16 +293,204 @@ class OffersPage extends StatelessWidget {
         title: const Text('Offers'),
         automaticallyImplyLeading: false,
       ),
-      body: promos.isEmpty
-          ? const EmptyState(
-              icon: PhosphorIconsRegular.tag,
-              title: 'No offers right now',
-              message: 'New offers will show up here.',
-            )
-          : ListView(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-              children: [PromoBannerList(promos)],
+      body: FutureBuilder<List<AvailablePromo>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return EmptyState(
+              icon: PhosphorIconsRegular.cloudSlash,
+              title: "Couldn't load offers",
+              message: 'Check your connection and try again.',
+              action: SecondaryButton(label: 'Try again', onPressed: _refresh),
+            );
+          }
+          final offers = snap.data ?? const <AvailablePromo>[];
+          if (offers.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                children: const [
+                  SizedBox(height: AppSpacing.xxl),
+                  EmptyState(
+                    icon: PhosphorIconsRegular.tag,
+                    title: 'No offers right now',
+                    message: 'New offers will show up here.',
+                  ),
+                ],
+              ),
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView.separated(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              itemCount: offers.length,
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+              itemBuilder: (_, i) => OfferCard(
+                offer: offers[i],
+                applied: offers[i].code == widget.selectedCode,
+                onApply: () => widget.onApply(offers[i]),
+                onRemove: widget.onRemove,
+              ),
             ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// One offer on the Offers page.
+class OfferCard extends StatelessWidget {
+  const OfferCard({
+    super.key,
+    required this.offer,
+    required this.applied,
+    required this.onApply,
+    required this.onRemove,
+  });
+
+  final AvailablePromo offer;
+  final bool applied;
+  final VoidCallback onApply;
+  final VoidCallback onRemove;
+
+  Future<void> _copy(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(ClipboardData(text: offer.code));
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text('Code ${offer.code} copied')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final muted = theme.textTheme.bodySmall?.color;
+    final expiry = offer.expiresAt;
+    return AppCard(
+      outlined: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(offer.title, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      offer.headline,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.accentTextFor(dark),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              _CodeChip(code: offer.code, onCopy: () => _copy(context)),
+            ],
+          ),
+          if (offer.description != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(offer.description!, style: theme.textTheme.bodyMedium),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            [
+              offer.conditions,
+              if (expiry != null) offerExpiryLabel(expiry),
+            ].join(' · '),
+            style: theme.textTheme.bodySmall?.copyWith(color: muted),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (applied)
+            Container(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.md,
+                top: AppSpacing.xs,
+                bottom: AppSpacing.xs,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                color: AppColors.success.withValues(alpha: 0.12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    PhosphorIconsFill.checkCircle,
+                    size: 20,
+                    color: AppColors.success,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      'Applied — will be used on your next ride',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  TextButton(onPressed: onRemove, child: const Text('Remove')),
+                ],
+              ),
+            )
+          else
+            PrimaryButton(label: 'Apply to next ride', onPressed: onApply),
+        ],
+      ),
+    );
+  }
+}
+
+class _CodeChip extends StatelessWidget {
+  const _CodeChip({required this.code, required this.onCopy});
+  final String code;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    return Semantics(
+      button: true,
+      label: 'Copy code $code',
+      excludeSemantics: true,
+      child: Material(
+        color: AppColors.softFor(dark),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+          onTap: onCopy,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  code,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                const Icon(PhosphorIconsRegular.copy, size: 16),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

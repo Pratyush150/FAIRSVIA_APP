@@ -352,6 +352,15 @@ class AdminCubit extends Cubit<AdminState> {
     }
   }
 
+  Future<void> setPromoListed(AdminPromo promo, bool listed) async {
+    try {
+      await _api.setPromoListed(promo.code, listed);
+      await refresh();
+    } on ApiException catch (e) {
+      emit(state.copyWith(error: e.message));
+    }
+  }
+
   Future<void> setPromoActive(AdminPromo promo, bool active) async {
     try {
       await _api.setPromoActive(promo.code, active);

@@ -515,8 +515,8 @@ void main() {
     for (var i = 0; i < 30; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    expect(find.text('No bikes nearby'), findsOneWidget);
-    expect(find.text('No autos nearby'), findsOneWidget);
+    expect(find.text('No bikes nearby now — we\'ll keep looking'), findsOneWidget);
+    expect(find.text('No autos nearby now — we\'ll keep looking'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

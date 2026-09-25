@@ -1216,14 +1216,28 @@ class _PromosView extends StatelessWidget {
                     return Card(
                       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                       child: ListTile(
-                        title: Text(p.code, style: theme.textTheme.titleSmall),
+                        title: Text(
+                          p.title == null ? p.code : '${p.code} · ${p.title}',
+                          style: theme.textTheme.titleSmall,
+                        ),
                         subtitle: Text(
-                          '${p.label}  •  min ${Money.format(p.minSubtotal, wholeOnly: true)}  •  $usage',
+                          '${p.label}${p.maxDiscount == null ? '' : ' (max ${Money.format(p.maxDiscount!, wholeOnly: true)})'}  •  min ${Money.format(p.minSubtotal, wholeOnly: true)}  •  $usage',
                           style: theme.textTheme.bodySmall,
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            Tooltip(
+                              message: p.listed
+                                  ? 'Shown on the rider Offers page'
+                                  : 'Hidden from Offers (still works when typed)',
+                              child: FilterChip(
+                                label: const Text('Offers'),
+                                selected: p.listed,
+                                onSelected: (v) => cubit.setPromoListed(p, v),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
                             Text(p.active ? 'Active' : 'Off',
                                 style: theme.textTheme.bodySmall),
                             Switch(
@@ -1247,12 +1261,17 @@ Future<void> _showCreatePromo(BuildContext context, AdminCubit cubit) async {
   final value = TextEditingController();
   final minSubtotal = TextEditingController();
   final usageLimit = TextEditingController();
+  final maxDiscount = TextEditingController();
+  final title = TextEditingController();
+  final description = TextEditingController();
+  var listed = true;
   String kind = 'flat';
   String? error;
   await showDialog<void>(
     context: context,
     builder: (dialogCtx) => StatefulBuilder(
       builder: (ctx, setLocal) => AlertDialog(
+        scrollable: true,
         title: const Text('New promo code'),
         content: SizedBox(
           width: 360,
@@ -1314,6 +1333,34 @@ Future<void> _showCreatePromo(BuildContext context, AdminCubit cubit) async {
                   ),
                 ],
               ),
+              if (kind == 'percent') ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: maxDiscount,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                      labelText: 'Max discount (opt)'),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: title,
+                maxLength: 60,
+                decoration: const InputDecoration(
+                    labelText: 'Title riders see', hintText: 'Welcome offer'),
+              ),
+              TextField(
+                controller: description,
+                maxLength: 200,
+                decoration: const InputDecoration(
+                    labelText: 'Description / conditions (opt)'),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: listed,
+                onChanged: (v) => setLocal(() => listed = v ?? false),
+                title: const Text('Show on the rider Offers page'),
+              ),
               if (error != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Text(error!,
@@ -1344,6 +1391,12 @@ Future<void> _showCreatePromo(BuildContext context, AdminCubit cubit) async {
                     'minSubtotal': double.tryParse(minSubtotal.text.trim()),
                   if (usageLimit.text.trim().isNotEmpty)
                     'usageLimit': int.tryParse(usageLimit.text.trim()),
+                  if (kind == 'percent' && maxDiscount.text.trim().isNotEmpty)
+                    'maxDiscount': double.tryParse(maxDiscount.text.trim()),
+                  if (title.text.trim().isNotEmpty) 'title': title.text.trim(),
+                  if (description.text.trim().isNotEmpty)
+                    'description': description.text.trim(),
+                  'listed': listed,
                 });
                 if (dialogCtx.mounted) Navigator.pop(dialogCtx);
               } catch (e) {

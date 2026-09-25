@@ -199,7 +199,16 @@ export class LocationService {
       const tier = await this.redis.client.get(RedisKeys.driverTier(driverId));
       if (tier) {
         // ioredis geoadd: key, longitude, latitude, member
-        await this.redis.client.geoadd(RedisKeys.driversGeo(tier), lng, lat, driverId);
+        const added = await this.redis.client.geoadd(RedisKeys.driversGeo(tier), lng, lat, driverId);
+        // A driver NEW to the pool (just came online / freed up): wake any
+        // ride search of this tier waiting for one, instead of its next tick.
+        if (Number(added) > 0) {
+          try {
+            await this.redis.client.incr(RedisKeys.dispatchPoolGen(tier));
+          } catch {
+            /* the search rescans on its own tick anyway */
+          }
+        }
       }
     }
 

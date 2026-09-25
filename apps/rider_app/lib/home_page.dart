@@ -67,6 +67,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
   List<RecentDestination> _recents = const [];
   Trip? _unratedTrip;
   List<RideCard>? _rideCards;
+  List<AvailablePromo>? _offers;
   // Set for one frame to hand AppMap a null `fitBounds` so that re-supplying
   // the same bounds on the next frame counts as a change and re-fits the
   // camera (AppMap keys fits on bounds *values*, and suppresses `recenter`
@@ -126,6 +127,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     _loadSavedPlaces();
     _loadHistory();
     _loadRideCards();
+    _loadOffers();
     _connectSocket();
   }
 
@@ -410,9 +412,42 @@ class _RiderHomeViewState extends State<_RiderHomeView>
     }
   }
 
-  /// Real admin cards when there are any; otherwise the design system's
-  /// placeholder promos (there is no promos API yet).
+  Future<void> _loadOffers() async {
+    try {
+      final offers = await sl<TripRepository>().availablePromos();
+      if (mounted) setState(() => _offers = offers);
+    } catch (_) {
+      // Offers must never get in the way; the fallbacks stay.
+    }
+  }
+
+  /// "Apply to next ride": the cubit holds the offer and applies it on the
+  /// next ride sheet.
+  void _pickOffer(AvailablePromo offer) {
+    context.read<TripCubit>().selectOffer(offer);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('${offer.code} will be applied to your next ride.'),
+        ),
+      );
+  }
+
+  /// Home banners: the rider's real offers first (tap → pick it, then choose
+  /// where to go); else admin ride cards; else the design system's neutral
+  /// placeholders, which open the destination search.
   List<PromoBannerData> _promos() {
+    final offers = _offers;
+    if (offers != null && offers.isNotEmpty) {
+      return promosFromOffers(
+        offers,
+        onPick: (o) {
+          _pickOffer(o);
+          _openSearch();
+        },
+      );
+    }
     final cards = _rideCards;
     if (cards != null && cards.isNotEmpty) {
       return promosFromRideCards(
@@ -420,7 +455,7 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         messenger: ScaffoldMessenger.of(context),
       );
     }
-    return kMockPromos;
+    return [for (final p in kMockPromos) p.copyWith(onTap: _openSearch)];
   }
 
   SavedPlace? get _savedHere => _hasRealLocation
@@ -814,14 +849,37 @@ class _RiderHomeViewState extends State<_RiderHomeView>
             if (tab == RiderTab.home) {
               _loadSavedPlaces();
               _loadHistory();
+              _loadOffers();
             }
           },
           pages: {
-            RiderTab.trips: (_) => TripHistoryPage(
+            RiderTab.trips: (tabContext) => TripHistoryPage(
               trips: sl<TripRemoteDataSource>(),
               payments: sl<PaymentsRemoteDataSource>(),
+              onBookRide: () => RiderTabScaffold.goHome(tabContext),
+              onRate: (ctx, trip) async {
+                int? given;
+                final ok = await showRatePastRideSheet(
+                  ctx,
+                  trip: trip,
+                  submit: (stars) async {
+                    await sl<RatingsRemoteDataSource>()
+                        .rate(trip.id, stars: stars);
+                    given = stars;
+                  },
+                );
+                return ok ? given : null;
+              },
             ),
-            RiderTab.offers: (_) => OffersPage(promos: _promos()),
+            RiderTab.offers: (_) => BlocBuilder<TripCubit, TripState>(
+              buildWhen: (a, b) => a.offerPromo != b.offerPromo,
+              builder: (context, s) => OffersPage(
+                load: sl<TripRepository>().availablePromos,
+                selectedCode: s.offerPromo?.code,
+                onApply: _pickOffer,
+                onRemove: context.read<TripCubit>().clearOffer,
+              ),
+            ),
             RiderTab.account: (_) => const AccountMenuPage(isDriver: false),
           },
           home: Stack(
@@ -982,6 +1040,9 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                         child: RideSheetForPhase(
                           key: _sheetKey,
                           state: state,
+                          // Dragged to a new size: re-fit the map to what
+                          // is left of it (on settle, not per drag frame).
+                          onSheetSettled: _measureSheet,
                           onSearch: _openSearch,
                           savedPlaces: _savedPlaces,
                           onPickSaved: _pickSaved,

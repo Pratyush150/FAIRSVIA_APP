@@ -45,4 +45,68 @@ void main() {
     ));
     expect(find.byType(LottieBuilder), findsNothing);
   });
+
+  group('ride moments', () {
+    testWidgets('one-shots hold on their last frame', (tester) async {
+      for (final m in const [
+        LottieMoment.arrived(),
+        LottieMoment.success(),
+        LottieMoment.thanks(),
+        LottieMoment.sos(),
+      ]) {
+        final l = await pumpMoment(tester, m);
+        expect(l.controller!.value, 1.0, reason: m.asset);
+        expect(l.controller!.isAnimating, isFalse, reason: m.asset);
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('waiting states loop', (tester) async {
+      for (final m in const [
+        LottieMoment.searching(),
+        LottieMoment.noCars(),
+        LottieMoment.location(),
+        LottieMoment.offline(),
+      ]) {
+        final l = await pumpMoment(tester, m);
+        expect(l.controller!.isAnimating, isTrue, reason: m.asset);
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('reduce motion shows a still frame, in a fixed box',
+        (tester) async {
+      await tester.runAsync(() async {
+        await tester.pumpWidget(const MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(disableAnimations: true),
+            child: Center(child: LottieMoment.offline(size: 40)),
+          ),
+        ));
+        for (var i = 0; i < 20; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          await tester.pump();
+        }
+      });
+      await tester.pump(const Duration(seconds: 2));
+      final l = tester.widget<LottieBuilder>(find.byType(LottieBuilder));
+      expect(l.controller!.value,
+          closeTo(LottieMoment.offlineStillAt, 1e-6));
+      expect(l.controller!.isAnimating, isFalse);
+      expect(tester.getSize(find.byType(LottieMoment)), const Size(40, 40));
+    });
+
+    testWidgets('every moment file loads', (tester) async {
+      for (final name in const [
+        'searching', 'arrived', 'no_cars', 'success',
+        'thanks', 'location', 'offline', 'sos',
+      ]) {
+        final comp = await tester.runAsync(() => AssetLottie(
+                'packages/design_system/assets/lottie/$name.json')
+            .load());
+        expect(comp, isNotNull, reason: name);
+        expect(comp!.duration, greaterThan(Duration.zero), reason: name);
+      }
+    });
+  });
 }

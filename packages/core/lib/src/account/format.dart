@@ -18,6 +18,39 @@ class Fmt {
     return '${d.day} ${_months[d.month - 1]} ${d.year}, $h12:$min $ampm';
   }
 
+  static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  /// Clock time only, e.g. "6:42 PM". Returns '—' for null.
+  static String time(DateTime? d) {
+    if (d == null) return '—';
+    final h12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final ampm = d.hour < 12 ? 'AM' : 'PM';
+    return '$h12:${d.minute.toString().padLeft(2, '0')} $ampm';
+  }
+
+  /// A day heading for a list grouped by date: "Today", "Yesterday",
+  /// "Mon, 22 Sep", and "Mon, 22 Sep 2025" outside [now]'s year.
+  static String dayLabel(DateTime d, {DateTime? now}) {
+    final n = now ?? DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    final day = DateTime(d.year, d.month, d.day);
+    final diff = today.difference(day).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    final base =
+        '${_weekdays[d.weekday - 1]}, ${d.day} ${_months[d.month - 1]}';
+    return d.year == n.year ? base : '$base ${d.year}';
+  }
+
+  /// A ride's length: "14 min", "1 h 5 min".
+  static String duration(int seconds) {
+    final mins = (seconds / 60).round();
+    if (mins < 60) return '${mins < 1 ? 1 : mins} min';
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    return m == 0 ? '$h h' : '$h h $m min';
+  }
+
   /// e.g. "14 Jul". Returns '—' for null.
   static String dateShort(DateTime? d) =>
       d == null ? '—' : '${d.day} ${_months[d.month - 1]}';

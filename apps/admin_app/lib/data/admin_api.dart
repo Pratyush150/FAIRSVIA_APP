@@ -437,6 +437,10 @@ class AdminPromo {
     required this.usedCount,
     this.usageLimit,
     required this.minSubtotal,
+    this.maxDiscount,
+    this.listed = false,
+    this.title,
+    this.description,
   });
 
   final String code;
@@ -446,6 +450,12 @@ class AdminPromo {
   final int usedCount;
   final int? usageLimit;
   final double minSubtotal;
+  final double? maxDiscount;
+
+  /// Shown to riders on their Offers page.
+  final bool listed;
+  final String? title;
+  final String? description;
 
   /// Human label for the discount, e.g. "20% (max $8)" or "$5 off".
   String get label => kind == 'percent'
@@ -465,6 +475,10 @@ class AdminPromo {
         usedCount: (j['usedCount'] as num?)?.toInt() ?? 0,
         usageLimit: (j['usageLimit'] as num?)?.toInt(),
         minSubtotal: _num(j['minSubtotal']),
+        maxDiscount: j['maxDiscount'] == null ? null : _num(j['maxDiscount']),
+        listed: j['listed'] as bool? ?? false,
+        title: j['title'] as String?,
+        description: j['description'] as String?,
       );
 }
 
@@ -658,6 +672,11 @@ class AdminApi {
 
   Future<void> createPromo(Map<String, dynamic> body) => _guard(
         () => _dio.post('/admin/promos', data: body),
+      );
+
+  /// Show / hide a code on the rider's Offers page.
+  Future<void> setPromoListed(String code, bool listed) => _guard(
+        () => _dio.patch('/admin/promos/$code', data: {'listed': listed}),
       );
 
   Future<void> setPromoActive(String code, bool active) => _guard(

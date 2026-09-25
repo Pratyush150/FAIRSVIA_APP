@@ -520,6 +520,11 @@ class _SentPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Calm confirmation, not an alarm: a shield draws itself and fills
+        // with a check, once, then holds (a still frame under Reduce Motion).
+        // Fixed 88px box.
+        const Center(child: LottieMoment.sos(size: 88)),
+        const SizedBox(height: AppSpacing.sm),
         for (var i = 0; i < lines.length; i++) ...[
           if (i > 0) const SizedBox(height: AppSpacing.sm),
           lines[i],

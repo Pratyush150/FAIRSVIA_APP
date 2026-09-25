@@ -43,4 +43,11 @@ export const RedisKeys = {
   // Drivers who explicitly declined this trip: never re-offered on a later
   // sweep of the same dispatch run.
   dispatchDeclined: (tripId: string) => `dispatch:declined:${tripId}`,
+  // When a trip's driver search ends (epoch ms). Anchored on the search's
+  // first run so a re-run job after a restart keeps the same window.
+  dispatchDeadline: (tripId: string) => `dispatch:deadline:${tripId}`,
+  // Per-tier counter bumped whenever a driver joins that tier's GEO pool
+  // (comes online, frees up after a trip). A waiting search watches it to
+  // rescan at once instead of on its next tick.
+  dispatchPoolGen: (tier: string) => `dispatch:poolgen:${tier}`,
 } as const;

@@ -224,11 +224,11 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('an unavailable ride says so in words, not only by dimming', (
+  testWidgets('an unavailable ride says so in words (and is never dimmed)', (
     tester,
   ) async {
     await pump(tester, sheets['choose ride']!);
-    expect(find.text('No cars nearby'), findsOneWidget);
+    expect(find.text('No cars nearby now — we\'ll keep looking'), findsOneWidget);
   });
 
   testWidgets('the chosen payment chip carries a check, not only a colour', (
@@ -281,6 +281,14 @@ void main() {
         base.copyWith(phase: TripPhase.searching),
         reduceMotion: true,
       );
+      if (!LocalArt.on) {
+        // The default look's Lottie sweep shows one still frame.
+        final moment =
+            tester.widget<LottieMoment>(find.byType(LottieMoment));
+        expect(moment.asset, 'searching');
+        expect(moment.stillAt, isNotNull);
+        return;
+      }
       final mode = tester.widget<TickerMode>(
         find
             .ancestor(
@@ -388,18 +396,17 @@ void main() {
     testWidgets('choose ride: the handle pulls the sheet up, and back', (
       tester,
     ) async {
-      if (!AppGlass.enabled) return; // the handle is a control on glass only
       await pump(tester, sheets['choose ride (all options)']!);
       final sheet = find.byType(RideSheetForPhase);
       final open = 914 * RiderSheetHeights.current.chooseRideAt(914);
       expect(tester.getRect(sheet).height, closeTo(open, 1));
-      await tester.tap(find.bySemanticsLabel('Show more ride options'));
+      await tester.tap(find.bySemanticsLabel('Expand'));
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 16));
       }
       expect(tester.getRect(sheet).height, greaterThan(open + 50));
       expect(tester.takeException(), isNull);
-      await tester.tap(find.bySemanticsLabel('Show less'));
+      await tester.tap(find.bySemanticsLabel('Collapse'));
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 16));
       }

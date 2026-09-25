@@ -211,3 +211,69 @@ describe('PromoService.release', () => {
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 });
+
+describe('PromoService.available', () => {
+  function makeListing(rows: unknown[], groups: { promoId: string; n: number }[] = []) {
+    const findMany = jest.fn().mockResolvedValue(rows);
+    const groupBy = jest.fn().mockResolvedValue(
+      groups.map((g) => ({ promoId: g.promoId, _count: { _all: g.n } })),
+    );
+    const prisma = {
+      promoCode: { findMany },
+      promoRedemption: { groupBy },
+    } as unknown as PrismaService;
+    return { svc: new PromoService(prisma), findMany, groupBy };
+  }
+
+  it('asks only for listed, active, unexpired codes', async () => {
+    const { svc, findMany } = makeListing([]);
+    await svc.available('u1');
+    const where = findMany.mock.calls[0][0].where;
+    expect(where.listed).toBe(true);
+    expect(where.active).toBe(true);
+    expect(where.OR).toEqual([
+      { expiresAt: null },
+      { expiresAt: { gt: expect.any(Date) } },
+    ]);
+  });
+
+  it('maps rider-facing fields and computes uses left for this rider', async () => {
+    const { svc } = makeListing(
+      [
+        promoRow({
+          id: 'a', code: 'WEEKEND20', kind: 'percent', value: new Prisma.Decimal(20),
+          maxDiscount: new Prisma.Decimal(60), perUserLimit: 4,
+          title: 'Weekend saver', description: 'd', minSubtotal: new Prisma.Decimal(0),
+          expiresAt: new Date('2030-01-01T00:00:00Z'),
+        }),
+      ],
+      [{ promoId: 'a', n: 1 }],
+    );
+    const [p] = await svc.available('u1');
+    expect(p).toEqual({
+      code: 'WEEKEND20', title: 'Weekend saver', description: 'd', kind: 'percent',
+      value: 20, maxDiscount: 60, minFare: 0,
+      expiresAt: '2030-01-01T00:00:00.000Z', usesLeftForMe: 3,
+    });
+  });
+
+  it('omits codes this rider has used up and globally exhausted codes', async () => {
+    const { svc } = makeListing(
+      [
+        promoRow({ id: 'a', code: 'SPENT', perUserLimit: 1 }),
+        promoRow({ id: 'b', code: 'FULL', usageLimit: 10, usedCount: 10 }),
+        promoRow({ id: 'c', code: 'OK', title: null }),
+      ],
+      [{ promoId: 'a', n: 1 }],
+    );
+    const list = await svc.available('u1');
+    expect(list.map((p) => p.code)).toEqual(['OK']);
+    expect(list[0].title).toBe('OK'); // falls back to the code
+  });
+
+  it('skips the redemption lookup when nothing is listed', async () => {
+    const { svc, groupBy } = makeListing([]);
+    expect(await svc.available('u1')).toEqual([]);
+    expect(groupBy).not.toHaveBeenCalled();
+  });
+});

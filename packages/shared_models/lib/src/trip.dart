@@ -106,6 +106,7 @@ class Trip extends Equatable {
     this.driverName,
     this.driverAvatarUrl,
     this.driverVehicleLabel,
+    this.driverPlate,
     this.myRating,
     bool hasMyRatingField = false,
   }) : _hasMyRating = hasMyRatingField;
@@ -178,6 +179,9 @@ class Trip extends Equatable {
   /// "White Chevrolet Cobalt" (`driver.vehicleLabel`, history only).
   final String? driverVehicleLabel;
 
+  /// The car's plate as registered (`driver.plate`, history only).
+  final String? driverPlate;
+
   /// The caller's own stars for this trip (`myRating`, history only). Null
   /// when unrated — and on older backends, which never send it; use
   /// [hasMyRatingField] to tell those apart.
@@ -222,6 +226,7 @@ class Trip extends Equatable {
         driverName: _driverField(json, 'name'),
         driverAvatarUrl: _driverField(json, 'avatarUrl'),
         driverVehicleLabel: _driverField(json, 'vehicleLabel'),
+        driverPlate: _driverField(json, 'plate'),
         myRating: (json['myRating'] as num?)?.toInt(),
         hasMyRatingField: json.containsKey('myRating'),
       );
@@ -275,6 +280,7 @@ class Trip extends Equatable {
         driverName,
         driverAvatarUrl,
         driverVehicleLabel,
+        driverPlate,
         myRating,
         _hasMyRating,
       ];

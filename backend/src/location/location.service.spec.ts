@@ -166,6 +166,19 @@ describe('LocationService metering gate', () => {
     expect(client.geoadd).toHaveBeenCalled(); // back in the matchable pool
   });
 
+  // A waiting ride search watches the tier's pool generation to rescan at once.
+  it('bumps the pool generation only when the driver is NEW to the pool', async () => {
+    const { svc, client } = build({ status: 'online', tripId: null });
+    const incr = jest.fn().mockResolvedValue(1);
+    (client as unknown as { incr: jest.Mock }).incr = incr;
+    await svc.ingest('d1', { lat: 25.76, lng: -80.19, accuracy: 5 });
+    expect(incr).toHaveBeenCalledTimes(1);
+    expect(String(incr.mock.calls[0][0])).toMatch(/^dispatch:poolgen:/);
+    client.geoadd.mockResolvedValueOnce(0); // already in the pool: position update only
+    await svc.ingest('d1', { lat: 25.7601, lng: -80.19, accuracy: 5 });
+    expect(incr).toHaveBeenCalledTimes(1);
+  });
+
   // The rider broadcast now carries the full fix + a live ETA for the leg.
   describe('trip:driver_location payload + ETA refresh', () => {
     const pickup = { lat: 25.77, lng: -80.19 };

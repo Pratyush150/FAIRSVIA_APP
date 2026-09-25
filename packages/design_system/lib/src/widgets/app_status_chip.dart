@@ -41,9 +41,16 @@ class AppStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     // Caution as text needs the deeper ochre / bright amber to reach 4.5:1;
     // the tint behind it keeps the brand ochre.
-    final c = tone == StatusTone.warning
-        ? AppColors.warningTextOf(context)
-        : _base;
+    // Neutral uses the secondary text token of the brightness: the tertiary
+    // grey on its own tint was ~4.2:1 in light and ~3.9:1 in dark.
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final c = switch (tone) {
+      StatusTone.warning => AppColors.warningTextOf(context),
+      StatusTone.neutral =>
+        dark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+      StatusTone.accent => AppColors.accentTextFor(dark),
+      _ => _base,
+    };
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,

@@ -10,10 +10,16 @@ enum LottieEnd {
   vanish,
 }
 
-/// A one-shot Lottie animation for a moment worth celebrating: confetti when
-/// a ride completes, banknotes for cash and earnings. Plays once, is hidden
-/// from screen readers (decoration), and is skipped entirely under Reduce
-/// Motion. Assets: assets/lottie/ (see CREDITS.md there).
+/// A Lottie animation for a moment in the ride: confetti when a ride
+/// completes, banknotes for cash and earnings, a radar while finding a
+/// driver, a pin when the driver arrives, a check when a payment or tip goes
+/// through, and quiet status art (no cars, location off, offline, SOS sent).
+/// Hidden from screen readers (decoration: the text beside it says it).
+///
+/// Reduce Motion: celebrations (confetti, money, loading) draw nothing; the
+/// status moments show one still frame ([stillAt]) instead, because there the
+/// picture carries meaning. Either way the box keeps its [size], so layouts do
+/// not jump. Assets: assets/lottie/ (see CREDITS.md there).
 ///
 /// A one-shot never rests on the animation's own last frame. The money file
 /// ends with its notes shrunk to nothing over a grey ground shadow, and that
@@ -24,20 +30,100 @@ class LottieMoment extends StatefulWidget {
   const LottieMoment.confetti({super.key, this.size = 220, this.repeat = false})
       : asset = 'confetti',
         holdAt = 1.0,
-        end = LottieEnd.vanish;
+        end = LottieEnd.vanish,
+        stillAt = null,
+        tint = null;
 
   /// Holds at frame ~60 of 121: all notes stacked (they land by frame 22
   /// and only start to fly off at 104).
   const LottieMoment.money({super.key, this.size = 48, this.repeat = false})
       : asset = 'money',
         holdAt = moneyHoldAt,
-        end = LottieEnd.hold;
+        end = LottieEnd.hold,
+        stillAt = null,
+        tint = null;
 
   /// Looping loader ("Sandy Loading") for waits like "Requesting your ride".
   const LottieMoment.loading({super.key, this.size = 56, this.repeat = true})
       : asset = 'loading',
         holdAt = 1.0,
-        end = LottieEnd.hold;
+        end = LottieEnd.hold,
+        stillAt = null,
+        tint = null;
+
+  /// Looping radar sweep around a pin: "Finding your driver".
+  const LottieMoment.searching(
+      {super.key, this.size = 96, this.repeat = true})
+      : asset = 'searching',
+        holdAt = 1.0,
+        end = LottieEnd.hold,
+        stillAt = 0.3,
+        tint = null;
+
+  /// A pin drops and lands with a ripple: the driver has arrived. Plays once
+  /// and holds on the landed pin.
+  const LottieMoment.arrived({super.key, this.size = 72, this.repeat = false})
+      : asset = 'arrived',
+        holdAt = 1.0,
+        end = LottieEnd.hold,
+        stillAt = 1.0,
+        tint = null;
+
+  /// A magnifier looking around: no cars nearby. Loops gently.
+  const LottieMoment.noCars({super.key, this.size = 96, this.repeat = true})
+      : asset = 'no_cars',
+        holdAt = 1.0,
+        end = LottieEnd.hold,
+        stillAt = 0.3,
+        tint = null;
+
+  /// A teal check with a small burst: payment or tip went through. Plays
+  /// once and holds on the check.
+  const LottieMoment.success({super.key, this.size = 64, this.repeat = false})
+      : asset = 'success',
+        holdAt = 1.0,
+        end = LottieEnd.hold,
+        stillAt = 1.0,
+        tint = null;
+
+  /// A star fills with a little sparkle: thanks for rating. Plays once and
+  /// holds on the gold star.
+  const LottieMoment.thanks({super.key, this.size = 48, this.repeat = false})
+      : asset = 'thanks',
+        holdAt = 1.0,
+        end = LottieEnd.hold,
+        stillAt = 1.0,
+        tint = null;
+
+  /// A finger flips a location toggle on and the pin rises: turn location
+  /// on. Loops; the still frame is the "on" state.
+  const LottieMoment.location({super.key, this.size = 96, this.repeat = true})
+      : asset = 'location',
+        holdAt = 1.0,
+        end = LottieEnd.hold,
+        stillAt = 1.0,
+        tint = null;
+
+  /// Wi-Fi bars that drop and cross out: offline. Loops; the still frame is
+  /// the crossed-out signal.
+  const LottieMoment.offline(
+      {super.key, this.size = 56, this.repeat = true, this.tint})
+      : asset = 'offline',
+        holdAt = 1.0,
+        end = LottieEnd.hold,
+        stillAt = offlineStillAt;
+
+  /// A shield draws itself and fills with a check: SOS sent, help is on the
+  /// way. Calm, not an alarm. Plays once and holds on the filled shield.
+  const LottieMoment.sos({super.key, this.size = 88, this.repeat = false})
+      : asset = 'sos',
+        holdAt = 1.0,
+        end = LottieEnd.hold,
+        stillAt = 1.0,
+        tint = null;
+
+  /// Progress of the offline loop where the signal is crossed out.
+  static const double offlineStillAt = 0.8;
 
   /// Progress (0..1) the money animation stops on.
   static const double moneyHoldAt = 0.5;
@@ -52,6 +138,13 @@ class LottieMoment extends StatefulWidget {
   /// Progress (0..1) a one-shot stops at.
   final double holdAt;
   final LottieEnd end;
+
+  /// The one frame (0..1) shown under Reduce Motion, or null to draw nothing.
+  final double? stillAt;
+
+  /// Paints every fill and stroke in one colour (e.g. the ink of a warning
+  /// banner the art sits on); null keeps the file's own palette.
+  final Color? tint;
 
   @override
   State<LottieMoment> createState() => _LottieMomentState();
@@ -79,6 +172,10 @@ class _LottieMomentState extends State<LottieMoment>
 
   void _start(LottieComposition comp) {
     _c.duration = comp.duration;
+    if (_still) {
+      _c.value = widget.stillAt!;
+      return;
+    }
     if (widget.repeat) {
       _c.repeat();
       return;
@@ -94,12 +191,18 @@ class _LottieMomentState extends State<LottieMoment>
     _c.animateTo(widget.holdAt);
   }
 
+  // Reduce Motion with a still frame to show. Read in build; onLoaded runs
+  // after it.
+  bool _still = false;
+
   @override
   Widget build(BuildContext context) {
     final size = widget.size;
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (reduce && widget.stillAt == null) {
       return SizedBox(width: size, height: size);
     }
+    _still = reduce;
     return ExcludeSemantics(
       child: IgnorePointer(
         child: AnimatedOpacity(
@@ -109,6 +212,13 @@ class _LottieMomentState extends State<LottieMoment>
             'packages/design_system/assets/lottie/${widget.asset}.json',
             controller: _c,
             onLoaded: _start,
+            delegates: widget.tint == null
+                ? null
+                : LottieDelegates(values: [
+                    ValueDelegate.color(const ['**'], value: widget.tint),
+                    ValueDelegate.strokeColor(const ['**'],
+                        value: widget.tint),
+                  ]),
             width: size,
             height: size,
             fit: BoxFit.contain,

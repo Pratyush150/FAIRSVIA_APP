@@ -120,6 +120,11 @@ describe('Trip history carries driver + myRating (e2e)', () => {
       .expect(200);
     const drow = asDriver.body.find((t: { id: string }) => t.id === trip.id);
     expect(drow.driver).toBeUndefined();
+    // …but it names who they drove, and never with a phone number.
+    if (drow.rider) {
+      expect(Object.keys(drow.rider)).toEqual(['name']);
+    }
+    expect(JSON.stringify(asDriver.body)).not.toContain(rider.phone);
     expect(drow.myRating).toBeNull();
   });
 });

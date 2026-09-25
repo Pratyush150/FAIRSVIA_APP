@@ -62,18 +62,40 @@ const RADIUS_STEP_KM = 2;
 // this window is treated as gone and evicted from the pool. Self-healing: a
 // driver that reconnects is re-added on their next ping.
 const PRESENCE_STALE_MS = Number(process.env.PRESENCE_STALE_MS ?? 45000);
-// When a full expanding-ring sweep finds no *available* driver (every nearby
-// driver is busy on another trip), don't give up immediately — under bursty
-// demand near capacity a driver frees up within seconds. Keep the trip in
-// MATCHING (rider still sees "finding driver") and re-sweep, up to a bounded
-// total window. Only after the window elapses do we declare no_drivers. This
-// turns momentary supply exhaustion from a hard failure into a short wait.
-// ~90s: a rider keeps "finding driver" this long, and — critically — a driver
-// who comes online within this window of a booking still gets offered the
-// waiting ride (each re-sweep re-reads the live pool, so a freshly-online driver
-// in the pickup's region is picked up on the next pass).
-const MATCH_WINDOW_MS = 90000;
-const RESWEEP_DELAY_MS = 2500;
+// The rider's search window. A booking is not failed the moment no driver is
+// free: the search keeps going — re-scanning the tier's live pool every few
+// seconds (and immediately when a driver of that tier comes online or frees
+// up), widening the radius as time passes, re-offering to anyone who appears —
+// until this window ends. Only then is the trip declared no_drivers. The
+// owner's rule: "the request should go on for some time; there must be a time
+// limit." Configurable (SEARCH_WINDOW_SEC, default 180 s), clamped so a stray
+// value can neither fail every booking instantly nor strand a rider for ever.
+const SEARCH_WINDOW_DEFAULT_S = 180;
+const SEARCH_WINDOW_MIN_S = 5;
+const SEARCH_WINDOW_MAX_S = 900;
+export function searchWindowMs(raw = process.env.SEARCH_WINDOW_SEC): number {
+  const s = Number(raw ?? SEARCH_WINDOW_DEFAULT_S);
+  if (!Number.isFinite(s) || s <= 0) return SEARCH_WINDOW_DEFAULT_S * 1000;
+  return Math.round(Math.min(SEARCH_WINDOW_MAX_S, Math.max(SEARCH_WINDOW_MIN_S, s)) * 1000);
+}
+// Longest pause between two scans of the pool while nobody is available. A
+// driver joining the pool near the pickup cuts it short (see waitForRescan).
+export function rescanMs(raw = process.env.SEARCH_RESCAN_SEC): number {
+  const s = Number(raw ?? 5);
+  if (!Number.isFinite(s) || s <= 0) return 5000;
+  return Math.round(Math.min(30, Math.max(1, s)) * 1000);
+}
+// How often the pool is checked for a newly-joined driver during that pause.
+const POOL_POLL_MS = 250;
+// The radius ceiling grows as the search goes on: every WIDEN_EVERY_MS the
+// sweep reaches RADIUS_STEP_KM further, up to SEARCH_MAX_RADIUS_KM (the same
+// 15 km the tier list uses to say whether a car is nearby at all).
+const WIDEN_EVERY_MS = 30_000;
+const SEARCH_MAX_RADIUS_KM = 15;
+export function radiusCeilingKm(elapsedMs: number): number {
+  const steps = Math.max(0, Math.floor(elapsedMs / WIDEN_EVERY_MS));
+  return Math.min(SEARCH_MAX_RADIUS_KM, MAX_RADIUS_KM + steps * RADIUS_STEP_KM);
+}
 // Cap how many of the closest candidates get a road-ETA refinement, to bound the
 // routing calls added to the hot matching path.
 const ETA_RANK_LIMIT = 5;
@@ -81,7 +103,7 @@ const ETA_RANK_LIMIT = 5;
 // a candidate — straight-line distance at ~city pace. Only ever a rough hint.
 const FALLBACK_APPROACH_MPS = 8;
 // How long the per-trip "declined" set lives: longer than any matching window.
-const DECLINED_TTL_S = 600;
+const DECLINED_TTL_S = SEARCH_WINDOW_MAX_S + 300;
 
 /** Approach routes computed while ranking, reused for the offer card. */
 type ApproachCache = Map<string, RouteResult | undefined>;
@@ -198,7 +220,8 @@ export class DispatchService {
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) return;
 
-    if (trip.status === TripStatus.requested) {
+    const fresh = trip.status === TripStatus.requested;
+    if (fresh) {
       try {
         await this.stateMachine.transition({
           tripId,
@@ -209,9 +232,23 @@ export class DispatchService {
       } catch {
         return; // cancelled before matching started
       }
-      this.realtime.emitToUser(trip.riderId, 'trip:matching', { tripId });
     } else if (trip.status !== TripStatus.matching) {
       return; // already assigned, cancelled, or terminal
+    }
+
+    // The window is anchored in Redis on the search's first run, so a job
+    // re-run after a crash/restart continues the SAME window instead of
+    // granting the rider a fresh 3 minutes (the stuck-trip sweeper is the
+    // backstop if even Redis loses it).
+    const windowMs = searchWindowMs();
+    const deadline = await this.searchDeadline(tripId, windowMs);
+    const startedAt = deadline - windowMs;
+    if (fresh) {
+      this.realtime.emitToUser(trip.riderId, 'trip:matching', {
+        tripId,
+        searchWindowSec: Math.round(windowMs / 1000),
+        searchEndsAt: new Date(deadline).toISOString(),
+      });
     }
 
     // The rider's favourite drivers jump the queue when they're nearby.
@@ -236,25 +273,89 @@ export class DispatchService {
       rating: Number(rider?.ratingAvg ?? 5),
     };
 
-    // Re-sweep until a driver is assigned or the matching window elapses. Each
-    // sweep re-reads the live GEO set, so drivers that were busy last pass are
-    // reconsidered as they free up.
-    const deadline = Date.now() + MATCH_WINDOW_MS;
+    // Re-sweep until a driver is assigned or the search window elapses. Each
+    // sweep re-reads the live GEO set, so drivers that were busy (or offline)
+    // last pass are reconsidered as they free up / come online, and the
+    // radius ceiling widens with time.
     for (;;) {
-      const outcome = await this.sweep(trip, favorites, riderInfo, deadline);
-      if (outcome !== 'exhausted') return; // 'assigned' or 'cancelled'
+      const outcome = await this.sweep(
+        trip,
+        favorites,
+        riderInfo,
+        deadline,
+        radiusCeilingKm(Date.now() - startedAt),
+      );
+      if (outcome !== 'exhausted') {
+        await this.clearSearchDeadline(tripId);
+        return; // 'assigned' or 'cancelled'
+      }
       if (Date.now() >= deadline) break;
-      await this.sleep(RESWEEP_DELAY_MS);
+      await this.waitForRescan(trip.tier, deadline);
       // Bail out if the trip left MATCHING (cancelled) during the wait.
       const cur = await this.prisma.trip.findUnique({
         where: { id: tripId },
         select: { status: true },
       });
-      if (cur?.status !== TripStatus.matching) return;
+      if (cur?.status !== TripStatus.matching) {
+        await this.clearSearchDeadline(tripId);
+        return;
+      }
+      if (Date.now() >= deadline) break;
     }
 
     // Window elapsed with no available driver.
     await this.declareNoDrivers(trip);
+    await this.clearSearchDeadline(tripId);
+  }
+
+  /**
+   * When this trip's search ends, as epoch ms. Set once (NX) on the first run
+   * and read back on any re-run. Fail-open: without Redis the window simply
+   * starts now.
+   */
+  private async searchDeadline(tripId: string, windowMs: number): Promise<number> {
+    const fallback = Date.now() + windowMs;
+    try {
+      const key = RedisKeys.dispatchDeadline(tripId);
+      await this.redis.client.set(key, String(fallback), 'PX', windowMs + 600_000, 'NX');
+      const stored = Number(await this.redis.client.get(key));
+      return Number.isFinite(stored) && stored > 0 ? stored : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private async clearSearchDeadline(tripId: string): Promise<void> {
+    try {
+      await this.redis.client.del(RedisKeys.dispatchDeadline(tripId));
+    } catch {
+      /* TTL'd anyway */
+    }
+  }
+
+  /**
+   * Pause before the next scan: up to rescanMs(), but return at once when a
+   * driver joins [tier]'s pool (the pool generation counter moves — bumped by
+   * LocationService / trip completion when a driver is (re)added), so a driver
+   * who comes online near a waiting rider is offered the ride within a
+   * fraction of a second rather than on the next tick. Never past [deadline].
+   */
+  private async waitForRescan(tier: string, deadline: number): Promise<void> {
+    const until = Math.min(deadline, Date.now() + rescanMs());
+    let start: string | null;
+    try {
+      start = await this.redis.client.get(RedisKeys.dispatchPoolGen(tier));
+    } catch {
+      await this.sleep(Math.max(0, until - Date.now()));
+      return;
+    }
+    while (Date.now() < until) {
+      await this.sleep(Math.min(POOL_POLL_MS, Math.max(0, until - Date.now())));
+      const now = await this.redis.client
+        .get(RedisKeys.dispatchPoolGen(tier))
+        .catch(() => start);
+      if (now !== start) return;
+    }
   }
 
   /**
@@ -305,6 +406,7 @@ export class DispatchService {
     favorites: Set<string>,
     riderInfo: RiderInfo,
     deadline: number,
+    maxRadiusKm: number = MAX_RADIUS_KM,
   ): Promise<'assigned' | 'cancelled' | 'exhausted'> {
     const tried = new Set<string>();
     // A driver who explicitly declined this trip is never re-offered it — on
@@ -314,7 +416,7 @@ export class DispatchService {
     const approach: ApproachCache = new Map();
     for (
       let radiusKm = START_RADIUS_KM;
-      radiusKm <= MAX_RADIUS_KM;
+      radiusKm <= maxRadiusKm;
       radiusKm += RADIUS_STEP_KM
     ) {
       let candidates = this.favoritesFirst(

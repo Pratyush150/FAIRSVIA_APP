@@ -854,7 +854,11 @@ class _BottomSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                const AppIconBadge(icon: PhosphorIconsRegular.broadcast),
+                // A radar sweeping round the driver's pin while requests are
+                // looked for (the same art as the rider's "Finding your
+                // driver"). Fixed 48px box; a still frame under Reduce
+                // Motion. It replaces the badge + spinner pair.
+                const LottieMoment.searching(size: 48),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
@@ -871,11 +875,6 @@ class _BottomSheet extends StatelessWidget {
                           style: theme.textTheme.bodyMedium),
                     ],
                   ),
-                ),
-                const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.4),
                 ),
               ],
             ),

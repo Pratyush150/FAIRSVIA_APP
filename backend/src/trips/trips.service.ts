@@ -1348,7 +1348,9 @@ export class TripsService {
         return;
       }
       if (!Number.isFinite(ts) || Date.now() - ts > PRESENCE_STALE_MS) return;
-      await this.redis.client.geoadd(RedisKeys.driversGeo(tier), lng, lat, driverId);
+      const added = await this.redis.client.geoadd(RedisKeys.driversGeo(tier), lng, lat, driverId);
+      // Wake any ride search of this tier waiting for a free driver.
+      if (Number(added) > 0) await this.redis.client.incr(RedisKeys.dispatchPoolGen(tier));
     } catch (e) {
       this.logger.warn(`could not return driver ${driverId} to the pool: ${String(e)}`);
     }
@@ -1377,8 +1379,9 @@ export class TripsService {
    * The caller's last 50 trips, newest first. Each row carries `myRating`
    * (the caller's own stars for that trip, null if unrated) and — on the
    * rider's rows only — a `driver` block with name, photo and vehicle so the
-   * app can say "Rate your ride with Aziz" without another lookup. History
-   * never carries a phone number. One query: the driver and the caller's
+   * app can say "Rate your ride with Aziz" without another lookup; the
+   * driver's rows carry `rider.name` (first name only). History never
+   * carries a phone number. One query: the driver and the caller's
    * rating are joined in, not fetched per trip.
    */
   async history(userId: string) {
@@ -1401,15 +1404,22 @@ export class TripsService {
             },
           },
         },
+        // The driver's own rows name who they drove — the first name only,
+        // never a phone number.
+        rider: { select: { fullName: true } },
         ratings: { where: { fromUser: userId }, select: { stars: true } },
       },
     });
     return trips.map((t) => {
-      const { driver, ratings, ...trip } = t;
+      const { driver, rider, ratings, ...trip } = t;
+      const riderFirst = rider?.fullName?.trim().split(/\s+/)[0];
       return {
         ...this.serialize(trip, userId),
         ...(t.riderId === userId && driver
           ? { driver: TripsService.historyDriver(driver) }
+          : {}),
+        ...(t.driverId === userId && t.riderId !== userId && riderFirst
+          ? { rider: { name: riderFirst } }
           : {}),
         myRating: ratings[0]?.stars ?? null,
       };

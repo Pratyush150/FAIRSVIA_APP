@@ -488,6 +488,13 @@ model PromoCode {
   active       Boolean   @default(true)
   expiresAt    DateTime? @map("expires_at") @db.Timestamptz(6)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Shown to riders on the Offers page (GET /promos/available). Unlisted
+  /// codes still work when typed — they are just not advertised.
+  listed       Boolean   @default(false)
+  /// Rider-facing headline, e.g. "Welcome offer".
+  title        String?   @db.VarChar(60)
+  /// Rider-facing conditions / blurb.
+  description  String?   @db.VarChar(200)
 
   redemptions PromoRedemption[]
 

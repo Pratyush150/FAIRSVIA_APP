@@ -26,7 +26,7 @@ class AppSheet extends StatelessWidget {
     this.maxHeightFraction,
     this.onHandleTap,
     this.handleLabel,
-    this.onHandleDrag,
+    this.height,
     this.chromeless = false,
     this.minHeightFraction,
     this.fullScreen = false,
@@ -44,14 +44,19 @@ class AppSheet extends StatelessWidget {
   /// bottom. Used for the ride-complete page.
   final bool fullScreen;
 
-  /// Plan F (`THEME=glass`) only — ignored by every other build.
-  ///
-  /// Makes the grab handle a control: tapping it (and a vertical fling on it,
-  /// reported to [onHandleDrag] as the fling velocity, negative = up) toggles
-  /// a compact/expanded sheet. [handleLabel] is what a screen reader says.
+  /// Makes the grab handle a control: a 48-tall button (the touch floor)
+  /// that the owner uses to expand / collapse a draggable sheet.
+  /// [handleLabel] is what a screen reader says ("Expand" / "Collapse").
+  /// Dragging is the owner's job (it wraps the sheet in its own vertical
+  /// drag and drives [height]); the handle only takes the tap.
   final VoidCallback? onHandleTap;
   final String? handleLabel;
-  final ValueChanged<double>? onHandleDrag;
+
+  /// An exact height in logical pixels, overriding [minHeightFraction] and
+  /// [maxHeightFraction] (still kept below the status bar): set by a
+  /// draggable sheet while it is dragged or snapping between its sizes.
+  /// Null: the sheet sizes itself from the fractions and its content.
+  final double? height;
 
   /// Plan F only: draw no panel at all — the content (e.g. the floating
   /// "Where to?" pill) floats over the map by itself. Animates: the glass
@@ -94,6 +99,8 @@ class AppSheet extends StatelessWidget {
         handle: handle && !fullScreen,
         footer: footer,
         square: fullScreen,
+        onHandleTap: onHandleTap,
+        handleLabel: handleLabel,
         child: child,
       ),
     );
@@ -104,6 +111,12 @@ class AppSheet extends StatelessWidget {
   /// page) grows into it from wherever it was; under Reduce Motion it snaps.
   Widget _sized(BuildContext context, MediaQueryData media, Widget body) {
     final range = _heightConstraints(media);
+    final exact = height;
+    if (exact != null && !fullScreen) {
+      final cap = media.size.height - media.padding.top - AppSpacing.md;
+      final h = exact.clamp(0.0, cap < 0 ? 0.0 : cap);
+      return SizedBox(height: h, child: body);
+    }
     return TweenAnimationBuilder<double>(
       tween: Tween(end: range.minHeight),
       duration: AppMotion.of(context, AppMotion.slower),
@@ -321,7 +334,7 @@ class _FadeWhenMoreState extends State<_FadeWhenMore> {
 
 /// The glass sheet's grab handle. Plain decoration unless the sheet gave it
 /// a job ([AppSheet.onHandleTap]); then it is a 48-tall button (the touch
-/// floor) that also takes a vertical fling.
+/// floor). Drags are the sheet owner's (see [AppSheet.height]).
 class _GlassHandle extends StatelessWidget {
   const _GlassHandle({required this.sheet});
 
@@ -348,6 +361,7 @@ class _GlassHandle extends StatelessWidget {
       );
     }
     return Semantics(
+      container: true,
       button: true,
       label: sheet.handleLabel,
       onTap: tap,
@@ -356,9 +370,6 @@ class _GlassHandle extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         excludeFromSemantics: true,
         onTap: tap,
-        onVerticalDragEnd: sheet.onHandleDrag == null
-            ? null
-            : (d) => sheet.onHandleDrag!(d.primaryVelocity ?? 0),
         // 48 tall: Android's touch floor (iOS asks 44).
         child: SizedBox(height: 48, child: bar),
       ),
@@ -374,14 +385,52 @@ class _SheetBody extends StatelessWidget {
     required this.footer,
     required this.child,
     this.square = false,
+    this.onHandleTap,
+    this.handleLabel,
   });
 
   final bool square;
+  final VoidCallback? onHandleTap;
+  final String? handleLabel;
   final bool isDark;
   final EdgeInsets padding;
   final bool handle;
   final Widget? footer;
   final Widget child;
+
+  Widget _classicHandle() {
+    final bar = Center(
+      child: Container(
+        width: 40,
+        height: 4,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.borderDark : AppColors.borderLight,
+          borderRadius: BorderRadius.circular(AppSpacing.pill),
+        ),
+      ),
+    );
+    final tap = onHandleTap;
+    if (tap == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+        child: bar,
+      );
+    }
+    // A control: a 48-tall button (the touch floor) around the bar.
+    return Semantics(
+      container: true,
+      button: true,
+      label: handleLabel,
+      onTap: tap,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTap: tap,
+        child: SizedBox(height: 48, child: bar),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -404,21 +453,7 @@ class _SheetBody extends StatelessWidget {
         child: Padding(
           padding: padding,
           child: _sheetColumn(
-            handle: handle
-                ? Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.borderDark
-                            : AppColors.borderLight,
-                        borderRadius: BorderRadius.circular(AppSpacing.pill),
-                      ),
-                    ),
-                  )
-                : null,
+            handle: handle ? _classicHandle() : null,
             // Scroll the content when it can't fit the available height —
             // notably when the soft keyboard opens over a field in the sheet
             // (promo code, custom tip). Flexible + shrink-wrapping scroll view

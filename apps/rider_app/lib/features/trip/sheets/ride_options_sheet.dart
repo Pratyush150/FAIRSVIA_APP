@@ -46,9 +46,26 @@ class _RideOptions extends StatelessWidget {
               ),
             ),
           ),
-        // Surfaced when a request comes back with no drivers (or a create error);
-        // the ride is kept so the rider can just re-tap Confirm.
-        if (state.error != null)
+        // The search ran its whole window and found no driver: the
+        // empty-state art and what to do next (try again, or book for later)
+        // instead of a bare warning line.
+        if (_noCarsNearby(state))
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: _NoCarsNotice(
+              message: state.error ?? 'No cars nearby right now.',
+              onTryAgain: state.selectedTier == null
+                  ? null
+                  : () => cubit.confirmRide(),
+              onSchedule: () async {
+                final when = await pickRideTime(context);
+                if (when != null) cubit.setScheduledAt(when);
+              },
+            ),
+          )
+        // Surfaced when a request comes back with a create error; the ride is
+        // kept so the rider can just re-tap Confirm.
+        else if (state.error != null)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.sm),
             child: Row(
@@ -88,15 +105,13 @@ class _RideOptions extends StatelessWidget {
                 noDrivers: _noDriversFor(state, tier.tier),
                 tripDurationS: estimate.durationS,
                 selected: tier.tier == state.selectedTier,
-                // No car of this type nearby: shown, dimmed, not pickable —
-                // unless the ride is booked for later, when "nearby now"
-                // doesn't matter.
-                onTap: tier.available || state.scheduledAt != null
-                    ? () {
-                        AppHaptics.selection();
-                        cubit.selectTier(tier.tier);
-                      }
-                    : null,
+                // Every ride type is bright and pickable. One with no car
+                // nearby says so on its row — booking it starts a search that
+                // keeps looking for a while (the server's search window).
+                onTap: () {
+                  AppHaptics.selection();
+                  cubit.selectTier(tier.tier);
+                },
               ).motion(
                 (w) => w
                     .animate()
@@ -388,13 +403,103 @@ bool _noDriversFor(TripState state, String tier) =>
     state.error == TripCubit.noDriversNearby &&
     (state.trip?.tier ?? state.selectedTier) == tier;
 
+/// Whether the options should show the no-cars empty state: the last
+/// request's search ran out without a driver. A ride type merely having no
+/// car nearby yet is not that — it can still be booked (the search keeps
+/// looking for a while), and its row says so.
+bool _noCarsNearby(TripState state) =>
+    state.error == TripCubit.noDriversNearby && state.scheduledAt == null;
+
+/// The no-cars empty state: a magnifier looking around (fixed 64px box; a
+/// still frame under Reduce Motion) beside what happened and what to do.
+class _NoCarsNotice extends StatelessWidget {
+  const _NoCarsNotice({
+    required this.message,
+    this.onTryAgain,
+    this.onSchedule,
+  });
+  final String message;
+
+  /// Search again for the same ride; null hides the button.
+  final VoidCallback? onTryAgain;
+
+  /// Open the ride-time picker; null hides the button.
+  final VoidCallback? onSchedule;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final notice = Row(
+      children: [
+        const LottieMoment.noCars(size: 64),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                message,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.warningTextOf(context),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Try again in a minute, or schedule the ride for later.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    if (onTryAgain == null && onSchedule == null) return notice;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        notice,
+        const SizedBox(height: AppSpacing.xs),
+        Wrap(
+          spacing: AppSpacing.sm,
+          children: [
+            if (onTryAgain != null)
+              TextButton.icon(
+                onPressed: onTryAgain,
+                icon: const Icon(PhosphorIconsRegular.arrowClockwise, size: 18),
+                label: const Text('Try again'),
+              ),
+            if (onSchedule != null)
+              TextButton.icon(
+                onPressed: onSchedule,
+                icon: const Icon(PhosphorIconsRegular.clock, size: 18),
+                label: const Text('Schedule for later'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A tier row's line when it has no pickup ETA to promise. Honest, not a
+/// dead end: the ride can still be booked and the search keeps looking for a
+/// while. After a search for it already ran out ([noDrivers]) it says that.
+String _noneNearbyLine(String tier, bool noDrivers) {
+  final what = switch (tier) {
+    'auto' => 'autos',
+    'bike' => 'bikes',
+    _ => 'cars',
+  };
+  return noDrivers
+      ? 'No $what found — try again'
+      : 'No $what nearby now — we\'ll keep looking';
+}
+
 String _confirmLabel(TripState state) {
   final fare = state.selectedFare;
-  if (fare == null) {
-    return state.scheduledAt == null
-        ? 'No cars nearby right now'
-        : 'Choose a ride';
-  }
+  if (fare == null) return 'Choose a ride';
   final net = state.discountedFare ?? fare.fare;
   final amount = (state.appliedPromo != null && net != fare.fare)
       ? net
@@ -858,8 +963,24 @@ class _PromoFieldState extends State<_PromoField> {
   final _controller = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _prefillOffer();
+  }
+
+  /// A code picked on the Offers page shows in the field — so if the server
+  /// turned it down for this fare, the rider sees which code and why.
+  void _prefillOffer() {
+    final offer = widget.state.offerPromo;
+    if (offer != null && _controller.text.isEmpty) {
+      _controller.text = offer.code;
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant _PromoField old) {
     super.didUpdateWidget(old);
+    _prefillOffer();
     // The field sits low in the scrolling sheet; an error or the "applied"
     // chip appearing below the fold went unseen. Bring it into view.
     final changed =
@@ -997,7 +1118,8 @@ class _RideTierTile extends StatelessWidget {
   final int tripDurationS;
   final bool selected;
 
-  /// Null when this ride type has no car nearby.
+  /// Selects this ride type. Every type is pickable, with or without a car
+  /// nearby (null only disables the row).
   final VoidCallback? onTap;
 
   @override
@@ -1009,9 +1131,8 @@ class _RideTierTile extends StatelessWidget {
       selected: selected,
       button: true,
       enabled: onTap != null,
-      child: Opacity(
-        opacity: onTap == null ? 0.4 : 1,
-        child: Padding(
+      // Never dimmed: a ride type with no car nearby can still be booked.
+      child: Padding(
           padding: EdgeInsets.only(bottom: InkPaper.on ? 0 : 4),
           child: Material(
             color: Colors.transparent,
@@ -1108,11 +1229,7 @@ class _RideTierTile extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             eta == null
-                                ? switch (tier.tier) {
-                                    'auto' => 'No autos nearby',
-                                    'bike' => 'No bikes nearby',
-                                    _ => 'No cars nearby',
-                                  }
+                                ? _noneNearbyLine(tier.tier, noDrivers)
                                 // When the car comes, and when the rider gets
                                 // there: the two numbers people compare tiers on.
                                 : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
@@ -1160,7 +1277,6 @@ class _RideTierTile extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 
@@ -1177,9 +1293,8 @@ class _RideTierTile extends StatelessWidget {
       selected: selected,
       button: true,
       enabled: onTap != null,
-      child: Opacity(
-        opacity: onTap == null ? 0.45 : 1,
-        child: Padding(
+      // Never dimmed: a ride type with no car nearby can still be booked.
+      child: Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: Material(
             color: selected
@@ -1262,11 +1377,7 @@ class _RideTierTile extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             eta == null
-                                ? switch (tier.tier) {
-                                    'auto' => 'No autos nearby',
-                                    'bike' => 'No bikes nearby',
-                                    _ => 'No cars nearby',
-                                  }
+                                ? _noneNearbyLine(tier.tier, noDrivers)
                                 : 'Pickup in ${_minutes(eta)} min · Drop ${_arrivalClock(eta + tripDurationS)}',
                             style: theme.textTheme.bodySmall,
                           ),
@@ -1303,7 +1414,6 @@ class _RideTierTile extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 

@@ -77,6 +77,21 @@ class RideStatus {
   /// taking a while (audit 3.8).
   static const Duration stillLookingAfter = Duration(seconds: 45);
 
+  /// How long the server keeps searching for a driver before it gives up
+  /// (its SEARCH_WINDOW_SEC default). Only a fallback: the `trip:matching`
+  /// event carries the server's real deadline ([TripState.searchEndsAt]).
+  static const Duration searchWindow = Duration(seconds: 180);
+
+  /// The finding sheet's time line: "Still looking… up to 3 min", then
+  /// seconds in the last minute. The search is bounded, and the rider should
+  /// see that rather than an open-ended spinner.
+  static String searchTimeLeft(Duration left) {
+    final s = left.inSeconds;
+    if (s <= 0) return 'Finishing the search…';
+    if (s > 60) return 'Still looking… up to ${(s / 60).ceil()} min';
+    return 'Still looking… up to $s s';
+  }
+
   /// Road left on the trip leg, or null when no live number is known. Only
   /// during the trip itself: while the driver is on the way the live figure
   /// is the approach leg, not the rider's journey.

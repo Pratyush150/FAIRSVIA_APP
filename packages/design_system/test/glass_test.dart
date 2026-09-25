@@ -165,11 +165,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // Every build: a handle with a job is a button (draggable sheets).
     final handle = find.bySemanticsLabel('Show more');
-    if (!AppGlass.enabled) {
-      expect(handle, findsNothing); // other builds keep the plain handle
-      return;
-    }
     await tester.tap(handle);
     expect(taps, 1);
   });

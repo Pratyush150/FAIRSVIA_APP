@@ -252,6 +252,62 @@ class AppMap extends StatefulWidget {
     return d;
   }
 
+  /// How long a freshly measured [pulseCorrection] takes to ease in.
+  static const Duration correctionEase = Duration(milliseconds: 150);
+
+  /// The longest a ring centre is carried forward by the drag velocity: one
+  /// display frame. Only while camera callbacks are still arriving
+  /// ([extrapolateStaleUs]) and from a believable pair ([extrapolateGapUs]).
+  static const int extrapolateMaxUs = 16667;
+  static const int extrapolateStaleUs = 50000;
+  static const int extrapolateGapUs = 100000;
+
+  /// Where the pickup rings are drawn this frame, in logical pixels.
+  ///
+  /// Projected synchronously from the camera the map last reported (pure Web
+  /// Mercator, zoom included) plus the slowly-measured [correction]. When
+  /// callbacks arrive slower than the display on a fast drag, the point is
+  /// carried forward by the velocity between the last two callbacks for at
+  /// most one frame, so the rings keep pace with the map instead of
+  /// stepping behind it.
+  @visibleForTesting
+  static Offset ringCentre({
+    required LatLng at,
+    required LatLng target,
+    required double zoom,
+    LatLng? prevTarget,
+    double? prevZoom,
+    int lastUs = 0,
+    int prevUs = 0,
+    int nowUs = 0,
+    required Size size,
+    required EdgeInsets padding,
+    Offset correction = Offset.zero,
+    bool extrapolate = true,
+  }) {
+    final c = screenPoint(at, target, zoom, size, padding) + correction;
+    if (!extrapolate || prevTarget == null || prevZoom == null) return c;
+    final gap = lastUs - prevUs;
+    final since = nowUs - lastUs;
+    if (gap <= 0 || gap > extrapolateGapUs) return c;
+    if (since <= 0 || since >= extrapolateStaleUs) return c;
+    final before =
+        screenPoint(at, prevTarget, prevZoom, size, padding) + correction;
+    final ahead = math.min(since, extrapolateMaxUs);
+    return c + (c - before) * (ahead / gap);
+  }
+
+  /// Inner and outer ring radius in logical pixels: [pulseMinM]..[pulseMaxM]
+  /// on the ground at [zoom], kept readable on screen whatever the zoom —
+  /// never a speck, never a disc swallowing the map.
+  @visibleForTesting
+  static (double, double) ringRadii(double lat, double zoom) {
+    final ppm = pixelsPerMetre(lat, zoom);
+    final maxR = (pulseMaxM * ppm).clamp(56.0, 150.0);
+    final minR = (pulseMinM * ppm).clamp(8.0, maxR * 0.3);
+    return (minR, maxR);
+  }
+
   /// Pixels of breathing room around a fitted bounds, wide enough that the
   /// car and the plate tag hanging under it are never clipped by the screen
   /// edge when the car is at a corner of the box (audit 2026-09-25 #6, the
@@ -645,7 +701,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     _pulseTimer?.cancel();
     _camera.dispose();
     _pulseCorrection.dispose();
-    _radarVisibility.dispose();
+    _cameraTrack.dispose();
     _driverAnim.dispose();
     super.dispose();
   }
@@ -663,7 +719,10 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   // after the padding or the pickup changes.
   final ValueNotifier<Offset> _pulseCorrection = ValueNotifier(Offset.zero);
   Size? _mapSize;
-  final RadarVisibility _radarVisibility = RadarVisibility();
+  // Every camera position the map reports, with its arrival time, so the
+  // rings can be projected from the latest one and carried forward by the
+  // drag velocity when callbacks arrive slower than the display.
+  late final CameraTrack _cameraTrack = CameraTrack(_camera.value);
 
   Future<void> _measurePulse() async {
     final at = widget.pulseAt;
@@ -1637,10 +1696,6 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         widget.onMapReady?.call();
       },
       onCameraMoveStarted: () {
-        // The overlay follows the camera a frame or more late on a fast drag
-        // (the positions arrive over the platform channel), so the rings
-        // leave the map while it moves and come back when it settles.
-        _radarVisibility.cameraMoving();
         // Don't decide yet: a pinch and a drag both land here. Remember where
         // the centre was and classify once the gesture settles.
         if (!_isProgrammatic && widget.cameraMode != MapCameraMode.fit) {
@@ -1655,8 +1710,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         _lastCameraTarget = pos.target;
         _lastCameraZoom = pos.zoom;
         _camera.value = pos;
-        // Covers a move whose start the platform did not report.
-        _radarVisibility.cameraMoving();
+        // The rings are re-projected from this, synchronously, every time.
+        _cameraTrack.add(pos, DateTime.now().microsecondsSinceEpoch);
       },
       onCameraIdle: () {
         final start = _gestureStartTarget;
@@ -1679,12 +1734,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           if (AppMap.isUserGesture(moved, zoomed)) _setFollowing(false);
         }
         _programmaticUntil = null;
-        // Back in only once the pickup has been re-measured at the settled
-        // camera, so the rings reappear on the pin, not where they were.
-        final idleAt = _radarVisibility.idleSeq;
-        _measurePulse().whenComplete(() {
-          if (mounted) _radarVisibility.cameraIdle(idleAt);
-        });
+        // The slow correction: re-measured only once the camera settles.
+        _measurePulse();
         final t = _lastCameraTarget;
         if (t != null && widget.onCenterChanged != null) {
           widget.onCenterChanged!(LatLng(t.latitude, t.longitude));
@@ -1706,9 +1757,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           IgnorePointer(
             child: _PickupPulse(
               at: pulseAt,
-              camera: _camera,
+              camera: _cameraTrack,
               correction: _pulseCorrection,
-              visibility: _radarVisibility,
               padding: widget.boundsPadding,
               still: reduceMotion,
             ),
@@ -1719,32 +1769,24 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   }
 }
 
-/// Whether the pickup radar may be on screen: hidden the moment the camera
-/// starts moving (a drag, a pinch or our own animation), shown again once it
-/// is idle and the pickup has been re-measured. A Flutter overlay trails an
-/// async platform camera on a fast drag, and rings sliding behind the map
-/// read as a glitch (owner, 2026-09-25); rings that step aside and return on
-/// the pin do not.
-class RadarVisibility extends ValueNotifier<bool> {
-  RadarVisibility() : super(true);
+/// The camera positions the map has reported (the latest two, with their
+/// arrival times in microseconds). The pickup rings are projected from these
+/// with pure Web Mercator math on every callback — no platform call per
+/// frame — so they stay glued to the pickup through a drag or a pinch.
+class CameraTrack extends ChangeNotifier {
+  CameraTrack(gmaps.CameraPosition initial) : last = initial;
 
-  static const Duration fadeOut = Duration(milliseconds: 120);
-  static const Duration fadeIn = Duration(milliseconds: 300);
+  gmaps.CameraPosition last;
+  gmaps.CameraPosition? prev;
+  int lastUs = 0;
+  int prevUs = 0;
 
-  int _moves = 0;
-
-  /// Token for [cameraIdle]: a re-measure that finishes after a newer move
-  /// has started must not bring the rings back mid-drag.
-  int get idleSeq => _moves;
-
-  void cameraMoving() {
-    _moves++;
-    value = false;
-  }
-
-  void cameraIdle([int? seq]) {
-    if (seq != null && seq != _moves) return;
-    value = true;
+  void add(gmaps.CameraPosition pos, int nowUs) {
+    prev = last;
+    prevUs = lastUs;
+    last = pos;
+    lastUs = nowUs;
+    notifyListeners();
   }
 }
 
@@ -1758,15 +1800,12 @@ class _PickupPulse extends StatefulWidget {
     required this.at,
     required this.camera,
     required this.correction,
-    required this.visibility,
     required this.padding,
     required this.still,
   });
 
-  final ValueListenable<bool> visibility;
-
   final LatLng at;
-  final ValueListenable<gmaps.CameraPosition> camera;
+  final CameraTrack camera;
   final ValueListenable<Offset> correction;
   final EdgeInsets padding;
   final bool still;
@@ -1776,20 +1815,46 @@ class _PickupPulse extends StatefulWidget {
 }
 
 class _PickupPulseState extends State<_PickupPulse>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _c =
       AnimationController(vsync: this, duration: CalmPulse.period);
+
+  // The measured correction, eased in over [AppMap.correctionEase] so a
+  // fresh measurement never makes the rings jump.
+  late final AnimationController _ease =
+      AnimationController(vsync: this, duration: AppMap.correctionEase);
+  final ValueNotifier<Offset> _shownFix = ValueNotifier(Offset.zero);
+  Offset _fixFrom = Offset.zero;
 
   @override
   void initState() {
     super.initState();
     _sync();
+    _shownFix.value = widget.correction.value;
+    widget.correction.addListener(_onCorrection);
+    _ease.addListener(() {
+      _shownFix.value = Offset.lerp(_fixFrom, widget.correction.value,
+          Curves.easeOut.transform(_ease.value))!;
+    });
+  }
+
+  void _onCorrection() {
+    if (widget.still) {
+      _shownFix.value = widget.correction.value;
+      return;
+    }
+    _fixFrom = _shownFix.value;
+    _ease.forward(from: 0);
   }
 
   @override
   void didUpdateWidget(_PickupPulse old) {
     super.didUpdateWidget(old);
     if (old.still != widget.still) _sync();
+    if (old.correction != widget.correction) {
+      old.correction.removeListener(_onCorrection);
+      widget.correction.addListener(_onCorrection);
+    }
   }
 
   void _sync() {
@@ -1806,35 +1871,29 @@ class _PickupPulseState extends State<_PickupPulse>
 
   @override
   void dispose() {
+    widget.correction.removeListener(_onCorrection);
     _c.dispose();
+    _ease.dispose();
+    _shownFix.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: widget.visibility,
-      builder: (context, shown, child) => AnimatedOpacity(
-        opacity: shown ? 1 : 0,
-        // Reduce Motion: no fade, the rings simply step out and back.
-        duration: widget.still
-            ? Duration.zero
-            : (shown ? RadarVisibility.fadeIn : RadarVisibility.fadeOut),
-        curve: Curves.easeOut,
-        child: child,
-      ),
-      child: RepaintBoundary(
+    // Always drawn, through drags and pinches alike: the rings stay on the
+    // pickup rather than stepping aside while the map moves.
+    return RepaintBoundary(
       child: CustomPaint(
         size: Size.infinite,
         painter: _PickupPulsePainter(
           at: widget.at,
           camera: widget.camera,
-          correction: widget.correction,
+          correction: _shownFix,
           progress: _c,
           padding: widget.padding,
           color: AppColors.highlight,
+          extrapolate: !widget.still,
         ),
-      ),
       ),
     );
   }
@@ -1848,26 +1907,38 @@ class _PickupPulsePainter extends CustomPainter {
     required this.progress,
     required this.padding,
     required this.color,
+    required this.extrapolate,
   }) : super(repaint: Listenable.merge([camera, correction, progress]));
 
   final LatLng at;
-  final ValueListenable<gmaps.CameraPosition> camera;
+  final CameraTrack camera;
   final ValueListenable<Offset> correction;
   final Animation<double> progress;
   final EdgeInsets padding;
   final Color color;
+  final bool extrapolate;
+
+  static LatLng _ll(gmaps.LatLng p) => LatLng(p.latitude, p.longitude);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cam = camera.value;
-    final target = LatLng(cam.target.latitude, cam.target.longitude);
-    final centre = AppMap.screenPoint(at, target, cam.zoom, size, padding) +
-        correction.value;
-    final ppm = AppMap.pixelsPerMetre(at.latitude, cam.zoom);
-    // Metres on the ground, but kept to a readable size on screen whatever
-    // the zoom: never a speck, never a disc swallowing the map.
-    final maxR = (AppMap.pulseMaxM * ppm).clamp(56.0, 150.0);
-    final minR = (AppMap.pulseMinM * ppm).clamp(8.0, maxR * 0.3);
+    final cam = camera.last;
+    final prev = camera.prev;
+    final centre = AppMap.ringCentre(
+      at: at,
+      target: _ll(cam.target),
+      zoom: cam.zoom,
+      prevTarget: prev == null ? null : _ll(prev.target),
+      prevZoom: prev?.zoom,
+      lastUs: camera.lastUs,
+      prevUs: camera.prevUs,
+      nowUs: DateTime.now().microsecondsSinceEpoch,
+      size: size,
+      padding: padding,
+      correction: correction.value,
+      extrapolate: extrapolate,
+    );
+    final (minR, maxR) = AppMap.ringRadii(at.latitude, cam.zoom);
     if (centre.dx < -maxR ||
         centre.dy < -maxR ||
         centre.dx > size.width + maxR ||
@@ -1901,5 +1972,6 @@ class _PickupPulsePainter extends CustomPainter {
       old.color != color ||
       old.camera != camera ||
       old.correction != correction ||
-      old.progress != progress;
+      old.progress != progress ||
+      old.extrapolate != extrapolate;
 }

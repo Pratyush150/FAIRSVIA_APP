@@ -120,6 +120,19 @@ class TripRemoteDataSource {
     }
   }
 
+  /// Listed promos the rider can still use (the Offers page).
+  Future<List<AvailablePromo>> availablePromos() async {
+    try {
+      final res = await _dio.get<List<dynamic>>('/promos/available');
+      return (res.data ?? const [])
+          .cast<Map<String, dynamic>>()
+          .map(AvailablePromo.fromJson)
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
+
   /// The rider's upcoming scheduled rides, soonest first.
   Future<List<Trip>> scheduled() async {
     try {

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 
 /// The rider's live-tracking camera rules, tested as pure functions so they
 /// don't need a live Google Maps controller.
@@ -335,47 +336,115 @@ void main() {
     });
   });
 
-  group('RadarVisibility (rings step aside while the map moves)', () {
-    test('shown at rest, hidden the moment the camera starts moving', () {
-      final v = RadarVisibility();
-      expect(v.value, isTrue);
-      v.cameraMoving();
-      expect(v.value, isFalse);
-      v.cameraMoving(); // every move event of a drag keeps them hidden
-      expect(v.value, isFalse);
+  group('pickup rings stay glued to the pickup through a drag', () {
+    const size = Size(400, 800);
+    const pad = EdgeInsets.fromLTRB(40, 96, 40, 300);
+    const pickup = LatLng(18.515, 73.855);
+    const t0 = LatLng(18.515, 73.855); // camera on the pickup
+    const t1 = LatLng(18.515, 73.857); // dragged: camera moved east
+
+    test('the centre follows every camera position, by projection', () {
+      final a = AppMap.ringCentre(
+          at: pickup, target: t0, zoom: 15, size: size, padding: pad);
+      final b = AppMap.ringCentre(
+          at: pickup, target: t1, zoom: 15, size: size, padding: pad);
+      expect(a, AppMap.screenPoint(pickup, t0, 15, size, pad));
+      expect(b, AppMap.screenPoint(pickup, t1, 15, size, pad));
+      // Camera east => the pickup slides west on screen, exactly as the map.
+      expect(b.dx, lessThan(a.dx));
+      expect(b.dy, closeTo(a.dy, 1e-6));
     });
 
-    test('come back on idle, after the pickup is re-measured', () {
-      final v = RadarVisibility()..cameraMoving();
-      final seq = v.idleSeq; // idle fires, re-measure starts
-      v.cameraIdle(seq); // re-measure done
-      expect(v.value, isTrue);
+    test('zoom moves and resizes the rings with the map', () {
+      const off = LatLng(18.516, 73.856);
+      final z15 = AppMap.ringCentre(
+          at: off, target: t0, zoom: 15, size: size, padding: pad);
+      final z16 = AppMap.ringCentre(
+          at: off, target: t0, zoom: 16, size: size, padding: pad);
+      final c = AppMap.screenPoint(t0, t0, 15, size, pad);
+      expect((z16 - c).distance, closeTo(2 * (z15 - c).distance, 1e-6));
+      final (_, r14) = AppMap.ringRadii(pickup.latitude, 14);
+      final (_, r16) = AppMap.ringRadii(pickup.latitude, 16);
+      expect(r16, greaterThan(r14));
+      expect(AppMap.ringRadii(pickup.latitude, 3).$2, 56); // clamped
+      expect(AppMap.ringRadii(pickup.latitude, 20).$2, 150);
     });
 
-    test('a re-measure finishing after a new drag began keeps them hidden',
-        () {
-      final v = RadarVisibility()..cameraMoving();
-      final seq = v.idleSeq;
-      v.cameraMoving(); // the rider grabbed the map again
-      v.cameraIdle(seq); // the stale re-measure lands
-      expect(v.value, isFalse);
-      v.cameraIdle(v.idleSeq);
-      expect(v.value, isTrue);
+    test('the measured correction is added on top', () {
+      final c = AppMap.ringCentre(
+          at: pickup,
+          target: t0,
+          zoom: 15,
+          size: size,
+          padding: pad,
+          correction: const Offset(3, -40));
+      expect(c, AppMap.screenPoint(pickup, t0, 15, size, pad) +
+          const Offset(3, -40));
     });
 
-    test('fades out fast and back in gently', () {
-      expect(RadarVisibility.fadeOut, const Duration(milliseconds: 120));
-      expect(RadarVisibility.fadeIn, const Duration(milliseconds: 300));
-      expect(RadarVisibility.fadeOut < RadarVisibility.fadeIn, isTrue);
+    test('between slow callbacks it is carried forward one frame by the '
+        'drag velocity', () {
+      final last = AppMap.screenPoint(pickup, t1, 15, size, pad);
+      final prev = AppMap.screenPoint(pickup, t0, 15, size, pad);
+      Offset at(int nowUs) => AppMap.ringCentre(
+          at: pickup,
+          target: t1,
+          zoom: 15,
+          prevTarget: t0,
+          prevZoom: 15,
+          prevUs: 0,
+          lastUs: 33000, // callbacks every 33 ms (30 Hz)
+          nowUs: nowUs,
+          size: size,
+          padding: pad);
+      final v = (last - prev) / 33000; // px per microsecond
+      // 8 ms after the callback: 8 ms further along the drag.
+      expect(at(41000), offsetMoreOrLessEquals(last + v * 8000.0));
+      // Never more than one frame ahead.
+      expect(at(70000),
+          offsetMoreOrLessEquals(last + v * AppMap.extrapolateMaxUs.toDouble()));
+      // Callbacks stopped (camera idle): no guessing, the real point.
+      expect(at(33000 + AppMap.extrapolateStaleUs), last);
     });
 
-    test('notifies listeners so the overlay repaints its opacity', () {
-      final v = RadarVisibility();
-      var calls = 0;
-      v.addListener(() => calls++);
-      v.cameraMoving();
-      v.cameraIdle(v.idleSeq);
-      expect(calls, 2);
+    test('no extrapolation under Reduce Motion or without a pair', () {
+      final plain = AppMap.screenPoint(pickup, t1, 15, size, pad);
+      expect(
+          AppMap.ringCentre(
+              at: pickup,
+              target: t1,
+              zoom: 15,
+              prevTarget: t0,
+              prevZoom: 15,
+              prevUs: 0,
+              lastUs: 33000,
+              nowUs: 41000,
+              size: size,
+              padding: pad,
+              extrapolate: false),
+          plain);
+      expect(
+          AppMap.ringCentre(
+              at: pickup, target: t1, zoom: 15, size: size, padding: pad,
+              lastUs: 33000, nowUs: 41000),
+          plain);
+    });
+
+    test('every camera callback repaints the rings (no hiding on move)', () {
+      final track = CameraTrack(
+          const gmaps.CameraPosition(target: gmaps.LatLng(18.5, 73.8)));
+      var repaints = 0;
+      track.addListener(() => repaints++);
+      for (var i = 0; i < 5; i++) {
+        track.add(
+            gmaps.CameraPosition(
+                target: gmaps.LatLng(18.5, 73.8 + i * 0.001), zoom: 15),
+            i * 16000);
+      }
+      expect(repaints, 5);
+      expect(track.last.target.longitude, closeTo(73.804, 1e-9));
+      expect(track.prev!.target.longitude, closeTo(73.803, 1e-9));
+      expect(track.lastUs - track.prevUs, 16000);
     });
   });
 

@@ -11,7 +11,8 @@ class RiderSheetHeights {
   const RiderSheetHeights({
     required this.homeMap,
     required this.chooseRide,
-    required this.chooseRideExpanded,
+    required this.expanded,
+    required this.onTripPeek,
     required this.searching,
     required this.pickupCompact,
     required this.onTripCompact,
@@ -21,11 +22,18 @@ class RiderSheetHeights {
   /// Idle Home: the map header above the Home sheet.
   final double homeMap;
 
-  /// Choosing a ride: the sheet opens at this share (floor and cap)…
+  /// Choosing a ride: the sheet opens at this share (floor and cap).
   final double chooseRide;
 
-  /// …and the handle pulls it up to this share (glass build).
-  final double chooseRideExpanded;
+  /// Every booking / ride sheet (choose ride, finding, en route, arrived,
+  /// on trip, ride complete) is draggable: it opens at its own share (its
+  /// "rest" size, the fields here) and a drag up or a tap on the handle
+  /// pulls it up to this share — below the status bar, a map peek above.
+  final double expanded;
+
+  /// On trip only: a drag down past the rest size parks the card at this
+  /// smaller peek (the status line), floored at [onTripPeekMinPx].
+  final double onTripPeek;
 
   /// Finding a driver: fixed sheet share, or null to fit the content.
   final double? searching;
@@ -44,7 +52,8 @@ class RiderSheetHeights {
   static const standard = RiderSheetHeights(
     homeMap: 0.35,
     chooseRide: 0.62,
-    chooseRideExpanded: 0.9,
+    expanded: 0.92,
+    onTripPeek: 0.22,
     searching: null,
     pickupCompact: 0.50,
     onTripCompact: 0.36,
@@ -60,6 +69,16 @@ class RiderSheetHeights {
   static const double chooseRideMinPx = 480;
   static const double pickupCompactMinPx = 400;
   static const double onTripCompactMinPx = 320;
+  static const double onTripPeekMinPx = 160;
+
+  /// The on-trip peek, in logical pixels, on a screen [screenHeight] tall.
+  double onTripPeekPx(double screenHeight) {
+    final px = onTripPeek * screenHeight;
+    return px < onTripPeekMinPx ? onTripPeekMinPx : px;
+  }
+
+  /// The expanded sheet, in logical pixels, on a screen [screenHeight] tall.
+  double expandedPx(double screenHeight) => expanded * screenHeight;
 
   static double _atLeast(double fraction, double px, double screenHeight) {
     if (screenHeight <= 0) return fraction;
@@ -94,7 +113,8 @@ class RiderSheetHeights {
   }) => RiderSheetHeights(
     homeMap: homeMap ?? this.homeMap,
     chooseRide: chooseRide ?? this.chooseRide,
-    chooseRideExpanded: chooseRideExpanded,
+    expanded: expanded,
+    onTripPeek: onTripPeek,
     searching: searching ?? this.searching,
     pickupCompact: pickupCompact ?? this.pickupCompact,
     onTripCompact: onTripCompact ?? this.onTripCompact,

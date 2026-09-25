@@ -25,11 +25,15 @@ class FareTier extends Equatable {
   final int? etaSeconds;
 
   /// A car of this type is close enough to come: the server only sends an
-  /// ETA when one is. Unavailable types are shown dimmed and can't be picked.
+  /// ETA when one is. Unavailable types are still shown at full strength and
+  /// can be booked — the search keeps looking for a while (the server's
+  /// search window) — with a note that no car is nearby yet.
   bool get available => etaSeconds != null;
 
   /// The ride to pre-select: the first one a car can actually do (the list is
-  /// cheapest-first), or null when no car of any type is nearby.
+  /// cheapest-first). When no car of any type is nearby it is still the
+  /// first roomy ride (every type can be booked; the search keeps looking),
+  /// and null only for an empty list.
   ///
   /// A one-seat ride (a bike taxi) is skipped when anything roomier is
   /// available: it heads the cheapest-first list, but pre-picking it would
@@ -42,7 +46,12 @@ class FareTier extends Equatable {
       if (t.capacity > 1) return t.tier;
       single ??= t.tier;
     }
-    return single;
+    if (single != null) return single;
+    // Nothing nearby at all: pick the first roomy ride all the same.
+    for (final t in tiers) {
+      if (t.capacity > 1) return t.tier;
+    }
+    return tiers.isEmpty ? null : tiers.first.tier;
   }
 
   /// What makes up [fare] — base, distance, time, booking fee, plus surge and

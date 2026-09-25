@@ -514,6 +514,8 @@ describe('TripsService', () => {
       expect(redis.client.geoadd).toHaveBeenCalledWith(
         RedisKeys.driversGeo('economy'), 77.59, 12.97, 'driver-1',
       );
+      // ...and wakes any comfort/economy search waiting for a free driver.
+      expect(redis.client.incr).toHaveBeenCalledWith(RedisKeys.dispatchPoolGen('economy'));
     });
 
     it('does not re-pool on a stale last fix (dispatch would evict it; the next ping re-adds)', async () => {
@@ -866,6 +868,20 @@ describe('TripsService', () => {
       expect(res[1].myRating).toBe(4);
       expect(JSON.stringify(res)).not.toContain('+998901112233');
       expect(res[0].ratings).toBeUndefined();
+      expect(res[0].rider).toBeUndefined();
+    });
+
+    it("names the rider (first name only, no phone) on the driver's rows", async () => {
+      const { svc, prisma } = make();
+      (prisma.trip as any).findMany = jest.fn().mockResolvedValue([
+        row({ rider: { fullName: 'Priya  Sharma', phone: '+919876543210' } }),
+      ]);
+      const res = (await svc.history('driver-1')) as Record<string, any>[];
+      const args = (prisma.trip as any).findMany.mock.calls[0][0];
+      expect(args.include.rider.select).toEqual({ fullName: true });
+      expect(res[0].rider).toEqual({ name: 'Priya' });
+      expect(res[0].driver).toBeUndefined();
+      expect(JSON.stringify(res)).not.toContain('+919876543210');
     });
 
     it('leaves out the driver block on the driver own rows and on unassigned trips', async () => {

@@ -266,7 +266,7 @@ void main() {
         (tester) async {
       await pumpOptions(tester, choosing(error: TripCubit.noDriversNearby));
       expect(find.textContaining('Pickup in 4 min'), findsNothing);
-      expect(find.text('No cars nearby'), findsOneWidget);
+      expect(find.text('No cars found — try again'), findsOneWidget);
       // The other tier's quote is untouched.
       expect(find.textContaining('Pickup in 5 min'), findsOneWidget);
     });

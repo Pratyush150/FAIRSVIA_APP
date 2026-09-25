@@ -47,6 +47,7 @@ class TripState extends Equatable {
     this.passenger,
     this.estimate,
     this.selectedTier,
+    this.searchEndsAt,
     this.trip,
     this.driver,
     this.driverLocation,
@@ -68,6 +69,7 @@ class TripState extends Equatable {
     this.appliedPromo,
     this.applyingPromo = false,
     this.promoError,
+    this.offerPromo,
     this.paymentMode = 'card',
     this.paymentMethods = const [],
     this.selectedMethodId,
@@ -95,6 +97,11 @@ class TripState extends Equatable {
   final TripPassenger? passenger;
   final TripEstimate? estimate;
   final String? selectedTier;
+
+  /// When the server's driver search for this ride gives up (its search
+  /// window, from `trip:matching`). Null until the server says; the finding
+  /// sheet then assumes the default window from the request time.
+  final DateTime? searchEndsAt;
   final Trip? trip;
   final AssignedDriver? driver;
   final GeoPoint? driverLocation;
@@ -146,6 +153,11 @@ class TripState extends Equatable {
 
   /// The last promo rejection reason (cleared on a successful apply/remove).
   final String? promoError;
+
+  /// An offer the rider picked on the Offers page ("Apply to next ride").
+  /// Survives resets between rides; auto-applied on the next ride sheet and
+  /// cleared once a ride is booked with it (or the rider removes it).
+  final AvailablePromo? offerPromo;
 
   /// Rider's chosen payment mode for the next ride: `card` or `cash`.
   final String paymentMode;
@@ -246,6 +258,7 @@ class TripState extends Equatable {
     Object? passenger = _s,
     Object? estimate = _s,
     Object? selectedTier = _s,
+    Object? searchEndsAt = _s,
     Object? trip = _s,
     Object? driver = _s,
     Object? driverLocation = _s,
@@ -267,6 +280,7 @@ class TripState extends Equatable {
     Object? appliedPromo = _s,
     bool? applyingPromo,
     Object? promoError = _s,
+    Object? offerPromo = _s,
     String? paymentMode,
     List<Map<String, dynamic>>? paymentMethods,
     Object? selectedMethodId = _s,
@@ -292,6 +306,9 @@ class TripState extends Equatable {
       estimate: estimate == _s ? this.estimate : estimate as TripEstimate?,
       selectedTier:
           selectedTier == _s ? this.selectedTier : selectedTier as String?,
+      searchEndsAt: searchEndsAt == _s
+          ? this.searchEndsAt
+          : searchEndsAt as DateTime?,
       trip: trip == _s ? this.trip : trip as Trip?,
       driver: driver == _s ? this.driver : driver as AssignedDriver?,
       driverLocation: driverLocation == _s
@@ -323,6 +340,8 @@ class TripState extends Equatable {
           : appliedPromo as PromoQuote?,
       applyingPromo: applyingPromo ?? this.applyingPromo,
       promoError: promoError == _s ? this.promoError : promoError as String?,
+      offerPromo:
+          offerPromo == _s ? this.offerPromo : offerPromo as AvailablePromo?,
       paymentMode: paymentMode ?? this.paymentMode,
       paymentMethods: paymentMethods ?? this.paymentMethods,
       selectedMethodId: selectedMethodId == _s
@@ -354,6 +373,7 @@ class TripState extends Equatable {
         passenger,
         estimate,
         selectedTier,
+        searchEndsAt,
         trip,
         driver,
         driverLocation,
@@ -375,6 +395,7 @@ class TripState extends Equatable {
         appliedPromo,
         applyingPromo,
         promoError,
+        offerPromo,
         paymentMode,
         paymentMethods,
         selectedMethodId,

@@ -8,13 +8,12 @@ part of 'ride_sheets.dart';
 ///   own, saved places in a small glass card under it.
 /// - Driver on the way / arrived / on trip: map-first. The card opens
 ///   compact ([RiderSheetHeights.pickupCompact] / [RiderSheetHeights.onTripCompact]
-///   of the screen: the status, the car and
-///   plate, the PIN) and the handle expands it to the full sheet — same
-///   content, same order, it only scrolls less.
-/// - Choosing a ride: [RiderSheetHeights.chooseRide] of the screen; the
-///   handle pulls it up to [RiderSheetHeights.chooseRideExpanded].
+///   of the screen: the status, the car and plate, the PIN).
+/// - Choosing a ride: [RiderSheetHeights.chooseRide] of the screen.
 /// - Ride complete: the card grows to [RiderSheetHeights.completed] of the
 ///   screen (a map peek above it; 1.0 is a full-screen page).
+/// - Each of those is its rest size; the card drags up to
+///   [RiderSheetHeights.expanded] and back ([_SheetDrag]).
 /// - The card's size springs between phases ([GlassSpringCurve]) while the
 ///   content swaps inside it; under Reduce Motion the size snaps and the
 ///   content cross-fades.
@@ -31,37 +30,39 @@ class _GlassPhaseSheet extends StatefulWidget {
     required this.child,
     required this.footer,
     required this.chromeless,
+    this.onSettled,
   });
 
   final TripState state;
   final Widget child;
   final Widget? footer;
   final bool chromeless;
+  final VoidCallback? onSettled;
 
   @override
   State<_GlassPhaseSheet> createState() => _GlassPhaseSheetState();
 }
 
-class _GlassPhaseSheetState extends State<_GlassPhaseSheet> {
-  bool _expanded = false;
+class _GlassPhaseSheetState extends State<_GlassPhaseSheet>
+    with SingleTickerProviderStateMixin, _SheetDrag {
+  @override
+  TripPhase get dragPhase => widget.state.phase;
+
+  @override
+  VoidCallback? get onSettled => widget.onSettled;
 
   @override
   void didUpdateWidget(_GlassPhaseSheet old) {
     super.didUpdateWidget(old);
-    // Each live phase opens compact again: the map is the point of it.
-    if (old.state.phase != widget.state.phase) _expanded = false;
+    // Each phase opens at its rest size again: the map is the point of it.
+    if (old.state.phase != widget.state.phase) resetDrag();
   }
-
-  void _toggle() => setState(() => _expanded = !_expanded);
 
   @override
   Widget build(BuildContext context) {
     final phase = widget.state.phase;
     final compactable = _glassCompactPhase(phase);
-    final choosing = phase == TripPhase.choosingRide;
-    // The handle is a control on the live phases (compact ↔ full) and on
-    // the ride options (half screen ↔ tall).
-    final toggles = compactable || choosing;
+    final toggles = _draggablePhase(phase) && !widget.chromeless;
     final heights = RiderSheetHeights.current;
     final screenHeight = MediaQuery.sizeOf(context).height;
     final fixed = _fixedFraction(phase, screenHeight);
@@ -88,47 +89,37 @@ class _GlassPhaseSheetState extends State<_GlassPhaseSheet> {
       ),
       child: KeyedSubtree(key: ValueKey(phase), child: widget.child),
     );
-    return AppSheet(
-      chromeless: widget.chromeless,
-      handle: !widget.chromeless,
-      maxHeightFraction: choosing && _expanded
-          ? heights.chooseRideExpanded
-          : compactable && !_expanded
-          ? heights.liveCompactAt(
-              onTrip: phase == TripPhase.onTrip,
-              screenHeight: screenHeight,
-            )
-          : fixed,
-      // Choosing a ride: its set share from the start, however few tiers.
-      minHeightFraction: fixed,
-      // Ride complete: the card grows into a full-screen page (or nearly).
-      fullScreen: _completedFullScreen(phase),
-      onHandleTap: toggles ? _toggle : null,
-      handleLabel: toggles
-          ? (_expanded
-                ? 'Show less'
-                : choosing
-                ? 'Show more ride options'
-                : 'Show more ride details')
-          : null,
-      onHandleDrag: toggles
-          ? (v) {
-              if (v < -200 && !_expanded) setState(() => _expanded = true);
-              if (v > 200 && _expanded) setState(() => _expanded = false);
-            }
-          : null,
-      footer: widget.footer,
-      child: reduced
-          // Reduce Motion: no spring; the card takes its new size at once.
-          // (Not an AnimatedSize with a zero duration: in this tree that
-          // threw "RenderAnimatedSize was mutated in its own performLayout".)
-          ? switcher
-          : AnimatedSize(
-              duration: AppMotion.slower,
-              curve: const GlassSpringCurve(),
-              alignment: Alignment.bottomCenter,
-              child: switcher,
-            ),
+    return draggable(
+      AppSheet(
+        chromeless: widget.chromeless,
+        handle: !widget.chromeless,
+        // Dragged, snapping, or parked off its rest size (peek / expanded).
+        height: sheetHeight,
+        maxHeightFraction: compactable
+            ? heights.liveCompactAt(
+                onTrip: phase == TripPhase.onTrip,
+                screenHeight: screenHeight,
+              )
+            : fixed,
+        // Choosing a ride: its set share from the start, however few tiers.
+        minHeightFraction: fixed,
+        // Ride complete: the card grows into a full-screen page (or nearly).
+        fullScreen: _completedFullScreen(phase),
+        onHandleTap: toggles ? toggleSheet : null,
+        handleLabel: toggles ? handleLabel : null,
+        footer: widget.footer,
+        child: reduced
+            // Reduce Motion: no spring; the card takes its new size at once.
+            // (Not an AnimatedSize with a zero duration: in this tree that
+            // threw "RenderAnimatedSize was mutated in its own performLayout".)
+            ? switcher
+            : AnimatedSize(
+                duration: AppMotion.slower,
+                curve: const GlassSpringCurve(),
+                alignment: Alignment.bottomCenter,
+                child: switcher,
+              ),
+      ),
     );
   }
 }

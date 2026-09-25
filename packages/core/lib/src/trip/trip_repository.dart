@@ -97,6 +97,8 @@ class TripRepository {
   Future<PromoQuote> quotePromo(String code, num subtotal) =>
       _trips.quotePromo(code, subtotal);
 
+  Future<List<AvailablePromo>> availablePromos() => _trips.availablePromos();
+
   Future<Trip> getTrip(String id) => _trips.getById(id);
 
   /// Cancels the trip; returns the cancellation fee charged (0 when none).

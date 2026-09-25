@@ -2,10 +2,16 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@ne
 import { TripStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
-import { DispatchService } from './dispatch.service';
+import { DispatchService, searchWindowMs } from './dispatch.service';
 
-/** A search runs 90 s; anything still searching after this was orphaned. */
-export const STUCK_AFTER_MS = 10 * 60_000;
+/**
+ * A search runs SEARCH_WINDOW_SEC (180 s by default); anything still searching
+ * well past that was orphaned. At least 10 min, and always 5 min beyond the
+ * configured window so a live search is never cut short.
+ */
+export function stuckAfterMs(): number {
+  return Math.max(10 * 60_000, searchWindowMs() + 5 * 60_000);
+}
 const SWEEP_EVERY_MS = 60_000;
 const LOCK_KEY = 'dispatch:stuck-sweeper:lock';
 
@@ -20,8 +26,8 @@ const LOCK_KEY = 'dispatch:stuck-sweeper:lock';
  * normal path, so the rider is told and can book again.
  *
  * Leaves alone: rides parked on purpose by the ops dispatch pause, scheduled
- * rides (their own lifecycle), and anything younger than STUCK_AFTER_MS —
- * far beyond a live search's 90 s window.
+ * rides (their own lifecycle), and anything younger than stuckAfterMs() —
+ * far beyond a live search's window.
  */
 @Injectable()
 export class StuckTripSweeper implements OnApplicationBootstrap, OnModuleDestroy {
@@ -49,7 +55,7 @@ export class StuckTripSweeper implements OnApplicationBootstrap, OnModuleDestroy
     const locked = await this.redis.client.set(LOCK_KEY, '1', 'PX', SWEEP_EVERY_MS - 5_000, 'NX');
     if (locked !== 'OK') return 0;
 
-    const cutoff = new Date(now.getTime() - STUCK_AFTER_MS);
+    const cutoff = new Date(now.getTime() - stuckAfterMs());
     const [stuck, deferred] = await Promise.all([
       this.prisma.trip.findMany({
         where: {

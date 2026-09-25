@@ -50,7 +50,8 @@ flutter:
     # Rider Home promo banner photos (every build, incl. the default Glass
     # look; Unsplash License, see assets/promo/CREDITS.md).
     - assets/promo/
-    # Lottie: ride-complete confetti, cash/earnings money (assets/lottie/CREDITS.md).
+    # Lottie moments: confetti, money, loading, searching, arrived, no cars,
+    # success, thanks, location, offline, SOS (assets/lottie/CREDITS.md).
     - assets/lottie/
     # --- Art for looks that do not ship ------------------------------------
     # Each block between `# @variant: <THEME values>` and `# @end-variant`

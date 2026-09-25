@@ -13,11 +13,24 @@ class _FindingDriver extends StatefulWidget {
 
 class _FindingDriverState extends State<_FindingDriver> {
   Timer? _timer;
+  Timer? _tick;
   bool _stillLooking = false;
+  final DateTime _shownAt = DateTime.now();
+
+  /// When the server's search ends: its own deadline when it has sent one,
+  /// else the default window from the request (or from when this showed).
+  DateTime get _endsAt =>
+      widget.state.searchEndsAt ??
+      (widget.state.trip?.requestedAt?.toLocal() ?? _shownAt)
+          .add(RideStatus.searchWindow);
 
   @override
   void initState() {
     super.initState();
+    // Re-render once a second for the time-left line and ring.
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
     // Count from when the ride was requested when the server says so (a
     // relaunch mid-search must not restart the clock); otherwise from now.
     final requested = widget.state.trip?.requestedAt;
@@ -37,6 +50,7 @@ class _FindingDriverState extends State<_FindingDriver> {
   @override
   void dispose() {
     _timer?.cancel();
+    _tick?.cancel();
     super.dispose();
   }
 
@@ -45,6 +59,9 @@ class _FindingDriverState extends State<_FindingDriver> {
     final state = widget.state;
     final theme = Theme.of(context);
     final place = RideStatus.placeName(state);
+    var left = _endsAt.difference(DateTime.now());
+    if (left.isNegative) left = Duration.zero;
+    final total = left > RideStatus.searchWindow ? left : RideStatus.searchWindow;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -52,20 +69,25 @@ class _FindingDriverState extends State<_FindingDriver> {
         Row(
           children: [
             // Animated radar sweeping for a nearby driver — reads as the system
-            // actively looking, not a generic spinner. Under Reduce Motion the
-            // radar holds still (its ticker muted): the rings stay drawn, the
-            // "Finding your driver" headline says the rest.
-            TickerMode(
-              enabled: !AppMotion.reduced(context),
-              child: ExcludeSemantics(
-                child: PulseRadar(
-                  // Plan D's kolam needs room round the glyph.
-                  size: LocalArt.on ? 76 : 56,
-                  child: Icon(PhosphorIconsRegular.taxi,
-                      size: 20, color: AppColors.accent),
+            // actively looking, not a generic spinner. The default look uses
+            // the Lottie sweep (a beam turning round the pickup pin); Plan D
+            // keeps its kolam radar. Under Reduce Motion both hold still: the
+            // Lottie shows one frame, the radar's ticker is muted. The map's
+            // own rings round the pickup are unchanged.
+            if (LocalArt.on)
+              TickerMode(
+                enabled: !AppMotion.reduced(context),
+                child: ExcludeSemantics(
+                  child: PulseRadar(
+                    // Plan D's kolam needs room round the glyph.
+                    size: 76,
+                    child: Icon(PhosphorIconsRegular.taxi,
+                        size: 20, color: AppColors.accent),
+                  ),
                 ),
-              ),
-            ),
+              )
+            else
+              const LottieMoment.searching(size: 64),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: RideStatusHeader(
@@ -89,6 +111,33 @@ class _FindingDriverState extends State<_FindingDriver> {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        // The search is bounded: say how long it can still run, with a
+        // subtle ring draining towards the end of the window.
+        Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                value: total.inMilliseconds == 0
+                    ? 0
+                    : left.inMilliseconds / total.inMilliseconds,
+                strokeWidth: 2,
+                color: AppColors.accent,
+                backgroundColor: theme.dividerColor,
+                semanticsLabel: 'Search time left',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                RideStatus.searchTimeLeft(left),
+                style: theme.textTheme.bodySmall,
               ),
             ),
           ],
@@ -382,6 +431,13 @@ class DriverInfoSheet extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Once the car is here: a pin drops and lands (plays once, holds
+            // on the landed pin; one still frame under Reduce Motion). A
+            // fixed 40px box, so the headline never shifts.
+            if (arrived) ...[
+              const LottieMoment.arrived(size: 40),
+              const SizedBox(width: AppSpacing.sm),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

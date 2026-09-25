@@ -251,12 +251,11 @@ class _LocationRequiredGate extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(
-              PhosphorIconsRegular.gpsSlash,
-              color: AppColors.warning,
-              size: 24,
-            ),
-            const SizedBox(width: AppSpacing.md),
+            // A finger flips the location toggle on and the pin rises: what
+            // the button below does. Fixed 56px box; under Reduce Motion one
+            // still frame (the toggle on).
+            const LottieMoment.location(size: 56),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 'Location required',

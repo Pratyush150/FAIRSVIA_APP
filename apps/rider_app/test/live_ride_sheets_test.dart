@@ -211,8 +211,10 @@ void main() {
       expect(
           find.ancestor(of: done_, matching: find.byType(SingleChildScrollView)),
           findsNothing);
+      when(() => cubit.finishRide()).thenAnswer((_) async {});
       await tester.tap(done_);
-      verify(() => cubit.reset()).called(1);
+      // Done sends any selected tip, then closes the ride.
+      verify(() => cubit.finishRide()).called(1);
     });
   });
 }

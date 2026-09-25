@@ -243,9 +243,21 @@ class _CompletedSheetState extends State<CompletedSheet> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.xs),
-                child: Text(
-                  'Thanks for your feedback! Tap a star to change it.',
-                  style: theme.textTheme.bodySmall,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // A star fills with a small sparkle — replayed when the
+                    // rider changes the rating (keyed on it). Fixed 28px box.
+                    LottieMoment.thanks(
+                        key: ValueKey(state.rating), size: 28),
+                    const SizedBox(width: AppSpacing.xs),
+                    Flexible(
+                      child: Text(
+                        'Thanks for your feedback! Tap a star to change it.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -291,9 +303,10 @@ class _CompletedSheetState extends State<CompletedSheet> {
                       // touched, which is a dead end for a mis-tap.
                       onTap: locked
                           ? null
-                          : () => setState(
-                                () => _pendingTip = _pendingTip == amt ? null : amt,
-                              ),
+                          : () => setState(() {
+                                _pendingTip = _pendingTip == amt ? null : amt;
+                                cubit.selectedTip = _pendingTip;
+                              }),
                     ),
                   ),
                 ),
@@ -308,7 +321,10 @@ class _CompletedSheetState extends State<CompletedSheet> {
                       : () async {
                           final amount = await _askCustomTip(context);
                           if (amount != null && mounted) {
-                            setState(() => _pendingTip = amount);
+                            setState(() {
+                              _pendingTip = amount;
+                              cubit.selectedTip = amount;
+                            });
                           }
                         },
                 ),
@@ -326,27 +342,32 @@ class _CompletedSheetState extends State<CompletedSheet> {
           if (sentTip != null)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: Text('Tip of ${Fmt.money(sentTip, state.receipt?.currency)} added.',
-                  style: theme.textTheme.bodySmall),
+              child: Row(
+                children: [
+                  // The tip went through: a teal check with a small burst,
+                  // played once and held (fixed 28px box).
+                  const LottieMoment.success(size: 28),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                        'Tip of ${Fmt.money(sentTip, state.receipt?.currency)} added.',
+                        style: theme.textTheme.bodySmall),
+                  ),
+                ],
+              ),
             )
-          else if (_pendingTip != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            PrimaryButton(
-              label: state.tipping
-                  ? 'Adding tip…'
-                  : 'Add ${Fmt.money(_pendingTip!, state.receipt?.currency)} tip',
-              onPressed: state.tipping
-                  ? null
-                  : () => cubit.tipDriver(_pendingTip!),
-            ),
+          else if (_pendingTip != null)
+            // Selected = confirmed: no second "Add tip" button. It is charged
+            // when the rider taps Done; tapping the amount again removes it.
             Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
               child: Text(
-                'You can change this until you add it.',
+                state.tipping
+                    ? 'Adding your tip…'
+                    : '${Fmt.money(_pendingTip!, state.receipt?.currency)} tip will be added when you tap Done. Tap it again to remove.',
                 style: theme.textTheme.bodySmall,
               ),
             ),
-          ],
           // Done is not here: it is pinned under the sheet
           // ([CompletedDoneButton], the sheet's footer) so it never scrolls
           // away behind the tip and rating sections.
@@ -364,7 +385,8 @@ class CompletedDoneButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => PrimaryButton(
         label: 'Done',
-        onPressed: () => context.read<TripCubit>().reset(),
+        // Sends the selected tip (if any), then closes the ride.
+        onPressed: () => context.read<TripCubit>().finishRide(),
       );
 }
 

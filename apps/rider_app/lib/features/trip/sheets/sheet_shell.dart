@@ -30,7 +30,13 @@ class RideSheetForPhase extends StatelessWidget {
     required this.onPickSaved,
     this.locationIssue,
     this.onFixLocation,
+    this.onSheetSettled,
   });
+
+  /// Called when a dragged sheet settles on a new size (rest / expanded /
+  /// peek), so the map's fit padding can follow it — only on settle, not
+  /// per drag frame, so the camera does not churn.
+  final VoidCallback? onSheetSettled;
 
   final TripState state;
   final VoidCallback onSearch;
@@ -83,9 +89,58 @@ class RideSheetForPhase extends StatelessWidget {
         state: state,
         footer: footer,
         chromeless: state.phase == TripPhase.idle && locationIssue == null,
+        onSettled: onSheetSettled,
         child: child,
       );
     }
+    return _ClassicPhaseSheet(
+      state: state,
+      footer: footer,
+      onSettled: onSheetSettled,
+      child: child,
+    );
+  }
+}
+
+/// Every build but Plan F: the solid sheet, cross-fading between phases,
+/// draggable between its sizes as the glass card is ([_SheetDrag]).
+class _ClassicPhaseSheet extends StatefulWidget {
+  const _ClassicPhaseSheet({
+    required this.state,
+    required this.child,
+    required this.footer,
+    this.onSettled,
+  });
+
+  final TripState state;
+  final Widget child;
+  final Widget? footer;
+  final VoidCallback? onSettled;
+
+  @override
+  State<_ClassicPhaseSheet> createState() => _ClassicPhaseSheetState();
+}
+
+class _ClassicPhaseSheetState extends State<_ClassicPhaseSheet>
+    with SingleTickerProviderStateMixin, _SheetDrag {
+  @override
+  TripPhase get dragPhase => widget.state.phase;
+
+  @override
+  VoidCallback? get onSettled => widget.onSettled;
+
+  @override
+  void didUpdateWidget(_ClassicPhaseSheet old) {
+    super.didUpdateWidget(old);
+    if (old.state.phase != widget.state.phase) resetDrag();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final child = widget.child;
+    final footer = widget.footer;
+    final toggles = _draggablePhase(state.phase);
     // Cross-fade + slide between phases, and smoothly resize the sheet as each
     // phase's content changes height — so the flow feels like one continuous
     // surface rather than a stack of hard-swapped cards. Under Reduce Motion
@@ -95,39 +150,49 @@ class RideSheetForPhase extends StatelessWidget {
       state.phase,
       MediaQuery.sizeOf(context).height,
     );
-    return AppSheet(
-      // Keep the routed map visible while choosing a ride: the options sheet
-      // is otherwise tall enough to hide the route and both markers.
-      maxHeightFraction: fixed,
-      minHeightFraction: fixed,
-      // Ride complete: the sheet grows into a full-screen page (or nearly).
-      fullScreen: _completedFullScreen(state.phase),
-      footer: footer,
-      child: AnimatedSize(
-        duration: reduced ? Duration.zero : AppMotion.slow,
-        curve: AppMotion.standard,
-        alignment: Alignment.bottomCenter,
-        child: AnimatedSwitcher(
-          duration: AppMotion.slow,
-          switchInCurve: AppMotion.enter,
-          switchOutCurve: AppMotion.exit,
-          transitionBuilder: (child, anim) => FadeTransition(
-            opacity: anim,
-            child: reduced
-                ? child
-                : SlideTransition(
-                    position: Tween(
-                      begin: const Offset(0, 0.06),
-                      end: Offset.zero,
-                    ).animate(anim),
-                    child: child,
-                  ),
+    return draggable(
+      AppSheet(
+        height: sheetHeight,
+        onHandleTap: toggles ? toggleSheet : null,
+        handleLabel: toggles ? handleLabel : null,
+        // Keep the routed map visible while choosing a ride: the options sheet
+        // is otherwise tall enough to hide the route and both markers. The
+        // live phases rest at their compact share too (the decided ratio);
+        // a drag up shows the rest of the sheet.
+        maxHeightFraction: _glassCompactPhase(state.phase)
+            ? RiderSheetHeights.current.liveCompactAt(
+                onTrip: state.phase == TripPhase.onTrip,
+                screenHeight: MediaQuery.sizeOf(context).height,
+              )
+            : fixed,
+        minHeightFraction: fixed,
+        // Ride complete: the sheet grows into a full-screen page (or nearly).
+        fullScreen: _completedFullScreen(state.phase),
+        footer: footer,
+        child: _MaybeAnimatedSize(
+          reduced: reduced,
+          child: AnimatedSwitcher(
+            duration: AppMotion.slow,
+            switchInCurve: AppMotion.enter,
+            switchOutCurve: AppMotion.exit,
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: reduced
+                  ? child
+                  : SlideTransition(
+                      position: Tween(
+                        begin: const Offset(0, 0.06),
+                        end: Offset.zero,
+                      ).animate(anim),
+                      child: child,
+                    ),
+            ),
+            layoutBuilder: (currentChild, previousChildren) => Stack(
+              alignment: Alignment.bottomCenter,
+              children: [...previousChildren, ?currentChild],
+            ),
+            child: KeyedSubtree(key: ValueKey(state.phase), child: child),
           ),
-          layoutBuilder: (currentChild, previousChildren) => Stack(
-            alignment: Alignment.bottomCenter,
-            children: [...previousChildren, ?currentChild],
-          ),
-          child: KeyedSubtree(key: ValueKey(state.phase), child: child),
         ),
       ),
     );
@@ -481,4 +546,25 @@ Future<void> _openPreBook(BuildContext context, TripState state) async {
         ),
       ),
     );
+}
+
+/// The classic sheet's resize between phases: an [AnimatedSize], or under
+/// Reduce Motion no wrapper at all — a zero-duration AnimatedSize threw
+/// "RenderAnimatedSize was mutated in its own performLayout" in this tree
+/// (as on the glass card).
+class _MaybeAnimatedSize extends StatelessWidget {
+  const _MaybeAnimatedSize({required this.reduced, required this.child});
+
+  final bool reduced;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => reduced
+      ? child
+      : AnimatedSize(
+          duration: AppMotion.slow,
+          curve: AppMotion.standard,
+          alignment: Alignment.bottomCenter,
+          child: child,
+        );
 }

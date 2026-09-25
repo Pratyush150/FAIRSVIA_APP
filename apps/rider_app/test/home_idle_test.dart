@@ -329,9 +329,24 @@ void main() {
     expect(find.text('ACCOUNT'), findsNothing);
   });
 
+  const offer = AvailablePromo(
+    code: 'AIRPORT100',
+    title: 'Airport run',
+    description: 'Flat 100 off longer trips, like the airport run.',
+    kind: 'flat',
+    value: 100,
+    minFare: 400,
+  );
+  Widget offersPage() => OffersPage(
+    load: () async => const [offer],
+    onApply: (_) {},
+    onRemove: () {},
+  );
+
   testWidgets('offers page lists promos', (tester) async {
-    await pump(tester, const OffersPage(promos: kMockPromos));
-    expect(find.byType(PromoBanner), findsWidgets);
+    await pump(tester, offersPage());
+    await tester.pumpAndSettle();
+    expect(find.byType(OfferCard), findsOneWidget);
   });
 
   // The app launches in several markets (Central Asia / Middle East first):
@@ -367,9 +382,10 @@ void main() {
   });
 
   testWidgets('offers page names no city', (tester) async {
-    await pump(tester, const OffersPage(promos: kMockPromos));
+    await pump(tester, offersPage());
+    await tester.pumpAndSettle();
     expect(visibleTexts(tester).where(cityName.hasMatch), isEmpty);
-    expect(find.text('Book your airport ride ahead'), findsOneWidget);
+    expect(find.text('Airport run'), findsOneWidget);
   });
 
   for (final size in const [Size(360, 640), Size(411, 914)]) {

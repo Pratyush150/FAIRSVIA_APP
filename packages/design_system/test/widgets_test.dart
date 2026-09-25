@@ -92,14 +92,14 @@ void main() {
     testWidgets('is hidden when connected', (tester) async {
       await tester.pumpWidget(_wrap(const ConnectionBanner(connected: true)));
       expect(find.textContaining('Reconnecting'), findsNothing);
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(LottieMoment), findsNothing);
     });
 
     testWidgets('shows the reconnecting message when disconnected',
         (tester) async {
       await tester.pumpWidget(_wrap(const ConnectionBanner(connected: false)));
       expect(find.textContaining('Reconnecting'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(LottieMoment), findsOneWidget);
     });
   });
 

@@ -1,4 +1,10 @@
-import { DispatchService, clampOfferTtl } from './dispatch.service';
+import {
+  DispatchService,
+  clampOfferTtl,
+  radiusCeilingKm,
+  rescanMs,
+  searchWindowMs,
+} from './dispatch.service';
 import { RedisKeys } from '../common/redis/redis.keys';
 import { DISPATCH_JOB } from '../common/queue/queue.constants';
 
@@ -511,7 +517,7 @@ describe('DispatchService', () => {
     // Force the deadline to have passed after the first sweep.
     const realNow = Date.now;
     let calls = 0;
-    Date.now = () => realNow() + (calls++ > 0 ? 120000 : 0);
+    Date.now = () => realNow() + (calls++ > 0 ? 400000 : 0);
     try {
       await svc.runDispatch('trip-1');
     } finally {
@@ -581,5 +587,192 @@ describe('offer TTL clamp', () => {
     expect(clampOfferTtl(NaN)).toBe(15000);
     expect(clampOfferTtl(0)).toBe(15000);
     expect(clampOfferTtl(-1)).toBe(15000);
+  });
+});
+
+/**
+ * The search window: a booking with no free driver keeps searching — rescans,
+ * a widening radius, an immediate rescan when a driver joins the pool — and is
+ * only declared no_drivers when the window ends. Runs on a virtual clock.
+ */
+describe('search window', () => {
+  const realNow = Date.now;
+  let t = 0;
+  beforeEach(() => {
+    t = 1_000_000;
+    Date.now = () => t;
+    delete process.env.SEARCH_WINDOW_SEC;
+    delete process.env.SEARCH_RESCAN_SEC;
+  });
+  afterEach(() => {
+    Date.now = realNow;
+    delete process.env.SEARCH_WINDOW_SEC;
+    delete process.env.SEARCH_RESCAN_SEC;
+  });
+
+  function makeWindowed(opts: { statusAfter?: (n: number) => string } = {}) {
+    const trip = { id: 'trip-1', status: 'requested', riderId: 'rider-1', tier: 'comfort', pickupLat: 18.53, pickupLng: 73.84 };
+    const store = new Map<string, string>();
+    const client = {
+      get: jest.fn(async (k: string) => store.get(k) ?? null),
+      set: jest.fn(async (k: string, v: string, ...rest: unknown[]) => {
+        if (rest.includes('NX') && store.has(k)) return null;
+        store.set(k, v);
+        return 'OK';
+      }),
+      del: jest.fn(async (k: string) => (store.delete(k) ? 1 : 0)),
+    };
+    let reads = 0;
+    const prisma = {
+      trip: {
+        findUnique: jest.fn(async () => {
+          reads += 1;
+          if (reads === 1) return trip; // the initial load
+          return { status: opts.statusAfter ? opts.statusAfter(reads) : 'matching' };
+        }),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const realtime = { emitToUser: jest.fn() };
+    const notifications = { notifyTrip: jest.fn() };
+    const stateMachine = { transition: jest.fn().mockResolvedValue(undefined) };
+    const surge = { releaseDemand: jest.fn().mockResolvedValue(undefined) };
+    const svc = new DispatchService(
+      prisma as never,
+      { client } as never,
+      realtime as never,
+      notifications as never,
+      stateMachine as never,
+      { favoriteDriverIds: jest.fn().mockResolvedValue(new Set<string>()) } as never,
+      { route: jest.fn() } as never,
+      { sendOtp: jest.fn(), sendMessage: jest.fn() } as never,
+      {} as never,
+      { forceOffline: jest.fn() } as never,
+      surge as never,
+      flagsAllOff as never,
+      { offerOutcome: jest.fn() } as never,
+    );
+    // Virtual time: sleeping advances the clock, with an optional hook.
+    const onSleep: Array<(now: number) => void> = [];
+    (svc as unknown as { sleep: (ms: number) => Promise<void> }).sleep = async (ms: number) => {
+      t += Math.max(ms, 1);
+      onSleep.forEach((f) => f(t));
+    };
+    const sweepTimes: number[] = [];
+    const sweepRadii: number[] = [];
+    const sweep = jest.fn(async (_t: unknown, _f: unknown, _r: unknown, _d: number, maxKm: number) => {
+      sweepTimes.push(t);
+      sweepRadii.push(maxKm);
+      return 'exhausted';
+    });
+    (svc as unknown as { sweep: jest.Mock }).sweep = sweep;
+    return { svc, store, client, prisma, realtime, stateMachine, surge, sweep, sweepTimes, sweepRadii, onSleep, trip };
+  }
+
+  it('config: 180 s default, env override, clamped; rescan every 5 s', () => {
+    expect(searchWindowMs(undefined)).toBe(180_000);
+    expect(searchWindowMs('30')).toBe(30_000);
+    expect(searchWindowMs('1')).toBe(5_000);
+    expect(searchWindowMs('99999')).toBe(900_000);
+    expect(searchWindowMs('junk')).toBe(180_000);
+    expect(rescanMs(undefined)).toBe(5_000);
+    expect(rescanMs('2')).toBe(2_000);
+  });
+
+  it('radius ceiling widens in 2 km steps every 30 s, up to 15 km', () => {
+    expect(radiusCeilingKm(0)).toBe(9);
+    expect(radiusCeilingKm(29_999)).toBe(9);
+    expect(radiusCeilingKm(30_000)).toBe(11);
+    expect(radiusCeilingKm(60_000)).toBe(13);
+    expect(radiusCeilingKm(90_000)).toBe(15);
+    expect(radiusCeilingKm(170_000)).toBe(15);
+  });
+
+  it('keeps searching for the whole window, rescanning every 5 s, then declares no_drivers', async () => {
+    const { svc, stateMachine, realtime, sweepTimes, sweepRadii } = makeWindowed();
+    const start = t;
+    await svc.runDispatch('trip-1');
+
+    // Not given up early: the last scan happens at the very end of the window.
+    expect(sweepTimes[sweepTimes.length - 1] - start).toBeGreaterThanOrEqual(175_000);
+    // ~one scan per 5 s over 180 s.
+    expect(sweepTimes.length).toBeGreaterThanOrEqual(35);
+    expect(sweepTimes.length).toBeLessThanOrEqual(38);
+    expect(sweepTimes[2] - sweepTimes[1]).toBe(5_000);
+    // The radius widened as the search went on.
+    expect(sweepRadii[0]).toBe(9);
+    expect(sweepRadii[sweepRadii.length - 1]).toBe(15);
+    // Only now is the trip failed.
+    expect(t - start).toBeGreaterThanOrEqual(180_000);
+    expect(stateMachine.transition).toHaveBeenLastCalledWith(
+      expect.objectContaining({ from: 'matching', to: 'no_drivers' }),
+    );
+    expect(realtime.emitToUser).toHaveBeenCalledWith('rider-1', 'trip:no_drivers', { tripId: 'trip-1' });
+  });
+
+  it('tells the rider how long the search will run', async () => {
+    process.env.SEARCH_WINDOW_SEC = '20';
+    const { svc, realtime } = makeWindowed();
+    const start = t;
+    await svc.runDispatch('trip-1');
+    expect(realtime.emitToUser).toHaveBeenCalledWith('rider-1', 'trip:matching', {
+      tripId: 'trip-1',
+      searchWindowSec: 20,
+      searchEndsAt: new Date(start + 20_000).toISOString(),
+    });
+    expect(t - start).toBeGreaterThanOrEqual(20_000);
+    expect(t - start).toBeLessThan(26_000);
+  });
+
+  it('rescans at once when a driver of the tier joins the pool', async () => {
+    const { svc, store, sweep, sweepTimes, onSleep } = makeWindowed();
+    const start = t;
+    let bumped = false;
+    onSleep.push((now) => {
+      if (!bumped && now - start >= 1_000) {
+        bumped = true;
+        store.set('dispatch:poolgen:comfort', '1'); // a comfort driver came online
+      }
+    });
+    sweep.mockImplementationOnce(async () => {
+      sweepTimes.push(t);
+      return 'exhausted';
+    });
+    sweep.mockImplementationOnce(async () => {
+      sweepTimes.push(t);
+      return 'assigned';
+    });
+    await svc.runDispatch('trip-1');
+    expect(sweep).toHaveBeenCalledTimes(2);
+    // Second scan came ~1 s in, not after the 5 s tick.
+    expect(sweepTimes[1] - start).toBeLessThan(1_500);
+    expect(store.has('dispatch:deadline:trip-1')).toBe(false); // cleaned up
+  });
+
+  it('a rider cancelling mid-window ends the search with no no_drivers', async () => {
+    // reads: 1 = initial load, then one status read per rescan; cancelled on the 4th rescan.
+    const { svc, stateMachine, realtime, sweep } = makeWindowed({
+      statusAfter: (n) => (n >= 5 ? 'cancelled' : 'matching'),
+    });
+    const start = t;
+    await svc.runDispatch('trip-1');
+    expect(sweep).toHaveBeenCalledTimes(4);
+    expect(t - start).toBeLessThan(25_000);
+    // Only the requested→matching transition; never no_drivers.
+    expect(stateMachine.transition).toHaveBeenCalledTimes(1);
+    expect(realtime.emitToUser).not.toHaveBeenCalledWith('rider-1', 'trip:no_drivers', expect.anything());
+  });
+
+  it('a re-run job (after a restart) continues the SAME window, not a fresh one', async () => {
+    const { svc, store, trip, stateMachine } = makeWindowed();
+    trip.status = 'matching'; // the job is resumed mid-search
+    store.set('dispatch:deadline:trip-1', String(t + 10_000)); // 10 s left
+    const start = t;
+    await svc.runDispatch('trip-1');
+    expect(t - start).toBeGreaterThanOrEqual(10_000);
+    expect(t - start).toBeLessThan(16_000);
+    expect(stateMachine.transition).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'no_drivers' }),
+    );
   });
 });
