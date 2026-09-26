@@ -1,4 +1,4 @@
-# Mac: show the owner every screen, one by one (updated 2026-09-26, v2.13.0)
+# Mac: show the owner every screen, one by one (updated 2026-09-26, v2.14.0)
 
 **Who this is for:** the Claude session (or person) on the Mac at
 `/Users/parthbhimani/ubernav`. Follow it top to bottom. At every **SHOW** step,
@@ -8,10 +8,10 @@ screenshot, and wait for "next" before moving on.
 Rules: never commit `ios/Flutter/Secrets.xcconfig`; never force-push; this Mac
 only builds iOS — the backend and the fake drivers run on **nova-pc**
 (`ssh nova-pc`, already set up here). Nothing in this file has been run on
-iOS yet: Android 2.13.0 was checked on nova-pc's emulator and the owner's
-Realme. Treat every row as "expected", not "already seen on an iPhone".
+iOS yet: Android 2.14.0 was checked on nova-pc's emulator and the owner's
+Realme and vivo. Treat every row as "expected", not "already seen on an iPhone".
 
-**Current version: 2.13.0 (build 7300)** or later for both apps. The look is the final
+**Current version: 2.14.0 (build 7400)** or later for both apps. The look is the final
 **Plan F "Map Glass"**, which is the default build (no THEME flag). Don't
 build other THEME flags.
 
@@ -20,7 +20,7 @@ build other THEME flags.
 ## 1. Get the latest code and the server address
 
 ```sh
-cd ~/ubernav && git pull --ff-only          # must reach f11328d or later
+cd ~/ubernav && git pull --ff-only          # must reach f1dc1dc or later
 URL=$(ssh nova-pc 'docker logs ridevela_tunnel 2>&1 | grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" | tail -1')/api/v1
 curl -s "$URL/health"        # must print {"status":"ok",...}
 mkdir -p ~/Desktop/ridevela-ui
@@ -41,7 +41,7 @@ cd ~/ubernav/apps/rider_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM \
   --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
   --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=2.13.0 --build-number=7300
+  --build-name=2.14.0 --build-number=7400
 ```
 If release mode isn't supported on the simulator, use `--profile`. For a
 cabled iPhone, use its id from `flutter devices`.
@@ -99,7 +99,7 @@ iOS-specific: `flutter_native_contact_picker` is a new plugin, so run `pod insta
 cd ~/ubernav/apps/driver_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
   --dart-define=MARKET=in --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=2.13.0 --build-number=7300
+  --build-name=2.14.0 --build-number=7400
 ```
 | # | SHOW |
 |---|---|
@@ -110,10 +110,22 @@ flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
 | D5 | Complete the trip | Trip complete + money animation; **"Rate your rider" stars + Done are always visible, pinned at the bottom**. Drag up: this trip, today's total, quests (quest done → **trophy animation**) |
 | D6 | Earnings dashboard (Account / Earnings) | Daily and weekly figures in whole rupees |
 
+## 4b. New in 2.14.0 (driver app fixes from the Android audit)
+
+| # | SHOW |
+|---|---|
+| F1 | Offline sheet: the fatigue bar at "0m of 12h" is an empty light track, not solid black |
+| F2 | Quests card: an active quest says "ends midnight"; an ended one reads "Ended · x of y trips" and is faded; the sheet prefers an active quest |
+| F3 | Pull up the online sheet: "Busy areas nearby" lists only hotspots within 5 km, otherwise "No hotspots right now". The driver tip posters' text reads fully (no "…") |
+| F4 | Account: the stats row (Rating "New" · Trips · 7 days · plate) is aligned, and each label fits on one line |
+| F5 | Earnings: every bar in the 7-day chart has its ₹ amount above it; zero days show a small grey tick |
+| F6 | Payouts: a negative balance shows as "−₹35.60" in red, with "You owe commission on cash trips. It's deducted from your next payout." |
+| F7 | Vehicle dialog: the "Economy" type text is the same size as the other fields |
+
 ## 5. Install on the iPhone
 
 Build the same two apps (sections 2 and 4) on the cabled iPhone with
-`--build-name=2.13.0 --build-number=7300`. No THEME flag, no bundle-ID changes.
+`--build-name=2.14.0 --build-number=7400`. No THEME flag, no bundle-ID changes.
 
 ## 6. Report back
 
