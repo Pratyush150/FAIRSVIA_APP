@@ -928,63 +928,81 @@ class _RiderHomeViewState extends State<_RiderHomeView>
               children: [
                 // Google Maps SDK via the shared AppMap (native on mobile, JS
                 // on web) — the basemap is styled per theme inside AppMap.
-                AppMap(
-                  initialCenter: MapUtils.toLatLng(_myLocation),
-                  initialZoom: 16, // street level on the rider, like Uber
-                  markers: layer.markers,
-                  route: layer.route,
-                  pulseAt: layer.searchPulse,
-                  driverCarAsset: layer.driverCarAsset,
-                  // Plan F: the plate hangs under the car on the map too,
-                  // written exactly as the driver card writes it.
-                  driverPlateTag:
-                      AppGlass.enabled && state.driver?.plate != null
-                      ? Market.current.formatPlate(state.driver!.plate!)
-                      : null,
-                  fitBounds: layer.cameraFitBounds,
-                  recenter: _recenter,
-                  recenterSeq: _recenterSeq,
-                  // A recenter also restores street-level zoom, so the button
-                  // works the same after a pinch, after a route fit and after
-                  // the app has been in the background.
-                  recenterZoom: RideCamera.recenterZoom,
-                  cameraMode: _isLiveTracking(state)
-                      ? MapCameraMode.followDriverEdge
-                      : MapCameraMode.fit,
-                  // The map tells us when it stops following (the rider
-                  // panned); that is what raises the Recenter pill.
-                  onFollowingChanged: (following) {
-                    if (following != _following) {
-                      setState(() => _following = following);
-                    }
+                // The map is laid out inside the tab scaffold, so in idle it
+                // stops at the bottom tab bar, not at the screen bottom: its
+                // insets are measured against its own height.
+                LayoutBuilder(
+                  builder: (context, mapBox) {
+                    final mapH = mapBox.maxHeight.isFinite
+                        ? mapBox.maxHeight
+                        : screenH;
+                    return AppMap(
+                      initialCenter: MapUtils.toLatLng(_myLocation),
+                      initialZoom: 16, // street level on the rider, like Uber
+                      markers: layer.markers,
+                      route: layer.route,
+                      pulseAt: layer.searchPulse,
+                      driverCarAsset: layer.driverCarAsset,
+                      // Plan F: the plate hangs under the car on the map too,
+                      // written exactly as the driver card writes it.
+                      driverPlateTag:
+                          AppGlass.enabled && state.driver?.plate != null
+                          ? Market.current.formatPlate(state.driver!.plate!)
+                          : null,
+                      fitBounds: layer.cameraFitBounds,
+                      recenter: _recenter,
+                      recenterSeq: _recenterSeq,
+                      // A recenter also restores street-level zoom, so the button
+                      // works the same after a pinch, after a route fit and after
+                      // the app has been in the background.
+                      recenterZoom: RideCamera.recenterZoom,
+                      cameraMode: _isLiveTracking(state)
+                          ? MapCameraMode.followDriverEdge
+                          : MapCameraMode.fit,
+                      // The map tells us when it stops following (the rider
+                      // panned); that is what raises the Recenter pill.
+                      onFollowingChanged: (following) {
+                        if (following != _following) {
+                          setState(() => _following = following);
+                        }
+                      },
+                      // Keep pickup/dropoff/driver markers framed above the bottom
+                      // sheet (which covers ~40% of the screen) rather than behind it.
+                      // Inset the map by what is actually covering it. Markers stay
+                      // framed in the visible strip, and Google's attribution sits
+                      // just above the sheet instead of floating mid-map. Falls back
+                      // to a proportion of the screen for the first frame, before the
+                      // sheet has been measured.
+                      // Idle: the map is only the window above the Home sheet, so
+                      // the camera centres the rider in that window.
+                      // The bottom inset is the map's height minus the Home
+                      // sheet's top edge (header - overlap, in the same Stack), so
+                      // Google's logo sits bottom-left right on the sheet edge.
+                      // Idle has no route to fit, so the horizontal inset is small
+                      // and symmetric: the logo tucks into the corner and the
+                      // camera centre does not move sideways.
+                      boundsPadding: idle
+                          ? EdgeInsets.fromLTRB(
+                              10,
+                              MediaQuery.paddingOf(context).top + 72,
+                              10,
+                              (mapH -
+                                      IdleHome.headerHeightFor(screenH) +
+                                      kHomeSheetOverlap)
+                                  .clamp(0.0, mapH),
+                            )
+                          : EdgeInsets.fromLTRB(
+                              40,
+                              96,
+                              40,
+                              (_sheetHeight > 0
+                                      ? _sheetHeight
+                                      : MediaQuery.sizeOf(context).height *
+                                            0.34) +
+                                  AppSpacing.sm,
+                            ),
+                    );
                   },
-                  // Keep pickup/dropoff/driver markers framed above the bottom
-                  // sheet (which covers ~40% of the screen) rather than behind it.
-                  // Inset the map by what is actually covering it. Markers stay
-                  // framed in the visible strip, and Google's attribution sits
-                  // just above the sheet instead of floating mid-map. Falls back
-                  // to a proportion of the screen for the first frame, before the
-                  // sheet has been measured.
-                  // Idle: the map is only the window above the Home sheet, so
-                  // the camera centres the rider in that window.
-                  boundsPadding: idle
-                      ? EdgeInsets.fromLTRB(
-                          40,
-                          MediaQuery.paddingOf(context).top + 72,
-                          40,
-                          screenH -
-                              IdleHome.headerHeightFor(screenH) +
-                              kHomeSheetOverlap,
-                        )
-                      : EdgeInsets.fromLTRB(
-                          40,
-                          96,
-                          40,
-                          (_sheetHeight > 0
-                                  ? _sheetHeight
-                                  : MediaQuery.sizeOf(context).height * 0.34) +
-                              AppSpacing.sm,
-                        ),
                 ),
                 if (idle) _idleHome(state),
                 // Banner and top controls share one column so the
