@@ -85,6 +85,33 @@ const run = async () => {
   ok(!!est.comparison, 'estimate response includes a comparison block');
   ok(est.comparison?.currency === LIVE, `embedded comparison is in ${LIVE}`);
 
+  if (LIVE === 'INR') {
+    console.log('\n── per-tier comparisons (comparisonsByTier + POST tier) ──');
+    const by = est.comparisonsByTier || {};
+    const tiers = ['economy', 'comfort', 'xl', 'premium'];
+    for (const t of tiers) {
+      const c = by[t];
+      ok(!!c && c.tier === t, `comparisonsByTier.${t} present`);
+      if (!c) continue;
+      const ourTier = est.tiers.find((x) => x.tier === t);
+      ok(c.ours.price === ourTier?.fare, `[${t}] our price = ${t} fare ${ourTier?.fare}`);
+      ok(c.quotes.some((q) => !q.isOurs), `[${t}] has competitor quotes`);
+      console.log(`   ${t}: ` + c.quotes.map((q) => `${q.displayName} ${q.productName} ₹${q.price}`).join(' | '));
+    }
+    ok(
+      by.economy && JSON.stringify(by.economy.quotes) === JSON.stringify(est.comparison.quotes),
+      'comparison (back-compat) equals comparisonsByTier.economy',
+    );
+    const uber = (t) => by[t]?.quotes.find((q) => q.provider === 'uber')?.price;
+    const u = tiers.map(uber);
+    ok(new Set(u).size === 4 && u.every((v, i) => i === 0 || v > u[i - 1]), `Uber price rises across tiers: ${u.join(' < ')}`);
+    const r = by.economy?.quotes.find((q) => q.provider === 'rapido')?.price;
+    ok(r < uber('economy'), `Rapido (zero-commission) below Uber Go: ₹${r} < ₹${uber('economy')}`);
+    const xl = await api('/comparison/estimate', { method: 'POST', token: rider.token, body: { ...MARKETS.INR.trip, tier: 'xl' } });
+    ok(xl.tier === 'xl' && xl.quotes.some((q) => q.productName === 'Uber XL'), 'POST /comparison/estimate tier=xl → Uber XL set');
+    ok(xl.quotes.find((q) => q.provider === 'uber')?.price === uber('xl'), 'POST tier=xl matches comparisonsByTier.xl');
+  }
+
   console.log('\n── unsupported currency is rejected ──');
   let rejected = false;
   try {

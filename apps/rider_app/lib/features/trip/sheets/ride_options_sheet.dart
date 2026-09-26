@@ -164,13 +164,13 @@ class _RideOptionsExtras extends StatelessWidget {
     final estimate = state.estimate!;
     final cubit = context.read<TripCubit>();
     final tiers = _listOrder(estimate.tiers);
+    final (cmp, cmpLabel) = _selectedComparison(state);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (estimate.comparison != null &&
-            estimate.comparison!.quotes.isNotEmpty) ...[
-          PriceComparisonSection(comparison: estimate.comparison!),
+        if (cmp != null) ...[
+          PriceComparisonSection(comparison: cmp, tierLabel: cmpLabel),
           const SizedBox(height: AppSpacing.lg),
         ],
         if (tiers.isNotEmpty)
@@ -298,6 +298,23 @@ class _RideOptionsExtras extends StatelessWidget {
 /// India's own vehicles for the Pune market (cheapest first: bike, auto,
 /// then the cars), so every look — Plan D included — keeps it.
 List<FareTier> _listOrder(List<FareTier> tiers) => tiers;
+
+/// The price check for the tier the rider has selected (economy before a
+/// pick), with that tier's label. `(null, _)` when this tier has no
+/// comparison (or an empty one): the chip and card hide instead of showing
+/// another tier's numbers.
+(PriceComparison?, String?) _selectedComparison(TripState state) {
+  final estimate = state.estimate;
+  if (estimate == null) return (null, null);
+  final tier = state.selectedTier ?? 'economy';
+  final c = estimate.comparisonFor(tier);
+  if (c == null || c.quotes.isEmpty) return (null, null);
+  String? label;
+  for (final t in estimate.tiers) {
+    if (t.tier == tier) label = t.label;
+  }
+  return (c, label);
+}
 
 /// "Riding yourself, or booking for someone else?" The booker still pays and
 /// still tracks the ride; the passenger is who the driver collects, and who
@@ -494,8 +511,16 @@ class _RideConfirmFooter extends StatelessWidget {
       children: [
         // Price check: one compact line, always visible at rest (the full
         // card is the first pulled-up section; a tap opens it).
-        if (state.estimate?.comparison?.quotes.isNotEmpty ?? false) ...[
-          PriceComparisonChip(comparison: state.estimate!.comparison!),
+        if (_selectedComparison(state) case (
+          final PriceComparison cmp,
+          final String? cmpLabel,
+        )) ...[
+          PriceComparisonChip(
+            // Keyed per tier so a tier switch never reuses the old chip.
+            key: ValueKey('price-comparison-chip-${state.selectedTier}'),
+            comparison: cmp,
+            tierLabel: cmpLabel,
+          ),
           const SizedBox(height: AppSpacing.xs),
         ],
         // How it's paid sits right above the button that commits to it.

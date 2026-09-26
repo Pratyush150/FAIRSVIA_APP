@@ -1,4 +1,4 @@
-# Mac: show the owner every screen, one by one (updated 2026-09-26, v2.14.0)
+# Mac: show the owner every screen, one by one (updated 2026-09-26, v2.15.0)
 
 **Who this is for:** the Claude session (or person) on the Mac at
 `/Users/parthbhimani/ubernav`. Follow it top to bottom. At every **SHOW** step,
@@ -8,10 +8,10 @@ screenshot, and wait for "next" before moving on.
 Rules: never commit `ios/Flutter/Secrets.xcconfig`; never force-push; this Mac
 only builds iOS — the backend and the fake drivers run on **nova-pc**
 (`ssh nova-pc`, already set up here). Nothing in this file has been run on
-iOS yet: Android 2.14.0 was checked on nova-pc's emulator and the owner's
+iOS yet: Android 2.15.0 was checked on nova-pc's emulator and the owner's
 Realme and vivo. Treat every row as "expected", not "already seen on an iPhone".
 
-**Current version: 2.14.0 (build 7400)** or later for both apps. The look is the final
+**Current version: 2.15.0 (build 7500)** or later for both apps. The look is the final
 **Plan F "Map Glass"**, which is the default build (no THEME flag). Don't
 build other THEME flags.
 
@@ -20,7 +20,7 @@ build other THEME flags.
 ## 1. Get the latest code and the server address
 
 ```sh
-cd ~/ubernav && git pull --ff-only          # must reach f1dc1dc or later
+cd ~/ubernav && git pull --ff-only          # pull to the latest main (2.15.0 or later)
 URL=$(ssh nova-pc 'docker logs ridevela_tunnel 2>&1 | grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" | tail -1')/api/v1
 curl -s "$URL/health"        # must print {"status":"ok",...}
 mkdir -p ~/Desktop/ridevela-ui
@@ -41,7 +41,7 @@ cd ~/ubernav/apps/rider_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM \
   --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
   --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=2.14.0 --build-number=7400
+  --build-name=2.15.0 --build-number=7500
 ```
 If release mode isn't supported on the simulator, use `--profile`. For a
 cabled iPhone, use its id from `flutter devices`.
@@ -93,13 +93,31 @@ On **nova-pc**, run helpers from a second terminal when a step says so:
 iOS-specific: `flutter_native_contact_picker` is a new plugin, so run `pod install` in both
 `apps/rider_app/ios` and `apps/driver_app/ios` after pulling.
 
+## 3c. New in 2.15.0: price check per provider and per cab segment
+
+| # | Do | SHOW |
+|---|---|---|
+| P1 | Choose a ride (Pune pickup, e.g. Shivajinagar → Koregaon Park) with **Economy** selected | The line above Cash/Card reads "✓ Save ₹X vs Uber, Ola, Rapido ›". Tap it: **Price check · Economy**, with RideVela · Economy first, then **Uber, Ola and Rapido on separate rows** (Uber Go / Ola Mini / Rapido Cab Economy). Rapido is lower than Uber and Ola, and Uber and Ola match. Live reference: us ₹161, Rapido ₹173, Uber ₹201, Ola ₹201 |
+| P2 | Tap **Comfort**, then **XL**, then **Premium** | The savings line and the card **switch immediately** to that segment: Comfort → Uber Premier / Ola Prime Sedan / Rapido Cab Premium; XL → Uber XL / Ola Prime SUV / Rapido Cab XL; Premium → Uber Black only. Numbers rise by segment (reference XL: us ₹290, Rapido ₹345, Uber/Ola ₹403) |
+| P3 | Pull the sheet up | "Price check · <segment>" is the first section and matches the selected segment |
+| P4 | Book between 00:00 and 05:00 IST (optional) | Competitor prices include the 25% night charge |
+
+How competitor prices are modelled (backend/src/comparison/competitor-config.ts, sources in its comments):
+- the Pune RTA app-cab rate is ₹25/km, with a ₹75 minimum covering the first 3 km;
+- Uber and Ola add a 5% convenience fee;
+- Rapido is about 10% lower (zero-commission model);
+- surge is capped at 1.5x and discounts at 25%;
+- segment ratios are Comfort 1.375x, XL 2x, Premium 2.5x.
+
+All competitor prices are estimates, and the card says so.
+
 ## 4. Driver app
 
 ```sh
 cd ~/ubernav/apps/driver_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
   --dart-define=MARKET=in --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=2.14.0 --build-number=7400
+  --build-name=2.15.0 --build-number=7500
 ```
 | # | SHOW |
 |---|---|
@@ -125,7 +143,7 @@ flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
 ## 5. Install on the iPhone
 
 Build the same two apps (sections 2 and 4) on the cabled iPhone with
-`--build-name=2.14.0 --build-number=7400`. No THEME flag, no bundle-ID changes.
+`--build-name=2.15.0 --build-number=7500`. No THEME flag, no bundle-ID changes.
 
 ## 6. Report back
 

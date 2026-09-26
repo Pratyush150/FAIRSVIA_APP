@@ -32,6 +32,7 @@ import { FareBreakdown, PricingService } from '../pricing/pricing.service';
 import { SurgeService } from '../surge/surge.service';
 import {
   hasComparisonFor,
+  comparisonTiersFor,
   ComparisonService,
 } from '../comparison/comparison.service';
 import { PromoService } from '../promo/promo.service';
@@ -219,6 +220,15 @@ export class TripsService {
         hasComparisonFor(CURRENCY)
           ? this.comparison.compare(route.distanceM, route.durationS, surge, 'economy')
           : null,
+      // The same comparison for every tier that has a competitor set in this
+      // market (INR: economy/comfort/xl/premium), our fare = that tier's fare,
+      // so switching the cab segment in the app switches the comparison too.
+      comparisonsByTier: Object.fromEntries(
+        comparisonTiersFor(CURRENCY).map((t) => [
+          t,
+          this.comparison.compare(route.distanceM, route.durationS, surge, t),
+        ]),
+      ),
     };
   }
 

@@ -39,8 +39,9 @@ String priceComparisonSummary(PriceComparison c) {
 /// Opens the full [PriceComparisonCard] in a small bottom sheet.
 Future<void> showPriceComparisonSheet(
   BuildContext context,
-  PriceComparison comparison,
-) {
+  PriceComparison comparison, {
+  String? tierLabel,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -53,7 +54,10 @@ Future<void> showPriceComparisonSheet(
           AppSpacing.lg,
           AppSpacing.lg,
         ),
-        child: PriceComparisonSection(comparison: comparison),
+        child: PriceComparisonSection(
+          comparison: comparison,
+          tierLabel: tierLabel,
+        ),
       ),
     ),
   );
@@ -61,9 +65,17 @@ Future<void> showPriceComparisonSheet(
 
 /// Compact strip for the resting sheet. Taps open the full card.
 class PriceComparisonChip extends StatelessWidget {
-  const PriceComparisonChip({super.key, required this.comparison, this.onTap});
+  const PriceComparisonChip({
+    super.key,
+    required this.comparison,
+    this.tierLabel,
+    this.onTap,
+  });
 
   final PriceComparison comparison;
+
+  /// The selected tier's label ("XL"), carried into the sheet the chip opens.
+  final String? tierLabel;
   final VoidCallback? onTap;
 
   @override
@@ -89,7 +101,8 @@ class PriceComparisonChip extends StatelessWidget {
         child: InkWell(
           key: const Key('price-comparison-chip'),
           borderRadius: BorderRadius.circular(AppSpacing.radius),
-          onTap: onTap ?? () => showPriceComparisonSheet(context, c),
+          onTap: onTap ??
+              () => showPriceComparisonSheet(context, c, tierLabel: tierLabel),
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
@@ -129,15 +142,22 @@ class PriceComparisonChip extends StatelessWidget {
 
 /// The full card wrapped in the sheet-extras section look ("Price check").
 class PriceComparisonSection extends StatelessWidget {
-  const PriceComparisonSection({super.key, required this.comparison});
+  const PriceComparisonSection({
+    super.key,
+    required this.comparison,
+    this.tierLabel,
+  });
   final PriceComparison comparison;
+
+  /// The tier this check is for ("XL") — shown in the title and our row.
+  final String? tierLabel;
 
   @override
   Widget build(BuildContext context) => SheetSection(
     key: const Key('price-comparison-section'),
-    title: 'Price check',
+    title: tierLabel == null ? 'Price check' : 'Price check · $tierLabel',
     icon: PhosphorIconsRegular.coins,
-    child: PriceComparisonCard(comparison: comparison),
+    child: PriceComparisonCard(comparison: comparison, tierLabel: tierLabel),
   );
 }
 
@@ -176,9 +196,16 @@ bool _sameCompetitorFare(PriceComparison c) {
 /// same-fare group), a thin bar per row relative to the priciest, a
 /// "Cheapest" pill on the lowest, and the honesty footnote.
 class PriceComparisonCard extends StatelessWidget {
-  const PriceComparisonCard({super.key, required this.comparison});
+  const PriceComparisonCard({
+    super.key,
+    required this.comparison,
+    this.tierLabel,
+  });
 
   final PriceComparison comparison;
+
+  /// Our tier's label: our row reads "RideVela · XL" when set.
+  final String? tierLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -246,6 +273,7 @@ class PriceComparisonCard extends StatelessWidget {
             row: r,
             maxPrice: maxPrice,
             cheapest: r.price.round() == minPrice.round(),
+            tierLabel: tierLabel,
           ),
         ],
         const SizedBox(height: AppSpacing.md),
@@ -264,10 +292,12 @@ class _QuoteRow extends StatelessWidget {
     required this.row,
     required this.maxPrice,
     required this.cheapest,
+    this.tierLabel,
   });
   final _Row row;
   final double maxPrice;
   final bool cheapest;
+  final String? tierLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -278,10 +308,13 @@ class _QuoteRow extends StatelessWidget {
     final muted = theme.colorScheme.onSurfaceVariant;
     final q = row.first;
     final name = ours
-        ? AppBrand.name
+        ? (tierLabel == null ? AppBrand.name : '${AppBrand.name} · $tierLabel')
         : row.quotes.map((q) => q.displayName).join(' · ');
     final product = [
-      ...row.quotes.map((q) => q.productName).where((p) => p.isNotEmpty),
+      ...row.quotes
+          .map((q) => q.productName)
+          // Our product name already sits in the name ("RideVela · XL").
+          .where((p) => p.isNotEmpty && !(ours && p == tierLabel)),
     ].join(' · ');
     final subtitle = [
       if (product.isNotEmpty) product,

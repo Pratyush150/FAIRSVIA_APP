@@ -3,13 +3,21 @@ import { PricingService } from '../pricing/pricing.service';
 import { CURRENCY, METERS_PER_MILE } from '../pricing/fare-config';
 import { roundFare } from '../common/money';
 import {
-  COMPETITOR_MODELS_BY_CURRENCY,
+  COMPETITOR_MODELS_BY_CURRENCY_AND_TIER,
   ProviderFareModel,
 } from './competitor-config';
 
 /** True when we hold a competitor set for this currency (USD, UZS, AED). */
-export function hasComparisonFor(currency: string): boolean {
-  return (COMPETITOR_MODELS_BY_CURRENCY[currency.toUpperCase()]?.length ?? 0) > 0;
+export function hasComparisonFor(currency: string, tier = 'economy'): boolean {
+  return (
+    (COMPETITOR_MODELS_BY_CURRENCY_AND_TIER[currency.toUpperCase()]?.[tier]?.length ?? 0) > 0
+  );
+}
+
+/** Tiers that have a competitor set in this currency. */
+export function comparisonTiersFor(currency: string): string[] {
+  const byTier = COMPETITOR_MODELS_BY_CURRENCY_AND_TIER[currency.toUpperCase()] ?? {};
+  return Object.keys(byTier).filter((t) => byTier[t].length > 0);
 }
 import { CalibrationService } from './calibration.service';
 import { BRAND_NAME } from '../common/brand';
@@ -114,15 +122,16 @@ export class ComparisonService {
     tier = 'economy',
     models?: ProviderFareModel[],
     currency: string = CURRENCY,
+    at: Date = new Date(),
   ): PriceComparison {
     currency = currency.toUpperCase();
     // Calibration samples were gathered for the US set only; other markets use
     // their seeded published-rate models until they have samples of their own.
     const set =
       models ??
-      (currency === 'USD'
+      (currency === 'USD' && tier === 'economy'
         ? this.calibration.models()
-        : COMPETITOR_MODELS_BY_CURRENCY[currency] ?? []);
+        : COMPETITOR_MODELS_BY_CURRENCY_AND_TIER[currency]?.[tier] ?? []);
     const distanceMi = distanceM / METERS_PER_MILE;
     const distanceKm = distanceM / 1000;
     const durationMin = durationS / 60;
@@ -152,7 +161,7 @@ export class ComparisonService {
     const r = (n: number) => roundFare(n, currency);
     const competitorQuotes: ProviderQuote[] = set.map((m) => {
       const price = r(
-        modelCompetitorFare(m, distanceMi, durationMin, surge, distanceKm),
+        modelCompetitorFare(m, distanceMi, durationMin, surge, distanceKm, at),
       );
       // Uncertainty = calibration residual (how well the model fits real fares)
       // + a surge term (we're GUESSING their surge; the guess widens the band as
@@ -161,7 +170,8 @@ export class ComparisonService {
         ? clamp(m.residualPct, 0.02, 0.1)
         : 0.06;
       const surgeUnc =
-        Math.max(0, surge - 1) * 0.4 * Math.min(1, m.surgeSensitivity);
+        Math.max(0, Math.min(surge, m.maxSurge ?? Infinity) - 1) * 0.4 *
+        Math.min(1, m.surgeSensitivity);
       const unc = clamp(baseUnc + surgeUnc, 0, 0.6);
       return {
         provider: m.provider,
@@ -225,9 +235,13 @@ function clamp(n: number, lo: number, hi: number): number {
 }
 
 /**
- * fare = (base + perMile*mi + perMin*min) * effectiveSurge + bookingFee,
- * floored at minFare. effectiveSurge dampens/amplifies our surge per the
- * provider's modeled sensitivity.
+ * fare = max((base + perMile*mi + perKm*km + perMin*min) * fareFactor
+ *              * effectiveSurge * night + bookingFee,  minFare * night)
+ *        * (1 + convenienceFeePct)
+ * effectiveSurge = 1 + (ourSurge - 1) * surgeSensitivity, clamped to the
+ * model's regulatory [minSurge, maxSurge]. `night` applies only inside the
+ * model's night window (its own local time zone). Models without the optional
+ * fields reduce to the original formula.
  */
 export function modelCompetitorFare(
   m: ProviderFareModel,
@@ -235,15 +249,39 @@ export function modelCompetitorFare(
   durationMin: number,
   surge: number,
   distanceKm = distanceMi * (METERS_PER_MILE / 1000),
+  at: Date = new Date(),
 ): number {
-  const effectiveSurge = 1 + (surge - 1) * m.surgeSensitivity;
+  const effectiveSurge = clamp(
+    1 + (surge - 1) * m.surgeSensitivity,
+    m.minSurge ?? 0,
+    m.maxSurge ?? Infinity,
+  );
+  const night = m.night && isNight(at, m.night) ? m.night.multiplier : 1;
   const metered =
     (m.baseFare +
       m.perMile * distanceMi +
       (m.perKm ?? 0) * distanceKm +
       m.perMin * durationMin) *
-    effectiveSurge;
-  return round2(Math.max(metered + m.bookingFee, m.minFare));
+    (m.fareFactor ?? 1) *
+    effectiveSurge *
+    night;
+  const floored = Math.max(metered + m.bookingFee, m.minFare * night);
+  return round2(floored * (1 + (m.convenienceFeePct ?? 0)));
+}
+
+/** True when `at` falls in [startHour, endHour) in the window's time zone. */
+export function isNight(
+  at: Date,
+  w: { startHour: number; endHour: number; timeZone: string },
+): boolean {
+  const h =
+    Number(
+      new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: w.timeZone })
+        .format(at),
+    ) % 24;
+  return w.startHour <= w.endHour
+    ? h >= w.startHour && h < w.endHour
+    : h >= w.startHour || h < w.endHour;
 }
 
 function round2(n: number): number {

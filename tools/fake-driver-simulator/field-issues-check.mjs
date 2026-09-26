@@ -200,6 +200,13 @@ async function main() {
   }
   const raised = stopped.slice(stoppedSeen);
   check(stopped.length === 1, `standing still alerts exactly once (got ${stopped.length})`);
+  if (stopped.length === 0) {
+    console.log(
+      `    hint: this waited ${stoppedAfterS + 6}s assuming the backend's STOPPED_AFTER_S=${stoppedAfterS}. ` +
+        'The dev stack (backend/.env) uses 180 — either rerun with STOPPED_AFTER_S=180 ' +
+        'or start the backend with STOPPED_AFTER_S=4.',
+    );
+  }
   if (raised.length) {
     const waited = Math.round((firedAt - parkedAt) / 1000);
     check(

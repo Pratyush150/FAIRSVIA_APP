@@ -20,6 +20,7 @@ class TripEstimate extends Equatable {
     required this.tiers,
     this.stops = const [],
     this.comparison,
+    this.comparisonsByTier = const {},
   });
 
   final int distanceM;
@@ -35,6 +36,17 @@ class TripEstimate extends Equatable {
   /// RideVela vs modeled Uber/Lyft/Empower prices for this trip (may be null if
   /// the backend omitted it).
   final PriceComparison? comparison;
+
+  /// Per-tier price checks (`comparisonsByTier` on the wire): each tier's own
+  /// fare vs the competitors' matching product (economy vs Uber Go, XL vs
+  /// Uber XL, ...). Empty when the backend predates it.
+  final Map<String, PriceComparison> comparisonsByTier;
+
+  /// The price check for [tier]: its own entry, else — for economy only —
+  /// the legacy [comparison]. Null means "no comparison for this tier": the
+  /// UI hides it rather than showing another tier's numbers.
+  PriceComparison? comparisonFor(String tier) =>
+      comparisonsByTier[tier] ?? (tier == 'economy' ? comparison : null);
 
   /// Distance in statute miles (US market). The backend reports meters.
   double get distanceMi => distanceM / 1609.34;
@@ -77,6 +89,7 @@ class TripEstimate extends Equatable {
         ],
         stops: stops,
         comparison: comparison,
+        comparisonsByTier: comparisonsByTier,
       );
 
   factory TripEstimate.fromJson(Map<String, dynamic> json) => TripEstimate(
@@ -97,7 +110,19 @@ class TripEstimate extends Equatable {
             ? null
             : PriceComparison.fromJson(
                 json['comparison'] as Map<String, dynamic>),
+        comparisonsByTier: _parseByTier(json['comparisonsByTier']),
       );
+
+  static Map<String, PriceComparison> _parseByTier(Object? raw) {
+    if (raw is! Map) return const {};
+    final out = <String, PriceComparison>{};
+    raw.forEach((k, v) {
+      if (k is String && v is Map<String, dynamic>) {
+        out[k] = PriceComparison.fromJson(v);
+      }
+    });
+    return out;
+  }
 
   @override
   List<Object?> get props => [
@@ -111,5 +136,6 @@ class TripEstimate extends Equatable {
         tiers,
         stops,
         comparison,
+        comparisonsByTier,
       ];
 }

@@ -1,12 +1,18 @@
 import {
   AED_COMPETITOR_MODELS,
   INR_COMPETITOR_MODELS,
+  INR_COMPETITOR_MODELS_BY_TIER,
   COMPARISON_CURRENCIES,
   COMPETITOR_MODELS_BY_CURRENCY,
   ProviderFareModel,
   UZS_COMPETITOR_MODELS,
 } from './competitor-config';
-import { hasComparisonFor, modelCompetitorFare } from './comparison.service';
+import {
+  comparisonTiersFor,
+  hasComparisonFor,
+  isNight,
+  modelCompetitorFare,
+} from './comparison.service';
 import { METERS_PER_MILE } from '../pricing/fare-config';
 
 /** Modeled no-surge fare for a trip of `km` kilometres and `min` minutes. */
@@ -88,18 +94,67 @@ describe('Dubai (AED) worked examples', () => {
   });
 });
 
-describe('Pune (INR) worked examples — RTA-regulated app-cab tariff', () => {
-  const I = INR_COMPETITOR_MODELS;
-  it('5 km / 15 min = ₹125 for Uber Go, Ola Mini, Rapido', () => {
-    for (const p of ['uber', 'ola', 'rapido']) expect(fare(I, p, 5, 15)).toBe(125);
+describe('Pune (INR) worked examples — RTA tariff + per-provider terms', () => {
+  const T = INR_COMPETITOR_MODELS_BY_TIER;
+  // 10:00 IST (day) and 01:30 IST (inside the 00:00–05:00 night window).
+  const DAY = new Date('2026-09-26T04:30:00Z');
+  const NIGHT = new Date('2026-09-25T20:00:00Z');
+  const f = (tier: string, p: string, km: number, min: number, at = DAY, surge = 1) =>
+    modelCompetitorFare(T[tier].find((m) => m.provider === p)!, km / 1.609344, min, surge, km, at);
+
+  it('economy 5 km / 15 min, day: Uber = Ola ₹131.25 (₹125 + 5% fee), Rapido ₹112.50 (10% under)', () => {
+    expect(f('economy', 'uber', 5, 15)).toBe(131.25);
+    expect(f('economy', 'ola', 5, 15)).toBe(131.25);
+    expect(f('economy', 'rapido', 5, 15)).toBe(112.5);
   });
-  it('12 km / 30 min = ₹300', () => {
-    for (const p of ['uber', 'ola', 'rapido']) expect(fare(I, p, 12, 30)).toBe(300);
+  it('economy 12 km / 30 min, day: Uber/Ola ₹315, Rapido ₹270', () => {
+    expect(f('economy', 'uber', 12, 30)).toBe(315);
+    expect(f('economy', 'ola', 12, 30)).toBe(315);
+    expect(f('economy', 'rapido', 12, 30)).toBe(270);
   });
-  it('reproduces the published 10 km RTA fare (₹249.50, angelone.in Jul 2025)', () => {
-    expect(Math.abs(fare(I, 'uber', 10, 25) - 249.5)).toBeLessThanOrEqual(0.5);
+  it('night (01:30 IST) adds 25%: 5 km Uber ₹164.06, Rapido ₹140.63', () => {
+    expect(f('economy', 'uber', 5, 15, NIGHT)).toBe(164.06);
+    expect(f('economy', 'rapido', 5, 15, NIGHT)).toBe(140.63);
+    expect(f('economy', 'uber', 12, 30, NIGHT)).toBe(393.75);
   });
-  it('floors short trips at the ₹37 first-1.5 km charge', () => {
-    expect(fare(I, 'ola', 1, 4)).toBe(37);
+  it('isNight honours the IST window edges', () => {
+    const w = { startHour: 0, endHour: 5, timeZone: 'Asia/Kolkata' };
+    expect(isNight(new Date('2026-09-25T18:30:00Z'), w)).toBe(true); // 00:00 IST
+    expect(isNight(new Date('2026-09-25T23:29:00Z'), w)).toBe(true); // 04:59 IST
+    expect(isNight(new Date('2026-09-25T23:30:00Z'), w)).toBe(false); // 05:00 IST
+  });
+  it('minimum fare covers 3 km: 1 km Uber ₹78.75 (₹75 + 5%), Rapido ₹67.50', () => {
+    expect(f('economy', 'uber', 1, 4)).toBe(78.75);
+    expect(f('economy', 'rapido', 1, 4)).toBe(67.5);
+  });
+  it('surge is capped at 1.5x (Maharashtra policy): our 2.0x → Uber ₹196.88, Rapido ₹168.75', () => {
+    expect(f('economy', 'uber', 5, 15, DAY, 2)).toBe(196.88);
+    expect(f('economy', 'rapido', 5, 15, DAY, 2)).toBe(168.75);
+    // Below the cap, Rapido's lower sensitivity shows: 1.25x ours → 1.2x theirs.
+    expect(f('economy', 'rapido', 5, 15, DAY, 1.25)).toBe(135);
+  });
+  it('low demand discount floored at 0.75x', () => {
+    expect(f('economy', 'uber', 5, 15, DAY, 0.5)).toBe(98.44);
+  });
+  it('per tier, 5 km day: comfort / xl / premium scale 1.375x / 2x / 2.5x', () => {
+    expect(f('comfort', 'uber', 5, 15)).toBe(180.47);
+    expect(f('comfort', 'rapido', 5, 15)).toBe(154.69);
+    expect(f('xl', 'uber', 5, 15)).toBe(262.5);
+    expect(f('xl', 'ola', 5, 15)).toBe(262.5);
+    expect(f('xl', 'rapido', 5, 15)).toBe(225);
+    expect(f('premium', 'uber', 5, 15)).toBe(328.13);
+  });
+  it('product names per tier; premium has no Ola/Rapido (unverified in Pune)', () => {
+    expect(T.economy.map((m) => m.productName)).toEqual(['Uber Go', 'Mini', 'Cab Economy']);
+    expect(T.comfort.map((m) => m.productName)).toEqual(['Premier', 'Prime Sedan', 'Cab Premium']);
+    expect(T.xl.map((m) => m.productName)).toEqual(['Uber XL', 'Prime SUV', 'Cab XL']);
+    expect(T.premium.map((m) => m.provider)).toEqual(['uber']);
+    expect(INR_COMPETITOR_MODELS).toBe(T.economy);
+  });
+  it('INR has comparison sets for all four tiers; other markets economy only', () => {
+    expect(comparisonTiersFor('INR').sort()).toEqual(['comfort', 'economy', 'premium', 'xl']);
+    expect(comparisonTiersFor('AED')).toEqual(['economy']);
+    expect(hasComparisonFor('INR', 'xl')).toBe(true);
+    expect(hasComparisonFor('AED', 'xl')).toBe(false);
   });
 });

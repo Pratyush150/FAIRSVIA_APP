@@ -36,6 +36,16 @@ async function requestTrip(rider) {
 async function main() {
   const admin = await login('+19900000001');
   assert(admin.user.role === 'admin', 'admin login');
+  // An earlier run that aborted mid-way leaves its 'Sim quest' active; its
+  // window overlaps ours, so our fresh driver would legitimately earn that
+  // bonus too. Retire leftover sim quests (only ones this script creates).
+  const stale = (await api('/admin/quests', { token: admin.token })).filter(
+    (x) => x.active && x.title.startsWith('Sim quest '),
+  );
+  for (const x of stale) {
+    await api(`/admin/quests/${x.id}`, { method: 'PATCH', token: admin.token, body: { active: false } });
+  }
+  if (stale.length) console.log(`0. retired ${stale.length} leftover sim quest(s) from earlier runs`);
   const now = Date.now();
   const quest = await api('/admin/quests', {
     method: 'POST',
@@ -49,6 +59,16 @@ async function main() {
       bonusAmount: 150,
     },
   });
+  try {
+    await run(admin, quest);
+  } finally {
+    // Always retire our own quest, even when an assert fails.
+    await api(`/admin/quests/${quest.id}`, { method: 'PATCH', token: admin.token, body: { active: false } }).catch(() => undefined);
+  }
+  process.exit(0);
+}
+
+async function run(admin, quest) {
   console.log(`1. admin created quest ${quest.id.slice(0, 8)}: ${quest.title} (bonus ${quest.bonusAmount} ${quest.currency})`);
 
   const driver = await login(phone('95'));
@@ -115,15 +135,31 @@ async function main() {
   console.log(`3. driver ← quest:completed: "${ev.message}"`);
   const q = (await api('/drivers/me/quests', { token: driver.token })).find((x) => x.id === quest.id);
   assert(q.progress === 3 && q.completed && q.paid, 'quest 3/3 paid');
-  const bonusRows = psql(
-    `select count(*)||':'||coalesce(sum(amount),0) from ledger_entries where driver_id='${driver.user.id}' and type='bonus'`,
+  // Once-only, per quest: exactly one award for (this quest, this driver),
+  // linked to exactly one 150 'bonus' ledger row.
+  const awardRows = psql(
+    `select count(*)||':'||coalesce(sum(l.amount),0) from quest_awards a join ledger_entries l on l.id=a.ledger_entry_id where a.quest_id='${quest.id}' and a.driver_id='${driver.user.id}' and l.type='bonus'`,
   );
-  assert(bonusRows === '1:150.00', `exactly one 150 bonus row (got ${bonusRows})`);
+  assert(awardRows === '1:150.00', `exactly one 150 bonus row for this quest (got ${awardRows})`);
+  const noteRows = psql(
+    `select count(*) from ledger_entries where driver_id='${driver.user.id}' and type='bonus' and note='Quest bonus: ${quest.title}'`,
+  );
+  assert(noteRows === '1', `exactly one ledger bonus row for this quest by note (got ${noteRows})`);
+  // Every bonus row this (fresh) driver has must belong to a distinct award:
+  // no unlinked / duplicate ledger credits from any quest.
+  const [allBonus, allAwards] = psql(
+    `select (select count(*) from ledger_entries where driver_id='${driver.user.id}' and type='bonus')||'|'||(select count(distinct ledger_entry_id) from quest_awards where driver_id='${driver.user.id}')`,
+  ).split('|');
+  assert(allBonus === allAwards, `every bonus ledger row has its own award (ledger ${allBonus}, awards ${allAwards})`);
+  const bonusRows = awardRows;
+  const bonusTotal = Number(
+    psql(`select coalesce(sum(amount),0) from ledger_entries where driver_id='${driver.user.id}' and type='bonus'`),
+  );
   const earn = await api('/drivers/me/earnings?range=today', { token: driver.token });
-  assert(earn.bonuses === 150, `earnings bonuses 150 (got ${earn.bonuses})`);
+  assert(earn.bonuses === bonusTotal && earn.bonuses >= 150, `earnings bonuses ${bonusTotal} (got ${earn.bonuses})`);
   const rideSum = payouts.reduce((a, r) => a + (r.driverPayout ?? 0), 0);
   console.log(`   earnings today: total ${earn.total} = rides ${rideSum} + bonus ${earn.bonuses}; ledger bonus rows ${bonusRows}`);
-  assert(Math.abs(earn.total - (rideSum + 150)) < 0.01, 'earnings total includes the bonus');
+  assert(Math.abs(earn.total - (rideSum + bonusTotal)) < 0.01, 'earnings total includes the bonus');
 
   // --- rates ---
   const stats = await api('/drivers/me/stats', { token: driver.token });
@@ -141,12 +177,10 @@ async function main() {
     console.log(`5. whole-unit split OK in ${currency}: ${payouts.map((r) => `${r.fareFinal}=${r.driverPayout}+${r.platformFee}`).join(', ')}`);
   }
 
-  await api(`/admin/quests/${quest.id}`, { method: 'PATCH', token: admin.token, body: { active: false } });
   dSock.emit('driver:status', { status: 'offline' });
   dSock.close();
   rSock.close();
   console.log('\n✅ QUESTS SIM OK — decline + 3 real rides → quest 3/3 → one 150 bonus → in earnings; acceptance 75%');
-  process.exit(0);
 }
 
 main().catch((e) => {

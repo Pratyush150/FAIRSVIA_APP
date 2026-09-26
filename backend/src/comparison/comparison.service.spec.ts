@@ -175,3 +175,40 @@ describe('ComparisonService', () => {
     expect(surged.demandHigh).toBe(true);
   });
 });
+
+describe('ComparisonService — per-tier comparisons (INR)', () => {
+  // Our fare per tier (the pilot's INR per-km ratios), competitor sets real.
+  const OUR: Record<string, number> = { economy: 60, comfort: 75, xl: 100, premium: 140 };
+  const pricing = {
+    estimateForTierInCurrency: (tier: string) => ({ tier, label: tier, fare: OUR[tier] }),
+  } as unknown as PricingService;
+  const svc = new ComparisonService(pricing, fakeCalibration([]));
+  const DAY = new Date('2026-09-26T04:30:00Z');
+
+  it('compares each tier against that tier’s products, with distinct numbers', () => {
+    const byTier = Object.fromEntries(
+      ['economy', 'comfort', 'xl', 'premium'].map((t) => [
+        t,
+        svc.compare(5000, 900, 1, t, undefined, 'INR', DAY),
+      ]),
+    );
+    expect(byTier.economy.quotes.map((q) => q.productName)).toEqual(
+      expect.arrayContaining(['Uber Go', 'Mini', 'Cab Economy']),
+    );
+    expect(byTier.xl.quotes.map((q) => q.productName)).toEqual(
+      expect.arrayContaining(['Uber XL', 'Prime SUV', 'Cab XL']),
+    );
+    const uber = (t: string) => byTier[t].quotes.find((q) => q.provider === 'uber')!.price;
+    expect([uber('economy'), uber('comfort'), uber('xl'), uber('premium')]).toEqual([131, 180, 263, 328]);
+    for (const t of Object.keys(OUR)) {
+      expect(byTier[t].tier).toBe(t);
+      expect(byTier[t].ours.price).toBe(OUR[t]);
+    }
+    expect(byTier.premium.quotes).toHaveLength(2); // us + Uber Black only
+  });
+
+  it('a tier without a competitor set in that market compares against nothing', () => {
+    const c = svc.compare(5000, 900, 1, 'xl', undefined, 'AED', DAY);
+    expect(c.quotes).toHaveLength(1);
+  });
+});

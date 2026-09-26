@@ -48,6 +48,15 @@ export interface ProviderFareModel {
    * Applied as: effectiveSurge = 1 + (ourSurge - 1) * surgeSensitivity.
    */
   surgeSensitivity: number;
+  /** Multiplier on the metered fare (e.g. Rapido's zero-commission discount). Default 1. */
+  fareFactor?: number;
+  /** Regulatory cap / floor on the effective surge (Maharashtra: 1.5 / 0.75). */
+  maxSurge?: number;
+  minSurge?: number;
+  /** Percentage convenience/platform fee on top of the fare (0.05 = 5%). */
+  convenienceFeePct?: number;
+  /** Night surcharge window, in the market's local time. endHour exclusive. */
+  night?: { multiplier: number; startHour: number; endHour: number; timeZone: string };
 
   /** True once fitted from real samples (set by CalibrationService). */
   calibrated?: boolean;
@@ -232,64 +241,117 @@ export const AED_COMPETITOR_MODELS: ProviderFareModel[] = [
 ];
 
 /**
- * Pune (INR) — the live pilot. Pune RTA fixed the fare for app-based cabs
- * (Ola, Uber, Rapido) from 1 May 2025: ₹37 for the first 1.5 km, ₹25/km after
- * (i.e. ₹25/km from zero, floored at ₹37). A 10 km ride = ₹249.50 by that
- * tariff. Sources (sampled 2026-09-26):
- *   https://www.angelone.in/news/market-updates/ola-uber-rapido-to-charge-govt-approved-fares-in-pune-from-may-1
- *   https://www.angelone.in/news/economy/ola-uber-and-rapido-under-scrutiny-as-rta-approved-fares-spark-price-controversy-in-pune
- *     (23 Jul 2025: 10 km RTA ₹249.50 vs pre-rule Uber Go average ₹175 ex-surge)
- *   https://www.newsonair.gov.in/maharashtra-notifies-aggregator-policy-for-app-based-cab-services
- * Because the fare is REGULATED, all three economy products model to the same
- * number — that is the honest result, not a bug. Reported compliance is
- * uneven (the July 2025 article cites both cheaper pre-rule fares and
- * overcharging), so confidence is MEDIUM for the structure, LOW for what a
- * rider actually sees on a given day. Platform/booking fees and GST: none of
- * the sources itemise an extra rider-side fee on top of the RTA fare, and
- * India's 5% ride GST is included in the quoted fare, so none is added.
- * Per-minute: the RTA cab tariff has no time component → perMin 0.
+ * Pune (INR) — the live pilot. Research sampled 2026-09-26. What moves an
+ * Uber / Ola / Rapido price in Pune beyond the RTA per-km rate:
+ *
+ *  1. RTA per-km rate (AC app cab): ₹25/km, fixed for Ola/Uber/Rapido from
+ *     1 May 2025 (non-AC ₹21/km, not modeled — all three sell AC cars here).
+ *     https://www.freepressjournal.in/pune/attention-punekars-check-out-ola-uber-rapido-cab-fares-per-kilometer-for-ac-and-non-ac-in-pune (8 May 2025)
+ *     https://www.angelone.in/news/market-updates/ola-uber-rapido-to-charge-govt-approved-fares-in-pune-from-may-1
+ *     Confidence HIGH (government tariff; compliance uneven — angelone.in 23 Jul 2025).
+ *  2. Minimum fare covers the first 3 km (₹75). The May 2025 Pune notice said
+ *     ₹37 for 1.5 km; the state Aggregator Policy (GR 20 May 2025, enforced
+ *     Sept 2025) says rides under 3 km pay a minimum covering 3 km, and
+ *     punenow.com reports "₹75 for the first 3 km". The later rule is used.
+ *     https://www.punenow.com/new-government-approved-cab-fares-in-pune-ola-uber-and-rapido-implement-revised-rates/
+ *     https://www.medianama.com/2025/05/223-maharashtra-aggregator-cabs-policy-2025/
+ *     Confidence MEDIUM.
+ *  3. Surge capped at 1.5x base; low-demand discounts capped at 25% below base.
+ *     https://www.freepressjournal.in/mumbai/maharashtra-approves-cab-aggregator-policy-caps-surge-pricing-imposes-fines-for-cancellations
+ *     https://thelogicalindian.com/maharashtras-2025-cab-policy-surge-pricing-capped-at-1-5x-%E2%82%B9100-driver-cancellation-fine-and-mandatory-safety-reforms/
+ *     Confidence HIGH → `maxSurge: 1.5`, `minSurge: 0.75`. (The central MVAG
+ *     2025 guideline allows up to 2x — greenevcabs.com, Jul 2026 — but the
+ *     Maharashtra state cap is the binding one here.)
+ *  4. Convenience fee capped at 5% per ride (angelone.in, above). Uber and Ola
+ *     are modeled AT the cap (an upper bound; neither itemises its fee
+ *     publicly) → `convenienceFeePct: 0.05`. Confidence LOW.
+ *  5. Rapido: driver-subscription, zero-commission model; reported 10–15%
+ *     cheaper rides for riders (motilaloswal.com, Jan 2025:
+ *     https://www.motilaloswal.com/learning-centre/2025/1/the-rise-of-rapido-transforming-indias-cab-hailing-market).
+ *     Modeled as `fareFactor: 0.9` (10% below the RTA base — inside the 25%
+ *     discount cap) and no convenience fee. Confidence LOW-MEDIUM. Ola and
+ *     Uber have moved to subscription models too (yourstory.com, Jun 2025),
+ *     but no source shows their rider prices falling, so they stay at base.
+ *  6. Night: Pune RTA meter tariff adds 25% between 00:00 and 05:00
+ *     (metersahi.in/pune; applies to metered autos/taxis, to which the app-cab
+ *     fare is pegged). cabspune.in claims app cabs carry no midnight
+ *     surcharge — the sources CONFLICT. Modeled as 1.25x 00:00–05:00 IST for
+ *     all three, confidence LOW.
+ *  7. GST: 5% ride GST is inside the quoted fare → not added. Per-minute /
+ *     ride-time: the RTA app-cab tariff has no time component → perMin 0.
+ *     Pickup / dead mileage: not charged under the policy (except the 3 km
+ *     minimum) → not modeled. Waiting charges apply only while stopped → not
+ *     modeled for a moving trip.
+ *  Ola vs Uber: no source shows a difference in Pune under the regulated
+ *  tariff, so they are modeled IDENTICALLY — that is the honest result.
+ *
+ * Vehicle classes: Pune RTA publishes no separate app-cab rate for sedan /
+ * SUV / luxury classes that we could find. The tier ratios below come from ONE
+ * reported same-trip quote (x.com/arsh_goyal, Feb 2025: Uber Go ₹800, Premier
+ * ₹1,100, XL ₹1,600 → 1.375x and 2.0x). Confidence LOW — calibrate with samples.
+ * Premium: Uber Black was reintroduced in India (ackodrive.com, 2024) but its
+ * Pune availability and price are NOT verified; the 2.5x ratio is an
+ * UNSOURCED placeholder. Ola Luxe and a Rapido luxury product could not be
+ * verified for Pune and are omitted.
  */
-export const INR_COMPETITOR_MODELS: ProviderFareModel[] = [
-  {
-    provider: 'uber',
-    displayName: 'Uber',
-    productName: 'Uber Go',
+const PUNE_RTA_PER_KM = 25;
+const PUNE_MIN_FARE = 75; // minimum covers 3 km × ₹25
+const PUNE_NIGHT = { multiplier: 1.25, startHour: 0, endHour: 5, timeZone: 'Asia/Kolkata' };
+
+function puneModel(
+  provider: 'uber' | 'ola' | 'rapido',
+  productName: string,
+  classRatio: number,
+): ProviderFareModel {
+  const perProvider = {
+    uber: { displayName: 'Uber', fareFactor: 1, convenienceFeePct: 0.05, surgeSensitivity: 1.0 },
+    ola: { displayName: 'Ola', fareFactor: 1, convenienceFeePct: 0.05, surgeSensitivity: 1.0 },
+    // surgeSensitivity 0.8 for Rapido is UNSOURCED (carried from the earlier
+    // model): it reflects its smaller surge engine; capped at 1.5x regardless.
+    rapido: { displayName: 'Rapido', fareFactor: 0.9, convenienceFeePct: 0, surgeSensitivity: 0.8 },
+  }[provider];
+  return {
+    provider,
+    displayName: perProvider.displayName,
+    productName,
     baseFare: 0,
     perMile: 0,
-    perKm: 25,
+    perKm: PUNE_RTA_PER_KM * classRatio,
     perMin: 0,
     bookingFee: 0,
-    minFare: 37,
-    surgeSensitivity: 1.0,
-  },
-  {
-    provider: 'ola',
-    displayName: 'Ola',
-    productName: 'Mini',
-    baseFare: 0,
-    perMile: 0,
-    perKm: 25,
-    perMin: 0,
-    bookingFee: 0,
-    minFare: 37,
-    surgeSensitivity: 1.0,
-  },
-  {
-    // Rapido runs a driver-subscription (zero-commission) model; it has no
-    // separately published Pune cab card, so it is modeled on the same RTA
-    // tariff. Confidence LOW-MEDIUM.
-    provider: 'rapido',
-    displayName: 'Rapido',
-    productName: 'Cab Economy',
-    baseFare: 0,
-    perMile: 0,
-    perKm: 25,
-    perMin: 0,
-    bookingFee: 0,
-    minFare: 37,
-    surgeSensitivity: 0.8,
-  },
-];
+    minFare: PUNE_MIN_FARE * classRatio * perProvider.fareFactor,
+    surgeSensitivity: perProvider.surgeSensitivity,
+    fareFactor: perProvider.fareFactor,
+    convenienceFeePct: perProvider.convenienceFeePct,
+    maxSurge: 1.5,
+    minSurge: 0.75,
+    night: PUNE_NIGHT,
+  };
+}
+
+/** Pune competitor sets per our tier (see the note above for sources). */
+export const INR_COMPETITOR_MODELS_BY_TIER: Record<string, ProviderFareModel[]> = {
+  economy: [
+    puneModel('uber', 'Uber Go', 1),
+    puneModel('ola', 'Mini', 1),
+    puneModel('rapido', 'Cab Economy', 1),
+  ],
+  comfort: [
+    puneModel('uber', 'Premier', 1.375),
+    puneModel('ola', 'Prime Sedan', 1.375),
+    puneModel('rapido', 'Cab Premium', 1.375),
+  ],
+  xl: [
+    puneModel('uber', 'Uber XL', 2),
+    puneModel('ola', 'Prime SUV', 2),
+    puneModel('rapido', 'Cab XL', 2),
+  ],
+  premium: [puneModel('uber', 'Uber Black', 2.5)],
+};
+
+/** Pune economy set (back-compat name). */
+export const INR_COMPETITOR_MODELS: ProviderFareModel[] =
+  INR_COMPETITOR_MODELS_BY_TIER.economy;
 
 /**
  * Competitor sets keyed by the market currency (ISO 4217). A market with no
@@ -301,6 +363,21 @@ export const COMPETITOR_MODELS_BY_CURRENCY: Record<string, ProviderFareModel[]> 
   INR: INR_COMPETITOR_MODELS,
   UZS: UZS_COMPETITOR_MODELS,
   AED: AED_COMPETITOR_MODELS,
+};
+
+/**
+ * Competitor sets keyed by currency AND our tier. Markets with only an
+ * economy-class rate card (USD, UZS, AED) compare economy only; a tier with no
+ * entry gets no comparison rather than a mismatched one.
+ */
+export const COMPETITOR_MODELS_BY_CURRENCY_AND_TIER: Record<
+  string,
+  Record<string, ProviderFareModel[]>
+> = {
+  USD: { economy: USD_COMPETITOR_MODELS },
+  INR: INR_COMPETITOR_MODELS_BY_TIER,
+  UZS: { economy: UZS_COMPETITOR_MODELS },
+  AED: { economy: AED_COMPETITOR_MODELS },
 };
 
 /** Currencies with a comparison set. */
