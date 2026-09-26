@@ -140,6 +140,16 @@ flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
 | F6 | Payouts: a negative balance shows as "−₹35.60" in red, with "You owe commission on cash trips. It's deducted from your next payout." |
 | F7 | Vehicle dialog: the "Economy" type text is the same size as the other fields |
 
+## 5a. Make sure iOS looks the same as the Android phones
+
+The UI is shared Flutter code, and the same fonts, images, colours and animations are bundled for both platforms. So every screen should match the APKs on the Realme and vivo (2.15.0). Only these native parts differ by platform, and all of them are set to match:
+- **Launch screen:** `ios/Runner/Base.lproj/LaunchScreen.storyboard` uses the `LaunchBackground` colour (#F7F8F9 light, #0E1114 dark), the same as the Android splash and the first Flutter frame, so there is no white flash before the launch animation.
+- **App icon and name:** the same Road-V icon; the apps are named "RideVela Rider" and "RideVela Driver".
+- **Maps:** these need the Google Maps iOS key in `ios/Flutter/Secrets.xcconfig` on this Mac (never commit it). Without the key the map is blank grey.
+- **Contacts:** "Pick from contacts" opens the iOS system picker, which is Apple's native UI and looks different from Android's on purpose.
+
+Check: put the iPhone next to one of the Android phones, open the same screens (Home, Choose a ride + Price check, driver on the way, ride completed, driver offline sheet), and screenshot both. Report anything that differs other than the native pieces above: status bar, safe areas, blur strength, font rendering, text cut off or overflowing. Don't fix it on the Mac.
+
 ## 5. Install on the iPhone
 
 Build the same two apps (sections 2 and 4) on the cabled iPhone with
