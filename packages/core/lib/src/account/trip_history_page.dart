@@ -299,8 +299,8 @@ class _DayHeading extends StatelessWidget {
 /// The first part of an address — "Pune Railway Station" of "Pune Railway
 /// Station, Agarkar Nagar, Pune".
 String _shortPlace(String? address, String fallback) {
-  final a = address?.trim();
-  if (a == null || a.isEmpty) return fallback;
+  final a = cleanPlaceLabel(address);
+  if (a.isEmpty) return fallback;
   final first = a.split(',').first.trim();
   return first.isEmpty ? a : first;
 }

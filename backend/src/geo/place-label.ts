@@ -27,6 +27,12 @@ const POSTCODE = /\b\d{5,6}\b/;
  * House / plot / flat numbers: starts with a digit ("192", "283/2/D", "7-671",
  * "12A") or a numbering prefix ("Plot 80", "Flat 3B", "H.No 12", "S.No 45").
  */
+/**
+ * Flat / wing codes that start with a letter: "A1/18", "B-204", "C 12",
+ * "D2-301". A short letter prefix, then a number, with optional /- parts.
+ */
+const FLAT_CODE = /^[A-Za-z]{1,2}[\s-]?\d+[A-Za-z]?(?:[/-]\w+)*$/;
+
 const HOUSE_NUMBER =
   /^(?:\d[\w/\-.]*|(?:plot|flat|house|h\.?\s?no\.?|s\.?\s?no\.?|sr\.?\s?no\.?|gat|survey|shop|door)\s*(?:no\.?)?\s*[\w/\-.]*\d[\w/\-.]*)$/i;
 
@@ -55,11 +61,34 @@ function clean(s: unknown): string {
   return typeof s === 'string' ? s.trim().replace(/\s+/g, ' ') : '';
 }
 
+/**
+ * Google's placeholder for an unnamed road segment — common across India.
+ * Never a label: "Unnamed Road" tells the rider nothing.
+ */
+const UNNAMED_ROAD = /^unnamed\s+road$/i;
+const UNNAMED_ROAD_PREFIX = /^\s*unnamed\s+road\s*(?:,\s*|$)/i;
+
+/** True if `s` is Google's "Unnamed Road" placeholder (any case). */
+export function isUnnamedRoad(s: string | null | undefined): boolean {
+  return typeof s === 'string' && UNNAMED_ROAD.test(s.trim());
+}
+
+/**
+ * Drop a leading "Unnamed Road, " from a full address
+ * ("Unnamed Road, Dattwadi, Pune" -> "Dattwadi, Pune"). A bare "Unnamed Road"
+ * becomes ''.
+ */
+export function stripUnnamedRoad(address: string): string {
+  return clean(address).replace(UNNAMED_ROAD_PREFIX, '').trim();
+}
+
 /** True if `s` can't stand on its own as a place name. */
 function isJunk(s: string): boolean {
   const t = s.trim();
   if (!t) return true;
+  if (UNNAMED_ROAD.test(t)) return true;
   if (HOUSE_NUMBER.test(t)) return true;
+  if (FLAT_CODE.test(t)) return true;
   if (PLUS_CODE.test(t)) return true;
   if (/^\d+$/.test(t)) return true;
   return false;
@@ -159,13 +188,50 @@ export function formatGoogleReverse(
       .filter((c) => c.types.includes('premise'))
       .map((c) => clean(c.long_name)),
   ];
-  const road = top.map((r) => component(r, 'route')).find((s) => !!s) ?? '';
+  // First *named* road: Google often tags the nearest segment "Unnamed Road"
+  // while a later result carries the real road name.
+  const road =
+    top.map((r) => component(r, 'route')).find((s) => !!s && !isJunk(s)) ?? '';
 
   const label =
     uniqueNames([...named, road, ...areas, city])[0] ??
     formatFreeTextAddress(first.formatted_address ?? '').label;
   if (!label) return null;
   return { label, detail: buildDetail(label, areas, city) };
+}
+
+/**
+ * Full address for a Google reverse result set, never starting with
+ * "Unnamed Road": the first (proximity-ordered) non-plus-code result whose
+ * formatted_address names something, else result[0]'s address with the
+ * "Unnamed Road, " prefix stripped.
+ */
+export function googleReverseAddress(
+  results: GoogleResult[] | undefined,
+): string {
+  const all = (results ?? []).filter(
+    (r) => !(r.types ?? []).includes('plus_code') && !!r.formatted_address,
+  );
+  const first = all[0]?.formatted_address ?? '';
+  if (!UNNAMED_ROAD_PREFIX.test(first)) return clean(first);
+  // Only prefer a later result if it is still street-level-ish (not just
+  // "Pune, Maharashtra, India"): take one with a route/premise/POI/area.
+  const better = all.slice(1, GOOGLE_SCAN).find((r) => {
+    const fa = r.formatted_address ?? '';
+    if (UNNAMED_ROAD_PREFIX.test(fa)) return false;
+    const t = r.types ?? [];
+    return [
+      'street_address',
+      'route',
+      'premise',
+      'establishment',
+      'point_of_interest',
+      'neighborhood',
+      'sublocality_level_2',
+      'sublocality_level_1',
+    ].some((x) => t.includes(x));
+  });
+  return clean(better?.formatted_address ?? '') || stripUnnamedRoad(first);
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +308,7 @@ export function formatNominatimReverse(
  * ("Maharashtra 411002") drop the whole part — the state is noise here too.
  */
 export function formatFreeTextAddress(address: string): PlaceLabel {
-  const parts = clean(address)
+  const parts = stripUnnamedRoad(address)
     .split(',')
     .map((p) => p.trim())
     .filter((p) => !!p);
@@ -251,7 +317,7 @@ export function formatFreeTextAddress(address: string): PlaceLabel {
   }
   const kept = uniqueNames(parts.filter((p) => !POSTCODE.test(p)));
   if (kept.length === 0) {
-    const fallback = clean(address);
+    const fallback = stripUnnamedRoad(address);
     return { label: fallback, detail: '' };
   }
   return {

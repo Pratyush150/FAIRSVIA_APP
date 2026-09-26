@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'geo_point.dart';
+import 'place_label.dart';
 
 /// A Places autocomplete suggestion (no coordinates yet).
 class PlacePrediction extends Equatable {
@@ -78,14 +79,17 @@ class PlaceDetails extends Equatable {
   /// Short caption under [label], when the backend supplied one.
   final String? detail;
 
-  bool get _hasLabel => label != null && label!.trim().isNotEmpty;
+  bool get _hasLabel => cleanPlaceLabel(label).isNotEmpty;
 
-  /// Main line: the short label, else the full address.
-  String get title => _hasLabel ? label!.trim() : address;
+  /// Main line: the short label, else the full address. Never Google's
+  /// "Unnamed Road" placeholder.
+  String get title => _hasLabel
+      ? cleanPlaceLabel(label)
+      : cleanPlaceLabel(address, fallback: address);
 
   /// Caption under [title]; empty when there is no label (the title is then
   /// already the full address) or no detail.
-  String get caption => _hasLabel ? (detail ?? '').trim() : '';
+  String get caption => _hasLabel ? cleanPlaceLabel(detail) : '';
 
   /// One-line form for places that hold a single string (trip pickup/dropoff,
   /// text fields): "Mote Mangal Karyalay Rd, Dattwadi, Pune".

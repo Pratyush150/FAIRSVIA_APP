@@ -28,8 +28,9 @@ List<RecentDestination> recentDestinations(
   final out = <RecentDestination>[];
   for (final t in history) {
     if (t.status != TripStatus.completed) continue;
-    final addr = t.dropoff.address?.trim();
-    if (addr == null || addr.isEmpty) continue;
+    // Older trips stored Google's "Unnamed Road, Dattwadi, Pune" verbatim.
+    final addr = cleanPlaceLabel(t.dropoff.address);
+    if (addr.isEmpty) continue;
     final key = addr.toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
     final dup = out.any(
       (r) =>

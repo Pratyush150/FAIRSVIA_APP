@@ -233,19 +233,31 @@ class _RiderTabScaffoldState extends State<RiderTabScaffold> {
     if (tab != RiderTab.home) {
       _built.putIfAbsent(tab, () => Builder(builder: widget.pages[tab]!));
     }
-    return Scaffold(
-      body: IndexedStack(
-        index: tab.index,
-        children: [
-          for (final t in RiderTab.values)
-            t == RiderTab.home
-                ? widget.home
-                : (_built[t] ?? const SizedBox.shrink()),
-        ],
+    // Android back on Trips / Offers / Account goes to Home first; the app
+    // only closes from Home. Pages pushed from a tab sit on routes above
+    // this one, so they still pop first. On Home this scope allows the pop
+    // and the Home's own scope (RiderHomeBackScope) decides: it steps back
+    // through the booking flow and lets the app close only when idle.
+    return PopScope(
+      canPop: tab == RiderTab.home,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (widget.showNav && _tab != RiderTab.home) _select(RiderTab.home);
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: tab.index,
+          children: [
+            for (final t in RiderTab.values)
+              t == RiderTab.home
+                  ? widget.home
+                  : (_built[t] ?? const SizedBox.shrink()),
+          ],
+        ),
+        bottomNavigationBar: widget.showNav
+            ? RiderBottomNav(current: tab, onSelect: _select)
+            : null,
       ),
-      bottomNavigationBar: widget.showNav
-          ? RiderBottomNav(current: tab, onSelect: _select)
-          : null,
     );
   }
 }

@@ -13,7 +13,7 @@ import {
   LatLng,
   PlaceDetails,
 } from './geo-provider.interface';
-import { formatFreeTextAddress } from './place-label';
+import { formatFreeTextAddress, isUnnamedRoad } from './place-label';
 
 /**
  * Proxies Google Places through the backend so the API key stays server-side,
@@ -90,7 +90,9 @@ export class PlacesController {
   static withLabel(p: PlaceDetails): PlaceDetails {
     if (p.label) return { ...p, detail: p.detail ?? '' };
     const short = formatFreeTextAddress(p.address ?? '');
-    return { ...p, label: short.label || p.address, detail: short.detail };
+    const label =
+      short.label || (isUnnamedRoad(p.address) ? 'Pinned location' : p.address);
+    return { ...p, label, detail: short.detail };
   }
 
   /**
