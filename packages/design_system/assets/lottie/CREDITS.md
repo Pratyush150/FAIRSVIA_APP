@@ -35,3 +35,17 @@ other free public animations and **must be confirmed on each page by the
 owner before launch**. Candidates (8 loaders, 8 empty boxes, 5 no-results,
 5 gifts, 5 trophies) were rendered with lottie-web and picked by eye; the
 recoloured finals: `docs/brand/research/lottie-candidates-2.png`.
+
+Added 2026-09-26 (rider bottom-nav icons, same public GraphQL API; ~45
+candidates per icon rendered with lottie-web and picked by eye for clean line
+style). All three are minified, image-free, 8.6–10 KB. No colours are baked
+in: `LottieMoment.navHome/navTrips/navAccount` repaint every fill and stroke
+at runtime with the nav's selected (accent) / muted colour, so they follow
+any theme colour. Licence **assumed** Lottie Simple License, **unconfirmed —
+owner must check each page before launch**.
+
+| File | Source | Author | Changes |
+|---|---|---|---|
+| nav_home.json | https://lottiefiles.com/animations/home-ycTxzUxmLA ("Home", #53181) | Nam Nguyễn (/user/218669) | Minified; tinted at runtime; drawn at 0.92× in its box |
+| nav_trips.json | https://lottiefiles.com/animations/receipt-0r7sCEVjd9 ("Receipt", #110245) | Madhu (/madhu) | Minified; tinted at runtime; drawn at 1.55× (small in its canvas) |
+| nav_account.json | https://lottiefiles.com/animations/user-icon-MweI9qxwDa ("user icon", #111659) | Mukesh Naraniya (/dye6if9dhy) | Minified; tinted at runtime; drawn at 0.92× |

@@ -106,7 +106,7 @@ class RideVelaDriverPill extends StatelessWidget {
           height: 18 / 13,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.2,
-          color: AppColors.inkFor(dark),
+          color: AppColors.accentTextFor(dark),
         ),
       ),
     );

@@ -29,6 +29,7 @@ enum LottieEnd {
 class LottieMoment extends StatefulWidget {
   const LottieMoment.confetti({super.key, this.size = 220, this.repeat = false})
     : asset = 'confetti',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.vanish,
       stillAt = null,
@@ -39,6 +40,7 @@ class LottieMoment extends StatefulWidget {
   /// and only start to fly off at 104).
   const LottieMoment.money({super.key, this.size = 48, this.repeat = false})
     : asset = 'money',
+      artScale = 1.0,
       holdAt = moneyHoldAt,
       end = LottieEnd.hold,
       stillAt = null,
@@ -48,6 +50,7 @@ class LottieMoment extends StatefulWidget {
   /// Looping loader ("Sandy Loading") for waits like "Requesting your ride".
   const LottieMoment.loading({super.key, this.size = 56, this.repeat = true})
     : asset = 'loading',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = null,
@@ -57,6 +60,7 @@ class LottieMoment extends StatefulWidget {
   /// Looping radar sweep around a pin: "Finding your driver".
   const LottieMoment.searching({super.key, this.size = 96, this.repeat = true})
     : asset = 'searching',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 0.3,
@@ -67,6 +71,7 @@ class LottieMoment extends StatefulWidget {
   /// and holds on the landed pin.
   const LottieMoment.arrived({super.key, this.size = 72, this.repeat = false})
     : asset = 'arrived',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
@@ -76,6 +81,7 @@ class LottieMoment extends StatefulWidget {
   /// A magnifier looking around: no cars nearby. Loops gently.
   const LottieMoment.noCars({super.key, this.size = 96, this.repeat = true})
     : asset = 'no_cars',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 0.3,
@@ -86,6 +92,7 @@ class LottieMoment extends StatefulWidget {
   /// once and holds on the check.
   const LottieMoment.success({super.key, this.size = 64, this.repeat = false})
     : asset = 'success',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
@@ -96,6 +103,7 @@ class LottieMoment extends StatefulWidget {
   /// holds on the gold star.
   const LottieMoment.thanks({super.key, this.size = 48, this.repeat = false})
     : asset = 'thanks',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
@@ -106,6 +114,7 @@ class LottieMoment extends StatefulWidget {
   /// on. Loops; the still frame is the "on" state.
   const LottieMoment.location({super.key, this.size = 96, this.repeat = true})
     : asset = 'location',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
@@ -120,6 +129,7 @@ class LottieMoment extends StatefulWidget {
     this.repeat = true,
     this.tint,
   }) : asset = 'offline',
+       artScale = 1.0,
        holdAt = 1.0,
        end = LottieEnd.hold,
        stillAt = offlineStillAt,
@@ -129,6 +139,7 @@ class LottieMoment extends StatefulWidget {
   /// way. Calm, not an alarm. Plays once and holds on the filled shield.
   const LottieMoment.sos({super.key, this.size = 88, this.repeat = false})
     : asset = 'sos',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
@@ -144,6 +155,7 @@ class LottieMoment extends StatefulWidget {
     this.repeat = true,
     this.tint,
   }) : asset = 'spinner',
+       artScale = 1.0,
        holdAt = 1.0,
        end = LottieEnd.hold,
        stillAt = 0.55,
@@ -154,6 +166,7 @@ class LottieMoment extends StatefulWidget {
   /// empty state that loops forever is noise (and never lets a test settle).
   const LottieMoment.emptyBox({super.key, this.size = 120, this.repeat = false})
     : asset = 'empty_box',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
@@ -163,6 +176,7 @@ class LottieMoment extends StatefulWidget {
   /// A sad magnifier: a search that found nothing. Plays once and holds.
   const LottieMoment.noResults({super.key, this.size = 96, this.repeat = false})
     : asset = 'no_results',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
@@ -180,15 +194,64 @@ class LottieMoment extends StatefulWidget {
     this.repeat = false,
     this.plays = 1,
   }) : asset = 'gift',
+       artScale = 1.0,
        holdAt = 1.0,
        end = LottieEnd.hold,
        stillAt = 1.0,
        tint = null;
 
+  /// Bottom-nav house: the roof draws on and the door settles. Plays once
+  /// and holds on the finished house. Pass the nav's [tint] (selected /
+  /// unselected colour) so the line art follows any theme colour.
+  const LottieMoment.navHome({
+    super.key,
+    this.size = navSize,
+    this.tint,
+    this.repeat = false,
+  }) : asset = 'nav_home',
+       artScale = 0.92,
+       holdAt = 1.0,
+       end = LottieEnd.hold,
+       stillAt = 1.0,
+       plays = 1;
+
+  /// Bottom-nav receipt (Trips): the slip unrolls line by line. Plays once
+  /// and holds on the full receipt; [tint] as for [LottieMoment.navHome].
+  const LottieMoment.navTrips({
+    super.key,
+    this.size = navSize,
+    this.tint,
+    this.repeat = false,
+  }) : asset = 'nav_trips',
+       artScale = 1.55,
+       holdAt = 1.0,
+       end = LottieEnd.hold,
+       stillAt = 1.0,
+       plays = 1;
+
+  /// Bottom-nav user (Account): head and shoulders draw on. Plays once and
+  /// holds on the figure; [tint] as for [LottieMoment.navHome].
+  const LottieMoment.navAccount({
+    super.key,
+    this.size = navSize,
+    this.tint,
+    this.repeat = false,
+  }) : asset = 'nav_account',
+       artScale = 0.92,
+       holdAt = 1.0,
+       end = LottieEnd.hold,
+       stillAt = 1.0,
+       plays = 1;
+
+  /// Box size of the bottom-nav icons: a touch larger than a 24 px glyph
+  /// because the art has air around it (matches the Offers gift).
+  static const double navSize = 30;
+
   /// A gold trophy rises with laurels: a quest completed. Plays once and
   /// holds on the trophy.
   const LottieMoment.trophy({super.key, this.size = 72, this.repeat = false})
     : asset = 'trophy',
+      artScale = 1.0,
       holdAt = 1.0,
       end = LottieEnd.hold,
       stillAt = 1.0,
@@ -218,6 +281,11 @@ class LottieMoment extends StatefulWidget {
   /// Paints every fill and stroke in one colour (e.g. the ink of a warning
   /// banner the art sits on); null keeps the file's own palette.
   final Color? tint;
+
+  /// Scales the drawing inside its box (clipped to it), for art whose file
+  /// leaves more or less air than its siblings (the nav receipt is drawn
+  /// small in its canvas).
+  final double artScale;
 
   /// How many times a one-shot plays before it holds on [holdAt] (1 = once).
   final int plays;
@@ -296,28 +364,36 @@ class _LottieMomentState extends State<LottieMoment>
         child: AnimatedOpacity(
           opacity: _gone ? 0 : 1,
           duration: LottieMoment.vanishFade,
-          child: Lottie.asset(
-            'packages/design_system/assets/lottie/${widget.asset}.json',
-            controller: _c,
-            onLoaded: _start,
-            delegates: widget.tint == null
-                ? null
-                : LottieDelegates(
-                    values: [
-                      ValueDelegate.color(const ['**'], value: widget.tint),
-                      ValueDelegate.strokeColor(const [
-                        '**',
-                      ], value: widget.tint),
-                    ],
-                  ),
-            width: size,
-            height: size,
-            fit: BoxFit.contain,
-            // A missing/corrupt file must never break the screen.
-            errorBuilder: (_, _, _) => SizedBox(width: size, height: size),
+          child: _scaled(
+            Lottie.asset(
+              'packages/design_system/assets/lottie/${widget.asset}.json',
+              controller: _c,
+              onLoaded: _start,
+              delegates: widget.tint == null
+                  ? null
+                  : LottieDelegates(
+                      values: [
+                        ValueDelegate.color(const ['**'], value: widget.tint),
+                        ValueDelegate.strokeColor(const [
+                          '**',
+                        ], value: widget.tint),
+                      ],
+                    ),
+              width: size,
+              height: size,
+              fit: BoxFit.contain,
+              // A missing/corrupt file must never break the screen.
+              errorBuilder: (_, _, _) => SizedBox(width: size, height: size),
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _scaled(Widget art) => widget.artScale == 1.0
+      ? art
+      : ClipRect(
+          child: Transform.scale(scale: widget.artScale, child: art),
+        );
 }

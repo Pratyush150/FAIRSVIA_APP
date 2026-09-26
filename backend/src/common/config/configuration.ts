@@ -86,6 +86,9 @@ export interface AppConfig {
   emailProvider: string;
   /** Verified SES sender address used as the From on outgoing email. */
   sesFrom: string;
+  /** Optional inbox notified (via EmailService) when a support ticket is
+   *  opened. Empty = disabled; tickets always land in the admin queue. */
+  supportNotifyEmail: string;
   /** Local emergency numbers shown in the SOS sheet, in display order. */
   emergencyNumbers: { label: string; number: string }[];
   /** IANA zone whose midnight starts a business day ("today" in earnings,
@@ -258,6 +261,7 @@ export default (): AppConfig => {
   },
   emailProvider: process.env.EMAIL_PROVIDER ?? 'mock',
   sesFrom: process.env.SES_FROM ?? 'noreply@rideapp.example.com',
+  supportNotifyEmail: process.env.SUPPORT_NOTIFY_EMAIL ?? '',
   emergencyNumbers: parseEmergencyNumbers(
     process.env.EMERGENCY_NUMBERS ?? 'Police:102,Ambulance:103,Fire:101',
   ),

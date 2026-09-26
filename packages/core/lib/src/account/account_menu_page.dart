@@ -296,6 +296,14 @@ class _AccountMenuPageState extends State<AccountMenuPage> {
                 ),
               ),
             ),
+            _Item(
+              icon: PhosphorIconsRegular.info,
+              title: 'Credits & licences',
+              onTap: () {
+                registerMediaCredits();
+                showLicensePage(context: context, applicationName: AppBrand.name);
+              },
+            ),
           ]),
           const SizedBox(height: AppSpacing.lg),
           _group([

@@ -124,4 +124,32 @@ describe('SupportService', () => {
       service.updateStatus('missing', { status: 'closed' }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  describe('support inbox notification', () => {
+    const created = () => {
+      prisma.supportTicket.create.mockResolvedValue(makeTicket());
+      return { subject: 'Charged twice', message: 'hello <b>', category: 'payment' };
+    };
+
+    it('emails SUPPORT_NOTIFY_EMAIL when configured', async () => {
+      const email = { send: jest.fn().mockResolvedValue(undefined) };
+      const config = { get: jest.fn().mockReturnValue('support@example.com') };
+      const svc = new SupportService(prisma as never, email as never, config as never);
+      await svc.create(OWNER, created() as never);
+      expect(email.send).toHaveBeenCalledTimes(1);
+      const msg = email.send.mock.calls[0][0];
+      expect(msg.to).toBe('support@example.com');
+      expect(msg.subject).toBe('[Support] payment: Charged twice');
+      expect(msg.html).toContain('hello &lt;b&gt;');
+    });
+
+    it('sends nothing when SUPPORT_NOTIFY_EMAIL is unset', async () => {
+      const email = { send: jest.fn() };
+      const config = { get: jest.fn().mockReturnValue('') };
+      const svc = new SupportService(prisma as never, email as never, config as never);
+      const t = await svc.create(OWNER, created() as never);
+      expect(email.send).not.toHaveBeenCalled();
+      expect(t.id).toBe('t1');
+    });
+  });
 });

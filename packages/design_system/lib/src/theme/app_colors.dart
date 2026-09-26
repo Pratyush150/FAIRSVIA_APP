@@ -90,7 +90,7 @@ class AppColors {
       : variant == 'ink'
       ? Color(0xFF0B0B0C)
       : variant == 'glass'
-      ? Color(0xFF007A7A)
+      ? Color(0xFF007C71)
       : variant == 'clay3d'
       ? Color(0xFF0B7A7B)
       : planLight ? Color(0xFF0A7C7C) : Color(0xFF0B3C49);
@@ -110,7 +110,7 @@ class AppColors {
       : variant == 'ink'
       ? Color(0xFF0A7C7C)
       : variant == 'glass'
-      ? Color(0xFF007A7A)
+      ? Color(0xFF00BFA8)
       : variant == 'clay3d'
       ? Color(0xFF1FA7A8)
       : planLight ? Color(0xFF2BC4C4) : Color(0xFF0FA3A8);
@@ -130,7 +130,7 @@ class AppColors {
       : variant == 'ink'
       ? Color(0xFF3FC9C9)
       : variant == 'glass'
-      ? Color(0xFF35D0D0)
+      ? Color(0xFF2EE6C8)
       : variant == 'clay3d'
       ? Color(0xFF4FD6D2)
       : planDark ? Color(0xFF2BC4C4) : Color(0xFF2EC4C6);
@@ -172,7 +172,7 @@ class AppColors {
       : variant == 'ink'
       ? Color(0xFFF4F3EE)
       : variant == 'glass'
-      ? Color(0xFF35D0D0)
+      ? Color(0xFF2EE6C8)
       : variant == 'clay3d'
       ? Color(0xFF3CC6C6)
       : _turquoiseBright;
@@ -211,12 +211,12 @@ class AppColors {
   static Color get accentInk => inkFor(_dark);
 
   /// Brand-coloured *text* (and small glyphs next to it). The ink in every
-  /// build except Plan F on light glass, where #007A7A over a mid-grey map
-  /// pixel seen through 72 % glass is only 3.6:1, so text takes the deeper
-  /// #005F5F (5.3:1) while buttons keep the ink (plan F, brand.onGlass.text).
+  /// build except Plan F on light glass, where the #007C71 ink over a mid-grey
+  /// map pixel seen through 72 % glass drops under 4.5:1, so text takes the
+  /// deeper #00665E (6.9:1 on white) while buttons keep the ink.
   static Color get accentText => accentTextFor(_dark);
   static Color accentTextFor(bool dark) =>
-      glass && !dark ? const Color(0xFF005F5F) : inkFor(dark);
+      glass && !dark ? const Color(0xFF00665E) : inkFor(dark);
   static Color get accentInkPressed => accentPressed;
 
   /// Quiet fill for selected rows, chips, highlights.
@@ -268,7 +268,7 @@ class AppColors {
       : variant == 'ink'
       ? const Color(0xFF16302F)
       : variant == 'glass'
-      ? const Color(0xFF123032)
+      ? const Color(0xFF0F3533)
       : variant == 'clay3d'
       ? const Color(0xFF143130)
       : (planDark ? const Color(0xFF12302F) : const Color(0xFF0E2E31))
@@ -287,7 +287,7 @@ class AppColors {
       : variant == 'ink'
       ? const Color(0xFFE6F2F1)
       : variant == 'glass'
-      ? const Color(0xFFE3F3F3)
+      ? const Color(0xFFE6F8F4)
       : variant == 'clay3d'
       ? const Color(0xFFE6F4F3)
       : const Color(0xFFE6F6F6))

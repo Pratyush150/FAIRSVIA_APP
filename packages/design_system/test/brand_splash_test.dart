@@ -86,26 +86,56 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  test('the splash hands over within 1.5 s', () {
-    expect(AppBrand.splashTotal.inMilliseconds, lessThanOrEqualTo(1500));
+  test('the splash hands over within the 2 s cap', () {
+    expect(AppBrand.splashTotal.inMilliseconds, lessThanOrEqualTo(2000));
   });
 
-  testWidgets('the bar fills as a loader until the handover', (tester) async {
+  testWidgets('runs 1.2–2.0 s and fades itself out before handing over',
+      (tester) async {
+    final total = AppBrand.splashTotal.inMilliseconds;
+    expect(total, inInclusiveRange(1200, 2000));
     await tester.pumpWidget(MaterialApp(home: BrandSplash(onDone: () {})));
-    double bar() => tester
-        .getSize(find.descendant(
-            of: find.byType(AnimatedBuilder).last,
-            matching: find.byType(Container)))
-        .width;
-    await tester.pump(AppBrand.splashFadeIn);
-    final start = bar();
-    await tester.pump(AppBrand.splashSettle);
-    final mid = bar();
-    await tester.pump(AppBrand.splashHandover - const Duration(milliseconds: 1));
-    final end = bar();
-    expect(start, lessThan(mid));
-    expect(mid, lessThan(end));
-    expect(end, closeTo(56, 0.5));
+    await tester.pump(AppBrand.splashFadeIn + AppBrand.splashSettle);
+    await tester.pump(const Duration(milliseconds: 250));
+    final op = tester.widget<Opacity>(find.byType(Opacity).first);
+    expect(op.opacity, lessThan(0.5));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Reduce Motion: a static lockup, still hands over',
+      (tester) async {
+    var done = 0;
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: MaterialApp(home: BrandSplash(onDone: () => done++)),
+      ),
+    );
+    await tester.pump();
+    expect(find.text(AppBrand.name), findsOneWidget);
+    expect(tester.hasRunningAnimations, isFalse);
+    await tester.pump(AppBrand.splashTotal);
+    expect(done, 1);
+  });
+
+  testWidgets('the hold frame keeps the lockup (and Driver pill) and loops',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: BrandLaunchHold(driver: true)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text(AppBrand.name), findsOneWidget);
+    expect(find.byType(RideVelaDriverPill), findsOneWidget);
+    expect(tester.hasRunningAnimations, isTrue);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('renders in dark theme without errors', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(theme: ThemeData.dark(), home: BrandSplash(onDone: () {})),
+    );
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(tester.takeException(), isNull);
     await tester.pumpAndSettle();
   });
 }

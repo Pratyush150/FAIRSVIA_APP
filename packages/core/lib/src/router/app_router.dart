@@ -45,7 +45,15 @@ GoRouter createAppRouter({
       }
     },
     routes: [
-      GoRoute(path: '/', builder: (_, _) => const _SplashPage()),
+      GoRoute(
+        path: '/',
+        builder: (_, _) => _SplashPage(
+          // The driver app is the one that passes the driver name-setup copy;
+          // its held launch frame keeps the Driver pill.
+          driver: nameSetupSubtitle == NameSetupPage.driverSubtitle ||
+              appTitle.toLowerCase().contains('driver'),
+        ),
+      ),
       GoRoute(
         path: '/phone',
         builder: (_, _) => PhoneEntryPage(title: appTitle),
@@ -61,14 +69,15 @@ GoRouter createAppRouter({
 }
 
 class _SplashPage extends StatelessWidget {
-  const _SplashPage();
+  const _SplashPage({this.driver = false});
+
+  final bool driver;
 
   @override
   Widget build(BuildContext context) {
-    // The brand loader (teal Lottie arc) while the session restores; a still
-    // arc under Reduce Motion.
-    return const Scaffold(
-      body: Center(child: BrandLoader(size: 56, label: 'Starting')),
-    );
+    // Session still restoring after the 1.8 s launch splash: hold the
+    // splash's final frame (wordmark + finished road) with a subtle shimmer,
+    // so the hand-off from BrandSplash is seamless. Still under Reduce Motion.
+    return BrandLaunchHold(driver: driver);
   }
 }

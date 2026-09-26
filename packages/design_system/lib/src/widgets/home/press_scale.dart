@@ -42,7 +42,7 @@ class PressScale extends StatefulWidget {
   /// The brand halo for tappable cards: the accent, soft in light mode and a
   /// little stronger in dark mode, where a glow has to carry further.
   static Color brandGlow(bool dark) =>
-      AppColors.accent.withValues(alpha: dark ? 0.6 : 0.45);
+      AppColors.highlightFor(dark).withValues(alpha: dark ? 0.6 : 0.45);
 
   /// Blur of the halo; small enough to stay inside the 16 dp page gutters.
   static const double glowBlur = 20;

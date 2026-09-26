@@ -62,19 +62,25 @@ class SweepBorder extends StatefulWidget {
   /// Mint highlight used in the brand sweep.
   static const Color mint = Color(0xFF7CF2D2);
 
-  /// Teal → mint → teal, closing on itself so the rotation has no seam.
+  /// Aqua-cyan partner that makes the ring read brighter than a pure teal.
+  static const Color cyan = Color(0xFF3DD9F5);
+
+  /// Bright teal → cyan → mint → teal, closing on itself so the rotation has
+  /// no seam. Uses the vivid brand highlight (not the deeper button ink) so
+  /// the ring reads bright; one arc dips to the ink so it keeps an edge on
+  /// white.
   static List<Color> brandColors(bool dark) => [
-    AppColors.accent,
-    dark ? mint : AppColors.highlightFor(dark),
+    AppColors.highlightFor(dark),
+    cyan,
     mint,
-    AppColors.accent,
-    AppColors.accent.withValues(alpha: 0.55),
-    AppColors.accent,
+    AppColors.highlightFor(dark),
+    AppColors.inkFor(dark),
+    AppColors.highlightFor(dark),
   ];
 
   /// The outer glow colour.
   static Color glowColor(bool dark) =>
-      AppColors.accent.withValues(alpha: dark ? 0.45 : 0.32);
+      AppColors.highlightFor(dark).withValues(alpha: dark ? 0.45 : 0.35);
 
   @override
   State<SweepBorder> createState() => _SweepBorderState();

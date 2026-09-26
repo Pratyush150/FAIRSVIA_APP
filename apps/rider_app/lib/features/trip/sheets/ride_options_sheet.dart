@@ -397,6 +397,40 @@ Future<TripPassenger?> _askPassenger(
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  key: const Key('pick-from-contacts'),
+                  icon: const Icon(Icons.contacts_outlined),
+                  label: const Text('Pick from contacts'),
+                  onPressed: () async {
+                    PickedContact? picked;
+                    try {
+                      picked = await pickContactSafely();
+                    } on ContactPickerUnavailable {
+                      if (!ctx.mounted) return;
+                      setLocal(
+                        () => error =
+                            "Couldn't open your contacts. Type the number instead.",
+                      );
+                      return;
+                    }
+                    // Cancelled: leave whatever was typed alone.
+                    if (picked == null || !ctx.mounted) return;
+                    final phone = normalizeContactPhone(picked.phone);
+                    setLocal(() {
+                      final name = picked!.name?.trim() ?? '';
+                      if (name.isNotEmpty) nameCtrl.text = name;
+                      if (phone != null) {
+                        phoneCtrl.text = Fmt.phone(phone);
+                        error = null;
+                      } else {
+                        error = 'That contact has no usable mobile number';
+                      }
+                    });
+                  },
+                ),
+              ),
               TextField(
                 controller: phoneCtrl,
                 keyboardType: TextInputType.phone,

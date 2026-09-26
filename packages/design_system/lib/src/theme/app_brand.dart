@@ -12,14 +12,16 @@ abstract final class AppBrand {
 
   // --- Splash timing (see BrandSplash) ---------------------------------------
   /// The wordmark fades in over this window.
-  static const Duration splashFadeIn = Duration(milliseconds: 500);
+  static const Duration splashFadeIn = Duration(milliseconds: 450);
 
-  /// …then settles with a subtle scale/opacity lift.
-  static const Duration splashSettle = Duration(milliseconds: 500);
+  /// …then the launch motion: a car glides along a road line under the
+  /// wordmark, drawing the brand-coloured route behind it (the Uber-style
+  /// 1–2 s loading beat the owner asked for).
+  static const Duration splashSettle = Duration(milliseconds: 1050);
 
-  /// …then hands over to the app. Total 1400ms, per the brand-signature spec:
-  /// long enough to register, short enough that it never reads as a loader.
-  static const Duration splashHandover = Duration(milliseconds: 400);
+  /// …then the splash fades out over the app. Total 1800ms — inside the 2 s
+  /// hard cap; the app is never held longer than this.
+  static const Duration splashHandover = Duration(milliseconds: 300);
 
   /// How long the splash owns the screen end to end.
   static Duration get splashTotal =>

@@ -64,7 +64,7 @@ void main() {
 
   test('brand text on light glass is the deeper teal; elsewhere the ink', () {
     if (AppColors.glass) {
-      expect(AppColors.accentTextFor(false), const Color(0xFF005F5F));
+      expect(AppColors.accentTextFor(false), const Color(0xFF00665E));
     } else {
       expect(AppColors.accentTextFor(false), AppColors.inkFor(false));
     }

@@ -2,7 +2,8 @@
 
 Pipeline, per vehicle (sources and licences: docs/brand/CREDITS-ride-vehicles.md):
   1. download the Unsplash photo (images.unsplash.com CDN, w=3000; the white
-     premium and xl sources use w=1800),
+     premium and xl sources use w=1800; economy is the Wikimedia Commons
+     original, "White Opel Karl side view.jpg"),
   2. cut the background out with rembg `birefnet-general` (input downscaled to
      1800 px on the long side) -> src/<name>_cut.png,
   3. this script: paint out maker badges, model lettering and plate text
@@ -29,18 +30,23 @@ OUT = REPO / 'packages/design_system/assets/vehicles'
 # Rectangles (x0, y0, x1, y1) in the *_cut.png pixel grid (before mirroring).
 EDITS = {
     'economy': {
-        'inpaint': [(1795, 496, 1834, 520), (1850, 396, 1878, 446)],  # model script, maker badge
+        # White compact hatchback (Opel Karl), pure side view facing left
+        # (Wikimedia Commons "White Opel Karl side view.jpg", Renee Kools,
+        # CC BY 4.0; original 4428 px wide). No plate or lettering visible;
+        # paint out the maker logos on the two wheel covers.
+        'inpaint': [(338, 636, 373, 671), (1477, 647, 1513, 683)],
         'plain': [],
-        # Rear plate edge and the tow hitch hang off the bumper: cut them away.
-        'erase_poly': [[(1872, 585), (2000, 585), (2000, 780), (1840, 780), (1840, 700),
-                        (1868, 668), (1878, 640)]],
+        'erase_poly': [],
         'mirror': False,
     },
     'comfort': {
-        'inpaint': [(1502, 1328, 1548, 1363)],  # grille badge
-        'plain': [(1472, 1370, 1568, 1396)],    # front plate -> blank
+        # White mid-size sedan, pure side view facing left (Unsplash
+        # AbAcKL3iFEM, w=3000): no plate or body lettering visible; paint out
+        # the maker logos on the two wheel centre caps.
+        'inpaint': [(462, 700, 492, 730), (1262, 700, 1292, 730)],
+        'plain': [],
         'erase_poly': [],
-        'mirror': True,
+        'mirror': False,
     },
     'premium': {
         # White sedan, pure side view (Unsplash kb9dTYzZuiQ, w=1800): no badge,

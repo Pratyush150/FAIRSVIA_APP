@@ -24,12 +24,19 @@ class RiderBottomNav extends StatelessWidget {
     final dark = theme.brightness == Brightness.dark;
     final active = theme.colorScheme.onSurface;
     final muted = AppColors.iconNeutralFor(dark);
-    NavigationDestination dest(IconData icon, String label) =>
-        NavigationDestination(
-          icon: Icon(icon, color: muted),
-          selectedIcon: Icon(icon, color: AppColors.accent),
-          label: label,
-        );
+    // Home, Trips and Account are Lottie line icons tinted at runtime with
+    // the same selected / muted colours an Icon would get, so they follow any
+    // theme colour. Each plays once when it appears (first show, and when its
+    // tab is selected) and holds; Reduce Motion shows the finished icon.
+    NavigationDestination dest(
+      Widget Function(Key key, Color tint) icon,
+      String name,
+      String label,
+    ) => NavigationDestination(
+      icon: icon(ValueKey('nav-$name-idle'), muted),
+      selectedIcon: icon(ValueKey('nav-$name-selected'), AppColors.accent),
+      label: label,
+    );
     return NavigationBarTheme(
       data: NavigationBarThemeData(
         backgroundColor: dark ? AppColors.surfaceDark : AppColors.surfaceLight,
@@ -47,8 +54,12 @@ class RiderBottomNav extends StatelessWidget {
         selectedIndex: current.index,
         onDestinationSelected: (i) => onSelect(RiderTab.values[i]),
         destinations: [
-          dest(PhosphorIconsRegular.house, 'Home'),
-          dest(PhosphorIconsRegular.receipt, 'Trips'),
+          dest((k, c) => LottieMoment.navHome(key: k, tint: c), 'home', 'Home'),
+          dest(
+            (k, c) => LottieMoment.navTrips(key: k, tint: c),
+            'trips',
+            'Trips',
+          ),
           // A small gift box drops in (twice, then holds) when the idle Home
           // shows and again when Offers is opened: noticeable, never a loop.
           // Reduce Motion shows the wrapped gift still.
@@ -59,7 +70,11 @@ class RiderBottomNav extends StatelessWidget {
             ),
             label: 'Offers',
           ),
-          dest(PhosphorIconsRegular.userCircle, 'Account'),
+          dest(
+            (k, c) => LottieMoment.navAccount(key: k, tint: c),
+            'account',
+            'Account',
+          ),
         ],
       ),
     );
@@ -73,7 +88,7 @@ class RiderOffersGift extends StatelessWidget {
   const RiderOffersGift({super.key, this.size = navSize});
 
   /// Drawn a touch larger than a 24 px icon: the art has air around it.
-  static const double navSize = 30;
+  static const double navSize = LottieMoment.navSize;
   static const int plays = 2;
 
   final double size;
@@ -112,9 +127,8 @@ class RiderTabScaffold extends StatefulWidget {
 
   /// Switches the enclosing frame to [tab] (e.g. a Home poster opening
   /// Offers). No-op outside a [RiderTabScaffold].
-  static void goTo(BuildContext context, RiderTab tab) => context
-      .findAncestorStateOfType<_RiderTabScaffoldState>()
-      ?._select(tab);
+  static void goTo(BuildContext context, RiderTab tab) =>
+      context.findAncestorStateOfType<_RiderTabScaffoldState>()?._select(tab);
 
   @override
   State<RiderTabScaffold> createState() => _RiderTabScaffoldState();

@@ -1,6 +1,7 @@
 /// Shared UI kit: theme, colors, spacing, typography, and reusable widgets.
 library;
 
+export 'src/credits/media_credits.dart';
 export 'src/theme/app_brand.dart';
 export 'src/theme/app_colors.dart';
 export 'src/theme/app_spacing.dart';

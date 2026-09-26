@@ -3,7 +3,10 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EmailService } from '../email/email.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { PostMessageDto } from './dto/post-message.dto';
@@ -13,7 +16,11 @@ const VALID_STATUSES = ['open', 'active', 'resolved', 'closed'];
 
 @Injectable()
 export class SupportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly email?: EmailService,
+    @Optional() private readonly config?: ConfigService,
+  ) {}
 
   /** Create a ticket with its opening message. */
   async create(userId: string, dto: CreateTicketDto) {
@@ -29,7 +36,35 @@ export class SupportService {
       },
       include: { messages: true },
     });
+    await this.notifyNewTicket(ticket.id, dto);
     return this.serialize(ticket);
+  }
+
+  /**
+   * Best-effort heads-up to the support inbox (SUPPORT_NOTIFY_EMAIL) when a
+   * ticket is opened. Disabled when unset. Delivery goes through the global
+   * EmailService (SES when EMAIL_PROVIDER=ses, otherwise the logging mock) and
+   * never fails ticket creation. The admin app's Support tab is the system of
+   * record either way.
+   */
+  private async notifyNewTicket(ticketId: string, dto: CreateTicketDto) {
+    const to = this.config?.get<string>('supportNotifyEmail');
+    if (!to || !this.email) return;
+    const text =
+      `New support ticket ${ticketId}\n` +
+      `Category: ${dto.category ?? 'other'}\n` +
+      (dto.tripId ? `Trip: ${dto.tripId}\n` : '') +
+      `\n${dto.message}\n\nAnswer it in the admin app → Support.`;
+    const esc = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    await this.email.send({
+      to,
+      subject: `[Support] ${dto.category ?? 'other'}: ${dto.subject}`,
+      html: `<pre style="font-family:sans-serif;white-space:pre-wrap">${esc}</pre>`,
+      text,
+    });
   }
 
   /** The signed-in user's tickets, newest first. */

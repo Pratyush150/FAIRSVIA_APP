@@ -9,6 +9,7 @@ library;
 import '../../home/home_posters.dart';
 import '../../home/rider_bottom_nav.dart';
 import '../../layout/rider_sheet_heights.dart';
+import '../contact_picker.dart';
 import '../destination_search_page.dart';
 import '../location_service.dart';
 import '../price_comparison_card.dart';
