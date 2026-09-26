@@ -214,9 +214,76 @@ export const INR_FARE_CONFIG: Record<string, TierFareConfig> = {
   },
 };
 
-/** The seed defaults for a market currency: rupee values in INR, else USD. */
+/**
+ * Build a market's tiers from its economy rates, keeping each tier's USD
+ * ratio to economy (comfort/economy, xl/economy, ... from FARE_CONFIG).
+ * `round` rounds each money figure the way that market quotes it.
+ */
+function scaledFromEconomy(
+  economy: Omit<TierFareConfig, 'tier' | 'label' | 'capacity'>,
+  round: (n: number) => number,
+): Record<string, TierFareConfig> {
+  const e = FARE_CONFIG.economy;
+  const ratio = (a: number, b: number) => (b === 0 ? 1 : a / b);
+  const out: Record<string, TierFareConfig> = {};
+  for (const [key, t] of Object.entries(FARE_CONFIG)) {
+    out[key] = {
+      tier: t.tier,
+      label: t.label,
+      capacity: t.capacity,
+      baseFare: round(economy.baseFare * ratio(t.baseFare, e.baseFare)),
+      perMile: round(economy.perMile * ratio(t.perMile, e.perMile)),
+      perMin: round(economy.perMin * ratio(t.perMin, e.perMin)),
+      bookingFee: round(economy.bookingFee * ratio(t.bookingFee, e.bookingFee)),
+      minFare: round(economy.minFare * ratio(t.minFare, e.minFare)),
+    };
+  }
+  return out;
+}
+
+/**
+ * PROVISIONAL seed fares for the final market (Tashkent, UZS; Dubai, AED).
+ * Economy is set a little under the local economy competitors modeled in
+ * comparison/competitor-config.ts (Yandex Go Start: 4,600 + 2,500 so'm/km;
+ * Dubai RTA taxi: AED 5 + 2.19/km, AED 12 minimum). These are a starting
+ * point for the owner to tune (live values live in the fare_config table),
+ * not a signed-off price list. Before these existed a UZS market silently
+ * seeded the USD numbers labelled as so'm.
+ */
+export const UZS_FARE_CONFIG = scaledFromEconomy(
+  {
+    baseFare: 4000,
+    perMile: Math.round(2200 * KM_PER_MILE), // 2,200 so'm/km
+    perMin: 100,
+    bookingFee: 1000,
+    minFare: 9000,
+  },
+  (n) => Math.round(n / 100) * 100,
+);
+
+export const AED_FARE_CONFIG = scaledFromEconomy(
+  {
+    baseFare: 4.5,
+    perMile: perKm(1.95),
+    perMin: 0.25,
+    bookingFee: 1,
+    minFare: 12,
+  },
+  (n) => Math.round(n * 100) / 100,
+);
+
+/** The seed defaults for a market currency (unknown codes fall back to USD). */
 export function defaultFareConfig(
   currency: string = CURRENCY,
 ): Record<string, TierFareConfig> {
-  return currency.toUpperCase() === 'INR' ? INR_FARE_CONFIG : FARE_CONFIG;
+  switch (currency.toUpperCase()) {
+    case 'INR':
+      return INR_FARE_CONFIG;
+    case 'UZS':
+      return UZS_FARE_CONFIG;
+    case 'AED':
+      return AED_FARE_CONFIG;
+    default:
+      return FARE_CONFIG;
+  }
 }

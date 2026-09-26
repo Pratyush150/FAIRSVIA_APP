@@ -135,10 +135,6 @@ class _RideOptions extends StatelessWidget {
               ),
           ],
         ),
-        if (estimate.comparison != null) ...[
-          const SizedBox(height: AppSpacing.sm),
-          PriceComparisonCard(comparison: estimate.comparison!),
-        ],
         const SizedBox(height: AppSpacing.sm),
         _ScheduleRow(state: state),
         const SizedBox(height: AppSpacing.sm),
@@ -172,6 +168,11 @@ class _RideOptionsExtras extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (estimate.comparison != null &&
+            estimate.comparison!.quotes.isNotEmpty) ...[
+          PriceComparisonSection(comparison: estimate.comparison!),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         if (tiers.isNotEmpty)
           SheetSection(
             title: 'Compare rides',
@@ -491,6 +492,12 @@ class _RideConfirmFooter extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Price check: one compact line, always visible at rest (the full
+        // card is the first pulled-up section; a tap opens it).
+        if (state.estimate?.comparison?.quotes.isNotEmpty ?? false) ...[
+          PriceComparisonChip(comparison: state.estimate!.comparison!),
+          const SizedBox(height: AppSpacing.xs),
+        ],
         // How it's paid sits right above the button that commits to it.
         _PaymentModeToggle(state: state),
         const SizedBox(height: AppSpacing.sm),

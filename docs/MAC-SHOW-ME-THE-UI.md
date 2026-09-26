@@ -1,4 +1,4 @@
-# Mac: show the owner every screen, one by one (updated 2026-09-25, v2.12.0)
+# Mac: show the owner every screen, one by one (updated 2026-09-26, v2.13.0)
 
 **Who this is for:** the Claude session (or person) on the Mac at
 `/Users/parthbhimani/ubernav`. Follow it top to bottom. At every **SHOW** step,
@@ -8,10 +8,10 @@ screenshot, and wait for "next" before moving on.
 Rules: never commit `ios/Flutter/Secrets.xcconfig`; never force-push; this Mac
 only builds iOS — the backend and the fake drivers run on **nova-pc**
 (`ssh nova-pc`, already set up here). Nothing in this file has been run on
-iOS yet: Android 2.12.0 was checked on nova-pc's emulator and the owner's
+iOS yet: Android 2.13.0 was checked on nova-pc's emulator and the owner's
 Realme. Treat every row as "expected", not "already seen on an iPhone".
 
-**Current version: 2.12.0 (build 7200)** for both apps. The look is the final
+**Current version: 2.13.0 (build 7300)** or later for both apps. The look is the final
 **Plan F "Map Glass"**, which is the default build (no THEME flag). Don't
 build other THEME flags.
 
@@ -20,7 +20,7 @@ build other THEME flags.
 ## 1. Get the latest code and the server address
 
 ```sh
-cd ~/ubernav && git pull --ff-only          # must reach 57a586b or later
+cd ~/ubernav && git pull --ff-only          # must reach f11328d or later
 URL=$(ssh nova-pc 'docker logs ridevela_tunnel 2>&1 | grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" | tail -1')/api/v1
 curl -s "$URL/health"        # must print {"status":"ok",...}
 mkdir -p ~/Desktop/ridevela-ui
@@ -41,7 +41,7 @@ cd ~/ubernav/apps/rider_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM \
   --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
   --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=2.12.0 --build-number=7200
+  --build-name=2.13.0 --build-number=7300
 ```
 If release mode isn't supported on the simulator, use `--profile`. For a
 cabled iPhone, use its id from `flutter devices`.
@@ -76,13 +76,30 @@ On **nova-pc**, run helpers from a second terminal when a step says so:
 | 18 | Trips tab → tap a past trip | **Your trip** page: route map snapshot with distance/time pills, car + date + total, pickup→drop timeline, driver + plate, fare breakdown, payment, Share receipt / Get help |
 | 19 | Map anywhere | **Solid pins**: teal pickup with a white dot, dark drop-off with a white square; your location is a **blue dot with a halo** |
 
+## 3b. New in 2.13.0 (check these on iOS too)
+
+| # | Do | SHOW |
+|---|---|---|
+| N1 | Cold-start either app | **Launch animation (~1.8 s)**: the RideVela wordmark fades in, a small car glides along a road line drawing a bright aqua route, then it fades into the app. No white flash between the native launch screen and the Flutter frame (the iOS LaunchScreen colour may need matching to #F7F8F9 light / #0E1114 dark; report it if it flashes) |
+| N2 | Home | **Brighter aqua accent**: the "Where to?" ring turns teal→cyan→mint; selected items and pins are bright aqua; dark-mode buttons are vivid mint-teal. Backgrounds and text are unchanged |
+| N3 | Bottom nav | **All four icons are animated** (Home, Trips, Offers gift, Account); the selected one is aqua inside a pill and replays once when tapped |
+| N4 | Home "Ride" tile | An **everyday white hatchback** (no longer the sporty sedan) |
+| N5 | Choose a ride | **All four cars are white, side-on and face LEFT**: Economy hatchback, Comfort sedan, Premium sedan, XL SUV |
+| N6 | Choose a ride → "Book for someone else" (or the Home "For others" tile) | **Pick from contacts** opens the iOS system contact picker (no contacts-permission prompt, by Apple's design). Choosing a contact fills the name and the +91 number. Cancel leaves the fields alone |
+| N7 | Choose a ride (Pune pickup, market INR) | **Price comparison**: one line above Cash/Card, "✓ Save ₹X vs Uber, Ola, Rapido ›" (only when we are really cheaper; otherwise "Compare prices with …"). Tap it → **Price check** card: RideVela row first (aqua), then "Uber · Ola · Rapido" grouped at the Pune RTA-approved fare, a "Cheapest" pill, and one footnote. Also the first section when the sheet is pulled up |
+| N8 | Account → Credits & licences | Flutter licence page, including a "RideVela artwork" entry |
+| N9 | Account → Help & support → raise a ticket | It appears in the **admin app's Support tab**; an admin reply shows back in the rider's ticket |
+
+iOS-specific: `flutter_native_contact_picker` is a new plugin, so run `pod install` in both
+`apps/rider_app/ios` and `apps/driver_app/ios` after pulling.
+
 ## 4. Driver app
 
 ```sh
 cd ~/ubernav/apps/driver_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
   --dart-define=MARKET=in --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=2.12.0 --build-number=7200
+  --build-name=2.13.0 --build-number=7300
 ```
 | # | SHOW |
 |---|---|
@@ -96,7 +113,7 @@ flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
 ## 5. Install on the iPhone
 
 Build the same two apps (sections 2 and 4) on the cabled iPhone with
-`--build-name=2.12.0 --build-number=7200`. No THEME flag, no bundle-ID changes.
+`--build-name=2.13.0 --build-number=7300`. No THEME flag, no bundle-ID changes.
 
 ## 6. Report back
 

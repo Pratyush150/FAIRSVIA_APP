@@ -11,6 +11,7 @@ import {
 import { Type } from 'class-transformer';
 import { MAX_STOPS, StopDto } from '../../trips/dto/stop.dto';
 import { TIER_KEYS } from '../../pricing/fare-config';
+import { COMPARISON_CURRENCIES } from '../competitor-config';
 
 /**
  * Request for a price comparison. Same pickup/dropoff (+ optional stops) as an
@@ -48,4 +49,13 @@ export class CompareDto {
   @IsOptional()
   @IsIn(TIER_KEYS)
   tier?: string;
+
+  /**
+   * Verification only: compare in another supported market's currency (USD,
+   * UZS, AED) without switching the live market. Our own fare then comes from
+   * that currency's seed fare config. Omitted = the market currency.
+   */
+  @IsOptional()
+  @IsIn(COMPARISON_CURRENCIES)
+  currency?: string;
 }

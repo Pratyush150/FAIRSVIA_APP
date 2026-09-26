@@ -1,10 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PricingService } from '../pricing/pricing.service';
 import { CURRENCY, METERS_PER_MILE } from '../pricing/fare-config';
+import { roundFare } from '../common/money';
+import {
+  COMPETITOR_MODELS_BY_CURRENCY,
+  ProviderFareModel,
+} from './competitor-config';
 
-/** The competitor rate cards (Uber/Lyft/Empower, Miami) are priced in this. */
-export const COMPETITOR_MODELS_CURRENCY = 'USD';
-import { COMPETITOR_MODELS, ProviderFareModel } from './competitor-config';
+/** True when we hold a competitor set for this currency (USD, UZS, AED). */
+export function hasComparisonFor(currency: string): boolean {
+  return (COMPETITOR_MODELS_BY_CURRENCY[currency.toUpperCase()]?.length ?? 0) > 0;
+}
 import { CalibrationService } from './calibration.service';
 import { BRAND_NAME } from '../common/brand';
 
@@ -81,9 +87,9 @@ const OUR_DISPLAY = BRAND_NAME;
 const HIGH_DEMAND_SURGE = 1.2;
 
 export const COMPARISON_DISCLAIMER =
-  'Competitor prices are estimates modeled from each provider’s published fare ' +
-  'rates for this trip’s distance and time — not live quotes. Actual Uber, Lyft, ' +
-  'and Empower prices vary with real-time demand.';
+  'Estimates from published fares. Other providers’ prices are modeled from ' +
+  'their published rates for this trip’s distance and time — not live quotes. ' +
+  'Their actual prices vary with real-time demand, tolls and route.';
 
 @Injectable()
 export class ComparisonService {
@@ -106,17 +112,28 @@ export class ComparisonService {
     durationS: number,
     surge = 1,
     tier = 'economy',
-    models: ProviderFareModel[] = this.calibration.models(),
+    models?: ProviderFareModel[],
+    currency: string = CURRENCY,
   ): PriceComparison {
+    currency = currency.toUpperCase();
+    // Calibration samples were gathered for the US set only; other markets use
+    // their seeded published-rate models until they have samples of their own.
+    const set =
+      models ??
+      (currency === 'USD'
+        ? this.calibration.models()
+        : COMPETITOR_MODELS_BY_CURRENCY[currency] ?? []);
     const distanceMi = distanceM / METERS_PER_MILE;
+    const distanceKm = distanceM / 1000;
     const durationMin = durationS / 60;
 
-    // Our real price for the chosen tier.
-    const ourEstimate = this.pricing.estimateForTier(
+    // Our real price for the chosen tier, in the SAME currency as the set.
+    const ourEstimate = this.pricing.estimateForTierInCurrency(
       tier,
       distanceM,
       durationS,
       surge,
+      currency,
     );
     const ourQuote: ProviderQuote = {
       provider: OUR_PROVIDER,
@@ -127,13 +144,16 @@ export class ComparisonService {
       priceLow: ourEstimate.fare,
       priceHigh: ourEstimate.fare,
       confidence: 'exact',
-      currency: CURRENCY,
+      currency,
       isOurs: true,
       estimated: false,
     };
 
-    const competitorQuotes: ProviderQuote[] = models.map((m) => {
-      const price = modelCompetitorFare(m, distanceMi, durationMin, surge);
+    const r = (n: number) => roundFare(n, currency);
+    const competitorQuotes: ProviderQuote[] = set.map((m) => {
+      const price = r(
+        modelCompetitorFare(m, distanceMi, durationMin, surge, distanceKm),
+      );
       // Uncertainty = calibration residual (how well the model fits real fares)
       // + a surge term (we're GUESSING their surge; the guess widens the band as
       // demand rises, and only for providers that actually surge).
@@ -148,10 +168,10 @@ export class ComparisonService {
         displayName: m.displayName,
         productName: m.productName,
         price,
-        priceLow: round2(price * (1 - unc)),
-        priceHigh: round2(price * (1 + unc)),
+        priceLow: r(price * (1 - unc)),
+        priceHigh: r(price * (1 + unc)),
         confidence: unc < 0.05 ? 'high' : unc < 0.12 ? 'medium' : 'low',
-        currency: CURRENCY,
+        currency,
         isOurs: false,
         estimated: true,
       };
@@ -168,7 +188,7 @@ export class ComparisonService {
     const vs: ProviderDelta[] = competitorQuotes.map((q) => ({
       provider: q.provider,
       displayName: q.displayName,
-      diff: round2(ourQuote.price - q.price),
+      diff: r(ourQuote.price - q.price),
       pct: q.price === 0 ? 0 : round1(((ourQuote.price - q.price) / q.price) * 100),
     }));
 
@@ -179,7 +199,7 @@ export class ComparisonService {
       distanceMi: round2(distanceMi),
       durationMin: round1(durationMin),
       surge,
-      currency: CURRENCY,
+      currency,
       quotes,
       cheapest: {
         provider: cheapest.provider,
@@ -191,7 +211,7 @@ export class ComparisonService {
         price: ourQuote.price,
         rank,
         isCheapest: cheapest.isOurs,
-        maxSavings: round2(Math.max(0, priciest.price - ourQuote.price)),
+        maxSavings: r(Math.max(0, priciest.price - ourQuote.price)),
         vs,
       },
       demandHigh: surge >= HIGH_DEMAND_SURGE,
@@ -209,15 +229,19 @@ function clamp(n: number, lo: number, hi: number): number {
  * floored at minFare. effectiveSurge dampens/amplifies our surge per the
  * provider's modeled sensitivity.
  */
-function modelCompetitorFare(
+export function modelCompetitorFare(
   m: ProviderFareModel,
   distanceMi: number,
   durationMin: number,
   surge: number,
+  distanceKm = distanceMi * (METERS_PER_MILE / 1000),
 ): number {
   const effectiveSurge = 1 + (surge - 1) * m.surgeSensitivity;
   const metered =
-    (m.baseFare + m.perMile * distanceMi + m.perMin * durationMin) *
+    (m.baseFare +
+      m.perMile * distanceMi +
+      (m.perKm ?? 0) * distanceKm +
+      m.perMin * durationMin) *
     effectiveSurge;
   return round2(Math.max(metered + m.bookingFee, m.minFare));
 }

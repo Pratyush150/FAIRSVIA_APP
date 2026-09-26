@@ -25,7 +25,7 @@ import { RecordSampleDto } from './dto/record-sample.dto';
 
 /**
  * Price-comparison API: given a pickup/dropoff, return our fare alongside
- * modeled Uber / Lyft / Empower fares for the same trip, with the cheapest
+ * the market's modeled competitor fares for the same trip, with the cheapest
  * (minimum-price) provider flagged. See competitor-config.ts for the honesty
  * note on why competitor prices are modeled, not live.
  */
@@ -65,6 +65,8 @@ export class ComparisonController {
       durationS,
       surge,
       dto.tier ?? 'economy',
+      undefined,
+      dto.currency,
     );
   }
 

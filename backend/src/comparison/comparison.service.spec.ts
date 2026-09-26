@@ -14,8 +14,7 @@ function fakeCalibration(models: ProviderFareModel[]): CalibrationService {
  * comparison math is tested in isolation from the DB-backed fare config.
  */
 function fakePricing(ourFare: number): PricingService {
-  return {
-    estimateForTier: () => ({
+  const est = () => ({
       tier: 'economy',
       label: 'Economy',
       capacity: 4,
@@ -29,7 +28,10 @@ function fakePricing(ourFare: number): PricingService {
         bookingFee: 2,
         surgeMultiplier: 1,
       },
-    }),
+    });
+  return {
+    estimateForTier: est,
+    estimateForTierInCurrency: est,
   } as unknown as PricingService;
 }
 
@@ -66,7 +68,7 @@ const TWENTY_MIN_S = 20 * 60;
 describe('ComparisonService', () => {
   it('models each competitor from its rate card', () => {
     const svc = new ComparisonService(fakePricing(14), fakeCalibration(MODELS));
-    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS);
+    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS, 'USD');
 
     // Uber: (2.55 + 1.15*5 + 0.24*20)*1 + 2.90 = 2.55+5.75+4.80+2.90 = 16.00
     const uber = c.quotes.find((q) => q.provider === 'uber')!;
@@ -80,7 +82,7 @@ describe('ComparisonService', () => {
 
   it('flags our own quote as real (not estimated) and identifies the cheapest', () => {
     const svc = new ComparisonService(fakePricing(9.0), fakeCalibration(MODELS));
-    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS);
+    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS, 'USD');
 
     const ours = c.quotes.find((q) => q.isOurs)!;
     expect(ours.provider).toBe('ubernav');
@@ -94,7 +96,7 @@ describe('ComparisonService', () => {
 
   it('returns the minimum across providers when a competitor undercuts us', () => {
     const svc = new ComparisonService(fakePricing(12.0), fakeCalibration(MODELS));
-    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS);
+    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS, 'USD');
 
     // empower 9.85 < ubernav 12.00 < uber 16.00
     expect(c.cheapest.provider).toBe('empower');
@@ -105,7 +107,7 @@ describe('ComparisonService', () => {
 
   it('sorts quotes ascending and computes per-competitor deltas', () => {
     const svc = new ComparisonService(fakePricing(12.0), fakeCalibration(MODELS));
-    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS);
+    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS, 'USD');
 
     const prices = c.quotes.map((q) => q.price);
     expect(prices).toEqual([...prices].sort((a, b) => a - b));
@@ -121,8 +123,8 @@ describe('ComparisonService', () => {
 
   it('amplifies competitor prices under surge per sensitivity', () => {
     const svc = new ComparisonService(fakePricing(12.0), fakeCalibration(MODELS));
-    const flat = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS);
-    const surged = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 2, 'economy', MODELS);
+    const flat = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS, 'USD');
+    const surged = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 2, 'economy', MODELS, 'USD');
 
     const uberFlat = flat.quotes.find((q) => q.provider === 'uber')!.price;
     const uberSurged = surged.quotes.find((q) => q.provider === 'uber')!.price;
@@ -137,13 +139,13 @@ describe('ComparisonService', () => {
 
   it('always carries the estimate disclaimer', () => {
     const svc = new ComparisonService(fakePricing(9), fakeCalibration(MODELS));
-    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S);
+    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', undefined, 'USD');
     expect(c.disclaimer).toMatch(/estimate/i);
   });
 
   it('gives competitors a confidence band but our own quote is exact', () => {
     const svc = new ComparisonService(fakePricing(12), fakeCalibration(MODELS));
-    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS);
+    const c = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS, 'USD');
 
     const ours = c.quotes.find((q) => q.isOurs)!;
     expect(ours.confidence).toBe('exact');
@@ -157,8 +159,8 @@ describe('ComparisonService', () => {
 
   it('widens the competitor band and flags high demand under surge', () => {
     const svc = new ComparisonService(fakePricing(12), fakeCalibration(MODELS));
-    const flat = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS);
-    const surged = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 2, 'economy', MODELS);
+    const flat = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 1, 'economy', MODELS, 'USD');
+    const surged = svc.compare(FIVE_MILES_M, TWENTY_MIN_S, 2, 'economy', MODELS, 'USD');
 
     const bandFlat = (q: string, c = flat) => {
       const x = c.quotes.find((v) => v.provider === q)!;

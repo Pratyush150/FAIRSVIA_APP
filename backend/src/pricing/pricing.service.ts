@@ -166,6 +166,30 @@ export class PricingService implements OnModuleInit {
     return this.compute(cfg, distanceM, durationS, surge);
   }
 
+  /**
+   * Our fare for a tier in a given currency. The market's own currency uses the
+   * live (DB-tuned) config; any other currency uses that currency's seed
+   * defaults. Used only by the price comparison's verification path so a UZS
+   * or AED comparison can be checked without switching the live market — our
+   * price is then always in the same currency as the competitors'.
+   */
+  estimateForTierInCurrency(
+    tier: string,
+    distanceM: number,
+    durationS: number,
+    surge: number,
+    currency: string,
+  ): FareEstimate {
+    if (currency.toUpperCase() === CURRENCY) {
+      return this.estimateForTier(tier, distanceM, durationS, surge);
+    }
+    const cfg = defaultFareConfig(currency)[tier];
+    if (!cfg) {
+      throw new BadRequestException(`Unknown tier: ${tier}`);
+    }
+    return this.compute(cfg, distanceM, durationS, surge, currency.toUpperCase());
+  }
+
   /** The configured minimum fare for a tier (the floor every fare respects). */
   minFareFor(tier: string): number {
     const cfg = this.cache[tier];
@@ -191,6 +215,7 @@ export class PricingService implements OnModuleInit {
     distanceM: number,
     durationS: number,
     surge: number,
+    currency: string = CURRENCY,
   ): FareEstimate {
     const distanceMi = distanceM / METERS_PER_MILE;
     const durationMin = durationS / 60;
@@ -204,7 +229,7 @@ export class PricingService implements OnModuleInit {
     // is defined as the sum of what they are shown, floored at the minimum.
     // In whole-unit markets (₹, so'm) each line is a whole number, so the
     // total is too and the itemisation still adds up exactly.
-    const r = (n: number) => roundFare(n, CURRENCY);
+    const r = (n: number) => roundFare(n, currency);
     const base = r(cfg.baseFare * surge);
     const distance = r(distanceFare * surge);
     const time = r(timeFare * surge);
@@ -218,7 +243,7 @@ export class PricingService implements OnModuleInit {
       label: cfg.label,
       capacity: cfg.capacity,
       fare,
-      currency: CURRENCY,
+      currency,
       etaSeconds: durationS,
       breakdown: {
         // Surged, so these lines and the booking fee sum to the quoted fare.

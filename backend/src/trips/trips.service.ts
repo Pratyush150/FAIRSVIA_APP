@@ -31,7 +31,7 @@ import { CURRENCY } from '../pricing/fare-config';
 import { FareBreakdown, PricingService } from '../pricing/pricing.service';
 import { SurgeService } from '../surge/surge.service';
 import {
-  COMPETITOR_MODELS_CURRENCY,
+  hasComparisonFor,
   ComparisonService,
 } from '../comparison/comparison.service';
 import { PromoService } from '../promo/promo.service';
@@ -210,14 +210,13 @@ export class TripsService {
             tripDurationS: route.durationS,
           })),
       ),
-      // How our economy fare stacks up against modeled Uber/Lyft/Empower prices
+      // How our economy fare stacks up against the market's modeled competitor prices
       // for this exact trip, with the cheapest provider flagged. Reuses the
-      // already-routed distance/time — no extra routing call. Only where the
-      // competitor rate cards were calibrated: they are US dollar fares, and
-      // compared against rupees or som they would claim savings that are not
-      // real. Null elsewhere — the app then shows no comparison card.
+      // already-routed distance/time — no extra routing call. Only for markets
+      // with a competitor set in their own currency (INR, USD, UZS, AED); null
+      // elsewhere — the app then shows no comparison card.
       comparison:
-        CURRENCY === COMPETITOR_MODELS_CURRENCY
+        hasComparisonFor(CURRENCY)
           ? this.comparison.compare(route.distanceM, route.durationS, surge, 'economy')
           : null,
     };
