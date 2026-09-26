@@ -44,7 +44,8 @@ String questLine(DriverQuest q, {DateTime? now}) {
   final bonus = Fmt.money(q.bonus, q.currency);
   if (q.paid) return '${q.target} of ${q.target} trips · $bonus bonus paid';
   if (q.status == 'ended') {
-    return '${q.progress} of ${q.target} trips · ended';
+    // Lead with the state so a "… today" title never reads as still running.
+    return 'Ended · ${q.progress} of ${q.target} trips';
   }
   if (q.status == 'upcoming' && q.startsAt != null) {
     return '${q.target} trips · $bonus bonus · '
@@ -66,11 +67,16 @@ class QuestTile extends StatelessWidget {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final done = quest.completed;
+    // An ended, unfinished quest is history, not a goal: muted.
+    final ended = quest.status == 'ended' && !done;
     return Semantics(
       container: true,
       label: '${quest.title}. ${questLine(quest, now: now)}',
       excludeSemantics: true,
-      child: Column(
+      child: Opacity(
+        key: ended ? const Key('quest-ended') : null,
+        opacity: ended ? 0.55 : 1,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
@@ -115,6 +121,7 @@ class QuestTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -215,6 +222,9 @@ class _DriverQuestsCardState extends State<DriverQuestsCard> {
     if (running.isNotEmpty) return running.first;
     final upcoming = _quests.where((q) => q.status == 'upcoming').toList();
     if (upcoming.isNotEmpty) return upcoming.first;
+    // Then a finished (earned) one; an ended, missed quest only as a last resort.
+    final notEnded = _quests.where((q) => q.status != 'ended' || q.completed);
+    if (notEnded.isNotEmpty) return notEnded.first;
     return _quests.isEmpty ? null : _quests.first;
   }
 

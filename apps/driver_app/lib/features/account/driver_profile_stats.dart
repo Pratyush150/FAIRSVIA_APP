@@ -73,7 +73,7 @@ class _DriverProfileStatsState extends State<DriverProfileStats> {
               label: rated
                   ? '${widget.ratingCount} '
                         '${widget.ratingCount == 1 ? 'rating' : 'ratings'}'
-                  : 'No ratings yet',
+                  : 'Rating',
               value: rated ? widget.ratingAvg.toStringAsFixed(1) : 'New',
               leading: rated
                   ? const Icon(
@@ -87,7 +87,7 @@ class _DriverProfileStatsState extends State<DriverProfileStats> {
           const VerticalDivider(width: AppSpacing.xl),
           Expanded(
             child: _Stat(
-              label: 'Trips, last 7 days',
+              label: 'Trips · 7 days',
               value: _loading ? pending : (_trips?.toString() ?? '—'),
             ),
           ),
@@ -134,9 +134,13 @@ class _Stat extends StatelessWidget {
       excludeSemantics: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+        // Top-aligned with a fixed-height value row, so the three columns
+        // share one baseline even when the plate is scaled down to fit.
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          FittedBox(
+          SizedBox(
+            height: 24,
+            child: FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Row(
@@ -150,8 +154,15 @@ class _Stat extends StatelessWidget {
               ],
             ),
           ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: theme.textTheme.bodySmall),
+          Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall,
+          ),
         ],
       ),
     );

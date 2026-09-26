@@ -46,6 +46,8 @@ async function main() {
   const acceptedP = once(rSock, 'trip:accepted');
 
   // Optionally exercise the cash-settlement path (PAYMENT_MODE=cash).
+  // Against the dev stack with real Stripe keys a fresh rider has no card, so
+  // run it there with PAYMENT_MODE=cash (card needs a saved card).
   const paymentMode = process.env.PAYMENT_MODE === 'cash' ? 'cash' : 'card';
   const trip = await api('/trips', {
     method: 'POST',

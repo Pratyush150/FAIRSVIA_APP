@@ -154,6 +154,9 @@ class _VehicleSetupDialogState extends State<VehicleSetupDialog> {
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<String>(
               initialValue: _tier,
+              // Match the text fields above; the dropdown default
+              // (titleMedium) rendered "Economy" visibly larger.
+              style: Theme.of(context).textTheme.bodyLarge,
               decoration: const InputDecoration(labelText: 'Vehicle type'),
               items: [
                 for (final (value, label) in _vehicleTypes)

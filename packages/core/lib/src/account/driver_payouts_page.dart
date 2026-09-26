@@ -116,9 +116,26 @@ class _DriverPayoutsPageState extends State<DriverPayoutsPage> {
                         style: theme.textTheme.bodyMedium),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      Fmt.money(data.balance, data.currency),
-                      style: theme.textTheme.displaySmall,
+                      // Same true minus sign and red as the activity rows
+                      // below, not Fmt's ASCII "-₹35.60".
+                      data.balance < 0
+                          ? '−${Fmt.money(data.balance.abs(), data.currency)}'
+                          : Fmt.money(data.balance, data.currency),
+                      key: const Key('payout-balance'),
+                      style: theme.textTheme.displaySmall?.copyWith(
+                        color: data.balance < 0 ? AppColors.error : null,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
+                    if (data.balance < 0) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        "You owe commission on cash trips. It's deducted "
+                        'from your next payout.',
+                        key: const Key('payout-negative-note'),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.md),
                     PrimaryButton(
                       label: 'Withdraw to bank',

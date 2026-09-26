@@ -55,7 +55,7 @@ void main() {
     expect(find.text('4.9'), findsOneWidget);
     expect(find.text('37 ratings'), findsOneWidget);
     expect(find.text('12'), findsOneWidget);
-    expect(find.text('Trips, last 7 days'), findsOneWidget);
+    expect(find.text('Trips · 7 days'), findsOneWidget);
     expect(find.text('MH 12 AB 1234'), findsOneWidget);
     expect(find.text('Plate'), findsOneWidget);
   });
@@ -64,7 +64,7 @@ void main() {
       (tester) async {
     await pump(tester, ratingAvg: 5, ratingCount: 0, theme: AppTheme.dark);
     expect(find.text('New'), findsOneWidget);
-    expect(find.text('No ratings yet'), findsOneWidget);
+    expect(find.text('Rating'), findsOneWidget);
     expect(find.text('5.0'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -85,5 +85,24 @@ void main() {
     );
     expect(find.text('Not added'), findsOneWidget);
     expect(find.text('12'), findsOneWidget);
+  });
+
+  testWidgets('at 360dp the three values share a top and labels fit one line',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pump(tester, ratingCount: 0);
+    final newTop = tester.getTopLeft(find.text('New')).dy;
+    final tripsTop = tester.getTopLeft(find.text('12')).dy;
+    expect((newTop - tripsTop).abs(), lessThan(1));
+    final plateRect = tester.getRect(find.text('MH 12 AB 1234'));
+    final newRect = tester.getRect(find.text('New'));
+    expect((plateRect.center.dy - newRect.center.dy).abs(), lessThan(2));
+    for (final l in ['Rating', 'Trips · 7 days', 'Plate']) {
+      final h = tester.getSize(find.text(l)).height;
+      final one = tester.getSize(find.text('Plate')).height;
+      expect(h, one, reason: '$l wraps');
+    }
   });
 }

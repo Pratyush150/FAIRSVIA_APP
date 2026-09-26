@@ -137,6 +137,11 @@ class _FatigueStatusBarState extends State<FatigueStatusBar> {
                 color: s.nearLimit || s.overLimit
                     ? AppColors.warning
                     : AppColors.accent,
+                // Explicit track: the theme default rendered a solid black
+                // bar at 0m online, reading as "full".
+                backgroundColor: theme.brightness == Brightness.dark
+                    ? AppColors.borderDark
+                    : AppColors.borderLight,
               ),
             ),
             if (s.nearLimit || s.overLimit) ...[

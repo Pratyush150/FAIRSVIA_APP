@@ -54,6 +54,18 @@ void main() {
 
   const extra = bool.fromEnvironment('EXTRA_TIERS');
 
+  testWidgets('vehicle type text is the same size as the text fields',
+      (tester) async {
+    await pump(tester);
+    final selected = tester.widget<DefaultTextStyle>(find
+        .ancestor(of: find.text('Economy'), matching: find.byType(DefaultTextStyle))
+        .first);
+    final field = tester.widget<EditableText>(find.descendant(
+        of: find.widgetWithText(TextField, 'Make'),
+        matching: find.byType(EditableText)));
+    expect(selected.style.fontSize, field.style.fontSize);
+  });
+
   testWidgets('offers only the car tiers while auto/bike are held back',
       (tester) async {
     await pump(tester);

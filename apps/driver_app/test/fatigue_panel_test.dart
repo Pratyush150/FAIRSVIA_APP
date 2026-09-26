@@ -42,6 +42,18 @@ void main() {
     expect(find.byType(FatigueRestCard), findsNothing);
   });
 
+  testWidgets('progress track is a light border colour, not black',
+      (t) async {
+    await t.pumpWidget(_host(FatigueStatusBar(
+      load: () async => _status(online: 0),
+    )));
+    await t.pump();
+    final bar = t.widget<LinearProgressIndicator>(
+        find.byType(LinearProgressIndicator));
+    expect(bar.value, 0);
+    expect(bar.backgroundColor, AppColors.borderLight);
+  });
+
   testWidgets('warning banner in the last 30 minutes', (t) async {
     await t.pumpWidget(_host(FatigueStatusBar(
       load: () async => _status(online: 11 * _h + 40 * 60),

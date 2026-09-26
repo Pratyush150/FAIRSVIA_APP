@@ -1,5 +1,6 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_models/shared_models.dart';
 
 import '../driver/driver_remote_data_source.dart';
 import 'format.dart';
@@ -266,8 +267,10 @@ class WeekBars extends StatelessWidget {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final frac = max <= 0 ? 0.0 : d.total / max;
-    // A day with any earnings keeps a visible 4 px stub.
-    final h = d.total > 0 ? (frac * height).clamp(4.0, height) : 0.0;
+    // A day with any earnings keeps a visible 4 px stub; a zero day gets a
+    // short neutral tick so it reads as "nothing", not as missing data.
+    final zero = d.total <= 0;
+    final h = zero ? 3.0 : (frac * height).clamp(4.0, height);
     final name = _weekdayNames[d.date.weekday - 1];
     final label = '${isToday ? 'Today' : name}: ${Fmt.money(d.total)}, '
         '${d.trips} ${d.trips == 1 ? 'trip' : 'trips'}';
@@ -282,20 +285,30 @@ class WeekBars extends StatelessWidget {
             children: [
               SizedBox(
                 height: 18,
-                child: isToday && d.total > 0
-                    ? FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(Fmt.money(d.total),
-                            style: theme.textTheme.labelSmall),
-                      )
-                    : null,
+                // Every day's amount, whole units, small tabular figures.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '${Money.symbol()}${d.total.round()}',
+                    key: Key('week-bar-amount-${d.date.weekday}'),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: isToday ? FontWeight.w700 : null,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
               ),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 28),
+                constraints: BoxConstraints(maxWidth: zero ? 14 : 28),
                 child: Container(
+                  key: zero ? Key('week-bar-zero-${d.date.weekday}') : null,
                   height: h,
                   decoration: BoxDecoration(
-                    color: isToday ? AppColors.accent : AppColors.softFor(dark),
+                    color: zero
+                        ? AppColors.iconNeutralFor(dark).withValues(alpha: 0.4)
+                        : isToday
+                        ? AppColors.accent
+                        : AppColors.softFor(dark),
                     borderRadius:
                         const BorderRadius.vertical(top: Radius.circular(4)),
                   ),

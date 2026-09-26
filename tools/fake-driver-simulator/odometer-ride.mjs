@@ -46,6 +46,9 @@ async function main() {
       pickupLat: pickup.lat, pickupLng: pickup.lng,
       dropoffLat: dropoff.lat, dropoffLng: dropoff.lng,
       tier: 'economy', pickupAddr: 'Indiranagar', dropoffAddr: 'MG Road',
+      // PAYMENT_MODE=cash for the dev stack (real Stripe: a fresh rider has no
+      // card and card bookings are refused). CI keeps the card default.
+      ...(process.env.PAYMENT_MODE === 'cash' ? { paymentMode: 'cash' } : {}),
     },
   });
   const estimateFare = trip.fareEstimate;

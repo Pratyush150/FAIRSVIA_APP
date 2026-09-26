@@ -94,9 +94,20 @@ class DriverBusyAreasSection extends StatelessWidget {
   final List<DemandCell> cells;
   final LatLng? from;
 
+  /// Farther than this is not "nearby" — a 9.6 km hotspot is a drive, not
+  /// a tip. Only applied when the driver's position is known.
+  static const nearbyRadiusMeters = 5000.0;
+
   @override
   Widget build(BuildContext context) {
-    final top = [...cells]..sort((a, b) => b.intensity.compareTo(a.intensity));
+    final near = from == null
+        ? cells
+        : cells.where(
+            (c) =>
+                distanceMeters(from!, LatLng(c.lat, c.lng)) <=
+                nearbyRadiusMeters,
+          );
+    final top = [...near]..sort((a, b) => b.intensity.compareTo(a.intensity));
     final items = <DriverInfoItem>[
       for (final c in top.take(3))
         DriverInfoItem(
@@ -204,8 +215,8 @@ List<DriverPoster> driverTipPosters(
     DriverPoster(
       title: 'Complete quests for bonuses',
       body:
-          'Finish the trip targets on your quests and the bonus is added '
-          'to your earnings automatically.',
+          // Short enough to read whole in two lines at 360dp (was cut off).
+          "Hit a quest's trip target and the bonus is added to your earnings.",
       cta: 'See quests',
       icon: PhosphorIconsRegular.star,
       image: 'packages/design_system/assets/promo/city_night.jpg',
@@ -215,8 +226,7 @@ List<DriverPoster> driverTipPosters(
     DriverPoster(
       title: 'Take a break — safety first',
       body:
-          'Rest regularly. After your online-time limit the app pauses '
-          'new requests so you can recharge.',
+          'At your online-time limit, new requests pause so you can rest.',
       cta: 'How breaks work',
       icon: PhosphorIconsRegular.moonStars,
       image: 'packages/design_system/assets/promo/safety_ride.webp',
@@ -236,8 +246,7 @@ List<DriverPoster> driverTipPosters(
     DriverPoster(
       title: 'Heading home? Use go-home mode',
       body:
-          'Set a destination and only get trips that take you '
-          'towards it.',
+          'Set a destination and get only trips heading your way.',
       cta: 'How it works',
       icon: PhosphorIconsRegular.house,
       image: 'packages/design_system/assets/promo/city_day.jpg',
