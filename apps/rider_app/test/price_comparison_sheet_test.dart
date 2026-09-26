@@ -248,14 +248,16 @@ void main() {
   });
 
   group('full card', () {
-    testWidgets('groups equal competitor fares into one row', (tester) async {
+    testWidgets('equal competitor fares still get one row each',
+        (tester) async {
       await pumpCard(tester, puneEqual());
       expect(find.text('Price check'), findsOneWidget);
       expect(find.text('RideVela'), findsOneWidget);
-      expect(find.text('Uber · Ola · Rapido'), findsOneWidget);
-      expect(find.textContaining('Uber Go · Ola Mini · Rapido Cab Economy'),
-          findsOneWidget);
-      expect(find.text('₹192'), findsOneWidget);
+      for (final name in ['Uber', 'Ola', 'Rapido']) {
+        expect(find.text(name), findsOneWidget);
+      }
+      expect(find.text('Uber · Ola · Rapido'), findsNothing);
+      expect(find.text('₹192'), findsNWidgets(3));
       expect(find.text('₹161'), findsOneWidget);
       expect(find.text('Cheapest'), findsOneWidget);
       expect(find.text('Govt-approved app-cab fare · actual prices may vary'),

@@ -156,24 +156,20 @@ class _Row {
 }
 
 List<_Row> _rows(PriceComparison c) {
+  // One row per provider (owner, 2026-09-26: show Uber, Ola and Rapido
+  // separately even when the regulated fare makes them equal).
   final ours = c.quotes.where((q) => q.isOurs).toList();
   final others = c.quotes.where((q) => !q.isOurs).toList()
     ..sort((a, b) => a.price.compareTo(b.price));
-  final groups = <_Row>[];
-  for (final q in others) {
-    final match = groups.where((g) {
-      final f = g.first;
-      return f.price.round() == q.price.round() &&
-          f.priceLow.round() == q.priceLow.round() &&
-          f.priceHigh.round() == q.priceHigh.round();
-    });
-    if (match.isNotEmpty) {
-      match.first.quotes.add(q);
-    } else {
-      groups.add(_Row([q]));
-    }
-  }
-  return [for (final q in ours) _Row([q]), ...groups];
+  return [for (final q in [...ours, ...others]) _Row([q])];
+}
+
+/// True when every competitor quotes the same (rounded) fare — Pune app-cabs
+/// follow one RTA-approved tariff — so the footnote says why.
+bool _sameCompetitorFare(PriceComparison c) {
+  final others = c.quotes.where((q) => !q.isOurs).toList();
+  return others.length > 1 &&
+      others.every((q) => q.price.round() == others.first.price.round());
 }
 
 /// The full comparison: our row first (accent), then each competitor (or
@@ -196,7 +192,7 @@ class PriceComparisonCard extends StatelessWidget {
     final minPrice = c.quotes
         .map((q) => q.price)
         .reduce((a, b) => a < b ? a : b);
-    final grouped = rows.any((r) => r.quotes.length > 1);
+    final grouped = _sameCompetitorFare(c);
     final muted = theme.colorScheme.onSurfaceVariant;
 
     final String headline;
