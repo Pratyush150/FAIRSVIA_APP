@@ -132,13 +132,15 @@ class _MapPickerPageState extends State<MapPickerPage> {
       address = _address ?? 'Dropped pin';
     }
     if (!mounted) return;
-    Navigator.of(context).pop(PlaceDetails(
-      placeId: placeId,
-      address: address,
-      location: GeoPoint(_center.latitude, _center.longitude),
-      label: label,
-      detail: detail,
-    ));
+    Navigator.of(context).pop(
+      PlaceDetails(
+        placeId: placeId,
+        address: address,
+        location: GeoPoint(_center.latitude, _center.longitude),
+        label: label,
+        detail: detail,
+      ),
+    );
   }
 
   @override
@@ -202,42 +204,55 @@ class _MapPickerPageState extends State<MapPickerPage> {
                     children: [
                       Row(
                         children: [
-                          Icon(PhosphorIconsRegular.mapPin,
-                              size: 20, color: AppColors.accent),
+                          Icon(
+                            PhosphorIconsRegular.mapPin,
+                            size: 20,
+                            color: AppColors.accent,
+                          ),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: _address == null
-                                ? Row(children: [
-                                    const SizedBox(
-                                      height: 14,
-                                      width: 14,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Text('Locating…',
-                                        style: theme.textTheme.bodyMedium),
-                                  ])
+                                ? Row(
+                                    children: [
+                                      const SizedBox(
+                                        height: 14,
+                                        width: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.sm),
+                                      Text(
+                                        'Locating…',
+                                        style: theme.textTheme.bodyMedium,
+                                      ),
+                                    ],
+                                  )
                                 : Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(_address!,
-                                          key: const Key('map-picker-label'),
-                                          style: theme.textTheme.titleSmall,
-                                          maxLines: _caption.isEmpty ? 2 : 1,
-                                          overflow: TextOverflow.ellipsis),
+                                      Text(
+                                        _address!,
+                                        key: const Key('map-picker-label'),
+                                        style: theme.textTheme.titleSmall,
+                                        maxLines: _caption.isEmpty ? 2 : 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                       if (_caption.isNotEmpty)
-                                        Text(_caption,
-                                            key: const Key(
-                                                'map-picker-caption'),
-                                            style: theme.textTheme.bodySmall
-                                                ?.copyWith(
-                                                    color: theme.colorScheme
-                                                        .onSurfaceVariant),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis),
+                                        Text(
+                                          _caption,
+                                          key: const Key('map-picker-caption'),
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                     ],
                                   ),
                           ),

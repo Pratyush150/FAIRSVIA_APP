@@ -75,7 +75,9 @@ void main() {
     // horizontally centred on it.
     final row = find
         .ancestor(
-            of: find.text('Panther Coffee'), matching: find.byType(InkWell))
+          of: find.text('Panther Coffee'),
+          matching: find.byType(InkWell),
+        )
         .first;
     final badge = find.descendant(of: row, matching: find.byType(AppIconBadge));
     final label = find.text('350 ft');
@@ -83,8 +85,10 @@ void main() {
     final labelRect = tester.getRect(label);
     expect(labelRect.top, greaterThanOrEqualTo(badgeRect.bottom));
     expect(labelRect.center.dx, closeTo(badgeRect.center.dx, 1));
-    expect(labelRect.right,
-        lessThan(tester.getRect(find.text('Panther Coffee')).left));
+    expect(
+      labelRect.right,
+      lessThan(tester.getRect(find.text('Panther Coffee')).left),
+    );
     // A row without a distance is just the pin — no label, nothing guessed.
     expect(find.text('Somewhere unknown'), findsOneWidget);
     expect(find.byKey(const ValueKey('search-row-distance')), findsNWidgets(2));
@@ -139,7 +143,8 @@ void main() {
     final badge = tester.getRect(find.byType(AppIconBadge).last);
     // FittedBox scales the text down to the badge's width.
     final fitted = tester.getRect(
-        find.ancestor(of: label, matching: find.byType(FittedBox)));
+      find.ancestor(of: label, matching: find.byType(FittedBox)),
+    );
     expect(fitted.width, lessThanOrEqualTo(badge.width + 0.01));
   });
 

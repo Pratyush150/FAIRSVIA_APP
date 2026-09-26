@@ -28,11 +28,17 @@ import { haversineMeters } from '../geo/geo.util';
 import { StopDto } from './dto/stop.dto';
 import { roundFare } from '../common/money';
 import { CURRENCY } from '../pricing/fare-config';
-import { FareBreakdown, PricingService } from '../pricing/pricing.service';
+import {
+  FareBreakdown,
+  FareEstimate,
+  PricingService,
+} from '../pricing/pricing.service';
+import { priceMatchConfig } from '../comparison/price-match';
 import { SurgeService } from '../surge/surge.service';
 import {
   hasComparisonFor,
   comparisonTiersFor,
+  PriceComparison,
   ComparisonService,
 } from '../comparison/comparison.service';
 import { PromoService } from '../promo/promo.service';
@@ -190,6 +196,17 @@ export class TripsService {
     const dropoff: LatLng = { lat: dto.dropoffLat, lng: dto.dropoffLng };
     const route = await this.routeFor(pickup, dropoff, dto.stops);
     const surge = await this.surge.multiplierFor(pickup.lat, pickup.lng);
+    // The same comparison for every tier that has a competitor set in this
+    // market (INR: economy/comfort/xl/premium). Our price in it is already
+    // price-matched (never above the cheapest modelled competitor), and the
+    // tier list below uses that same number, so the list, the Confirm
+    // button, the chip and the comparison card all agree.
+    const comparisonsByTier: Record<string, PriceComparison> = Object.fromEntries(
+      comparisonTiersFor(CURRENCY).map((t) => [
+        t,
+        this.comparison.compare(route.distanceM, route.durationS, surge, t),
+      ]),
+    );
     return {
       distanceM: route.distanceM,
       durationS: route.durationS,
@@ -205,31 +222,39 @@ export class TripsService {
       tiers: await Promise.all(
         this.pricing
           .estimateAllTiers(route.distanceM, route.durationS, surge)
+          .map((t) => withPriceMatch(t, comparisonsByTier[t.tier]))
           .map(async (t) => ({
             ...t,
             etaSeconds: await this.dispatch.nearestDriverEtaS(pickup, t.tier),
             tripDurationS: route.durationS,
           })),
       ),
-      // How our economy fare stacks up against the market's modeled competitor prices
-      // for this exact trip, with the cheapest provider flagged. Reuses the
-      // already-routed distance/time — no extra routing call. Only for markets
-      // with a competitor set in their own currency (INR, USD, UZS, AED); null
+      // How our economy fare stacks up against the market's modeled competitor
+      // prices for this exact trip, with the cheapest provider flagged. Only
+      // for markets with a competitor set in their own currency; null
       // elsewhere — the app then shows no comparison card.
-      comparison:
-        hasComparisonFor(CURRENCY)
-          ? this.comparison.compare(route.distanceM, route.durationS, surge, 'economy')
-          : null,
-      // The same comparison for every tier that has a competitor set in this
-      // market (INR: economy/comfort/xl/premium), our fare = that tier's fare,
-      // so switching the cab segment in the app switches the comparison too.
-      comparisonsByTier: Object.fromEntries(
-        comparisonTiersFor(CURRENCY).map((t) => [
-          t,
-          this.comparison.compare(route.distanceM, route.durationS, surge, t),
-        ]),
-      ),
+      comparison: hasComparisonFor(CURRENCY)
+        ? (comparisonsByTier.economy ??
+          this.comparison.compare(route.distanceM, route.durationS, surge, 'economy'))
+        : null,
+      comparisonsByTier,
     };
+  }
+
+  /** One tier's fare for a routed trip, price-matched when the tier has a
+   *  competitor set in this market (what the rider is quoted and booked at). */
+  private matchedEstimateForTier(
+    tier: string,
+    distanceM: number,
+    durationS: number,
+    surge: number,
+  ): FareEstimate {
+    const est = this.pricing.estimateForTier(tier, distanceM, durationS, surge);
+    if (!hasComparisonFor(CURRENCY, tier)) return est;
+    return withPriceMatch(
+      est,
+      this.comparison.compare(distanceM, durationS, surge, tier),
+    );
   }
 
   /**
@@ -290,7 +315,7 @@ export class TripsService {
     const dropoff: LatLng = { lat: dto.dropoffLat, lng: dto.dropoffLng };
     const route = await this.routeFor(pickup, dropoff, dto.stops);
     const surge = await this.surge.multiplierFor(pickup.lat, pickup.lng);
-    const est = this.pricing.estimateForTier(
+    const est = this.matchedEstimateForTier(
       dto.tier,
       route.distanceM,
       route.durationS,
@@ -369,7 +394,18 @@ export class TripsService {
         fromStatus: null,
         toStatus: initialStatus,
         actor: 'rider',
-        meta: { tier: dto.tier, scheduledAt: scheduledAt?.toISOString() ?? null },
+        meta: {
+          tier: dto.tier,
+          scheduledAt: scheduledAt?.toISOString() ?? null,
+          // Price match at booking: matched / our own fare. settleFare
+          // scales the metered fare by it so the charge honours the match.
+          ...(est.breakdown.priceMatchDiscount
+            ? {
+                priceMatchRatio:
+                  est.fare / (est.fare + est.breakdown.priceMatchDiscount),
+              }
+            : {}),
+        },
       },
     });
 
@@ -939,9 +975,26 @@ export class TripsService {
     // Carry the up-front promo discount onto the final (odometer-based) fare.
     // `fareEstimate` is stored net of the promo; the clamp is on gross fares.
     const grossEstimate = estimate + discount;
-    const gross = early
-      ? this.shortTripFare(metered, grossEstimate, trip.tier, currency)
-      : this.clampFare(metered, grossEstimate, trip.tier, currency);
+    // Price match honoured at the meter: the ratio recorded at booking
+    // (matched / our own fare); the metered fare is clamped/floored on our own
+    // card as before and THEN scaled by that ratio, so the charged fare stays as far under the competitors as
+    // the quote was — including the minimum-fare floor.
+    const ratio = await this.priceMatchRatio(trip.id);
+    const clampBase = ratio < 1 ? grossEstimate / ratio : grossEstimate;
+    const unmatched = early
+      ? this.shortTripFare(metered, clampBase, trip.tier, currency)
+      : this.clampFare(metered, clampBase, trip.tier, currency);
+    // The match never takes the charge under PRICE_MATCH_FLOOR (live-market
+    // currency only, same as the quote) — the quote honoured the floor, so the
+    // charge must too, or a scaled early-end fare lands below it.
+    const pmFloor = currency === CURRENCY ? priceMatchConfig().floor : 0;
+    const gross =
+      ratio < 1
+        ? Math.max(
+            roundFare(unmatched * ratio, currency),
+            Math.min(unmatched, roundFare(pmFloor, currency)),
+          )
+        : unmatched;
     const fareFinal = Math.max(gross - discount, 0);
     return {
       fareFinal,
@@ -958,6 +1011,21 @@ export class TripsService {
         meta,
       ),
     };
+  }
+
+  /**
+   * The price-match ratio a trip was booked at (matched fare / our own fare
+   * for the booked route, in (0, 1]), recorded on the trip's creation event
+   * at booking. 1 when no match applied or the match is disabled.
+   */
+  private async priceMatchRatio(tripId: string): Promise<number> {
+    if (!priceMatchConfig().enabled) return 1;
+    const ev = await this.prisma.tripEvent.findFirst({
+      where: { tripId, fromStatus: null },
+      select: { meta: true },
+    });
+    const r = Number((ev?.meta as { priceMatchRatio?: unknown } | null)?.priceMatchRatio);
+    return Number.isFinite(r) && r > 0 && r < 1 ? r : 1;
   }
 
   /**
@@ -1589,4 +1657,25 @@ export class TripsService {
       completedAt: t.completedAt,
     };
   }
+}
+
+/**
+ * A tier estimate carrying the price-matched fare from its comparison (when
+ * the match lowered it): `fare` is the matched fare and the breakdown gets a
+ * `priceMatchDiscount` line so the itemisation still sums to it.
+ */
+export function withPriceMatch(
+  est: FareEstimate,
+  cmp: PriceComparison | undefined,
+): FareEstimate {
+  const pm = cmp?.ours.priceMatch;
+  if (!pm || !pm.applied || pm.computedFare !== est.fare) return est;
+  return {
+    ...est,
+    fare: pm.fare,
+    breakdown: {
+      ...est.breakdown,
+      priceMatchDiscount: Math.round((est.fare - pm.fare) * 100) / 100,
+    },
+  };
 }

@@ -88,8 +88,7 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
   GeoPoint? _dropoff;
   String? _dropoffLabel;
 
-  _Field get _active =>
-      _pickupFocus.hasFocus ? _Field.pickup : _Field.dropoff;
+  _Field get _active => _pickupFocus.hasFocus ? _Field.pickup : _Field.dropoff;
 
   @override
   void initState() {
@@ -212,12 +211,14 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
     final dropoff = _dropoff;
     if (pickup != null && dropoff != null) {
       _closing = true;
-      Navigator.of(context).pop(RouteChoice(
-        pickup: pickup,
-        pickupAddr: _pickupLabel,
-        dropoff: dropoff,
-        dropoffAddr: _dropoffLabel ?? 'Destination',
-      ));
+      Navigator.of(context).pop(
+        RouteChoice(
+          pickup: pickup,
+          pickupAddr: _pickupLabel,
+          dropoff: dropoff,
+          dropoffAddr: _dropoffLabel ?? 'Destination',
+        ),
+      );
     } else if (dropoff == null) {
       _dropoffFocus.requestFocus();
     } else {
@@ -247,12 +248,12 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
   }
 
   IconData _savedIcon(String label) => switch (label.toLowerCase()) {
-        'home' => PhosphorIconsRegular.house,
-        'work' => PhosphorIconsRegular.briefcase,
-        // Same glyph as the Saved places page and the Where-to rows; was a
-        // Fill star with no state behind it (audit 2.1 rule 3).
-        _ => PhosphorIconsRegular.mapPin,
-      };
+    'home' => PhosphorIconsRegular.house,
+    'work' => PhosphorIconsRegular.briefcase,
+    // Same glyph as the Saved places page and the Where-to rows; was a
+    // Fill star with no state behind it (audit 2.1 rule 3).
+    _ => PhosphorIconsRegular.mapPin,
+  };
 
   /// Where the map picker should open for the field being edited. Prefer that
   /// field's current point, then the pickup, then the configured city fallback
@@ -324,16 +325,26 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+                AppSpacing.lg,
+                0,
+                AppSpacing.lg,
+                AppSpacing.sm,
+              ),
               child: Row(
                 children: [
-                  const Icon(PhosphorIconsRegular.warningCircle,
-                      size: 20, color: AppColors.error),
+                  const Icon(
+                    PhosphorIconsRegular.warningCircle,
+                    size: 20,
+                    color: AppColors.error,
+                  ),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
-                    child: Text(_error!,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: AppColors.error)),
+                    child: Text(
+                      _error!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -344,17 +355,23 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
             onTap: _resolving ? null : _pickOnMap,
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
               child: Row(
                 children: [
                   const AppIconBadge(icon: PhosphorIconsRegular.mapTrifold),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
-                    child: Text('Set location on the map',
-                        style: theme.textTheme.titleSmall),
+                    child: Text(
+                      'Set location on the map',
+                      style: theme.textTheme.titleSmall,
+                    ),
                   ),
-                  Icon(PhosphorIconsRegular.caretRight,
-                      color: theme.colorScheme.outline),
+                  Icon(
+                    PhosphorIconsRegular.caretRight,
+                    color: theme.colorScheme.outline,
+                  ),
                 ],
               ),
             ),
@@ -368,7 +385,9 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.xs,
+                ),
                 children: [
                   for (final p in widget.savedPlaces)
                     Padding(
@@ -397,7 +416,8 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                       child: LottieMoment.noResults(size: 96),
                     ),
                     title: 'No places found',
-                    message: 'Check the spelling, try a nearby landmark or '
+                    message:
+                        'Check the spelling, try a nearby landmark or '
                         'area name, or set the spot on the map.',
                   )
                 else if (_predictions.isEmpty && !_loading && _error == null)
@@ -408,19 +428,22 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                         : 'Search for a destination',
                     message: _active == _Field.pickup && _pickup == null
                         ? 'We couldn\'t find your location. Type an address '
-                            'or set your pickup on the map.'
+                              'or set your pickup on the map.'
                         : 'Type an address, landmark, or place to see '
-                            'suggestions.',
+                              'suggestions.',
                   )
                 else
                   ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.xs,
+                    ),
                     itemCount: _predictions.length,
                     separatorBuilder: (_, _) => Divider(
-                        height: 1,
-                        indent: 72,
-                        endIndent: AppSpacing.lg,
-                        color: theme.dividerColor),
+                      height: 1,
+                      indent: 72,
+                      endIndent: AppSpacing.lg,
+                      color: theme.dividerColor,
+                    ),
                     itemBuilder: (context, i) {
                       final p = _predictions[i];
                       return InkWell(
@@ -438,23 +461,29 @@ class _DestinationSearchPageState extends State<DestinationSearchPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(p.primaryText,
-                                        style: theme.textTheme.titleSmall,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis),
+                                    Text(
+                                      p.primaryText,
+                                      style: theme.textTheme.titleSmall,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                     if (p.secondaryText.isNotEmpty) ...[
                                       const SizedBox(height: 2),
-                                      Text(p.secondaryText,
-                                          style: theme.textTheme.bodyMedium,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis),
+                                      Text(
+                                        p.secondaryText,
+                                        style: theme.textTheme.bodyMedium,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ],
                                   ],
                                 ),
                               ),
-                              Icon(PhosphorIconsRegular.arrowUpRight,
-                                  size: 20,
-                                  color: theme.colorScheme.outline),
+                              Icon(
+                                PhosphorIconsRegular.arrowUpRight,
+                                size: 20,
+                                color: theme.colorScheme.outline,
+                              ),
                             ],
                           ),
                         ),
@@ -490,7 +519,9 @@ class _LeadingPin extends StatelessWidget {
   Widget build(BuildContext context) {
     final d = distanceM;
     const badge = AppIconBadge(
-        icon: PhosphorIconsRegular.mapPin, tone: AppIconBadgeTone.neutral);
+      icon: PhosphorIconsRegular.mapPin,
+      tone: AppIconBadgeTone.neutral,
+    );
     if (d == null) return badge;
     final theme = Theme.of(context);
     return SizedBox(
@@ -509,8 +540,8 @@ class _LeadingPin extends StatelessWidget {
               key: const ValueKey('search-row-distance'),
               maxLines: 1,
               style: theme.textTheme.labelSmall?.tabular().copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],
@@ -559,7 +590,11 @@ class _RouteFields extends StatelessWidget {
     );
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.md),
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
       child: showPickup
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -567,15 +602,22 @@ class _RouteFields extends StatelessWidget {
                 // Origin dot → rail → destination square.
                 Column(
                   children: [
-                    Icon(PhosphorIconsRegular.record,
-                        size: 16, color: AppColors.accent),
+                    Icon(
+                      PhosphorIconsRegular.record,
+                      size: 16,
+                      color: AppColors.accent,
+                    ),
                     Container(
                       width: 2,
                       height: 26,
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       color: theme.dividerColor,
                     ),
-                    Icon(PhosphorIconsFill.square, size: 16, color: AppColors.accent),
+                    Icon(
+                      PhosphorIconsFill.square,
+                      size: 16,
+                      color: AppColors.accent,
+                    ),
                   ],
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -629,7 +671,9 @@ class _FieldBox extends StatelessWidget {
         fillColor: theme.colorScheme.surfaceContainerHighest,
         suffixIcon: trailing,
         contentPadding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
           borderSide: BorderSide.none,
@@ -641,7 +685,9 @@ class _FieldBox extends StatelessWidget {
 }
 
 /// A Google Plus Code ("GVHF+GQF"): a grid reference nobody recognises.
-final _plusCode = RegExp(r'^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{0,3}\b');
+final _plusCode = RegExp(
+  r'^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{0,3}\b',
+);
 
 /// What the trip calls a place the rider picked from search: the name they
 /// chose ("Pune station, Agarkar Nagar, Pune…"), not the geocoder's formatted
@@ -650,9 +696,12 @@ final _plusCode = RegExp(r'^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{
 String placeLabel(PlacePrediction prediction, String address) {
   final chosen = prediction.description.trim().isNotEmpty
       ? prediction.description.trim()
-      : [prediction.primaryText, prediction.secondaryText]
-          .where((s) => s.trim().isNotEmpty)
-          .join(', ');
+      : [
+          prediction.primaryText,
+          prediction.secondaryText,
+        ].where((s) => s.trim().isNotEmpty).join(', ');
   if (chosen.isNotEmpty) return chosen;
-  return address.replaceFirst(_plusCode, '').replaceFirst(RegExp(r'^[,\s]+'), '');
+  return address
+      .replaceFirst(_plusCode, '')
+      .replaceFirst(RegExp(r'^[,\s]+'), '');
 }

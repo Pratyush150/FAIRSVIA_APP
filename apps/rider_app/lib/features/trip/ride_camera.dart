@@ -35,12 +35,9 @@ class RideCamera {
   /// the gap before the first driver ping, where [tracksDriver] is still false
   /// but the camera is already framing the route.
   static bool rideOwnsCamera(TripState state) => switch (state.phase) {
-        TripPhase.idle ||
-        TripPhase.loadingEstimate ||
-        TripPhase.error =>
-          false,
-        _ => true,
-      };
+    TripPhase.idle || TripPhase.loadingEstimate || TripPhase.error => false,
+    _ => true,
+  };
 
   /// Whether a fresh fix from the phone's own GPS may move the camera.
   ///

@@ -81,8 +81,7 @@ class _GeolocatorGateway implements LocationGateway {
   @override
   Future<LocationAccuracyStatus> requestTemporaryFullAccuracy({
     required String purposeKey,
-  }) =>
-      Geolocator.requestTemporaryFullAccuracy(purposeKey: purposeKey);
+  }) => Geolocator.requestTemporaryFullAccuracy(purposeKey: purposeKey);
 }
 
 /// Resolves the rider's current location. Every failure is reported (source
@@ -95,10 +94,10 @@ class LocationService {
     bool releaseMode = kReleaseMode,
     TargetPlatform? platformOverride,
     String mockLocation = _mockLocation,
-  })  : _gateway = gateway ?? const _GeolocatorGateway(),
-        _releaseMode = releaseMode,
-        _platform = platformOverride,
-        _mockPoint = releaseMode ? null : _parsePoint(mockLocation);
+  }) : _gateway = gateway ?? const _GeolocatorGateway(),
+       _releaseMode = releaseMode,
+       _platform = platformOverride,
+       _mockPoint = releaseMode ? null : _parsePoint(mockLocation);
 
   final LocationGateway _gateway;
   final bool _releaseMode;
@@ -117,7 +116,7 @@ class LocationService {
   /// `--dart-define=FALLBACK_LOCATION=<lat>,<lng>`.
   static final GeoPoint fallback =
       _parsePoint(const String.fromEnvironment('FALLBACK_LOCATION')) ??
-          GeoPoint(Market.current.cityCenter.$1, Market.current.cityCenter.$2);
+      GeoPoint(Market.current.cityCenter.$1, Market.current.cityCenter.$2);
 
   static GeoPoint? _parsePoint(String s) {
     if (s.isEmpty) return null;
@@ -254,8 +253,8 @@ class LocationService {
   }
 
   LocationResult _fallback(LocationIssue issue) => LocationResult(
-        point: fallback,
-        source: LocationSource.fallback,
-        issue: issue,
-      );
+    point: fallback,
+    source: LocationSource.fallback,
+    issue: issue,
+  );
 }

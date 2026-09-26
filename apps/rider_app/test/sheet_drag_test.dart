@@ -341,8 +341,8 @@ void main() {
 
       /// A point on the list, inside the sheet's scroll view.
       Offset onList(WidgetTester tester) {
-        final box = sheetScrollable(tester).context.findRenderObject()!
-            as RenderBox;
+        final box =
+            sheetScrollable(tester).context.findRenderObject()! as RenderBox;
         return box.localToGlobal(
           Offset(box.size.width / 2, box.size.height * 0.4),
         );

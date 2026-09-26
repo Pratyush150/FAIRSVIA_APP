@@ -12,10 +12,8 @@ void main() {
   const delhi = GeoPoint(28.6139, 77.2090); // the booking user
   const bangalore = GeoPoint(12.9716, 77.5946); // the car
 
-  TripState tracking(TripPhase phase) => const TripState().copyWith(
-        phase: phase,
-        driverLocation: bangalore,
-      );
+  TripState tracking(TripPhase phase) =>
+      const TripState().copyWith(phase: phase, driverLocation: bangalore);
 
   group('a ride owns the camera', () {
     test('while a driver is being tracked', () {
@@ -24,8 +22,11 @@ void main() {
         TripPhase.driverArrived,
         TripPhase.onTrip,
       ]) {
-        expect(RideCamera.tracksDriver(tracking(phase)), isTrue,
-            reason: '$phase');
+        expect(
+          RideCamera.tracksDriver(tracking(phase)),
+          isTrue,
+          reason: '$phase',
+        );
       }
     });
 
@@ -45,18 +46,18 @@ void main() {
         TripPhase.loadingEstimate,
         TripPhase.error,
       ]) {
-        expect(RideCamera.rideOwnsCamera(TripState(phase: phase)), isFalse,
-            reason: '$phase');
+        expect(
+          RideCamera.rideOwnsCamera(TripState(phase: phase)),
+          isFalse,
+          reason: '$phase',
+        );
       }
     });
   });
 
   group("the viewer's own GPS", () {
     test('moves the camera only when no ride is on screen', () {
-      expect(
-        RideCamera.myLocationMayMoveCamera(const TripState()),
-        isTrue,
-      );
+      expect(RideCamera.myLocationMayMoveCamera(const TripState()), isTrue);
     });
 
     test('never moves the camera during a ride', () {

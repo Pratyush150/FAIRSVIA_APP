@@ -175,7 +175,9 @@ void main() {
       await shootScrolled(tester, 'sheet_choose_ride_expanded');
       // Everything in the extras is real: seats from the tiers, the route's
       // own distance, the product's own safety tools.
-      expect(find.text('Compare rides', skipOffstage: false), findsOneWidget);
+      // "Compare rides" was removed (owner, 2026-09-26): the Price check
+      // card already compares, and the tier list shows seats and pickup.
+      expect(find.text('Compare rides', skipOffstage: false), findsNothing);
       expect(find.text('About this fare', skipOffstage: false), findsOneWidget);
       expect(
         find.text('Safety on every ride', skipOffstage: false),

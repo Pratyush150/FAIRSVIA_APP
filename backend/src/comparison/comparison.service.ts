@@ -20,6 +20,7 @@ export function comparisonTiersFor(currency: string): string[] {
   return Object.keys(byTier).filter((t) => byTier[t].length > 0);
 }
 import { CalibrationService } from './calibration.service';
+import { applyPriceMatch, priceMatchConfig, PriceMatchResult } from './price-match';
 import { BRAND_NAME } from '../common/brand';
 
 /** How sure we are of a modeled price. `exact` = our own real fare. */
@@ -79,6 +80,8 @@ export interface PriceComparison {
     maxSavings: number;
     /** Per-competitor deltas. */
     vs: ProviderDelta[];
+    /** Our fare before the price match, and whether the match lowered it. */
+    priceMatch: PriceMatchResult;
   };
   /** True when demand (our surge proxy) is high enough that modeled competitor
    *  prices are less reliable and likely higher — the UI flags this. */
@@ -187,6 +190,21 @@ export class ComparisonService {
       };
     });
 
+    // Price match: our fare never above the cheapest modelled competitor.
+    // Competitor quotes above are left exactly as modelled.
+    // PRICE_MATCH_FLOOR is in the LIVE market's currency; the verification
+    // path for another currency (e.g. AED while live in INR) has no floor.
+    const pmCfg = priceMatchConfig();
+    const priceMatch = applyPriceMatch(
+      ourEstimate.fare,
+      competitorQuotes.map((q) => q.price),
+      currency,
+      currency === CURRENCY ? pmCfg : { ...pmCfg, floor: 0 },
+    );
+    ourQuote.price = priceMatch.fare;
+    ourQuote.priceLow = priceMatch.fare;
+    ourQuote.priceHigh = priceMatch.fare;
+
     const quotes = [ourQuote, ...competitorQuotes].sort(
       (a, b) => a.price - b.price,
     );
@@ -223,6 +241,7 @@ export class ComparisonService {
         isCheapest: cheapest.isOurs,
         maxSavings: r(Math.max(0, priciest.price - ourQuote.price)),
         vs,
+        priceMatch,
       },
       demandHigh: surge >= HIGH_DEMAND_SURGE,
       disclaimer: COMPARISON_DISCLAIMER,

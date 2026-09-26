@@ -99,8 +99,8 @@ class RideMapLayer {
     // own route polyline, so fall back to that rather than drawing nothing.
     final encoded =
         (approaching && approachRoute != null && approachRoute.isNotEmpty)
-            ? approachRoute
-            : (state.estimate?.polyline ?? state.trip?.routePolyline);
+        ? approachRoute
+        : (state.estimate?.polyline ?? state.trip?.routePolyline);
     if (encoded == null || encoded.isEmpty) return const [];
     return MapUtils.decodePolyline(encoded);
   }
@@ -150,53 +150,64 @@ class RideMapLayer {
       state.estimate?.polyline ?? state.trip?.routePolyline ?? '',
     );
     if (state.pickup != null) {
-      out.add(AppMapMarker(
-        point: tripRoute.length >= 2
-            ? tripRoute.first
-            : MapUtils.toLatLng(state.pickup!),
-        kind: MapMarkerKind.pickup,
-        label: 'Pickup',
-      ));
+      out.add(
+        AppMapMarker(
+          point: tripRoute.length >= 2
+              ? tripRoute.first
+              : MapUtils.toLatLng(state.pickup!),
+          kind: MapMarkerKind.pickup,
+          label: 'Pickup',
+        ),
+      );
     }
     if (state.dropoff != null) {
-      out.add(AppMapMarker(
-        point: tripRoute.length >= 2
-            ? tripRoute.last
-            : MapUtils.toLatLng(state.dropoff!),
-        kind: MapMarkerKind.dropoff,
-        label: 'Destination',
-      ));
+      out.add(
+        AppMapMarker(
+          point: tripRoute.length >= 2
+              ? tripRoute.last
+              : MapUtils.toLatLng(state.dropoff!),
+          kind: MapMarkerKind.dropoff,
+          label: 'Destination',
+        ),
+      );
     }
     if (state.driverLocation != null) {
-      out.add(AppMapMarker(
-        point: MapUtils.toLatLng(state.driverLocation!),
-        kind: MapMarkerKind.driver,
-        label: 'Driver',
-        // Pings have stopped: keep the last known position on the map but draw
-        // it faded, so "where the car was" never reads as "where the car is".
-        stale: state.driverStale,
-        // Last reported compass heading, so the car keeps pointing the way it
-        // was going even while pings pause (AppMap otherwise derives it from
-        // movement and a stale/parked car would spin to 0°).
-        heading: state.driverHeading,
-      ));
+      out.add(
+        AppMapMarker(
+          point: MapUtils.toLatLng(state.driverLocation!),
+          kind: MapMarkerKind.driver,
+          label: 'Driver',
+          // Pings have stopped: keep the last known position on the map but draw
+          // it faded, so "where the car was" never reads as "where the car is".
+          stale: state.driverStale,
+          // Last reported compass heading, so the car keeps pointing the way it
+          // was going even while pings pause (AppMap otherwise derives it from
+          // movement and a stale/parked car would spin to 0°).
+          heading: state.driverHeading,
+        ),
+      );
     }
     // "You are here": before a driver is assigned the rider's own position is
     // the anchor of the map (Uber's blue dot). Once on the way it would only
     // clutter the pickup pin, so it is dropped for the live-tracking phases.
     // Also hidden when the rider stands on the pickup (within 30 m): two
     // markers on one spot fight and neither reads.
-    final onPickup = state.pickup != null &&
-        distanceMeters(MapUtils.toLatLng(myLocation),
-                MapUtils.toLatLng(state.pickup!)) <
+    final onPickup =
+        state.pickup != null &&
+        distanceMeters(
+              MapUtils.toLatLng(myLocation),
+              MapUtils.toLatLng(state.pickup!),
+            ) <
             meOnPickupM;
     if ((state.phase.index <= TripPhase.searching.index ||
             state.phase == TripPhase.error) &&
         !(onPickup && state.phase != TripPhase.idle)) {
-      out.add(AppMapMarker(
-        point: MapUtils.toLatLng(myLocation),
-        kind: MapMarkerKind.me,
-      ));
+      out.add(
+        AppMapMarker(
+          point: MapUtils.toLatLng(myLocation),
+          kind: MapMarkerKind.me,
+        ),
+      );
     }
     return out;
   }
@@ -225,7 +236,8 @@ class RideMapLayer {
     final dropoff = state.estimate?.dropoff ?? state.dropoff;
     if (pickup == null || dropoff == null) return null;
     final pickupLL = MapUtils.toLatLng(pickup);
-    final approaching = state.phase == TripPhase.driverEnRoute ||
+    final approaching =
+        state.phase == TripPhase.driverEnRoute ||
         state.phase == TripPhase.driverArrived;
     List<LatLng> bounds;
     final approachRoute = state.driverRoutePolyline;

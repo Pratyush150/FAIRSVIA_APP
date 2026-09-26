@@ -12,13 +12,16 @@ void main() {
   const dropoff = GeoPoint(12.9352, 77.6245);
   const car = GeoPoint(12.9800, 77.6000);
 
-  RideMapLayer layer(TripState state, {TripPhase? followed, bool suppressed = false}) =>
-      RideMapLayer(
-        state: state,
-        myLocation: me,
-        followedPhase: followed,
-        fitSuppressed: suppressed,
-      );
+  RideMapLayer layer(
+    TripState state, {
+    TripPhase? followed,
+    bool suppressed = false,
+  }) => RideMapLayer(
+    state: state,
+    myLocation: me,
+    followedPhase: followed,
+    fitSuppressed: suppressed,
+  );
 
   AppMapMarker? of(List<AppMapMarker> ms, MapMarkerKind kind) {
     for (final m in ms) {
@@ -75,10 +78,7 @@ void main() {
     });
 
     test('flag a stale driver position rather than drawing it as live', () {
-      const fresh = TripState(
-        phase: TripPhase.onTrip,
-        driverLocation: car,
-      );
+      const fresh = TripState(phase: TripPhase.onTrip, driverLocation: car);
       expect(of(layer(fresh).markers, MapMarkerKind.driver)!.stale, isFalse);
 
       final stale = fresh.copyWith(driverStale: true);
@@ -86,32 +86,47 @@ void main() {
     });
   });
 
-  test('the finding-a-driver radar spreads from the pickup, only while searching', () {
-    const searching =
-        TripState(phase: TripPhase.searching, pickup: pickup, dropoff: dropoff);
-    expect(layer(searching).searchPulse, MapUtils.toLatLng(pickup));
-    for (final phase in [
-      TripPhase.choosingRide,
-      TripPhase.driverEnRoute,
-      TripPhase.onTrip,
-      TripPhase.idle,
-    ]) {
-      expect(
-        layer(TripState(phase: phase, pickup: pickup, dropoff: dropoff))
-            .searchPulse,
-        isNull,
-        reason: '$phase',
+  test(
+    'the finding-a-driver radar spreads from the pickup, only while searching',
+    () {
+      const searching = TripState(
+        phase: TripPhase.searching,
+        pickup: pickup,
+        dropoff: dropoff,
       );
-    }
-  });
+      expect(layer(searching).searchPulse, MapUtils.toLatLng(pickup));
+      for (final phase in [
+        TripPhase.choosingRide,
+        TripPhase.driverEnRoute,
+        TripPhase.onTrip,
+        TripPhase.idle,
+      ]) {
+        expect(
+          layer(
+            TripState(phase: phase, pickup: pickup, dropoff: dropoff),
+          ).searchPulse,
+          isNull,
+          reason: '$phase',
+        );
+      }
+    },
+  );
 
   test('the car on the map is the vehicle the rider booked', () {
     const booked = TripState(
-        phase: TripPhase.driverEnRoute, selectedTier: 'xl', pickup: pickup);
-    expect(layer(booked).driverCarAsset,
-        'packages/design_system/assets/vehicles/top/xl.png');
+      phase: TripPhase.driverEnRoute,
+      selectedTier: 'xl',
+      pickup: pickup,
+    );
+    expect(
+      layer(booked).driverCarAsset,
+      'packages/design_system/assets/vehicles/top/xl.png',
+    );
     const unknown = TripState(
-        phase: TripPhase.driverEnRoute, selectedTier: 'rocket', pickup: pickup);
+      phase: TripPhase.driverEnRoute,
+      selectedTier: 'rocket',
+      pickup: pickup,
+    );
     expect(layer(unknown).driverCarAsset, endsWith('/top/driver.png'));
   });
 
@@ -132,10 +147,14 @@ void main() {
 
   group('the live leg', () {
     test('is the approach while the driver comes to the pickup', () {
-      expect(layer(const TripState(phase: TripPhase.driverEnRoute)).legKey,
-          'approach');
-      expect(layer(const TripState(phase: TripPhase.driverArrived)).legKey,
-          'approach');
+      expect(
+        layer(const TripState(phase: TripPhase.driverEnRoute)).legKey,
+        'approach',
+      );
+      expect(
+        layer(const TripState(phase: TripPhase.driverArrived)).legKey,
+        'approach',
+      );
     });
 
     test('becomes the trip once it starts, and is nothing before or after', () {
@@ -206,18 +225,20 @@ void main() {
       expect(layer(const TripState(dropoff: dropoff)).fitBounds, isNull);
     });
 
-    test('frames the car itself during the approach, not just the route ends',
-        () {
-      // The car has moved off the route's first point since it was planned.
-      const state = TripState(
-        phase: TripPhase.driverEnRoute,
-        pickup: pickup,
-        dropoff: dropoff,
-        driverLocation: car,
-        driverRoutePolyline: 'ynbnAkxqxMpBqE',
-      );
-      expect(layer(state).fitBounds, contains(MapUtils.toLatLng(car)));
-    });
+    test(
+      'frames the car itself during the approach, not just the route ends',
+      () {
+        // The car has moved off the route's first point since it was planned.
+        const state = TripState(
+          phase: TripPhase.driverEnRoute,
+          pickup: pickup,
+          dropoff: dropoff,
+          driverLocation: car,
+          driverRoutePolyline: 'ynbnAkxqxMpBqE',
+        );
+        expect(layer(state).fitBounds, contains(MapUtils.toLatLng(car)));
+      },
+    );
 
     test('frames pickup and dropoff before a driver is on the way', () {
       const state = TripState(
@@ -241,8 +262,7 @@ void main() {
         driverLocation: pickup,
       );
       final b = layer(state).fitBounds!;
-      expect(MapUtils.spanMeters(b),
-          greaterThan(RideMapLayer.minFitSpanM));
+      expect(MapUtils.spanMeters(b), greaterThan(RideMapLayer.minFitSpanM));
     });
 
     /// Regression: a malformed approach polyline decodes to points at (0, 0)
@@ -263,31 +283,41 @@ void main() {
       );
       final b = layer(state).fitBounds!;
       final span = MapUtils.spanMeters(b);
-      expect(span, lessThan(RideMapLayer.maxFitSpanM),
-          reason: 'must not frame null island to the pickup');
+      expect(
+        span,
+        lessThan(RideMapLayer.maxFitSpanM),
+        reason: 'must not frame null island to the pickup',
+      );
       expect(span, greaterThan(RideMapLayer.minFitSpanM));
       // It falls back to a box around the pickup, so the rider still sees
       // where they are standing.
       for (final p in b) {
-        expect(MapUtils.spanMeters([p, MapUtils.toLatLng(pickup)]),
-            lessThan(RideMapLayer.maxFitSpanM));
+        expect(
+          MapUtils.spanMeters([p, MapUtils.toLatLng(pickup)]),
+          lessThan(RideMapLayer.maxFitSpanM),
+        );
       }
     });
 
-    test('stops re-fitting once the phase has been framed, so follow can run',
-        () {
-      const state = TripState(
-        phase: TripPhase.onTrip,
-        pickup: pickup,
-        dropoff: dropoff,
-        driverLocation: car,
-      );
-      // First frame of the phase: fit it.
-      expect(layer(state).cameraFitBounds, isNotNull);
-      // Already framed: hand the camera to follow mode rather than re-zooming
-      // the map a second at a time on every GPS ping.
-      expect(layer(state, followed: TripPhase.onTrip).cameraFitBounds, isNull);
-    });
+    test(
+      'stops re-fitting once the phase has been framed, so follow can run',
+      () {
+        const state = TripState(
+          phase: TripPhase.onTrip,
+          pickup: pickup,
+          dropoff: dropoff,
+          driverLocation: car,
+        );
+        // First frame of the phase: fit it.
+        expect(layer(state).cameraFitBounds, isNotNull);
+        // Already framed: hand the camera to follow mode rather than re-zooming
+        // the map a second at a time on every GPS ping.
+        expect(
+          layer(state, followed: TripPhase.onTrip).cameraFitBounds,
+          isNull,
+        );
+      },
+    );
 
     test('yields for the frame that forces a re-fit', () {
       const state = TripState(

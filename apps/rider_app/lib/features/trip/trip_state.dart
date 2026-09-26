@@ -24,7 +24,7 @@ enum TripAlertKind { offRoute, driverStopped }
 /// kind distinct values, so the UI's listener fires for the second one too.
 class TripAlert extends Equatable {
   TripAlert(this.kind, {this.stoppedSec, DateTime? raisedAt})
-      : raisedAt = raisedAt ?? DateTime.now();
+    : raisedAt = raisedAt ?? DateTime.now();
 
   final TripAlertKind kind;
 
@@ -298,14 +298,15 @@ class TripState extends Equatable {
       pickup: pickup == _s ? this.pickup : pickup as GeoPoint?,
       pickupAddr: pickupAddr == _s ? this.pickupAddr : pickupAddr as String?,
       dropoff: dropoff == _s ? this.dropoff : dropoff as GeoPoint?,
-      dropoffAddr:
-          dropoffAddr == _s ? this.dropoffAddr : dropoffAddr as String?,
+      dropoffAddr: dropoffAddr == _s
+          ? this.dropoffAddr
+          : dropoffAddr as String?,
       pickupNote: pickupNote == _s ? this.pickupNote : pickupNote as String?,
-      passenger:
-          passenger == _s ? this.passenger : passenger as TripPassenger?,
+      passenger: passenger == _s ? this.passenger : passenger as TripPassenger?,
       estimate: estimate == _s ? this.estimate : estimate as TripEstimate?,
-      selectedTier:
-          selectedTier == _s ? this.selectedTier : selectedTier as String?,
+      selectedTier: selectedTier == _s
+          ? this.selectedTier
+          : selectedTier as String?,
       searchEndsAt: searchEndsAt == _s
           ? this.searchEndsAt
           : searchEndsAt as DateTime?,
@@ -314,22 +315,24 @@ class TripState extends Equatable {
       driverLocation: driverLocation == _s
           ? this.driverLocation
           : driverLocation as GeoPoint?,
-      driverHeading:
-          driverHeading == _s ? this.driverHeading : driverHeading as double?,
-      driverSeenAt:
-          driverSeenAt == _s ? this.driverSeenAt : driverSeenAt as DateTime?,
+      driverHeading: driverHeading == _s
+          ? this.driverHeading
+          : driverHeading as double?,
+      driverSeenAt: driverSeenAt == _s
+          ? this.driverSeenAt
+          : driverSeenAt as DateTime?,
       driverStale: driverStale ?? this.driverStale,
       liveEtaSec: liveEtaSec == _s ? this.liveEtaSec : liveEtaSec as int?,
-      liveRemainingM:
-          liveRemainingM == _s ? this.liveRemainingM : liveRemainingM as int?,
+      liveRemainingM: liveRemainingM == _s
+          ? this.liveRemainingM
+          : liveRemainingM as int?,
       unreadMessages: unreadMessages ?? this.unreadMessages,
       riderComingSent: riderComingSent ?? this.riderComingSent,
       driverRoutePolyline: driverRoutePolyline == _s
           ? this.driverRoutePolyline
           : driverRoutePolyline as String?,
       fareFinal: fareFinal == _s ? this.fareFinal : fareFinal as double?,
-      breakdown:
-          breakdown == _s ? this.breakdown : breakdown as FareBreakdown?,
+      breakdown: breakdown == _s ? this.breakdown : breakdown as FareBreakdown?,
       receipt: receipt == _s ? this.receipt : receipt as Receipt?,
       tipAmount: tipAmount == _s ? this.tipAmount : tipAmount as double?,
       tipping: tipping ?? this.tipping,
@@ -340,15 +343,17 @@ class TripState extends Equatable {
           : appliedPromo as PromoQuote?,
       applyingPromo: applyingPromo ?? this.applyingPromo,
       promoError: promoError == _s ? this.promoError : promoError as String?,
-      offerPromo:
-          offerPromo == _s ? this.offerPromo : offerPromo as AvailablePromo?,
+      offerPromo: offerPromo == _s
+          ? this.offerPromo
+          : offerPromo as AvailablePromo?,
       paymentMode: paymentMode ?? this.paymentMode,
       paymentMethods: paymentMethods ?? this.paymentMethods,
       selectedMethodId: selectedMethodId == _s
           ? this.selectedMethodId
           : selectedMethodId as String?,
-      scheduledAt:
-          scheduledAt == _s ? this.scheduledAt : scheduledAt as DateTime?,
+      scheduledAt: scheduledAt == _s
+          ? this.scheduledAt
+          : scheduledAt as DateTime?,
       stops: stops ?? this.stops,
       connected: connected ?? this.connected,
       error: error == _s ? this.error : error as String?,
@@ -357,55 +362,56 @@ class TripState extends Equatable {
       liveRoutePolyline: liveRoutePolyline == _s
           ? this.liveRoutePolyline
           : liveRoutePolyline as String?,
-      liveRouteLeg:
-          liveRouteLeg == _s ? this.liveRouteLeg : liveRouteLeg as String?,
+      liveRouteLeg: liveRouteLeg == _s
+          ? this.liveRouteLeg
+          : liveRouteLeg as String?,
     );
   }
 
   @override
   List<Object?> get props => [
-        phase,
-        pickup,
-        pickupAddr,
-        dropoff,
-        dropoffAddr,
-        pickupNote,
-        passenger,
-        estimate,
-        selectedTier,
-        searchEndsAt,
-        trip,
-        driver,
-        driverLocation,
-        driverHeading,
-        driverSeenAt,
-        driverStale,
-        liveEtaSec,
-        liveRemainingM,
-        unreadMessages,
-        riderComingSent,
-        driverRoutePolyline,
-        fareFinal,
-        breakdown,
-        receipt,
-        tipAmount,
-        tipping,
-        rating,
-        ratingTags,
-        appliedPromo,
-        applyingPromo,
-        promoError,
-        offerPromo,
-        paymentMode,
-        paymentMethods,
-        selectedMethodId,
-        scheduledAt,
-        stops,
-        connected,
-        error,
-        notice,
-        alert,
-        liveRoutePolyline,
-        liveRouteLeg,
-      ];
+    phase,
+    pickup,
+    pickupAddr,
+    dropoff,
+    dropoffAddr,
+    pickupNote,
+    passenger,
+    estimate,
+    selectedTier,
+    searchEndsAt,
+    trip,
+    driver,
+    driverLocation,
+    driverHeading,
+    driverSeenAt,
+    driverStale,
+    liveEtaSec,
+    liveRemainingM,
+    unreadMessages,
+    riderComingSent,
+    driverRoutePolyline,
+    fareFinal,
+    breakdown,
+    receipt,
+    tipAmount,
+    tipping,
+    rating,
+    ratingTags,
+    appliedPromo,
+    applyingPromo,
+    promoError,
+    offerPromo,
+    paymentMode,
+    paymentMethods,
+    selectedMethodId,
+    scheduledAt,
+    stops,
+    connected,
+    error,
+    notice,
+    alert,
+    liveRoutePolyline,
+    liveRouteLeg,
+  ];
 }

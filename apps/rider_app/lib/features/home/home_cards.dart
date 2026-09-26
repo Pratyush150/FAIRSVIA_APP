@@ -235,4 +235,3 @@ List<PromoBannerData> promosFromOffers(
       ),
   ];
 }
-

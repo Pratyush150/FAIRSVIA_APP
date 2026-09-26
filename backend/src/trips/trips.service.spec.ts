@@ -55,7 +55,7 @@ describe('TripsService', () => {
         }),
         update: jest.fn(),
       },
-      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      tripEvent: { create: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
       paymentMethod: { findFirst: jest.fn() },
       driverProfile: { update: jest.fn().mockResolvedValue({}) },
       user: { findUnique: jest.fn().mockResolvedValue({ email: null }) },
@@ -119,6 +119,18 @@ describe('TripsService', () => {
       await svc.createTrip('rider-1', { ...baseDto, quotedFare: 11, quotedSurge: 1 });
       expect(created[0].fareEstimate).toBe(11);
       expect(created[0].surgeMultiplier).toBe(1);
+    });
+
+    it('books at the price-matched fare and records the match ratio on the creation event', async () => {
+      const { svc, created, prisma } = make({ surge: 1, fare: 100 });
+      const cmp = (svc as unknown as { comparison: { compare: jest.Mock } }).comparison;
+      cmp.compare.mockReturnValue({
+        ours: { price: 90, priceMatch: { fare: 90, computedFare: 100, applied: true, floorBlocked: false } },
+      });
+      await svc.createTrip('rider-1', { ...baseDto, quotedFare: 90, quotedSurge: 1 });
+      expect(created[0].fareEstimate).toBe(90);
+      const meta = prisma.tripEvent.create.mock.calls[0][0].data.meta;
+      expect(meta.priceMatchRatio).toBeCloseTo(0.9, 6);
     });
 
     it('rejects 409 PRICE_CHANGED with the fresh numbers when surge moved since the quote', async () => {
@@ -359,6 +371,63 @@ describe('TripsService', () => {
       expect(r.breakdown.fareBasis).toBe('metered');
       expect(r.breakdown.minimumFareAdjustment).toBe(0);
       expect(r.breakdown.fareAdjustment).toBe(0);
+    });
+
+    it('price match honoured at completion: metered fare scaled by the booking ratio', async () => {
+      // Booked at 0.9x our own fare (price-matched). Metered 85 → 85 x 0.9 = 76.5 → ₹77.
+      const ctx = setup({ drivenM: 5000, ageS: 600, at: dropoff });
+      ctx.prisma.tripEvent.findFirst.mockResolvedValue({ meta: { priceMatchRatio: 0.9 } });
+      const r = await ctx.svc.completeTrip('driver-1', 'trip-1');
+      expect(r.fareFinal).toBe(77);
+    });
+
+    it('price match at completion also scales the minimum-fare floor (early end)', async () => {
+      // Minimum 30 x 0.9 = 27: the matched minimum, not our own (no floor).
+      const prev = process.env.PRICE_MATCH_FLOOR;
+      process.env.PRICE_MATCH_FLOOR = '0';
+      try {
+        const ctx = setup({ drivenM: 0, ageS: 11, at: pickup });
+        ctx.prisma.tripEvent.findFirst.mockResolvedValue({ meta: { priceMatchRatio: 0.9 } });
+        const r = await ctx.svc.completeTrip('driver-1', 'trip-1');
+        expect(r.fareFinal).toBe(27);
+      } finally {
+        if (prev === undefined) delete process.env.PRICE_MATCH_FLOOR;
+        else process.env.PRICE_MATCH_FLOOR = prev;
+      }
+    });
+
+    it('price match at completion never charges below PRICE_MATCH_FLOOR', async () => {
+      // Minimum 30 x 0.1 = 3 would undercut the floor: the charge
+      // stops at the floor, as the quote did (regression: e2e charged 7.1).
+      // Floor 20 in the live market's currency (USD under the unit env).
+      const prev = process.env.PRICE_MATCH_FLOOR;
+      process.env.PRICE_MATCH_FLOOR = '20';
+      try {
+        const ctx = setup({ drivenM: 0, ageS: 11, at: pickup });
+        ctx.prisma.trip.findUnique.mockResolvedValue({
+          ...trip, currency: 'USD', startedAt: new Date(Date.now() - 11_000),
+        });
+        ctx.prisma.tripEvent.findFirst.mockResolvedValue({ meta: { priceMatchRatio: 0.1 } });
+        const r = await ctx.svc.completeTrip('driver-1', 'trip-1');
+        expect(r.fareFinal).toBe(20);
+      } finally {
+        if (prev === undefined) delete process.env.PRICE_MATCH_FLOOR;
+        else process.env.PRICE_MATCH_FLOOR = prev;
+      }
+    });
+
+    it('PRICE_MATCH_ENABLED=false: the booking ratio is ignored at completion', async () => {
+      const prev = process.env.PRICE_MATCH_ENABLED;
+      process.env.PRICE_MATCH_ENABLED = 'false';
+      try {
+        const ctx = setup({ drivenM: 5000, ageS: 600, at: dropoff });
+        ctx.prisma.tripEvent.findFirst.mockResolvedValue({ meta: { priceMatchRatio: 0.9 } });
+        const r = await ctx.svc.completeTrip('driver-1', 'trip-1');
+        expect(r.fareFinal).toBe(85);
+      } finally {
+        if (prev === undefined) delete process.env.PRICE_MATCH_ENABLED;
+        else process.env.PRICE_MATCH_ENABLED = prev;
+      }
     });
 
     it('normal trip at the drop-off, metered below the clamp: lifted to 0.8x (as an estimate adjustment, not "minimum fare")', async () => {

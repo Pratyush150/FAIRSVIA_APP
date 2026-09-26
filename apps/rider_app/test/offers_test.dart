@@ -68,19 +68,21 @@ const estimate = TripEstimate(
   dropoff: dropoff,
   tiers: [
     FareTier(
-        tier: 'economy',
-        label: 'Economy',
-        capacity: 4,
-        fare: 88,
-        currency: 'INR',
-        etaSeconds: 240),
+      tier: 'economy',
+      label: 'Economy',
+      capacity: 4,
+      fare: 88,
+      currency: 'INR',
+      etaSeconds: 240,
+    ),
     FareTier(
-        tier: 'comfort',
-        label: 'Comfort',
-        capacity: 4,
-        fare: 300,
-        currency: 'INR',
-        etaSeconds: 300),
+      tier: 'comfort',
+      label: 'Comfort',
+      capacity: 4,
+      fare: 300,
+      currency: 'INR',
+      etaSeconds: 300,
+    ),
   ],
 );
 
@@ -125,20 +127,23 @@ void main() {
       tester.view.physicalSize = const Size(411 * 3, 1400 * 3);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(MaterialApp(
-        theme: AppTheme.light,
-        home: OffersPage(
-          load: load,
-          selectedCode: selected,
-          onApply: onApply ?? (_) {},
-          onRemove: onRemove ?? () {},
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: OffersPage(
+            load: load,
+            selectedCode: selected,
+            onApply: onApply ?? (_) {},
+            onRemove: onRemove ?? () {},
+          ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
     }
 
-    testWidgets('lists the real offers with terms, code and Apply',
-        (tester) async {
+    testWidgets('lists the real offers with terms, code and Apply', (
+      tester,
+    ) async {
       AvailablePromo? applied;
       await pump(
         tester,
@@ -149,8 +154,10 @@ void main() {
       expect(find.text('50% off, up to ₹100'), findsOneWidget);
       expect(find.text('WELCOME50'), findsOneWidget);
       expect(find.text('Airport run'), findsOneWidget);
-      expect(find.text('On fares over ₹400 · 2 uses left · Ends 3 Oct 2030'),
-          findsOneWidget);
+      expect(
+        find.text('On fares over ₹400 · 2 uses left · Ends 3 Oct 2030'),
+        findsOneWidget,
+      );
       // The hero's full label, the ticket's short pill (same spoken label).
       expect(find.text('Apply to next ride'), findsOneWidget);
       expect(find.text('Apply'), findsOneWidget);
@@ -158,8 +165,9 @@ void main() {
       expect(applied, welcome);
     });
 
-    testWidgets('the picked offer shows as applied, with Remove',
-        (tester) async {
+    testWidgets('the picked offer shows as applied, with Remove', (
+      tester,
+    ) async {
       var removed = false;
       await pump(
         tester,
@@ -167,8 +175,10 @@ void main() {
         selected: 'WELCOME50',
         onRemove: () => removed = true,
       );
-      expect(find.text('Applied — will be used on your next ride'),
-          findsOneWidget);
+      expect(
+        find.text('Applied — will be used on your next ride'),
+        findsOneWidget,
+      );
       expect(find.text('Apply'), findsOneWidget); // the other
       await tester.tap(find.text('Remove'));
       expect(removed, isTrue);
@@ -185,8 +195,12 @@ void main() {
           return null;
         },
       );
-      addTearDown(() => tester.binding.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, null));
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
       await pump(tester, load: () async => [welcome]);
       await tester.tap(find.byIcon(PhosphorIconsRegular.copy));
       await tester.pump();
@@ -201,11 +215,14 @@ void main() {
 
     testWidgets('error state retries', (tester) async {
       var calls = 0;
-      await pump(tester, load: () async {
-        calls++;
-        if (calls == 1) throw ApiException('offline');
-        return [welcome];
-      });
+      await pump(
+        tester,
+        load: () async {
+          calls++;
+          if (calls == 1) throw ApiException('offline');
+          return [welcome];
+        },
+      );
       expect(find.text("Couldn't load offers"), findsOneWidget);
       await tester.tap(find.text('Try again'));
       await tester.pumpAndSettle();
@@ -238,23 +255,28 @@ void main() {
     setUp(() {
       repo = MockTripRepository();
       when(() => repo.estimate(any(), any())).thenAnswer((_) async => estimate);
-      when(() => repo.quotePromo('WELCOME50', 88)).thenAnswer((_) async =>
-          const PromoQuote(
-              code: 'WELCOME50',
-              kind: 'percent',
-              discount: 44,
-              subtotal: 88,
-              net: 44));
-      when(() => repo.quotePromo('WELCOME50', 300)).thenAnswer((_) async =>
-          const PromoQuote(
-              code: 'WELCOME50',
-              kind: 'percent',
-              discount: 100,
-              subtotal: 300,
-              net: 200));
+      when(() => repo.quotePromo('WELCOME50', 88)).thenAnswer(
+        (_) async => const PromoQuote(
+          code: 'WELCOME50',
+          kind: 'percent',
+          discount: 44,
+          subtotal: 88,
+          net: 44,
+        ),
+      );
+      when(() => repo.quotePromo('WELCOME50', 300)).thenAnswer(
+        (_) async => const PromoQuote(
+          code: 'WELCOME50',
+          kind: 'percent',
+          discount: 100,
+          subtotal: 300,
+          net: 200,
+        ),
+      );
     });
 
-    TripCubit build() => TripCubit(repo, realtime, MockPayments(), MockRatings());
+    TripCubit build() =>
+        TripCubit(repo, realtime, MockPayments(), MockRatings());
 
     test('picked offer is applied, priced, on the next ride sheet', () async {
       final c = build();
@@ -284,8 +306,9 @@ void main() {
     });
 
     test('a rejected offer keeps the reason for the rider', () async {
-      when(() => repo.quotePromo('WELCOME50', 88))
-          .thenThrow(ApiException('You have already used this promo code.'));
+      when(
+        () => repo.quotePromo('WELCOME50', 88),
+      ).thenThrow(ApiException('You have already used this promo code.'));
       final c = build();
       await c.selectOffer(welcome);
       await c.chooseDestination(pickup: pickup, dropoff: dropoff);
@@ -295,55 +318,62 @@ void main() {
     });
 
     test('booking with the offer spends it', () async {
-      when(() => repo.createTrip(
-            pickup: any(named: 'pickup'),
-            dropoff: any(named: 'dropoff'),
-            tier: any(named: 'tier'),
-            pickupAddr: any(named: 'pickupAddr'),
-            dropoffAddr: any(named: 'dropoffAddr'),
-            pickupNote: any(named: 'pickupNote'),
-            passenger: any(named: 'passenger'),
-            promoCode: any(named: 'promoCode'),
-            paymentMode: any(named: 'paymentMode'),
-            paymentMethodId: any(named: 'paymentMethodId'),
-            scheduledAt: any(named: 'scheduledAt'),
-            stops: any(named: 'stops'),
-            quotedFare: any(named: 'quotedFare'),
-            quotedSurge: any(named: 'quotedSurge'),
-          )).thenAnswer((_) async => const Trip(
-            id: 't1',
-            status: TripStatus.requested,
-            tier: 'economy',
-            pickup: TripEndpoint(point: pickup),
-            dropoff: TripEndpoint(point: dropoff),
-          ));
+      when(
+        () => repo.createTrip(
+          pickup: any(named: 'pickup'),
+          dropoff: any(named: 'dropoff'),
+          tier: any(named: 'tier'),
+          pickupAddr: any(named: 'pickupAddr'),
+          dropoffAddr: any(named: 'dropoffAddr'),
+          pickupNote: any(named: 'pickupNote'),
+          passenger: any(named: 'passenger'),
+          promoCode: any(named: 'promoCode'),
+          paymentMode: any(named: 'paymentMode'),
+          paymentMethodId: any(named: 'paymentMethodId'),
+          scheduledAt: any(named: 'scheduledAt'),
+          stops: any(named: 'stops'),
+          quotedFare: any(named: 'quotedFare'),
+          quotedSurge: any(named: 'quotedSurge'),
+        ),
+      ).thenAnswer(
+        (_) async => const Trip(
+          id: 't1',
+          status: TripStatus.requested,
+          tier: 'economy',
+          pickup: TripEndpoint(point: pickup),
+          dropoff: TripEndpoint(point: dropoff),
+        ),
+      );
       final c = build();
       await c.selectOffer(welcome);
       await c.chooseDestination(pickup: pickup, dropoff: dropoff);
       await c.confirmRide();
-      verify(() => repo.createTrip(
-            pickup: any(named: 'pickup'),
-            dropoff: any(named: 'dropoff'),
-            tier: any(named: 'tier'),
-            pickupAddr: any(named: 'pickupAddr'),
-            dropoffAddr: any(named: 'dropoffAddr'),
-            pickupNote: any(named: 'pickupNote'),
-            passenger: any(named: 'passenger'),
-            promoCode: 'WELCOME50',
-            paymentMode: any(named: 'paymentMode'),
-            paymentMethodId: any(named: 'paymentMethodId'),
-            scheduledAt: any(named: 'scheduledAt'),
-            stops: any(named: 'stops'),
-            quotedFare: any(named: 'quotedFare'),
-            quotedSurge: any(named: 'quotedSurge'),
-          )).called(1);
+      verify(
+        () => repo.createTrip(
+          pickup: any(named: 'pickup'),
+          dropoff: any(named: 'dropoff'),
+          tier: any(named: 'tier'),
+          pickupAddr: any(named: 'pickupAddr'),
+          dropoffAddr: any(named: 'dropoffAddr'),
+          pickupNote: any(named: 'pickupNote'),
+          passenger: any(named: 'passenger'),
+          promoCode: 'WELCOME50',
+          paymentMode: any(named: 'paymentMode'),
+          paymentMethodId: any(named: 'paymentMethodId'),
+          scheduledAt: any(named: 'scheduledAt'),
+          stops: any(named: 'stops'),
+          quotedFare: any(named: 'quotedFare'),
+          quotedSurge: any(named: 'quotedSurge'),
+        ),
+      ).called(1);
       expect(c.state.offerPromo, isNull);
       await c.close();
     });
   });
 
-  testWidgets('choose-ride sheet shows the offer applied and the net fare',
-      (tester) async {
+  testWidgets('choose-ride sheet shows the offer applied and the net fare', (
+    tester,
+  ) async {
     const state = TripState(
       phase: TripPhase.choosingRide,
       estimate: estimate,
@@ -351,31 +381,43 @@ void main() {
       dropoffAddr: 'Somewhere',
       offerPromo: welcome,
       appliedPromo: PromoQuote(
-          code: 'WELCOME50', kind: 'percent', discount: 44, subtotal: 88, net: 44),
+        code: 'WELCOME50',
+        kind: 'percent',
+        discount: 44,
+        subtotal: 88,
+        net: 44,
+      ),
     );
     final cubit = MockTripCubit();
     whenListen(cubit, const Stream<TripState>.empty(), initialState: state);
     tester.view.physicalSize = const Size(411 * 3, 2800);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light,
-      home: Scaffold(
-        body: BlocProvider<TripCubit>.value(
-          value: cubit,
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: RideSheetForPhase(
-                state: state, onSearch: () {}, onPickSaved: (_) {}),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: BlocProvider<TripCubit>.value(
+            value: cubit,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: RideSheetForPhase(
+                state: state,
+                onSearch: () {},
+                onPickSaved: (_) {},
+              ),
+            ),
           ),
         ),
       ),
-    ));
+    );
     for (var i = 0; i < 30; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
-    expect(find.textContaining('WELCOME50 applied', skipOffstage: false),
-        findsOneWidget);
+    expect(
+      find.textContaining('WELCOME50 applied', skipOffstage: false),
+      findsOneWidget,
+    );
     expect(find.textContaining('₹44', skipOffstage: false), findsWidgets);
   });
 }

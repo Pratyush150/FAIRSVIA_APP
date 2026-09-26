@@ -8,10 +8,10 @@ import 'package:shared_models/shared_models.dart';
 /// pumping a widget.
 void main() {
   TripState enRoute({int? eta, AssignedDriver? driver}) => TripState(
-        phase: TripPhase.driverEnRoute,
-        liveEtaSec: eta,
-        driver: driver,
-      );
+    phase: TripPhase.driverEnRoute,
+    liveEtaSec: eta,
+    driver: driver,
+  );
 
   group('driver on the way', () {
     test('puts who and when in the headline, what to do under it', () {
@@ -21,22 +21,34 @@ void main() {
     });
 
     test('switches to "almost here" as the car closes in', () {
-      expect(RideStatus.of(enRoute(eta: 240)).title,
-          'Your driver arriving in 4 min');
-      expect(RideStatus.of(enRoute(eta: 120)).title,
-          'Your driver is arriving now');
-      expect(RideStatus.of(enRoute(eta: 120)).subtitle, 'Head to your pickup spot');
+      expect(
+        RideStatus.of(enRoute(eta: 240)).title,
+        'Your driver arriving in 4 min',
+      );
+      expect(
+        RideStatus.of(enRoute(eta: 120)).title,
+        'Your driver is arriving now',
+      );
+      expect(
+        RideStatus.of(enRoute(eta: 120)).subtitle,
+        'Head to your pickup spot',
+      );
     });
 
     test('never counts down to zero minutes', () {
       // "Arriving in 0 min" reads as "should already be here".
-      expect(RideStatus.of(enRoute(eta: 5)).title, 'Your driver is arriving now');
+      expect(
+        RideStatus.of(enRoute(eta: 5)).title,
+        'Your driver is arriving now',
+      );
       expect(RideStatus.minutesFrom(1), 1);
     });
 
     test('falls back to the ETA quoted at accept before the first ping', () {
       final s = RideStatus.of(
-        enRoute(driver: const AssignedDriver(name: 'Raj', rating: 4.9, etaSec: 300)),
+        enRoute(
+          driver: const AssignedDriver(name: 'Raj', rating: 4.9, etaSec: 300),
+        ),
       );
       expect(s.title, 'Raj arriving in 5 min');
     });
@@ -59,20 +71,25 @@ void main() {
   group("uses the driver's first name once it is known", () {
     const bekzod = AssignedDriver(name: 'Bekzod Karimov', rating: 4.9);
     test('on the way / arriving now', () {
-      expect(RideStatus.of(enRoute(eta: 240, driver: bekzod)).title,
-          'Bekzod arriving in 4 min');
-      expect(RideStatus.of(enRoute(eta: 60, driver: bekzod)).title,
-          'Bekzod is arriving now');
+      expect(
+        RideStatus.of(enRoute(eta: 240, driver: bekzod)).title,
+        'Bekzod arriving in 4 min',
+      );
+      expect(
+        RideStatus.of(enRoute(eta: 60, driver: bekzod)).title,
+        'Bekzod is arriving now',
+      );
     });
     test('arrived', () {
-      const state =
-          TripState(phase: TripPhase.driverArrived, driver: bekzod);
+      const state = TripState(phase: TripPhase.driverArrived, driver: bekzod);
       expect(RideStatus.of(state).title, 'Bekzod has arrived');
     });
     test('never shows a placeholder as a name', () {
       const placeholder = AssignedDriver(name: 'Your driver', rating: 5);
-      expect(RideStatus.of(enRoute(eta: 240, driver: placeholder)).title,
-          'Your driver arriving in 4 min');
+      expect(
+        RideStatus.of(enRoute(eta: 240, driver: placeholder)).title,
+        'Your driver arriving in 4 min',
+      );
     });
   });
 
@@ -147,16 +164,22 @@ void main() {
     test('knows when a stop is no longer worth offering', () {
       const onTrip = TripState(phase: TripPhase.onTrip);
       expect(RideStatus.nearlyThere(onTrip), isFalse, reason: 'unknown');
-      expect(RideStatus.nearlyThere(onTrip.copyWith(liveRemainingM: 1000)),
-          isFalse);
-      expect(RideStatus.nearlyThere(onTrip.copyWith(liveRemainingM: 999)),
-          isTrue);
+      expect(
+        RideStatus.nearlyThere(onTrip.copyWith(liveRemainingM: 1000)),
+        isFalse,
+      );
+      expect(
+        RideStatus.nearlyThere(onTrip.copyWith(liveRemainingM: 999)),
+        isTrue,
+      );
       // While the driver is on the way the live distance is the approach
       // leg, not the rider's journey.
       expect(
-          RideStatus.nearlyThere(const TripState(
-              phase: TripPhase.driverEnRoute, liveRemainingM: 200)),
-          isFalse);
+        RideStatus.nearlyThere(
+          const TripState(phase: TripPhase.driverEnRoute, liveRemainingM: 200),
+        ),
+        isFalse,
+      );
     });
   });
 
@@ -184,8 +207,11 @@ void main() {
       TripPhase.scheduled,
       TripPhase.error,
     ]) {
-      expect(RideStatus.of(TripState(phase: phase)).title, isEmpty,
-          reason: '$phase should not claim a live ride status');
+      expect(
+        RideStatus.of(TripState(phase: phase)).title,
+        isEmpty,
+        reason: '$phase should not claim a live ride status',
+      );
     }
   });
 }

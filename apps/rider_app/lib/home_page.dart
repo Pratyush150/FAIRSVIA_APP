@@ -874,8 +874,10 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                   ctx,
                   trip: trip,
                   submit: (stars) async {
-                    await sl<RatingsRemoteDataSource>()
-                        .rate(trip.id, stars: stars);
+                    await sl<RatingsRemoteDataSource>().rate(
+                      trip.id,
+                      stars: stars,
+                    );
                     given = stars;
                   },
                 );
@@ -984,40 +986,40 @@ class _RiderHomeViewState extends State<_RiderHomeView>
                           // Menu top-left in every phase, as on Home (audit
                           // 2026-09-25 #7); recenter sits opposite, top-right.
                           child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                AppCircleButton(
-                                  icon: PhosphorIconsRegular.list,
-                                  tooltip: 'Account menu',
-                                  onPressed: () async {
-                                    await Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const AccountMenuPage(
-                                          isDriver: false,
-                                        ),
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AppCircleButton(
+                                icon: PhosphorIconsRegular.list,
+                                tooltip: 'Account menu',
+                                onPressed: () async {
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const AccountMenuPage(
+                                        isDriver: false,
                                       ),
-                                    );
-                                    // Saved places may have changed in the
-                                    // account pages; refresh the quick-picks.
-                                    _loadSavedPlaces();
-                                  },
-                                ),
-                                const Spacer(),
-                                // One control, two meanings — and it says
-                                // which. During a ride it centres the CAR; at
-                                // rest it centres the rider. A button labelled
-                                // "my location" that quietly does neither is
-                                // how riders learned not to trust it.
-                                AppCircleButton(
-                                  icon: _isLiveTracking(state)
-                                      ? PhosphorIconsRegular.gpsFix
-                                      : PhosphorIconsRegular.gpsFix,
-                                  tooltip: _isLiveTracking(state)
-                                      ? 'Recenter on your driver'
-                                      : 'Recenter on my location',
-                                  onPressed: _recenterToMe,
-                                ),
-                              ],
+                                    ),
+                                  );
+                                  // Saved places may have changed in the
+                                  // account pages; refresh the quick-picks.
+                                  _loadSavedPlaces();
+                                },
+                              ),
+                              const Spacer(),
+                              // One control, two meanings — and it says
+                              // which. During a ride it centres the CAR; at
+                              // rest it centres the rider. A button labelled
+                              // "my location" that quietly does neither is
+                              // how riders learned not to trust it.
+                              AppCircleButton(
+                                icon: _isLiveTracking(state)
+                                    ? PhosphorIconsRegular.gpsFix
+                                    : PhosphorIconsRegular.gpsFix,
+                                tooltip: _isLiveTracking(state)
+                                    ? 'Recenter on your driver'
+                                    : 'Recenter on my location',
+                                onPressed: _recenterToMe,
+                              ),
+                            ],
                           ),
                         ),
                       ),

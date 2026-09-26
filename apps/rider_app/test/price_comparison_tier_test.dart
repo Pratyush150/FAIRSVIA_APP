@@ -22,23 +22,30 @@ import 'support/fake_map.dart';
 
 class MockTripCubit extends MockCubit<TripState> implements TripCubit {}
 
-ProviderQuote _q(String p, String name, String product, double price,
-        {bool ours = false}) =>
-    ProviderQuote(
-      provider: p,
-      displayName: name,
-      productName: product,
-      price: price,
-      priceLow: price,
-      priceHigh: price,
-      confidence: ours ? 'exact' : 'high',
-      currency: 'INR',
-      isOurs: ours,
-      estimated: !ours,
-    );
+ProviderQuote _q(
+  String p,
+  String name,
+  String product,
+  double price, {
+  bool ours = false,
+}) => ProviderQuote(
+  provider: p,
+  displayName: name,
+  productName: product,
+  price: price,
+  priceLow: price,
+  priceHigh: price,
+  confidence: ours ? 'exact' : 'high',
+  currency: 'INR',
+  isOurs: ours,
+  estimated: !ours,
+);
 
-PriceComparison _cmp(String ourProduct, double ours,
-    List<(String, String, String, double)> others) {
+PriceComparison _cmp(
+  String ourProduct,
+  double ours,
+  List<(String, String, String, double)> others,
+) {
   final quotes = [
     _q('ridevela', 'RideVela', ourProduct, ours, ours: true),
     for (final (p, n, prod, price) in others) _q(p, n, prod, price),
@@ -74,24 +81,42 @@ final premiumCmp = _cmp('Premium', 402, [
 ]);
 
 TripEstimate _estimate(Map<String, PriceComparison> byTier) => TripEstimate(
-      distanceM: 4200,
-      durationS: 840,
-      polyline: '',
-      surge: 1,
+  distanceM: 4200,
+  durationS: 840,
+  polyline: '',
+  surge: 1,
+  currency: 'INR',
+  pickup: const GeoPoint(18.52, 73.85),
+  dropoff: const GeoPoint(18.53, 73.87),
+  comparison: economyCmp,
+  comparisonsByTier: byTier,
+  tiers: const [
+    FareTier(
+      tier: 'economy',
+      label: 'Economy',
+      capacity: 4,
+      fare: 161,
       currency: 'INR',
-      pickup: const GeoPoint(18.52, 73.85),
-      dropoff: const GeoPoint(18.53, 73.87),
-      comparison: economyCmp,
-      comparisonsByTier: byTier,
-      tiers: const [
-        FareTier(tier: 'economy', label: 'Economy', capacity: 4, fare: 161,
-            currency: 'INR', etaSeconds: 180),
-        FareTier(tier: 'xl', label: 'XL', capacity: 6, fare: 255,
-            currency: 'INR', etaSeconds: 240),
-        FareTier(tier: 'premium', label: 'Premium', capacity: 4, fare: 402,
-            currency: 'INR', etaSeconds: 300),
-      ],
-    );
+      etaSeconds: 180,
+    ),
+    FareTier(
+      tier: 'xl',
+      label: 'XL',
+      capacity: 6,
+      fare: 255,
+      currency: 'INR',
+      etaSeconds: 240,
+    ),
+    FareTier(
+      tier: 'premium',
+      label: 'Premium',
+      capacity: 4,
+      fare: 402,
+      currency: 'INR',
+      etaSeconds: 300,
+    ),
+  ],
+);
 
 void main() {
   setUpAll(() async {
@@ -125,36 +150,52 @@ void main() {
     final cubit = MockTripCubit();
     whenListen(cubit, ctrl.stream, initialState: initial);
     when(() => cubit.selectTier(any())).thenAnswer((inv) async {
-      ctrl.add(cubit.state
-          .copyWith(selectedTier: inv.positionalArguments.first as String));
+      ctrl.add(
+        cubit.state.copyWith(
+          selectedTier: inv.positionalArguments.first as String,
+        ),
+      );
     });
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light,
-      home: Scaffold(
-        body: BlocProvider<TripCubit>.value(
-          value: cubit,
-          child: BlocBuilder<TripCubit, TripState>(
-            builder: (_, s) => Align(
-              alignment: Alignment.bottomCenter,
-              child: RideSheetForPhase(
-                  state: s, onSearch: () {}, onPickSaved: (_) {}),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: BlocProvider<TripCubit>.value(
+            value: cubit,
+            child: BlocBuilder<TripCubit, TripState>(
+              builder: (_, s) => Align(
+                alignment: Alignment.bottomCenter,
+                child: RideSheetForPhase(
+                  state: s,
+                  onSearch: () {},
+                  onPickSaved: (_) {},
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ));
+    );
     await settle(tester);
   }
 
   Future<void> pick(WidgetTester tester, String label) async {
-    await tester.tap(find.descendant(
-        of: find.byKey(rideTierListKey), matching: find.text(label)));
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(rideTierListKey),
+        matching: find.text(label),
+      ),
+    );
     await settle(tester);
   }
 
   /// Opens the chip's bottom sheet, checks it, closes it.
-  Future<void> expectSheet(WidgetTester tester, String title, String oursName,
-      List<String> prices) async {
+  Future<void> expectSheet(
+    WidgetTester tester,
+    String title,
+    String oursName,
+    List<String> prices,
+  ) async {
     await tester.tap(chip);
     await settle(tester);
     final sheet = find.byType(BottomSheet);
@@ -171,44 +212,58 @@ void main() {
 
   /// The pulled-up extras' first section follows the selected tier too.
   void expectExtras(String? title) {
-    final f = find.byKey(const Key('price-comparison-section'),
-        skipOffstage: false);
+    final f = find.byKey(
+      const Key('price-comparison-section'),
+      skipOffstage: false,
+    );
     if (title == null) {
       expect(f, findsNothing);
     } else {
       expect(
-          find.descendant(of: f, matching: find.text(title), skipOffstage: false),
-          findsOneWidget);
+        find.descendant(of: f, matching: find.text(title), skipOffstage: false),
+        findsOneWidget,
+      );
     }
   }
 
-  testWidgets('economy → XL → premium: chip and card follow the selection',
-      (tester) async {
-    await pumpSheet(tester, _estimate({
-      'economy': economyCmp,
-      'xl': xlCmp,
-      'premium': premiumCmp,
-    }));
+  testWidgets('economy → XL → premium: chip and card follow the selection', (
+    tester,
+  ) async {
+    await pumpSheet(
+      tester,
+      _estimate({'economy': economyCmp, 'xl': xlCmp, 'premium': premiumCmp}),
+    );
     // Economy.
     expect(find.text('Save ₹31 vs Rapido, Ola, Uber'), findsOneWidget);
-    expectExtras('Price check · Economy');
-    await expectSheet(tester, 'Price check · Economy', 'RideVela · Economy',
-        ['₹161', '₹185', '₹188', '₹192']);
+    expectExtras('Price check');
+    await expectSheet(tester, 'Price check', 'RideVela', [
+      '₹161',
+      '₹185',
+      '₹188',
+      '₹192',
+    ]);
 
     // XL.
     await pick(tester, 'XL');
     expect(find.text('Save ₹55 vs Rapido, Ola, Uber'), findsOneWidget);
     expect(find.text('Save ₹31 vs Rapido, Ola, Uber'), findsNothing);
-    expectExtras('Price check · XL');
-    await expectSheet(tester, 'Price check · XL', 'RideVela · XL',
-        ['₹255', '₹290', '₹298', '₹310']);
+    expectExtras('Price check');
+    await expectSheet(tester, 'Price check', 'RideVela', [
+      '₹255',
+      '₹290',
+      '₹298',
+      '₹310',
+    ]);
 
     // Premium.
     await pick(tester, 'Premium');
     expect(find.text('Save ₹66 vs Ola, Uber'), findsOneWidget);
-    expectExtras('Price check · Premium');
-    await expectSheet(tester, 'Price check · Premium', 'RideVela · Premium',
-        ['₹402', '₹455', '₹468']);
+    expectExtras('Price check');
+    await expectSheet(tester, 'Price check', 'RideVela', [
+      '₹402',
+      '₹455',
+      '₹468',
+    ]);
 
     // Back to economy.
     await pick(tester, 'Economy');
@@ -216,8 +271,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a tier without a comparison hides the chip and the card',
-      (tester) async {
+  testWidgets('a tier without a comparison hides the chip and the card', (
+    tester,
+  ) async {
     await pumpSheet(tester, _estimate({'economy': economyCmp, 'xl': xlCmp}));
     expect(chip, findsOneWidget);
     await pick(tester, 'Premium');
@@ -229,8 +285,9 @@ void main() {
     expect(find.text('Save ₹55 vs Rapido, Ola, Uber'), findsOneWidget);
   });
 
-  testWidgets('old backend (no comparisonsByTier): economy only, XL hidden',
-      (tester) async {
+  testWidgets('old backend (no comparisonsByTier): economy only, XL hidden', (
+    tester,
+  ) async {
     await pumpSheet(tester, _estimate(const {}));
     expect(find.text('Save ₹31 vs Rapido, Ola, Uber'), findsOneWidget);
     await pick(tester, 'XL');
@@ -250,32 +307,38 @@ void main() {
       tester.view.physicalSize = const Size(360, 420) * 2.0;
       tester.view.devicePixelRatio = 2.0;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        home: RepaintBoundary(
-          key: boundary,
-          child: Scaffold(
-            backgroundColor: AppColors.surfaceLight,
-            body: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: PriceComparisonSection(comparison: c, tierLabel: label),
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          home: RepaintBoundary(
+            key: boundary,
+            child: Scaffold(
+              backgroundColor: AppColors.surfaceLight,
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: PriceComparisonSection(comparison: c, tierLabel: label),
+              ),
             ),
           ),
         ),
-      ));
+      );
       await tester.pump();
-      expect(find.text('RideVela · $label'), findsOneWidget);
+      expect(find.text('RideVela'), findsOneWidget);
+      // No segment or product names on the card (owner, 2026-09-26).
+      expect(find.textContaining('· est.'), findsNothing);
       expect(tester.takeException(), isNull);
       if (shots == null) return;
       await tester.runAsync(() async {
-        final b = boundary.currentContext!.findRenderObject()!
-            as RenderRepaintBoundary;
+        final b =
+            boundary.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
         final image = await b.toImage(pixelRatio: 2);
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
         Directory(shots).createSync(recursive: true);
-        File('$shots/cmp_tier_$name.png')
-            .writeAsBytesSync(bytes!.buffer.asUint8List());
+        File(
+          '$shots/cmp_tier_$name.png',
+        ).writeAsBytesSync(bytes!.buffer.asUint8List());
       });
     });
   }

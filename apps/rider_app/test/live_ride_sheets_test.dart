@@ -22,18 +22,17 @@ void main() {
     TripStatus status = TripStatus.matching,
     String paymentMode = 'cash',
     DateTime? requestedAt,
-  }) =>
-      Trip(
-        id: 't1',
-        status: status,
-        tier: 'economy',
-        currency: 'INR',
-        fareEstimate: 101.6,
-        paymentMode: paymentMode,
-        requestedAt: requestedAt,
-        pickup: const TripEndpoint(point: GeoPoint(18.52, 73.85)),
-        dropoff: const TripEndpoint(point: GeoPoint(18.53, 73.87)),
-      );
+  }) => Trip(
+    id: 't1',
+    status: status,
+    tier: 'economy',
+    currency: 'INR',
+    fareEstimate: 101.6,
+    paymentMode: paymentMode,
+    requestedAt: requestedAt,
+    pickup: const TripEndpoint(point: GeoPoint(18.52, 73.85)),
+    dropoff: const TripEndpoint(point: GeoPoint(18.53, 73.87)),
+  );
 
   late MockTripCubit cubit;
 
@@ -41,19 +40,24 @@ void main() {
     cubit = MockTripCubit();
     when(() => cubit.reset()).thenReturn(null);
     whenListen(cubit, const Stream<TripState>.empty(), initialState: state);
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light,
-      home: Scaffold(
-        body: BlocProvider<TripCubit>.value(
-          value: cubit,
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: RideSheetForPhase(
-                state: state, onSearch: () {}, onPickSaved: (_) {}),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: BlocProvider<TripCubit>.value(
+            value: cubit,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: RideSheetForPhase(
+                state: state,
+                onSearch: () {},
+                onPickSaved: (_) {},
+              ),
+            ),
           ),
         ),
       ),
-    ));
+    );
     // The radar never settles; step through the phase cross-fade instead.
     for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 16));
@@ -62,31 +66,33 @@ void main() {
 
   group('finding a driver (3.8)', () {
     TripState searching({DateTime? requestedAt}) => TripState(
-          phase: TripPhase.searching,
-          trip: trip(requestedAt: requestedAt),
-          dropoffAddr: 'Pune Railway Station, Agarkar Nagar, Pune',
-          estimate: const TripEstimate(
-            distanceM: 4000,
-            durationS: 900,
-            polyline: '',
-            surge: 1,
+      phase: TripPhase.searching,
+      trip: trip(requestedAt: requestedAt),
+      dropoffAddr: 'Pune Railway Station, Agarkar Nagar, Pune',
+      estimate: const TripEstimate(
+        distanceM: 4000,
+        durationS: 900,
+        polyline: '',
+        surge: 1,
+        currency: 'INR',
+        pickup: GeoPoint(18.52, 73.85),
+        dropoff: GeoPoint(18.53, 73.87),
+        tiers: [
+          FareTier(
+            tier: 'economy',
+            label: 'Economy',
+            capacity: 4,
+            fare: 101.6,
             currency: 'INR',
-            pickup: GeoPoint(18.52, 73.85),
-            dropoff: GeoPoint(18.53, 73.87),
-            tiers: [
-              FareTier(
-                  tier: 'economy',
-                  label: 'Economy',
-                  capacity: 4,
-                  fare: 101.6,
-                  currency: 'INR',
-                  etaSeconds: 180),
-            ],
+            etaSeconds: 180,
           ),
-        );
+        ],
+      ),
+    );
 
-    testWidgets('says what was booked: tier, whole-rupee fare, payment',
-        (tester) async {
+    testWidgets('says what was booked: tier, whole-rupee fare, payment', (
+      tester,
+    ) async {
       await pump(tester, searching());
       expect(find.text('Economy · ₹102 · Cash'), findsOneWidget);
       expect(find.text('To Pune Railway Station'), findsOneWidget);
@@ -101,17 +107,19 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('Still looking…'), findsOneWidget);
-      expect(find.text('Drivers nearby are busy. We’ll keep looking.'),
-          findsOneWidget);
+      expect(
+        find.text('Drivers nearby are busy. We’ll keep looking.'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('a search restored after 45 s already says so',
-        (tester) async {
+    testWidgets('a search restored after 45 s already says so', (tester) async {
       await pump(
-          tester,
-          searching(
-              requestedAt:
-                  DateTime.now().subtract(const Duration(seconds: 60))));
+        tester,
+        searching(
+          requestedAt: DateTime.now().subtract(const Duration(seconds: 60)),
+        ),
+      );
       expect(find.text('Still looking…'), findsOneWidget);
     });
 
@@ -133,12 +141,12 @@ void main() {
 
   group('in trip (3.10)', () {
     TripState onTrip({int? remainingM}) => TripState(
-          phase: TripPhase.onTrip,
-          trip: trip(status: TripStatus.inProgress),
-          dropoffAddr: 'Phoenix Marketcity, Viman Nagar, Pune',
-          liveEtaSec: 600,
-          liveRemainingM: remainingM,
-        );
+      phase: TripPhase.onTrip,
+      trip: trip(status: TripStatus.inProgress),
+      dropoffAddr: 'Phoenix Marketcity, Viman Nagar, Pune',
+      liveEtaSec: 600,
+      liveRemainingM: remainingM,
+    );
 
     testWidgets('names the destination exactly once', (tester) async {
       await pump(tester, onTrip(remainingM: 5000));
@@ -146,8 +154,7 @@ void main() {
       expect(find.textContaining('Phoenix Marketcity'), findsOneWidget);
     });
 
-    testWidgets('offers "Add a stop" until the last kilometre',
-        (tester) async {
+    testWidgets('offers "Add a stop" until the last kilometre', (tester) async {
       await pump(tester, onTrip(remainingM: 5000));
       expect(find.text('Add a stop'), findsOneWidget);
       await pump(tester, onTrip(remainingM: 800));
@@ -155,8 +162,9 @@ void main() {
       expect(find.text('Pre-book a ride'), findsOneWidget);
     });
 
-    testWidgets('"Arriving soon" under 500 m, destination still once',
-        (tester) async {
+    testWidgets('"Arriving soon" under 500 m, destination still once', (
+      tester,
+    ) async {
       await pump(tester, onTrip(remainingM: 400));
       expect(find.text('Arriving soon'), findsOneWidget);
       expect(find.textContaining('Phoenix Marketcity'), findsOneWidget);
@@ -177,8 +185,9 @@ void main() {
       receipt: Receipt(tripId: 't1', fare: 75, currency: 'INR', tip: 0),
     );
 
-    testWidgets('one "Total" line; the breakdown folds under it',
-        (tester) async {
+    testWidgets('one "Total" line; the breakdown folds under it', (
+      tester,
+    ) async {
       await pump(tester, done);
       expect(find.text('Total ₹75'), findsOneWidget);
       // The total is not repeated as a sub-headline.
@@ -209,8 +218,9 @@ void main() {
       expect(done_, findsOneWidget);
       // Not inside the sheet's scroll view: it cannot scroll away.
       expect(
-          find.ancestor(of: done_, matching: find.byType(SingleChildScrollView)),
-          findsNothing);
+        find.ancestor(of: done_, matching: find.byType(SingleChildScrollView)),
+        findsNothing,
+      );
       when(() => cubit.finishRide()).thenAnswer((_) async {});
       await tester.tap(done_);
       // Done sends any selected tip, then closes the ride.

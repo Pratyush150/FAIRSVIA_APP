@@ -27,6 +27,10 @@ export interface FareBreakdown {
   /** Top-up applied when the metered components fell short of the tier's
    *  minimum fare (0 when they didn't), so the lines still sum to the fare. */
   minimumFareAdjustment: number;
+  /** Amount the price match took off (our fare undercut to stay below the
+   *  cheapest modelled competitor). Absent/0 when no match applied; the
+   *  lines minus this still sum to the fare. */
+  priceMatchDiscount?: number;
 }
 
 export interface FareEstimate {

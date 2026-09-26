@@ -11,7 +11,9 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 /// gateway (no publishable key), so the caller falls back to the mock sheet.
 /// Any Stripe failure that isn't a user cancel is converted to an [ApiException]
 /// so the page shows a friendly message.
-Future<StripeCardResult> addStripeCard(PaymentsRemoteDataSource payments) async {
+Future<StripeCardResult> addStripeCard(
+  PaymentsRemoteDataSource payments,
+) async {
   final setup = await payments.createSetupIntent();
   if (!setup.isConfigured) return StripeCardResult.unavailable;
 

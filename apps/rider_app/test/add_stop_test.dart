@@ -9,21 +9,21 @@ import 'package:shared_models/shared_models.dart';
 const _stop = TripStop(point: GeoPoint(25.79, -80.13), address: 'South Beach');
 
 StopQuote _q(double fare) => StopQuote(
-      fareEstimate: fare,
-      previousFare: 7.33,
-      distanceM: 9000,
-      durationS: 900,
-      currency: 'USD',
-    );
+  fareEstimate: fare,
+  previousFare: 7.33,
+  distanceM: 9000,
+  durationS: 900,
+  currency: 'USD',
+);
 
 Trip _trip({List<TripStop> stops = const []}) => Trip(
-      id: 't1',
-      status: TripStatus.inProgress,
-      tier: 'economy',
-      pickup: const TripEndpoint(point: GeoPoint(25.77, -80.19)),
-      dropoff: const TripEndpoint(point: GeoPoint(25.78, -80.18)),
-      stops: stops,
-    );
+  id: 't1',
+  status: TripStatus.inProgress,
+  tier: 'economy',
+  pickup: const TripEndpoint(point: GeoPoint(25.77, -80.19)),
+  dropoff: const TripEndpoint(point: GeoPoint(25.78, -80.18)),
+  stops: stops,
+);
 
 void main() {
   Future<void> pumpSheet(
@@ -31,17 +31,19 @@ void main() {
     required Future<StopQuote> Function() quote,
     required Future<void> Function(double) add,
   }) async {
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.light,
-      home: Scaffold(
-        body: AddStopConfirmSheet(
-          stop: _stop,
-          quote: quote,
-          add: add,
-          driverName: 'Bekzod',
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: AddStopConfirmSheet(
+            stop: _stop,
+            quote: quote,
+            add: add,
+            driverName: 'Bekzod',
+          ),
         ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
   }
 
@@ -56,13 +58,19 @@ void main() {
 
   testWidgets('adds at exactly the quoted fare', (tester) async {
     double? sent;
-    await pumpSheet(tester, quote: () async => _q(12.4), add: (f) async => sent = f);
+    await pumpSheet(
+      tester,
+      quote: () async => _q(12.4),
+      add: (f) async => sent = f,
+    );
     await tester.tap(find.widgetWithText(PrimaryButton, 'Add stop'));
     await tester.pumpAndSettle();
     expect(sent, 12.4);
   });
 
-  testWidgets('a price that moved is re-quoted and shown, not accepted', (tester) async {
+  testWidgets('a price that moved is re-quoted and shown, not accepted', (
+    tester,
+  ) async {
     var quotes = 0;
     var adds = 0;
     await pumpSheet(
@@ -70,7 +78,11 @@ void main() {
       quote: () async => _q(++quotes == 1 ? 12.4 : 13.9),
       add: (_) async {
         adds++;
-        throw const ApiException('changed', statusCode: 409, code: 'PRICE_CHANGED');
+        throw const ApiException(
+          'changed',
+          statusCode: 409,
+          code: 'PRICE_CHANGED',
+        );
       },
     );
     await tester.tap(find.widgetWithText(PrimaryButton, 'Add stop'));
@@ -84,9 +96,9 @@ void main() {
 
   test('a stop can be added only to a live ride under the stop limit', () {
     TripState s(TripPhase p, {int stops = 0}) => TripState(
-          phase: p,
-          trip: _trip(stops: List.filled(stops, _stop)),
-        );
+      phase: p,
+      trip: _trip(stops: List.filled(stops, _stop)),
+    );
     expect(TripCubit.canAddStopTo(s(TripPhase.driverEnRoute)), isTrue);
     expect(TripCubit.canAddStopTo(s(TripPhase.onTrip)), isTrue);
     expect(TripCubit.canAddStopTo(s(TripPhase.searching)), isFalse);

@@ -200,48 +200,52 @@ class LottieMoment extends StatefulWidget {
        stillAt = 1.0,
        tint = null;
 
-  /// Bottom-nav house: the roof draws on and the door settles. Plays once
-  /// and holds on the finished house. Pass the nav's [tint] (selected /
-  /// unselected colour) so the line art follows any theme colour.
+  /// Bottom-nav house (Home), in the brand's own colours like the Offers
+  /// gift: the house pops up with its door and window. Plays [navPlays]
+  /// times and holds on the finished house.
   const LottieMoment.navHome({
     super.key,
     this.size = navSize,
-    this.tint,
     this.repeat = false,
+    this.plays = navPlays,
   }) : asset = 'nav_home',
-       artScale = 0.92,
+       artScale = 1.0,
        holdAt = 1.0,
        end = LottieEnd.hold,
        stillAt = 1.0,
-       plays = 1;
+       tint = null;
 
-  /// Bottom-nav receipt (Trips): the slip unrolls line by line. Plays once
-  /// and holds on the full receipt; [tint] as for [LottieMoment.navHome].
+  /// Bottom-nav car (Trips): a teal car drives in and rocks on its wheels.
+  /// Plays [navPlays] times and holds.
   const LottieMoment.navTrips({
     super.key,
     this.size = navSize,
-    this.tint,
     this.repeat = false,
+    this.plays = navPlays,
   }) : asset = 'nav_trips',
-       artScale = 1.55,
+       artScale = 1.0,
        holdAt = 1.0,
        end = LottieEnd.hold,
        stillAt = 1.0,
-       plays = 1;
+       tint = null;
 
-  /// Bottom-nav user (Account): head and shoulders draw on. Plays once and
-  /// holds on the figure; [tint] as for [LottieMoment.navHome].
+  /// Bottom-nav user (Account): a filled teal figure bobs into place.
+  /// Plays [navPlays] times and holds.
   const LottieMoment.navAccount({
     super.key,
     this.size = navSize,
-    this.tint,
     this.repeat = false,
+    this.plays = navPlays,
   }) : asset = 'nav_account',
-       artScale = 0.92,
+       artScale = 1.0,
        holdAt = 1.0,
        end = LottieEnd.hold,
        stillAt = 1.0,
-       plays = 1;
+       tint = null;
+
+  /// How many times a bottom-nav icon plays when it appears (matches the
+  /// Offers gift): noticeable, never a loop.
+  static const int navPlays = 2;
 
   /// Box size of the bottom-nav icons: a touch larger than a 24 px glyph
   /// because the art has air around it (matches the Offers gift).

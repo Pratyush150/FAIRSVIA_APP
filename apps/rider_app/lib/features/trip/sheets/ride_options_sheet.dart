@@ -173,29 +173,6 @@ class _RideOptionsExtras extends StatelessWidget {
           PriceComparisonSection(comparison: cmp, tierLabel: cmpLabel),
           const SizedBox(height: AppSpacing.lg),
         ],
-        if (tiers.isNotEmpty)
-          SheetSection(
-            title: 'Compare rides',
-            icon: PhosphorIconsRegular.squaresFour,
-            child: CompareTable(
-              columns: const ['Seats', 'Pickup', 'Fare'],
-              rows: [
-                for (final t in tiers)
-                  CompareRow(
-                    label: t.label,
-                    highlighted: t.tier == state.selectedTier,
-                    cells: [
-                      '${t.capacity}',
-                      _noDriversFor(state, t.tier) || t.etaSeconds == null
-                          ? '—'
-                          : '${_minutes(t.etaSeconds!)} min',
-                      Fmt.money(t.fare, t.currency),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-        const SizedBox(height: AppSpacing.lg),
         SheetSection(
           title: 'About this fare',
           icon: PhosphorIconsRegular.receipt,
@@ -1355,13 +1332,17 @@ class _SelectBumpState extends State<_SelectBump>
   );
   late final Animation<double> _scale = TweenSequence<double>([
     TweenSequenceItem(
-      tween: Tween(begin: 1.0, end: 1.03)
-          .chain(CurveTween(curve: Curves.easeOut)),
+      tween: Tween(
+        begin: 1.0,
+        end: 1.03,
+      ).chain(CurveTween(curve: Curves.easeOut)),
       weight: 40,
     ),
     TweenSequenceItem(
-      tween: Tween(begin: 1.03, end: 1.0)
-          .chain(CurveTween(curve: Curves.easeIn)),
+      tween: Tween(
+        begin: 1.03,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.easeIn)),
       weight: 60,
     ),
   ]).animate(_c);

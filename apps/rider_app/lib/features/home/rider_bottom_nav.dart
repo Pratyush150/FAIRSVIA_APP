@@ -15,6 +15,12 @@ class RiderBottomNav extends StatelessWidget {
     required this.onSelect,
   });
 
+  /// Opacity of the unselected tabs' illustrations.
+  static const double idleOpacity = 0.6;
+
+  /// Idle opacity on the dark bar: higher so the house stays readable.
+  static const double idleOpacityDark = 0.75;
+
   final RiderTab current;
   final ValueChanged<RiderTab> onSelect;
 
@@ -24,17 +30,30 @@ class RiderBottomNav extends StatelessWidget {
     final dark = theme.brightness == Brightness.dark;
     final active = theme.colorScheme.onSurface;
     final muted = AppColors.iconNeutralFor(dark);
-    // Home, Trips and Account are Lottie line icons tinted at runtime with
-    // the same selected / muted colours an Icon would get, so they follow any
-    // theme colour. Each plays once when it appears (first show, and when its
-    // tab is selected) and holds; Reduce Motion shows the finished icon.
+    // All four tabs are colourful Lottie illustrations in the brand palette
+    // (house, car, gift, user). Each plays [LottieMoment.navPlays] times when
+    // it appears (first show, and each time its tab is selected) and holds;
+    // Reduce Motion shows the finished frame. The selected tab is full colour
+    // in the pill; the others sit at [idleOpacity] so the active one leads.
+    // Home, Trips and Account also get a one-shot pop (the gift already
+    // drops in by itself) so the entrance reads clearly on a phone.
+    Widget pop(String name, String state, Widget child) => name == 'offers'
+        ? child
+        : NavPop(
+            key: ValueKey('pop-$name-$state'),
+            slideIn: name == 'trips',
+            child: child,
+          );
     NavigationDestination dest(
-      Widget Function(Key key, Color tint) icon,
+      Widget Function(Key key) icon,
       String name,
       String label,
     ) => NavigationDestination(
-      icon: icon(ValueKey('nav-$name-idle'), muted),
-      selectedIcon: icon(ValueKey('nav-$name-selected'), AppColors.accent),
+      icon: Opacity(
+        opacity: dark ? idleOpacityDark : idleOpacity,
+        child: pop(name, 'idle', icon(ValueKey('nav-$name-idle'))),
+      ),
+      selectedIcon: pop(name, 'selected', icon(ValueKey('nav-$name-selected'))),
       label: label,
     );
     return NavigationBarTheme(
@@ -54,31 +73,85 @@ class RiderBottomNav extends StatelessWidget {
         selectedIndex: current.index,
         onDestinationSelected: (i) => onSelect(RiderTab.values[i]),
         destinations: [
-          dest((k, c) => LottieMoment.navHome(key: k, tint: c), 'home', 'Home'),
-          dest(
-            (k, c) => LottieMoment.navTrips(key: k, tint: c),
-            'trips',
-            'Trips',
-          ),
-          // A small gift box drops in (twice, then holds) when the idle Home
-          // shows and again when Offers is opened: noticeable, never a loop.
-          // Reduce Motion shows the wrapped gift still.
-          const NavigationDestination(
-            icon: RiderOffersGift(key: ValueKey('offers-gift-idle')),
-            selectedIcon: RiderOffersGift(
-              key: ValueKey('offers-gift-selected'),
-            ),
-            label: 'Offers',
-          ),
-          dest(
-            (k, c) => LottieMoment.navAccount(key: k, tint: c),
-            'account',
-            'Account',
-          ),
+          dest((k) => LottieMoment.navHome(key: k), 'home', 'Home'),
+          dest((k) => LottieMoment.navTrips(key: k), 'trips', 'Trips'),
+          dest((k) => RiderOffersGift(key: k), 'offers', 'Offers'),
+          dest((k) => LottieMoment.navAccount(key: k), 'account', 'Account'),
         ],
       ),
     );
   }
+}
+
+/// A one-shot entrance for a nav icon: it pops (0.55 -> 1.18 -> 1.0) with
+/// a small upward hop, and with [slideIn] also slides in from the left.
+/// Runs once when the icon is built (first show, and each time its tab is
+/// selected, since the selected icon is a new widget). None under Reduce
+/// Motion.
+class NavPop extends StatefulWidget {
+  const NavPop({super.key, required this.child, this.slideIn = false});
+
+  static const Duration duration = Duration(milliseconds: 500);
+
+  final Widget child;
+  final bool slideIn;
+
+  @override
+  State<NavPop> createState() => _NavPopState();
+}
+
+class _NavPopState extends State<NavPop> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: NavPop.duration,
+  );
+  static final _scale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 0.55,
+        end: 1.18,
+      ).chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 45,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.18,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.elasticOut)),
+      weight: 55,
+    ),
+  ]);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_c.status == AnimationStatus.dismissed && !_c.isAnimating) {
+      if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+        _c.value = 1;
+      } else {
+        _c.forward();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _c,
+    child: widget.child,
+    builder: (context, child) {
+      final t = Curves.easeOut.transform(_c.value);
+      return Transform.translate(
+        offset: Offset(widget.slideIn ? -10 * (1 - t) : 0, -4 * (1 - t)),
+        child: Transform.scale(scale: _scale.transform(_c.value), child: child),
+      );
+    },
+  );
 }
 
 /// The animated gift that stands in for the Offers tab icon (and heads the

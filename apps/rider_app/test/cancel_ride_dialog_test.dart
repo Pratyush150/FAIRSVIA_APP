@@ -11,22 +11,24 @@ class MockTripCubit extends MockCubit<TripState> implements TripCubit {}
 void main() {
   Future<String?> open(WidgetTester tester, TripCubit cubit) async {
     String? result;
-    await tester.pumpWidget(MaterialApp(
-      home: Builder(
-        builder: (context) => Scaffold(
-          body: ElevatedButton(
-            onPressed: () async {
-              result = await showDialog<String>(
-                context: context,
-                builder: (_) =>
-                    CancelRideDialog(cubit: cubit, feeWarning: false),
-              );
-            },
-            child: const Text('open'),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: ElevatedButton(
+              onPressed: () async {
+                result = await showDialog<String>(
+                  context: context,
+                  builder: (_) =>
+                      CancelRideDialog(cubit: cubit, feeWarning: false),
+                );
+              },
+              child: const Text('open'),
+            ),
           ),
         ),
       ),
-    ));
+    );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     return result;
@@ -36,8 +38,11 @@ void main() {
       'double-pop (regression: !_debugLocked crash)', (tester) async {
     final cubit = MockTripCubit();
     final states = StreamController<TripState>.broadcast();
-    whenListen(cubit, states.stream,
-        initialState: const TripState(phase: TripPhase.searching));
+    whenListen(
+      cubit,
+      states.stream,
+      initialState: const TripState(phase: TripPhase.searching),
+    );
 
     await open(tester, cubit);
     expect(find.text('Cancel this ride?'), findsOneWidget);
@@ -56,8 +61,11 @@ void main() {
   testWidgets('closes itself when the trip ends underneath it', (tester) async {
     final cubit = MockTripCubit();
     final states = StreamController<TripState>.broadcast();
-    whenListen(cubit, states.stream,
-        initialState: const TripState(phase: TripPhase.searching));
+    whenListen(
+      cubit,
+      states.stream,
+      initialState: const TripState(phase: TripPhase.searching),
+    );
 
     await open(tester, cubit);
     expect(find.text('Cancel this ride?'), findsOneWidget);

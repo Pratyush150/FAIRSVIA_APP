@@ -29,9 +29,13 @@ class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
         await _favorites.remove(widget.driverId);
       }
       if (mounted) setState(() => _favorited = next);
-      messenger.showSnackBar(_completionSnackBar(next
-          ? 'Added ${widget.driverName ?? 'driver'} to favourites'
-          : 'Removed from favourites'));
+      messenger.showSnackBar(
+        _completionSnackBar(
+          next
+              ? 'Added ${widget.driverName ?? 'driver'} to favourites'
+              : 'Removed from favourites',
+        ),
+      );
     } on ApiException catch (e) {
       messenger.showSnackBar(_completionSnackBar(e.message));
     } finally {
@@ -44,8 +48,11 @@ class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
     return OutlinedButton.icon(
       onPressed: _busy ? null : _toggle,
       icon: _favorited
-          ? const Icon(PhosphorIconsFill.heart,
-              color: AppColors.error, size: 20)
+          ? const Icon(
+              PhosphorIconsFill.heart,
+              color: AppColors.error,
+              size: 20,
+            )
           // THEME=clay3d: one 3D heart for both states, so grey the off one.
           : AppClay3D.off(const Icon(PhosphorIconsRegular.heart, size: 20)),
       label: Text(_favorited ? 'Favourited' : 'Add to favourites'),
@@ -57,15 +64,15 @@ class _FavoriteDriverButtonState extends State<_FavoriteDriverButton> {
 /// instead of sliding up over it (a fixed snackbar sits flush with the
 /// bottom edge, exactly where the CTA is).
 SnackBar _completionSnackBar(String text) => SnackBar(
-      content: Text(text),
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        0,
-        AppSpacing.lg,
-        _kCompletionSnackBarLift,
-      ),
-    );
+  content: Text(text),
+  behavior: SnackBarBehavior.floating,
+  margin: const EdgeInsets.fromLTRB(
+    AppSpacing.lg,
+    0,
+    AppSpacing.lg,
+    _kCompletionSnackBarLift,
+  ),
+);
 
 /// The chosen tip's colour: the ink, or teal in THEME=ink, where teal is
 /// kept for the selection.
@@ -139,19 +146,23 @@ class _CompletedSheetState extends State<CompletedSheet> {
     // richest, but a capture still settling (or a failed fetch on a weak
     // signal) can leave it at zero, and showing \$0.00 for a ride that just
     // happened reads as a broken app — or a free ride.
-    final fare = [
-      state.receipt?.fare,
-      state.fareFinal,
-      state.trip?.fareDisplay,
-    ].firstWhere((v) => v != null && v > 0, orElse: () => null) ?? 0;
+    final fare =
+        [
+          state.receipt?.fare,
+          state.fareFinal,
+          state.trip?.fareDisplay,
+        ].firstWhere((v) => v != null && v > 0, orElse: () => null) ??
+        0;
     final tip = state.tipAmount ?? state.receipt?.tip ?? 0;
     // A tip that has actually been charged. The backend puts `tip: 0` on the
     // receipt of every untipped ride, and taking that at face value locked the
     // whole tip section on arrival — chips greyed out, "Tip of \$0 added."
     // under them — so a rider who wanted to tip simply could not. Only an
     // amount greater than zero is a tip that was sent.
-    final double? sentTip = [state.tipAmount, state.receipt?.tip]
-        .firstWhere((v) => v != null && v > 0, orElse: () => null);
+    final double? sentTip = [
+      state.tipAmount,
+      state.receipt?.tip,
+    ].firstWhere((v) => v != null && v > 0, orElse: () => null);
     final double? chosenTip = sentTip ?? _pendingTip;
     final bool locked = sentTip != null || state.tipping;
     return SingleChildScrollView(
@@ -167,50 +178,57 @@ class _CompletedSheetState extends State<CompletedSheet> {
             // Reduce Motion).
             const Center(child: LocalDoneArt(size: 104))
           else
-          // Confetti bursts once behind the check (not under Reduce Motion).
-          Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              const Positioned(
-                top: -70,
-                child: LottieMoment.confetti(size: 220),
-              ),
-              Center(
-            child: _HeroIcon(
-              asset: 'done',
-              size: 56,
-              fallback: Container(
-                width: 64,
-                height: 64,
-                // THEME=ink: a hairline ring, not a tinted disc.
-                decoration: InkPaper.on
-                    ? BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: InkPaper.outline(
-                                theme.brightness == Brightness.dark)),
-                      )
-                    : BoxDecoration(
-                        color: AppColors.accentSoft,
-                        shape: BoxShape.circle,
+            // Confetti bursts once behind the check (not under Reduce Motion).
+            Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                const Positioned(
+                  top: -70,
+                  child: LottieMoment.confetti(size: 220),
+                ),
+                Center(
+                  child: _HeroIcon(
+                    asset: 'done',
+                    size: 56,
+                    fallback: Container(
+                      width: 64,
+                      height: 64,
+                      // THEME=ink: a hairline ring, not a tinted disc.
+                      decoration: InkPaper.on
+                          ? BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: InkPaper.outline(
+                                  theme.brightness == Brightness.dark,
+                                ),
+                              ),
+                            )
+                          : BoxDecoration(
+                              color: AppColors.accentSoft,
+                              shape: BoxShape.circle,
+                            ),
+                      child: Icon(
+                        PhosphorIconsRegular.check,
+                        color: AppColors.accent,
+                        size: 32,
                       ),
-                child: Icon(PhosphorIconsRegular.check,
-                    color: AppColors.accent, size: 32),
-              ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-            ],
-          ),
           const SizedBox(height: AppSpacing.md),
           // Announced as it appears: the ride's last change of moment.
           Center(
             child: Semantics(
               liveRegion: true,
               header: true,
-              child: Text(RideStatus.of(state).title,
-                  // THEME=ink: the status headline is a serif moment.
-                  style: theme.textTheme.headlineSmall?.serifMoment(32)),
+              child: Text(
+                RideStatus.of(state).title,
+                // THEME=ink: the status headline is a serif moment.
+                style: theme.textTheme.headlineSmall?.serifMoment(32),
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -221,7 +239,11 @@ class _CompletedSheetState extends State<CompletedSheet> {
           if (InkPaper.on)
             TicketPaper(
               padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.x20, AppSpacing.lg, AppSpacing.md, AppSpacing.md),
+                AppSpacing.x20,
+                AppSpacing.lg,
+                AppSpacing.md,
+                AppSpacing.md,
+              ),
               child: _TotalWithBreakdown(
                 fare: fare,
                 tip: tip,
@@ -263,8 +285,9 @@ class _CompletedSheetState extends State<CompletedSheet> {
                   Expanded(
                     child: Text(
                       'Pay ${Fmt.money(fare + tip, state.receipt?.currency)} in cash to your driver',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: AppColors.warningTextOf(context)),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.warningTextOf(context),
+                      ),
                     ),
                   ),
                 ],
@@ -273,8 +296,11 @@ class _CompletedSheetState extends State<CompletedSheet> {
           SizedBox(height: InkPaper.on ? AppSpacing.xxxl : AppSpacing.md),
           // Rating
           Center(
-              child: Text('Rate your driver',
-                  style: inkSectionLabel(context, theme.textTheme.titleMedium))),
+            child: Text(
+              'Rate your driver',
+              style: inkSectionLabel(context, theme.textTheme.titleMedium),
+            ),
+          ),
           const SizedBox(height: AppSpacing.sm),
           // Always tappable: the backend stores one rating per trip and
           // recomputes the driver's average from it, so tapping again is a
@@ -290,8 +316,7 @@ class _CompletedSheetState extends State<CompletedSheet> {
                   children: [
                     // A star fills with a small sparkle — replayed when the
                     // rider changes the rating (keyed on it). Fixed 28px box.
-                    LottieMoment.thanks(
-                        key: ValueKey(state.rating), size: 28),
+                    LottieMoment.thanks(key: ValueKey(state.rating), size: 28),
                     const SizedBox(width: AppSpacing.xs),
                     Flexible(
                       child: Text(
@@ -325,8 +350,10 @@ class _CompletedSheetState extends State<CompletedSheet> {
             const SizedBox(height: AppSpacing.xl),
           ],
           // Tips
-          Text('Add a tip',
-              style: inkSectionLabel(context, theme.textTheme.titleMedium)),
+          Text(
+            'Add a tip',
+            style: inkSectionLabel(context, theme.textTheme.titleMedium),
+          ),
           SizedBox(height: InkPaper.on ? AppSpacing.md : AppSpacing.sm),
           Row(
             children: [
@@ -346,9 +373,9 @@ class _CompletedSheetState extends State<CompletedSheet> {
                       onTap: locked
                           ? null
                           : () => setState(() {
-                                _pendingTip = _pendingTip == amt ? null : amt;
-                                cubit.selectedTip = _pendingTip;
-                              }),
+                              _pendingTip = _pendingTip == amt ? null : amt;
+                              cubit.selectedTip = _pendingTip;
+                            }),
                     ),
                   ),
                 ),
@@ -356,7 +383,8 @@ class _CompletedSheetState extends State<CompletedSheet> {
               Expanded(
                 child: _CustomTipChip(
                   // Highlight when the chosen tip isn't one of the presets.
-                  selected: chosenTip != null &&
+                  selected:
+                      chosenTip != null &&
                       !Market.current.tipPresets.contains(chosenTip),
                   onTap: locked
                       ? null
@@ -392,8 +420,9 @@ class _CompletedSheetState extends State<CompletedSheet> {
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(
-                        'Tip of ${Fmt.money(sentTip, state.receipt?.currency)} added.',
-                        style: theme.textTheme.bodySmall),
+                      'Tip of ${Fmt.money(sentTip, state.receipt?.currency)} added.',
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ),
                 ],
               ),
@@ -428,10 +457,10 @@ class CompletedDoneButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PrimaryButton(
-        label: 'Done',
-        // Sends the selected tip (if any), then closes the ride.
-        onPressed: () => context.read<TripCubit>().finishRide(),
-      );
+    label: 'Done',
+    // Sends the selected tip (if any), then closes the ride.
+    onPressed: () => context.read<TripCubit>().finishRide(),
+  );
 }
 
 /// "Total ₹75" on one line; tap it for what it is made of — the itemised
@@ -480,28 +509,37 @@ class _TotalWithBreakdownState extends State<_TotalWithBreakdown> {
                         // One string still ("Total ₹75"): a small-caps
                         // label and the amount in serif, on one baseline.
                         ? Text.rich(
-                            TextSpan(children: [
-                              TextSpan(
-                                text: 'Total ',
-                                style: inkSectionLabel(context, null)
-                                    ?.copyWith(fontSize: 13),
-                              ),
-                              inkAmountSpan(
-                                Fmt.money(
-                                    widget.fare + widget.tip, widget.currency),
-                                size: 44,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ]),
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Total ',
+                                  style: inkSectionLabel(
+                                    context,
+                                    null,
+                                  )?.copyWith(fontSize: 13),
+                                ),
+                                inkAmountSpan(
+                                  Fmt.money(
+                                    widget.fare + widget.tip,
+                                    widget.currency,
+                                  ),
+                                  size: 44,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ],
+                            ),
                           )
                         : Text(
                             'Total ${Fmt.money(widget.fare + widget.tip, widget.currency)}',
                             style: theme.textTheme.titleMedium?.tabular(),
                           ),
                   ),
-                  Text(_open ? 'Hide' : 'Details',
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: AppColors.accentText)),
+                  Text(
+                    _open ? 'Hide' : 'Details',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.accentText,
+                    ),
+                  ),
                   const SizedBox(width: 2),
                   Icon(
                     _open
@@ -519,7 +557,10 @@ class _TotalWithBreakdownState extends State<_TotalWithBreakdown> {
           if (InkPaper.on)
             const Padding(
               padding: EdgeInsets.only(
-                  top: AppSpacing.sm, bottom: AppSpacing.md, right: AppSpacing.sm),
+                top: AppSpacing.sm,
+                bottom: AppSpacing.md,
+                right: AppSpacing.sm,
+              ),
               child: TearLine(),
             )
           else
@@ -533,10 +574,16 @@ class _TotalWithBreakdownState extends State<_TotalWithBreakdown> {
             )
           else
             _ReceiptRow(
-                label: 'Fare', value: widget.fare, currency: widget.currency),
+              label: 'Fare',
+              value: widget.fare,
+              currency: widget.currency,
+            ),
           if (widget.tip > 0)
             _ReceiptRow(
-                label: 'Tip', value: widget.tip, currency: widget.currency),
+              label: 'Tip',
+              value: widget.tip,
+              currency: widget.currency,
+            ),
           const SizedBox(height: AppSpacing.xs),
         ],
       ],
@@ -545,11 +592,7 @@ class _TotalWithBreakdownState extends State<_TotalWithBreakdown> {
 }
 
 class _ReceiptRow extends StatelessWidget {
-  const _ReceiptRow({
-    required this.label,
-    required this.value,
-    this.currency,
-  });
+  const _ReceiptRow({required this.label, required this.value, this.currency});
   final String label;
   final double value;
 
@@ -566,7 +609,10 @@ class _ReceiptRow extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(right: AppSpacing.sm),
         child: LeaderLine(
-            label: label, value: Fmt.money(value, currency), style: style),
+          label: label,
+          value: Fmt.money(value, currency),
+          style: style,
+        ),
       );
     }
     return Padding(
@@ -596,54 +642,54 @@ class _TipChip extends StatelessWidget {
     return Semantics(
       selected: selected,
       child: Material(
-      color: Colors.transparent,
-      child: Ink(
-        decoration: BoxDecoration(
-          // THEME=ink: outlined chips on the paper, teal once chosen.
-          color: InkPaper.on
-              ? Colors.transparent
-              : selected
-              ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
-              : theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppSpacing.radius),
-          border: Border.all(
-            color: selected
-                ? _chosen
-                : (InkPaper.on
-                    ? InkPaper.outline(isDark)
-                    : theme.dividerColor),
-            width: selected ? 1.6 : 1,
+        color: Colors.transparent,
+        child: Ink(
+          decoration: BoxDecoration(
+            // THEME=ink: outlined chips on the paper, teal once chosen.
+            color: InkPaper.on
+                ? Colors.transparent
+                : selected
+                ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
+                : theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(AppSpacing.radius),
+            border: Border.all(
+              color: selected
+                  ? _chosen
+                  : (InkPaper.on
+                        ? InkPaper.outline(isDark)
+                        : theme.dividerColor),
+              width: selected ? 1.6 : 1,
+            ),
           ),
-        ),
-        child: InkWell(
-          onTap: onTap == null
-              ? null
-              : () {
-                  AppHaptics.selection();
-                  onTap!();
-                },
-          borderRadius: BorderRadius.circular(AppSpacing.radius),
-          child: Container(
-            height: 48,
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            // Scales down rather than clipping at large text sizes; the
-            // chosen amount carries a check, so it is never colour alone.
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: _ChipLabel(
-                text: Money.format(amount, wholeOnly: true),
-                selected: selected,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: selected
-                      ? _chosen
-                      : (enabled ? theme.colorScheme.onSurface : null),
+          child: InkWell(
+            onTap: onTap == null
+                ? null
+                : () {
+                    AppHaptics.selection();
+                    onTap!();
+                  },
+            borderRadius: BorderRadius.circular(AppSpacing.radius),
+            child: Container(
+              height: 48,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              // Scales down rather than clipping at large text sizes; the
+              // chosen amount carries a check, so it is never colour alone.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: _ChipLabel(
+                  text: Money.format(amount, wholeOnly: true),
+                  selected: selected,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: selected
+                        ? _chosen
+                        : (enabled ? theme.colorScheme.onSurface : null),
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -690,47 +736,47 @@ class _CustomTipChip extends StatelessWidget {
     return Semantics(
       selected: selected,
       child: Material(
-      color: Colors.transparent,
-      child: Ink(
-        decoration: BoxDecoration(
-          // THEME=ink: outlined chips on the paper, teal once chosen.
-          color: InkPaper.on
-              ? Colors.transparent
-              : selected
-              ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
-              : theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppSpacing.radius),
-          border: Border.all(
-            color: selected
-                ? _chosen
-                : (InkPaper.on
-                    ? InkPaper.outline(isDark)
-                    : theme.dividerColor),
-            width: selected ? 1.6 : 1,
+        color: Colors.transparent,
+        child: Ink(
+          decoration: BoxDecoration(
+            // THEME=ink: outlined chips on the paper, teal once chosen.
+            color: InkPaper.on
+                ? Colors.transparent
+                : selected
+                ? (isDark ? AppColors.accentSoftDark : AppColors.accentSoft)
+                : theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(AppSpacing.radius),
+            border: Border.all(
+              color: selected
+                  ? _chosen
+                  : (InkPaper.on
+                        ? InkPaper.outline(isDark)
+                        : theme.dividerColor),
+              width: selected ? 1.6 : 1,
+            ),
           ),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppSpacing.radius),
-          child: Container(
-            height: 48,
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: _ChipLabel(
-                text: 'Custom',
-                selected: selected,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: selected
-                      ? _chosen
-                      : (enabled ? theme.colorScheme.onSurface : null),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppSpacing.radius),
+            child: Container(
+              height: 48,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: _ChipLabel(
+                  text: 'Custom',
+                  selected: selected,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: selected
+                        ? _chosen
+                        : (enabled ? theme.colorScheme.onSurface : null),
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -752,8 +798,7 @@ Future<double?> _askCustomTip(BuildContext context) async {
           content: TextField(
             controller: controller,
             autofocus: true,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
             ],
@@ -776,8 +821,10 @@ Future<double?> _askCustomTip(BuildContext context) async {
                   return;
                 }
                 if (v > Market.current.maxTip) {
-                  setLocal(() => error =
-                      'Max ${Money.format(Market.current.maxTip, wholeOnly: true)}');
+                  setLocal(
+                    () => error =
+                        'Max ${Money.format(Market.current.maxTip, wholeOnly: true)}',
+                  );
                   return;
                 }
                 Navigator.pop(dialogCtx, v);
@@ -829,8 +876,10 @@ class _ComplimentTagsState extends State<_ComplimentTags> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('What went well?',
-            style: inkSectionLabel(context, theme.textTheme.titleSmall)),
+        Text(
+          'What went well?',
+          style: inkSectionLabel(context, theme.textTheme.titleSmall),
+        ),
         const SizedBox(height: AppSpacing.sm),
         // One left-aligned wrap: a centred wrap left the last, shorter row
         // centred under rows that read as left-aligned.
@@ -910,27 +959,33 @@ Future<void> _preBookTrip(
   String? dropoffAddr,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
-  final booked = await Navigator.of(context).push<Trip>(MaterialPageRoute(
-    builder: (_) => PreBookPage(
-      repository: sl<TripRepository>(),
-      pickup: pickup,
-      pickupAddr: pickupAddr,
-      initialDropoff: dropoff,
-      initialDropoffAddr: dropoffAddr,
-      paymentMode: state.trip?.paymentMode ?? state.paymentMode,
-      payments: sl.isRegistered<PaymentsRemoteDataSource>()
-          ? sl<PaymentsRemoteDataSource>()
-          : null,
+  final booked = await Navigator.of(context).push<Trip>(
+    MaterialPageRoute(
+      builder: (_) => PreBookPage(
+        repository: sl<TripRepository>(),
+        pickup: pickup,
+        pickupAddr: pickupAddr,
+        initialDropoff: dropoff,
+        initialDropoffAddr: dropoffAddr,
+        paymentMode: state.trip?.paymentMode ?? state.paymentMode,
+        payments: sl.isRegistered<PaymentsRemoteDataSource>()
+            ? sl<PaymentsRemoteDataSource>()
+            : null,
+      ),
     ),
-  ));
+  );
   if (booked == null) return;
   final when = booked.scheduledAt;
   messenger
     ..hideCurrentSnackBar()
-    ..showSnackBar(_completionSnackBar(when == null
-        ? 'Ride scheduled. Find it in Account › Scheduled rides.'
-        : 'Ride scheduled for ${_formatSchedule(when)}. '
-            'Find it in Account › Scheduled rides.'));
+    ..showSnackBar(
+      _completionSnackBar(
+        when == null
+            ? 'Ride scheduled. Find it in Account › Scheduled rides.'
+            : 'Ride scheduled for ${_formatSchedule(when)}. '
+                  'Find it in Account › Scheduled rides.',
+      ),
+    );
 }
 
 /// Everything under the tip section of [CompletedSheet].
@@ -952,39 +1007,49 @@ class CompletedSheetExtras extends StatelessWidget {
     final canReceipt =
         trip != null && sl.isRegistered<PaymentsRemoteDataSource>();
     final canHelp = sl.isRegistered<SupportRemoteDataSource>();
-    final posters = homePosters(
-      onOffers: () => RiderTabScaffold.goTo(context, RiderTab.offers),
-      onSchedule: () => _preBookTrip(context, state,
-          pickup: to, pickupAddr: toAddr),
-      onSafety: () => Navigator.of(context).push(MaterialPageRoute<void>(
-        builder: (_) =>
-            EmergencyContactsPage(safety: sl<SafetyRemoteDataSource>()),
-      )),
-      onRide: () {},
-    )
-        // Sharing a live trip is for a ride under way, not one just ended;
-        // emergency contacts need the safety API registered.
-        .where((p) =>
-            p.id != 'poster-share' &&
-            (p.id != 'poster-safety' ||
-                sl.isRegistered<SafetyRemoteDataSource>()))
-        .toList();
+    final posters =
+        homePosters(
+              onOffers: () => RiderTabScaffold.goTo(context, RiderTab.offers),
+              onSchedule: () =>
+                  _preBookTrip(context, state, pickup: to, pickupAddr: toAddr),
+              onSafety: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => EmergencyContactsPage(
+                    safety: sl<SafetyRemoteDataSource>(),
+                  ),
+                ),
+              ),
+              onRide: () {},
+            )
+            // Sharing a live trip is for a ride under way, not one just ended;
+            // emergency contacts need the safety API registered.
+            .where(
+              (p) =>
+                  p.id != 'poster-share' &&
+                  (p.id != 'poster-safety' ||
+                      sl.isRegistered<SafetyRemoteDataSource>()),
+            )
+            .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: AppSpacing.xl),
         // --- The trip -------------------------------------------------------
-        Text('Your trip',
-            style: inkSectionLabel(context, theme.textTheme.titleMedium)),
+        Text(
+          'Your trip',
+          style: inkSectionLabel(context, theme.textTheme.titleMedium),
+        ),
         const SizedBox(height: AppSpacing.sm),
         _CompletedTripCard(state: state, route: route),
 
         // --- Where next -----------------------------------------------------
         if (canPreBook && (to != null || from != null)) ...[
           const SizedBox(height: AppSpacing.xl),
-          Text('Where next?',
-              style: inkSectionLabel(context, theme.textTheme.titleMedium)),
+          Text(
+            'Where next?',
+            style: inkSectionLabel(context, theme.textTheme.titleMedium),
+          ),
           const SizedBox(height: AppSpacing.sm),
           if (to != null)
             _NextActionTile(
@@ -993,11 +1058,14 @@ class CompletedSheetExtras extends StatelessWidget {
               subtitle: fromAddr == null
                   ? 'Pre-book a pickup from here'
                   : 'Pre-book a ride back to $fromAddr',
-              onTap: () => _preBookTrip(context, state,
-                  pickup: to,
-                  pickupAddr: toAddr,
-                  dropoff: from,
-                  dropoffAddr: fromAddr),
+              onTap: () => _preBookTrip(
+                context,
+                state,
+                pickup: to,
+                pickupAddr: toAddr,
+                dropoff: from,
+                dropoffAddr: fromAddr,
+              ),
             ),
           if (from != null && to != null) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -1005,11 +1073,14 @@ class CompletedSheetExtras extends StatelessWidget {
               icon: PhosphorIconsRegular.arrowClockwise,
               title: 'Book this trip again',
               subtitle: 'Same pickup and drop-off, at a time you choose',
-              onTap: () => _preBookTrip(context, state,
-                  pickup: from,
-                  pickupAddr: fromAddr,
-                  dropoff: to,
-                  dropoffAddr: toAddr),
+              onTap: () => _preBookTrip(
+                context,
+                state,
+                pickup: from,
+                pickupAddr: fromAddr,
+                dropoff: to,
+                dropoffAddr: toAddr,
+              ),
             ),
           ],
         ],
@@ -1042,8 +1113,8 @@ class CompletedSheetExtras extends StatelessWidget {
                     icon: PhosphorIconsRegular.question,
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => SupportPage(
-                            support: sl<SupportRemoteDataSource>()),
+                        builder: (_) =>
+                            SupportPage(support: sl<SupportRemoteDataSource>()),
                       ),
                     ),
                   ),
@@ -1105,8 +1176,10 @@ class _CompletedTripCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_completedTierLabel(state),
-                        style: theme.textTheme.titleMedium),
+                    Text(
+                      _completedTierLabel(state),
+                      style: theme.textTheme.titleMedium,
+                    ),
                     if (driverName != null && driverName.trim().isNotEmpty)
                       Text(
                         'with $driverName'
@@ -1120,8 +1193,9 @@ class _CompletedTripCard extends StatelessWidget {
                           if (plate != null && plate.trim().isNotEmpty)
                             Market.current.formatPlate(plate),
                         ].join(' · '),
-                        style:
-                            theme.textTheme.bodySmall?.copyWith(color: muted),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
                       ),
                   ],
                 ),
@@ -1136,12 +1210,14 @@ class _CompletedTripCard extends StatelessWidget {
               children: [
                 if (distanceM != null)
                   _TripStatPill(
-                      icon: PhosphorIconsRegular.ruler,
-                      text: Fmt.distance(distanceM)),
+                    icon: PhosphorIconsRegular.ruler,
+                    text: Fmt.distance(distanceM),
+                  ),
                 if (durationS != null)
                   _TripStatPill(
-                      icon: PhosphorIconsRegular.clock,
-                      text: Fmt.duration(durationS)),
+                    icon: PhosphorIconsRegular.clock,
+                    text: Fmt.duration(durationS),
+                  ),
                 _TripStatPill(
                   icon: (trip?.paymentMode ?? state.paymentMode) == 'cash'
                       ? PhosphorIconsRegular.money
@@ -1175,7 +1251,9 @@ class _TripStatPill extends StatelessWidget {
     final dark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(999),
@@ -1186,8 +1264,7 @@ class _TripStatPill extends StatelessWidget {
           Icon(icon, size: 16, color: AppColors.iconNeutralFor(dark)),
           const SizedBox(width: AppSpacing.xs),
           Flexible(
-            child: Text(text,
-                style: theme.textTheme.labelLarge?.tabular()),
+            child: Text(text, style: theme.textTheme.labelLarge?.tabular()),
           ),
         ],
       ),
@@ -1216,7 +1293,9 @@ class _NextActionTile extends StatelessWidget {
     return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
       child: Row(
         children: [
           Container(
@@ -1234,15 +1313,20 @@ class _NextActionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: theme.textTheme.titleSmall),
-                Text(subtitle,
-                    style: theme.textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
-          Icon(PhosphorIconsRegular.caretRight,
-              size: 20, color: AppColors.iconNeutralFor(dark)),
+          Icon(
+            PhosphorIconsRegular.caretRight,
+            size: 20,
+            color: AppColors.iconNeutralFor(dark),
+          ),
         ],
       ),
     );

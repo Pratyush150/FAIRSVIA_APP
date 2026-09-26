@@ -48,27 +48,29 @@ void main() {
       );
 
       PlaceDetails? result;
-      await tester.pumpWidget(MaterialApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: Center(
-              child: ElevatedButton(
-                onPressed: () async {
-                  result = await Navigator.of(context).push<PlaceDetails>(
-                    MaterialPageRoute(
-                      builder: (_) => MapPickerPage(
-                        initial: initial,
-                        tileProvider: _OfflineTileProvider(),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    result = await Navigator.of(context).push<PlaceDetails>(
+                      MaterialPageRoute(
+                        builder: (_) => MapPickerPage(
+                          initial: initial,
+                          tileProvider: _OfflineTileProvider(),
+                        ),
                       ),
-                    ),
-                  );
-                },
-                child: const Text('open'),
+                    );
+                  },
+                  child: const Text('open'),
+                ),
               ),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
@@ -89,7 +91,8 @@ void main() {
   testWidgets(
     'shows the short label as the main line and locality + city as caption',
     (tester) async {
-      const full = '204, Mote Mangal Karyalay Rd, Dattwadi, Shobhapur, '
+      const full =
+          '204, Mote Mangal Karyalay Rd, Dattwadi, Shobhapur, '
           'Dattwadi, Kasba Peth, Pune, Maharashtra 411011, India';
       when(() => repo.reverseGeocode(any(), any())).thenAnswer(
         (_) async => const PlaceDetails(
@@ -102,27 +105,29 @@ void main() {
       );
 
       PlaceDetails? result;
-      await tester.pumpWidget(MaterialApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: Center(
-              child: ElevatedButton(
-                onPressed: () async {
-                  result = await Navigator.of(context).push<PlaceDetails>(
-                    MaterialPageRoute(
-                      builder: (_) => MapPickerPage(
-                        initial: const GeoPoint(18.5074, 73.8553),
-                        tileProvider: _OfflineTileProvider(),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    result = await Navigator.of(context).push<PlaceDetails>(
+                      MaterialPageRoute(
+                        builder: (_) => MapPickerPage(
+                          initial: const GeoPoint(18.5074, 73.8553),
+                          tileProvider: _OfflineTileProvider(),
+                        ),
                       ),
-                    ),
-                  );
-                },
-                child: const Text('open'),
+                    );
+                  },
+                  child: const Text('open'),
+                ),
               ),
             ),
           ),
         ),
-      ));
+      );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
 

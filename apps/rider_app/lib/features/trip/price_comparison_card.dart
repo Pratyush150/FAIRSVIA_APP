@@ -101,7 +101,8 @@ class PriceComparisonChip extends StatelessWidget {
         child: InkWell(
           key: const Key('price-comparison-chip'),
           borderRadius: BorderRadius.circular(AppSpacing.radius),
-          onTap: onTap ??
+          onTap:
+              onTap ??
               () => showPriceComparisonSheet(context, c, tierLabel: tierLabel),
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -155,7 +156,8 @@ class PriceComparisonSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SheetSection(
     key: const Key('price-comparison-section'),
-    title: tierLabel == null ? 'Price check' : 'Price check · $tierLabel',
+    // Short and plain (owner, 2026-09-26): no segment or product names.
+    title: 'Price check',
     icon: PhosphorIconsRegular.coins,
     child: PriceComparisonCard(comparison: comparison, tierLabel: tierLabel),
   );
@@ -181,15 +183,9 @@ List<_Row> _rows(PriceComparison c) {
   final ours = c.quotes.where((q) => q.isOurs).toList();
   final others = c.quotes.where((q) => !q.isOurs).toList()
     ..sort((a, b) => a.price.compareTo(b.price));
-  return [for (final q in [...ours, ...others]) _Row([q])];
-}
-
-/// True when every competitor quotes the same (rounded) fare — Pune app-cabs
-/// follow one RTA-approved tariff — so the footnote says why.
-bool _sameCompetitorFare(PriceComparison c) {
-  final others = c.quotes.where((q) => !q.isOurs).toList();
-  return others.length > 1 &&
-      others.every((q) => q.price.round() == others.first.price.round());
+  return [
+    for (final q in [...ours, ...others]) _Row([q]),
+  ];
 }
 
 /// The full comparison: our row first (accent), then each competitor (or
@@ -219,7 +215,6 @@ class PriceComparisonCard extends StatelessWidget {
     final minPrice = c.quotes
         .map((q) => q.price)
         .reduce((a, b) => a < b ? a : b);
-    final grouped = _sameCompetitorFare(c);
     final muted = theme.colorScheme.onSurfaceVariant;
 
     final String headline;
@@ -235,13 +230,8 @@ class PriceComparisonCard extends StatelessWidget {
     }
 
     // Exactly one honesty line.
-    final footnote = [
-      grouped
-          ? 'Govt-approved app-cab fare · actual prices may vary'
-          : c.disclaimer.isNotEmpty
-          ? c.disclaimer
-          : 'Estimates from published fares · actual prices vary',
-    ];
+    // The one trust line, always the same (owner, 2026-09-26).
+    const footnote = ['Estimates from published fares · actual prices vary'];
 
     return Column(
       key: const Key('price-comparison-card'),
@@ -278,10 +268,7 @@ class PriceComparisonCard extends StatelessWidget {
         ],
         const SizedBox(height: AppSpacing.md),
         for (final line in footnote)
-          Text(
-            line,
-            style: theme.textTheme.labelSmall?.copyWith(color: muted),
-          ),
+          Text(line, style: theme.textTheme.labelSmall?.copyWith(color: muted)),
       ],
     );
   }
@@ -307,19 +294,12 @@ class _QuoteRow extends StatelessWidget {
     final accent = AppColors.accentTextFor(dark);
     final muted = theme.colorScheme.onSurfaceVariant;
     final q = row.first;
+    // Just the brand: no segment ("Economy") or product ("Uber Go · est.")
+    // lines — the footnote already says these are estimates.
     final name = ours
-        ? (tierLabel == null ? AppBrand.name : '${AppBrand.name} · $tierLabel')
+        ? AppBrand.name
         : row.quotes.map((q) => q.displayName).join(' · ');
-    final product = [
-      ...row.quotes
-          .map((q) => q.productName)
-          // Our product name already sits in the name ("RideVela · XL").
-          .where((p) => p.isNotEmpty && !(ours && p == tierLabel)),
-    ].join(' · ');
-    final subtitle = [
-      if (product.isNotEmpty) product,
-      if (!ours && q.estimated) 'est.',
-    ].join(' · ');
+    const subtitle = '';
     final fare =
         ours || !q.hasRange || q.priceLow.round() == q.priceHigh.round()
         ? _whole(q.price, q.currency)
@@ -330,7 +310,8 @@ class _QuoteRow extends StatelessWidget {
         : Colors.black.withValues(alpha: 0.06);
 
     return Semantics(
-      label: '$name${subtitle.isEmpty ? '' : ', $subtitle'}, $fare'
+      label:
+          '$name${subtitle.isEmpty ? '' : ', $subtitle'}, $fare'
           '${cheapest ? ', cheapest' : ''}',
       excludeSemantics: true,
       child: Row(
@@ -357,8 +338,9 @@ class _QuoteRow extends StatelessWidget {
                           Text(
                             name,
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight:
-                                  ours ? FontWeight.w700 : FontWeight.w500,
+                              fontWeight: ours
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                               color: ours ? accent : null,
                             ),
                           ),

@@ -74,10 +74,13 @@ void main() {
     await pump(
       tester,
       const TripState(phase: TripPhase.driverEnRoute, driver: driverWithPhone),
-      dialer: (p) => dialPhone(p, launch: (uri) async {
-        launched.add(uri);
-        return true;
-      }),
+      dialer: (p) => dialPhone(
+        p,
+        launch: (uri) async {
+          launched.add(uri);
+          return true;
+        },
+      ),
     );
     await tester.tap(find.text('Call'));
     await tester.pumpAndSettle();
@@ -183,7 +186,9 @@ void main() {
     expect(find.text(DriverInfoSheet.waitingForLocation), findsNothing);
   });
 
-  testWidgets('an unnamed driver gets an icon, not "YD" initials', (tester) async {
+  testWidgets('an unnamed driver gets an icon, not "YD" initials', (
+    tester,
+  ) async {
     await pump(
       tester,
       const TripState(
@@ -249,7 +254,9 @@ void main() {
     expect(find.text(TripCubit.otpLockedMessage), findsOneWidget);
   });
 
-  testWidgets('shows the ride PIN, pickup, ride type and payment', (tester) async {
+  testWidgets('shows the ride PIN, pickup, ride type and payment', (
+    tester,
+  ) async {
     await pump(
       tester,
       TripState(
@@ -264,7 +271,9 @@ void main() {
           startOtp: '4827',
           paymentMode: 'cash',
           pickup: const TripEndpoint(
-              point: GeoPoint(41.31, 69.24), address: '1 Amir Temur Ave, Tashkent'),
+            point: GeoPoint(41.31, 69.24),
+            address: '1 Amir Temur Ave, Tashkent',
+          ),
           dropoff: const TripEndpoint(point: GeoPoint(41.33, 69.28)),
         ),
       ),
@@ -281,29 +290,33 @@ void main() {
     expect(find.text('ABC123'), findsOneWidget);
   });
 
-  testWidgets("I'm on my way appears once the driver has arrived, and confirms", (
-    tester,
-  ) async {
-    await pump(
-      tester,
-      const TripState(phase: TripPhase.driverArrived, driver: driverWithPhone),
-      arrived: true,
-    );
-    expect(find.text("I'm on my way"), findsOneWidget);
+  testWidgets(
+    "I'm on my way appears once the driver has arrived, and confirms",
+    (tester) async {
+      await pump(
+        tester,
+        const TripState(
+          phase: TripPhase.driverArrived,
+          driver: driverWithPhone,
+        ),
+        arrived: true,
+      );
+      expect(find.text("I'm on my way"), findsOneWidget);
 
-    await pump(
-      tester,
-      const TripState(
-        phase: TripPhase.driverArrived,
-        driver: driverWithPhone,
-        riderComingSent: true,
-      ),
-      arrived: true,
-    );
-    await tester.pumpAndSettle();
-    expect(find.text("I'm on my way"), findsNothing);
-    expect(find.text("Ava knows you're on your way"), findsOneWidget);
-  });
+      await pump(
+        tester,
+        const TripState(
+          phase: TripPhase.driverArrived,
+          driver: driverWithPhone,
+          riderComingSent: true,
+        ),
+        arrived: true,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text("I'm on my way"), findsNothing);
+      expect(find.text("Ava knows you're on your way"), findsOneWidget);
+    },
+  );
 
   testWidgets("I'm on my way is not offered while the driver is still far", (
     tester,

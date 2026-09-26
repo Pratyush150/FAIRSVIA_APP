@@ -34,14 +34,16 @@ Future<void> _loadFonts() async {
   Future<void> load(String family, List<String> files) async {
     final loader = FontLoader(family);
     for (final f in files) {
-      loader.addFont(File('$_fonts/$f')
-          .readAsBytes()
-          .then((b) => b.buffer.asByteData()));
+      loader.addFont(
+        File('$_fonts/$f').readAsBytes().then((b) => b.buffer.asByteData()),
+      );
     }
     await loader.load();
   }
 
-  await load('packages/design_system/PhosphorRegular', ['Phosphor-Regular.ttf']);
+  await load('packages/design_system/PhosphorRegular', [
+    'Phosphor-Regular.ttf',
+  ]);
   await load('packages/design_system/PhosphorFill', ['Phosphor-Fill.ttf']);
   await load('packages/design_system/Inter', [
     'Inter-Regular.ttf',
@@ -69,8 +71,10 @@ class _FakeMap extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size,
-        Paint()..color = dark ? const Color(0xFF1A1E21) : const Color(0xFFF1EBE0));
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = dark ? const Color(0xFF1A1E21) : const Color(0xFFF1EBE0),
+    );
     final road = Paint()
       ..color = dark ? const Color(0xFF3A4147) : const Color(0xFFFFFDF8)
       ..strokeWidth = 10;
@@ -83,10 +87,16 @@ class _FakeMap extends CustomPainter {
     for (var x = 40.0; x < size.width; x += 120) {
       canvas.drawLine(Offset(x, 0), Offset(x + 30, size.height), minor);
     }
-    canvas.drawLine(Offset(0, size.height * 0.2),
-        Offset(size.width, size.height * 0.34), road);
-    canvas.drawCircle(Offset(size.width * 0.8, size.height * 0.12), 50,
-        Paint()..color = dark ? const Color(0xFF1C2E23) : const Color(0xFFD9E6CF));
+    canvas.drawLine(
+      Offset(0, size.height * 0.2),
+      Offset(size.width, size.height * 0.34),
+      road,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.8, size.height * 0.12),
+      50,
+      Paint()..color = dark ? const Color(0xFF1C2E23) : const Color(0xFFD9E6CF),
+    );
     if (kolam) {
       final c = Offset(size.width / 2, size.height * 0.24);
       canvas.save();
@@ -117,7 +127,11 @@ void main() {
     etaSec: 60,
   );
   const breakdown = FareBreakdown(
-      baseFare: 30, distanceFare: 48, timeFare: 14, bookingFee: 10);
+    baseFare: 30,
+    distanceFare: 48,
+    timeFare: 14,
+    bookingFee: 10,
+  );
   final estimate = TripEstimate(
     distanceM: 4200,
     durationS: 900,
@@ -127,13 +141,51 @@ void main() {
     pickup: const GeoPoint(18.519, 73.855),
     dropoff: const GeoPoint(18.53, 73.87),
     tiers: const [
-      FareTier(tier: 'economy', label: 'Economy', capacity: 4, fare: 102, currency: 'INR', etaSeconds: 180, breakdown: breakdown),
-      FareTier(tier: 'comfort', label: 'Comfort', capacity: 4, fare: 140, currency: 'INR', etaSeconds: 300, breakdown: breakdown),
-      FareTier(tier: 'xl', label: 'XL', capacity: 6, fare: 190, currency: 'INR', etaSeconds: 420),
+      FareTier(
+        tier: 'economy',
+        label: 'Economy',
+        capacity: 4,
+        fare: 102,
+        currency: 'INR',
+        etaSeconds: 180,
+        breakdown: breakdown,
+      ),
+      FareTier(
+        tier: 'comfort',
+        label: 'Comfort',
+        capacity: 4,
+        fare: 140,
+        currency: 'INR',
+        etaSeconds: 300,
+        breakdown: breakdown,
+      ),
+      FareTier(
+        tier: 'xl',
+        label: 'XL',
+        capacity: 6,
+        fare: 190,
+        currency: 'INR',
+        etaSeconds: 420,
+      ),
       // Auto and bike are not tiers yet (another change adds them to the
       // backend); they are here to show D's list leading with them.
-      FareTier(tier: 'auto', label: 'Auto', capacity: 3, fare: 64, currency: 'INR', etaSeconds: 120, breakdown: breakdown),
-      FareTier(tier: 'bike', label: 'Bike', capacity: 1, fare: 38, currency: 'INR', etaSeconds: 90),
+      FareTier(
+        tier: 'auto',
+        label: 'Auto',
+        capacity: 3,
+        fare: 64,
+        currency: 'INR',
+        etaSeconds: 120,
+        breakdown: breakdown,
+      ),
+      FareTier(
+        tier: 'bike',
+        label: 'Bike',
+        capacity: 1,
+        fare: 38,
+        currency: 'INR',
+        etaSeconds: 90,
+      ),
     ],
   );
   final trip = Trip(
@@ -145,9 +197,13 @@ void main() {
     currency: 'INR',
     fareEstimate: 102,
     pickup: const TripEndpoint(
-        point: GeoPoint(18.519, 73.855), address: 'Shaniwar Wada, Pune'),
+      point: GeoPoint(18.519, 73.855),
+      address: 'Shaniwar Wada, Pune',
+    ),
     dropoff: const TripEndpoint(
-        point: GeoPoint(18.53, 73.87), address: 'Koregaon Park, Pune'),
+      point: GeoPoint(18.53, 73.87),
+      address: 'Koregaon Park, Pune',
+    ),
   );
   final base = TripState(
     trip: trip,
@@ -174,26 +230,36 @@ void main() {
       phase: TripPhase.completed,
       fareFinal: 102.0,
       receipt: const Receipt(
-          tripId: 't1', fare: 102, currency: 'INR', method: 'cash'),
+        tripId: 't1',
+        fare: 102,
+        currency: 'INR',
+        method: 'cash',
+      ),
     ),
   };
   const saved = [
     SavedPlace(
-        id: 'h',
-        label: 'Home',
-        point: GeoPoint(18.52, 73.85),
-        address: 'Deccan Gymkhana, Pune'),
+      id: 'h',
+      label: 'Home',
+      point: GeoPoint(18.52, 73.85),
+      address: 'Deccan Gymkhana, Pune',
+    ),
     SavedPlace(
-        id: 'w',
-        label: 'Work',
-        point: GeoPoint(18.55, 73.9),
-        address: 'EON IT Park, Kharadi'),
+      id: 'w',
+      label: 'Work',
+      point: GeoPoint(18.55, 73.9),
+      address: 'EON IT Park, Kharadi',
+    ),
   ];
 
   const phone = Size(390, 844);
 
-  Future<GlobalKey> pump(WidgetTester tester, TripState state,
-      {required bool dark, required bool withFonts}) async {
+  Future<GlobalKey> pump(
+    WidgetTester tester,
+    TripState state, {
+    required bool dark,
+    required bool withFonts,
+  }) async {
     tester.view.physicalSize = phone * 3;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -202,46 +268,51 @@ void main() {
     final cubit = MockTripCubit();
     whenListen(cubit, const Stream<TripState>.empty(), initialState: state);
     final key = GlobalKey();
-    await tester.pumpWidget(RepaintBoundary(
-      key: key,
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: dark ? AppTheme.dark : AppTheme.light,
-        home: MediaQuery(
-          data: const MediaQueryData(
-            size: phone,
-            padding: EdgeInsets.only(top: 47, bottom: 34),
-            // The shot is a still: the finished kolam, the popped check.
-            disableAnimations: true,
-          ),
-          child: Scaffold(
-            body: BlocProvider<TripCubit>.value(
-              value: cubit,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _FakeMap(
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: dark ? AppTheme.dark : AppTheme.light,
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: phone,
+              padding: EdgeInsets.only(top: 47, bottom: 34),
+              // The shot is a still: the finished kolam, the popped check.
+              disableAnimations: true,
+            ),
+            child: Scaffold(
+              body: BlocProvider<TripCubit>.value(
+                value: cubit,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _FakeMap(
                           dark: dark,
-                          kolam: state.phase == TripPhase.searching),
+                          kolam: state.phase == TripPhase.searching,
+                        ),
+                      ),
                     ),
-                  ),
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: RideSheetForPhase(
-                      state: state,
-                      onSearch: () {},
-                      onPickSaved: (_) {},
-                      savedPlaces: state.phase == TripPhase.idle ? saved : const [],
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: RideSheetForPhase(
+                        state: state,
+                        onSearch: () {},
+                        onPickSaved: (_) {},
+                        savedPlaces: state.phase == TripPhase.idle
+                            ? saved
+                            : const [],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
-    ));
+    );
     for (var i = 0; i < 30; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
@@ -262,7 +333,12 @@ void main() {
     for (final dark in [false, true]) {
       testWidgets('$name (${dark ? 'dark' : 'light'})', (tester) async {
         if (out != null) await tester.runAsync(_loadFonts);
-        final key = await pump(tester, state, dark: dark, withFonts: out != null);
+        final key = await pump(
+          tester,
+          state,
+          dark: dark,
+          withFonts: out != null,
+        );
         expect(tester.takeException(), isNull);
 
         if (AppVariant.local) {
@@ -270,8 +346,10 @@ void main() {
             case 'where-to':
               expect(find.byType(LocalCityscape), findsOneWidget);
             case 'choose-ride':
-              expect(find.bySemanticsLabel('Fare details for Auto'),
-                  findsOneWidget);
+              expect(
+                find.bySemanticsLabel('Fare details for Auto'),
+                findsOneWidget,
+              );
               // Order comes from the server (cheapest first: bike, auto,
               // cars), the same in every look.
               expect(find.text('Auto'), findsOneWidget);
@@ -281,8 +359,11 @@ void main() {
             case 'completed':
               expect(find.byType(PayDriverStrip), findsOneWidget);
               expect(
-                  find.bySemanticsLabel(RegExp(r'^Pay ₹102 to Rahul: cash or UPI$')),
-                  findsOneWidget);
+                find.bySemanticsLabel(
+                  RegExp(r'^Pay ₹102 to Rahul: cash or UPI$'),
+                ),
+                findsOneWidget,
+              );
           }
         } else {
           expect(find.byType(LocalCityscape), findsNothing);
@@ -296,8 +377,9 @@ void main() {
           final image = await boundary.toImage(pixelRatio: 2);
           final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
           Directory(out).createSync(recursive: true);
-          File('$out/$name-${dark ? 'dark' : 'light'}.png')
-              .writeAsBytesSync(bytes!.buffer.asUint8List());
+          File(
+            '$out/$name-${dark ? 'dark' : 'light'}.png',
+          ).writeAsBytesSync(bytes!.buffer.asUint8List());
         });
       });
     }

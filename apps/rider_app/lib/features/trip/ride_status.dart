@@ -145,7 +145,9 @@ class RideStatus {
       case TripPhase.searching:
         return RideStatus(
           title: 'Finding your driver',
-          subtitle: stillLooking ? 'Still looking…' : 'Looking for nearby drivers…',
+          subtitle: stillLooking
+              ? 'Still looking…'
+              : 'Looking for nearby drivers…',
           tone: RideStatusTone.accent,
         );
 
@@ -175,7 +177,9 @@ class RideStatus {
               : '$who arriving in ${minuteLabel(eta)}',
           moment: almost ? null : '$who is on the way',
           momentDetail: almost ? null : 'arriving in ${minuteLabel(eta)}',
-          subtitle: almost ? 'Head to your pickup spot' : 'Meet at your pickup spot',
+          subtitle: almost
+              ? 'Head to your pickup spot'
+              : 'Meet at your pickup spot',
           tone: almost ? RideStatusTone.success : RideStatusTone.accent,
         );
 
@@ -214,7 +218,10 @@ class RideStatus {
           title: 'Ride completed',
           subtitle: fare == null
               ? null
-              : Fmt.money(fare, state.receipt?.currency ?? Market.current.currency),
+              : Fmt.money(
+                  fare,
+                  state.receipt?.currency ?? Market.current.currency,
+                ),
           tone: RideStatusTone.success,
         );
 

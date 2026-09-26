@@ -46,6 +46,9 @@ owner must check each page before launch**.
 
 | File | Source | Author | Changes |
 |---|---|---|---|
-| nav_home.json | https://lottiefiles.com/animations/home-ycTxzUxmLA ("Home", #53181) | Nam Nguyễn (/user/218669) | Minified; tinted at runtime; drawn at 0.92× in its box |
-| nav_trips.json | https://lottiefiles.com/animations/receipt-0r7sCEVjd9 ("Receipt", #110245) | Madhu (/madhu) | Minified; tinted at runtime; drawn at 1.55× (small in its canvas) |
-| nav_account.json | https://lottiefiles.com/animations/user-icon-MweI9qxwDa ("user icon", #111659) | Mukesh Naraniya (/dye6if9dhy) | Minified; tinted at runtime; drawn at 0.92× |
+
+## Bottom-nav icons (2026-09-26, replace the earlier line icons)
+Colourful filled illustrations in the same style as `gift.json`, recoloured to the brand teal/gold; Lottie Simple License.
+- `nav_home.json` — "house" by Sheraz Khan, https://lottiefiles.com/animations/house-5kDRkbZKF6 (orange roof -> teal, brown door -> gold)
+- `nav_trips.json` — "vehicle" by Mistry Yash, https://lottiefiles.com/animations/vehicle-eJKunc2QU5 (purple body -> teal, red light -> gold)
+- `nav_account.json` — "Unauthenticated User" by Saam Mohamed, https://lottiefiles.com/animations/unauthenticated-user-0mLs0yHws5 (orange -> teal)

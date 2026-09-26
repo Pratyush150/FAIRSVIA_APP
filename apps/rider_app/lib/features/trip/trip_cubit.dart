@@ -97,12 +97,24 @@ class TripCubit extends Cubit<TripState> {
       ..add(_realtime.on('trip:accepted').listen(_onAccepted))
       ..add(_realtime.on('trip:driver_location').listen(_onDriverLocation))
       ..add(_realtime.on('trip:message').listen(_onMessage))
-      ..add(_realtime.on('trip:arrived').listen((_) => _setPhase(TripPhase.driverArrived)))
-      ..add(_realtime.on('trip:started').listen((_) => emit(state.copyWith(
-            phase: TripPhase.onTrip,
-            liveEtaSec: null,
-            liveRemainingM: null,
-          ))))
+      ..add(
+        _realtime
+            .on('trip:arrived')
+            .listen((_) => _setPhase(TripPhase.driverArrived)),
+      )
+      ..add(
+        _realtime
+            .on('trip:started')
+            .listen(
+              (_) => emit(
+                state.copyWith(
+                  phase: TripPhase.onTrip,
+                  liveEtaSec: null,
+                  liveRemainingM: null,
+                ),
+              ),
+            ),
+      )
       ..add(_realtime.on('trip:completed').listen(_onCompleted))
       ..add(_realtime.on('trip:no_drivers').listen((_) => _onNoDrivers()))
       // Server-side endings/warnings the rider must not be deaf to: the
@@ -125,9 +137,11 @@ class TripCubit extends Cubit<TripState> {
       ..add(_realtime.on('trip:sync').listen(_onSync))
       ..add(_realtime.reconnects.listen((_) => _resync()))
       // Surface socket up/down edges so the UI can show a reconnecting banner.
-      ..add(_realtime.connection.listen((up) {
-        if (up != state.connected) emit(state.copyWith(connected: up));
-      }));
+      ..add(
+        _realtime.connection.listen((up) {
+          if (up != state.connected) emit(state.copyWith(connected: up));
+        }),
+      );
   }
 
   /// Pull the server-authoritative in-flight trip (if any) on a cold start.
@@ -234,8 +248,7 @@ class TripCubit extends Cubit<TripState> {
       TripStatus.completed || TripStatus.paymentFailed => TripPhase.completed,
       TripStatus.cancelled ||
       TripStatus.noDrivers ||
-      TripStatus.expired =>
-        TripPhase.idle,
+      TripStatus.expired => TripPhase.idle,
       _ => state.phase,
     };
     if (phase == TripPhase.idle) {
@@ -247,11 +260,13 @@ class TripCubit extends Cubit<TripState> {
       // show the summary from the trip row and fetch the receipt for the
       // itemised fare/tip.
       _resetTracking();
-      emit(state.copyWith(
-        phase: TripPhase.completed,
-        trip: trip,
-        fareFinal: trip.fareFinal ?? state.fareFinal,
-      ));
+      emit(
+        state.copyWith(
+          phase: TripPhase.completed,
+          trip: trip,
+          fareFinal: trip.fareFinal ?? state.fareFinal,
+        ),
+      );
       unawaited(_loadReceipt(trip.id));
     } else {
       // Rehydrate everything the map + sheets draw from the trip itself, not
@@ -264,25 +279,27 @@ class TripCubit extends Cubit<TripState> {
       final polyline = (driverPolyline == null || driverPolyline.isEmpty)
           ? state.driverRoutePolyline
           : driverPolyline;
-      emit(state.copyWith(
-        phase: phase,
-        trip: trip,
-        pickup: trip.pickup.point,
-        pickupAddr: trip.pickup.address ?? state.pickupAddr,
-        dropoff: trip.dropoff.point,
-        dropoffAddr: trip.dropoff.address ?? state.dropoffAddr,
-        stops: trip.stops,
-        driver: driver ?? state.driver,
-        driverRoutePolyline: polyline,
-        // Seed the car's position from the snapshot so a restored screen shows
-        // it where it is now. Without this the marker sat at whatever we last
-        // saw before the app was suspended — or nowhere at all after a cold
-        // start — until the next `trip:driver_location` ping arrived.
-        // The snapshot is read from the same Redis fix the live pings come
-        // from, so it is never staler than what we hold: prefer it, and keep
-        // the current position only when the server had no fix to give.
-        driverLocation: driver?.lastLocation ?? state.driverLocation,
-      ));
+      emit(
+        state.copyWith(
+          phase: phase,
+          trip: trip,
+          pickup: trip.pickup.point,
+          pickupAddr: trip.pickup.address ?? state.pickupAddr,
+          dropoff: trip.dropoff.point,
+          dropoffAddr: trip.dropoff.address ?? state.dropoffAddr,
+          stops: trip.stops,
+          driver: driver ?? state.driver,
+          driverRoutePolyline: polyline,
+          // Seed the car's position from the snapshot so a restored screen shows
+          // it where it is now. Without this the marker sat at whatever we last
+          // saw before the app was suspended — or nowhere at all after a cold
+          // start — until the next `trip:driver_location` ping arrived.
+          // The snapshot is read from the same Redis fix the live pings come
+          // from, so it is never staler than what we hold: prefer it, and keep
+          // the current position only when the server had no fix to give.
+          driverLocation: driver?.lastLocation ?? state.driverLocation,
+        ),
+      );
     }
   }
 
@@ -297,13 +314,18 @@ class TripCubit extends Cubit<TripState> {
     if (state.phase == TripPhase.idle) return;
     final by = data['by'] as String?;
     final reason = (data['reason'] as String?)?.trim();
-    final headline =
-        by == 'rider' ? 'Your ride was cancelled' : driverCancelledMessage;
+    final headline = by == 'rider'
+        ? 'Your ride was cancelled'
+        : driverCancelledMessage;
     _resetTracking();
-    emit(TripState(
-      connected: state.connected,
-      error: (reason == null || reason.isEmpty) ? headline : '$headline — $reason',
-    ));
+    emit(
+      TripState(
+        connected: state.connected,
+        error: (reason == null || reason.isEmpty)
+            ? headline
+            : '$headline — $reason',
+      ),
+    );
   }
 
   void _onOtpLocked(Map<String, dynamic> data) {
@@ -313,11 +335,13 @@ class TripCubit extends Cubit<TripState> {
 
   void _onPaymentWarning(Map<String, dynamic> data) {
     final message = (data['message'] as String?)?.trim();
-    emit(state.copyWith(
-      notice: (message == null || message.isEmpty)
-          ? 'Payment could not be processed'
-          : message,
-    ));
+    emit(
+      state.copyWith(
+        notice: (message == null || message.isEmpty)
+            ? 'Payment could not be processed'
+            : message,
+      ),
+    );
   }
 
   /// The UI has shown [TripState.notice]; drop it so the same message can
@@ -346,12 +370,14 @@ class TripCubit extends Cubit<TripState> {
 
   void _onDriverStopped(Map<String, dynamic> data) {
     if (!_isRiding() || !_isThisTrip(data)) return;
-    emit(state.copyWith(
-      alert: TripAlert(
-        TripAlertKind.driverStopped,
-        stoppedSec: (data['stoppedSec'] as num?)?.round(),
+    emit(
+      state.copyWith(
+        alert: TripAlert(
+          TripAlertKind.driverStopped,
+          stoppedSec: (data['stoppedSec'] as num?)?.round(),
+        ),
       ),
-    ));
+    );
   }
 
   /// The condition that raised an advisory has passed (back on the route, or
@@ -386,12 +412,13 @@ class TripCubit extends Cubit<TripState> {
     if (!_isThisTrip(data)) return;
     final polyline = data['polyline'] as String?;
     if (polyline == null || polyline.isEmpty) return;
-    emit(state.copyWith(
-      liveRoutePolyline: polyline,
-      liveRouteLeg: data['phase'] as String?,
-    ));
+    emit(
+      state.copyWith(
+        liveRoutePolyline: polyline,
+        liveRouteLeg: data['phase'] as String?,
+      ),
+    );
   }
-
 
   /// Forget the live driver position + stale watchdog (trip over / reset).
   void _resetTracking() {
@@ -443,13 +470,16 @@ class TripCubit extends Cubit<TripState> {
       // length counted from now (an older server sends neither).
       final endsAt = DateTime.tryParse('${data['searchEndsAt'] ?? ''}');
       final windowSec = data['searchWindowSec'];
-      emit(state.copyWith(
-        phase: TripPhase.searching,
-        searchEndsAt: endsAt?.toLocal() ??
-            (windowSec is num
-                ? DateTime.now().add(Duration(seconds: windowSec.toInt()))
-                : state.searchEndsAt),
-      ));
+      emit(
+        state.copyWith(
+          phase: TripPhase.searching,
+          searchEndsAt:
+              endsAt?.toLocal() ??
+              (windowSec is num
+                  ? DateTime.now().add(Duration(seconds: windowSec.toInt()))
+                  : state.searchEndsAt),
+        ),
+      );
     }
   }
 
@@ -460,7 +490,8 @@ class TripCubit extends Cubit<TripState> {
     // A scheduled ride fires while this screen has no trip loaded (or a
     // stale one), and a trip booked earlier may predate its start code:
     // pull the server copy so the card shows pickup, dropoff and the code.
-    final needsTrip = tripId != null &&
+    final needsTrip =
+        tripId != null &&
         (trip == null ||
             trip.id != tripId ||
             (otp != null && trip.startOtp == null));
@@ -472,13 +503,15 @@ class TripCubit extends Cubit<TripState> {
       }
     }
     if (isClosed) return;
-    emit(state.copyWith(
-      phase: TripPhase.driverEnRoute,
-      trip: trip,
-      driver: AssignedDriver.fromAcceptedEvent(data),
-      // Route the driver takes to reach the pickup — drawn during the approach.
-      driverRoutePolyline: data['driverPolyline'] as String?,
-    ));
+    emit(
+      state.copyWith(
+        phase: TripPhase.driverEnRoute,
+        trip: trip,
+        driver: AssignedDriver.fromAcceptedEvent(data),
+        // Route the driver takes to reach the pickup — drawn during the approach.
+        driverRoutePolyline: data['driverPolyline'] as String?,
+      ),
+    );
   }
 
   String? _myId;
@@ -518,19 +551,22 @@ class TripCubit extends Cubit<TripState> {
         : _liveProgress(here);
     final heading = (data['heading'] as num?)?.toDouble();
     _restartStaleWatchdog();
-    emit(state.copyWith(
-      driverLocation: here,
-      // Keep the last known heading when a ping omits it (stationary fix).
-      driverHeading: heading ?? state.driverHeading,
-      driverSeenAt: DateTime.now(),
-      driverStale: false,
-      liveEtaSec: live?.etaSec,
-      liveRemainingM: live?.remainingM,
-    ));
+    emit(
+      state.copyWith(
+        driverLocation: here,
+        // Keep the last known heading when a ping omits it (stationary fix).
+        driverHeading: heading ?? state.driverHeading,
+        driverSeenAt: DateTime.now(),
+        driverStale: false,
+        liveEtaSec: live?.etaSec,
+        liveRemainingM: live?.remainingM,
+      ),
+    );
   }
 
   @visibleForTesting
-  void debugDriverLocation(Map<String, dynamic> data) => _onDriverLocation(data);
+  void debugDriverLocation(Map<String, dynamic> data) =>
+      _onDriverLocation(data);
 
   /// Remaining distance + ETA along the leg the driver is currently driving
   /// (approach polyline while en route, trip route once started), so the
@@ -549,9 +585,11 @@ class TripCubit extends Cubit<TripState> {
         seconds = state.driver?.etaSec?.toDouble();
       case TripPhase.onTrip:
         encoded = state.estimate?.polyline ?? state.trip?.routePolyline;
-        metres = state.estimate?.distanceM.toDouble() ??
+        metres =
+            state.estimate?.distanceM.toDouble() ??
             state.trip?.distanceM?.toDouble();
-        seconds = state.estimate?.durationS.toDouble() ??
+        seconds =
+            state.estimate?.durationS.toDouble() ??
             state.trip?.durationS?.toDouble();
       default:
         return null;
@@ -569,16 +607,18 @@ class TripCubit extends Cubit<TripState> {
   void _onCompleted(Map<String, dynamic> data) {
     _resetTracking();
     final reported = (data['fareFinal'] as num?)?.toDouble();
-    emit(state.copyWith(
-      phase: TripPhase.completed,
-      // Never let a completion event without a usable fare wipe out one we
-      // already hold — that is how a finished ride showed \$0.00.
-      fareFinal: (reported != null && reported > 0)
-          ? reported
-          : (state.fareFinal ?? state.trip?.fareDisplay),
-      alert: null,
-      breakdown: FareBreakdown.fromJsonOrNull(data['breakdown']),
-    ));
+    emit(
+      state.copyWith(
+        phase: TripPhase.completed,
+        // Never let a completion event without a usable fare wipe out one we
+        // already hold — that is how a finished ride showed \$0.00.
+        fareFinal: (reported != null && reported > 0)
+            ? reported
+            : (state.fareFinal ?? state.trip?.fareDisplay),
+        alert: null,
+        breakdown: FareBreakdown.fromJsonOrNull(data['breakdown']),
+      ),
+    );
     // Pull the full receipt (fare + fee + payout + tip) for the summary sheet.
     final tripId = state.trip?.id;
     if (tripId != null) unawaited(_loadReceipt(tripId));
@@ -607,7 +647,9 @@ class TripCubit extends Cubit<TripState> {
         // Offline or a hiccup — fall through to the retry.
       }
       // Still on this trip's summary? If the rider has moved on, stop.
-      if (state.phase != TripPhase.completed || state.trip?.id != tripId) return;
+      if (state.phase != TripPhase.completed || state.trip?.id != tripId) {
+        return;
+      }
       if (attempt < receiptAttempts - 1) {
         await Future<void>.delayed(receiptRetryDelay);
       }
@@ -622,10 +664,13 @@ class TripCubit extends Cubit<TripState> {
     // Returning silently left the rider tapping a button that did nothing and
     // never said why; say it instead.
     if (tripId == null) {
-      emit(state.copyWith(
-        error: "This ride's details are still loading — try the tip again in "
-            'a moment.',
-      ));
+      emit(
+        state.copyWith(
+          error:
+              "This ride's details are still loading — try the tip again in "
+              'a moment.',
+        ),
+      );
       return;
     }
     emit(state.copyWith(tipping: true, error: null));
@@ -691,15 +736,16 @@ class TripCubit extends Cubit<TripState> {
     // message, so the rider can just re-tap Confirm instead of being stuck on
     // "finding driver" or bounced to a dead-end error screen.
     if (state.estimate != null) {
-      emit(state.copyWith(
-        phase: TripPhase.choosingRide,
-        error: noDriversNearby,
-      ));
+      emit(
+        state.copyWith(phase: TripPhase.choosingRide, error: noDriversNearby),
+      );
     } else {
-      emit(state.copyWith(
-        phase: TripPhase.error,
-        error: 'No drivers available right now. Please try again.',
-      ));
+      emit(
+        state.copyWith(
+          phase: TripPhase.error,
+          error: 'No drivers available right now. Please try again.',
+        ),
+      );
     }
   }
 
@@ -711,8 +757,8 @@ class TripCubit extends Cubit<TripState> {
 
   @override
   void emit(TripState state) => super.emit(
-        state.offerPromo == _offer ? state : state.copyWith(offerPromo: _offer),
-      );
+    state.offerPromo == _offer ? state : state.copyWith(offerPromo: _offer),
+  );
 
   /// "Apply to next ride" from the Offers page / a Home offer banner. When
   /// the ride sheet is already open, the code is applied right away.
@@ -726,11 +772,15 @@ class TripCubit extends Cubit<TripState> {
   void clearOffer() {
     final code = _offer?.code;
     _offer = null;
-    emit(state.copyWith(
-      offerPromo: null,
-      appliedPromo: state.appliedPromo?.code == code ? null : state.appliedPromo,
-      promoError: state.appliedPromo?.code == code ? null : state.promoError,
-    ));
+    emit(
+      state.copyWith(
+        offerPromo: null,
+        appliedPromo: state.appliedPromo?.code == code
+            ? null
+            : state.appliedPromo,
+        promoError: state.appliedPromo?.code == code ? null : state.promoError,
+      ),
+    );
   }
 
   /// Applies the picked offer to a fresh ride sheet, if there is one.
@@ -746,24 +796,28 @@ class TripCubit extends Cubit<TripState> {
     required GeoPoint dropoff,
     String? dropoffAddr,
   }) async {
-    emit(state.copyWith(
-      phase: TripPhase.loadingEstimate,
-      pickup: pickup,
-      pickupAddr: pickupAddr,
-      dropoff: dropoff,
-      dropoffAddr: dropoffAddr,
-      error: null,
-    ));
+    emit(
+      state.copyWith(
+        phase: TripPhase.loadingEstimate,
+        pickup: pickup,
+        pickupAddr: pickupAddr,
+        dropoff: dropoff,
+        dropoffAddr: dropoffAddr,
+        error: null,
+      ),
+    );
     try {
       final estimate = await _repository.estimate(pickup, dropoff);
-      emit(state.copyWith(
-        phase: TripPhase.choosingRide,
-        estimate: estimate,
-        selectedTier: FareTier.defaultTier(estimate.tiers),
-        appliedPromo: null,
-        promoError: null,
-        stops: const [],
-      ));
+      emit(
+        state.copyWith(
+          phase: TripPhase.choosingRide,
+          estimate: estimate,
+          selectedTier: FareTier.defaultTier(estimate.tiers),
+          appliedPromo: null,
+          promoError: null,
+          stops: const [],
+        ),
+      );
       unawaited(loadPaymentMethods());
       await _applyOffer();
     } on ApiException catch (e) {
@@ -786,9 +840,8 @@ class TripCubit extends Cubit<TripState> {
   }
 
   /// Choose a specific saved card (mode 'card') for the ride.
-  void selectPaymentCard(String methodId) => emit(
-        state.copyWith(paymentMode: 'card', selectedMethodId: methodId),
-      );
+  void selectPaymentCard(String methodId) =>
+      emit(state.copyWith(paymentMode: 'card', selectedMethodId: methodId));
 
   /// Picks a tier; an applied promo is re-priced against the new fare so the
   /// discount on the sheet and Confirm stays true.
@@ -824,15 +877,20 @@ class TripCubit extends Cubit<TripState> {
     if (s.pickup == null || s.dropoff == null) return;
     emit(state.copyWith(phase: TripPhase.loadingEstimate, stops: stops));
     try {
-      final estimate =
-          await _repository.estimate(s.pickup!, s.dropoff!, stops: stops);
-      emit(state.copyWith(
-        phase: TripPhase.choosingRide,
-        estimate: estimate,
-        selectedTier: FareTier.defaultTier(estimate.tiers),
-        appliedPromo: null,
-        promoError: null,
-      ));
+      final estimate = await _repository.estimate(
+        s.pickup!,
+        s.dropoff!,
+        stops: stops,
+      );
+      emit(
+        state.copyWith(
+          phase: TripPhase.choosingRide,
+          estimate: estimate,
+          selectedTier: FareTier.defaultTier(estimate.tiers),
+          appliedPromo: null,
+          promoError: null,
+        ),
+      );
       await _applyOffer();
     } on ApiException catch (e) {
       emit(state.copyWith(phase: TripPhase.choosingRide, error: e.message));
@@ -848,17 +906,21 @@ class TripCubit extends Cubit<TripState> {
     emit(state.copyWith(applyingPromo: true, promoError: null));
     try {
       final quote = await _repository.quotePromo(trimmed, fare);
-      emit(state.copyWith(
-        applyingPromo: false,
-        appliedPromo: quote,
-        promoError: null,
-      ));
+      emit(
+        state.copyWith(
+          applyingPromo: false,
+          appliedPromo: quote,
+          promoError: null,
+        ),
+      );
     } on ApiException catch (e) {
-      emit(state.copyWith(
-        applyingPromo: false,
-        appliedPromo: null,
-        promoError: e.message,
-      ));
+      emit(
+        state.copyWith(
+          applyingPromo: false,
+          appliedPromo: null,
+          promoError: e.message,
+        ),
+      );
     }
   }
 
@@ -872,11 +934,13 @@ class TripCubit extends Cubit<TripState> {
     emit(state.copyWith(appliedPromo: null, promoError: null));
   }
 
-  void setPaymentMode(String mode) => emit(state.copyWith(
-        paymentMode: mode,
-        // Cash clears any chosen card.
-        selectedMethodId: mode == 'cash' ? null : state.selectedMethodId,
-      ));
+  void setPaymentMode(String mode) => emit(
+    state.copyWith(
+      paymentMode: mode,
+      // Cash clears any chosen card.
+      selectedMethodId: mode == 'cash' ? null : state.selectedMethodId,
+    ),
+  );
 
   /// Set (or clear, with null) the future time to schedule the ride for.
   void setScheduledAt(DateTime? when) =>
@@ -885,8 +949,11 @@ class TripCubit extends Cubit<TripState> {
   /// Set (or clear) the rider's pickup note for the driver.
   void setPickupNote(String? note) {
     final trimmed = note?.trim();
-    emit(state.copyWith(
-        pickupNote: (trimmed == null || trimmed.isEmpty) ? null : trimmed));
+    emit(
+      state.copyWith(
+        pickupNote: (trimmed == null || trimmed.isEmpty) ? null : trimmed,
+      ),
+    );
   }
 
   /// Set (or clear) the person this ride is being booked for. Null means the
@@ -897,11 +964,13 @@ class TripCubit extends Cubit<TripState> {
   Future<void> confirmRide() async {
     final s = state;
     if (s.pickup == null || s.dropoff == null || s.selectedTier == null) return;
-    emit(state.copyWith(
-      phase: TripPhase.requesting,
-      error: null,
-      searchEndsAt: null, // a new search gets its own window
-    ));
+    emit(
+      state.copyWith(
+        phase: TripPhase.requesting,
+        error: null,
+        searchEndsAt: null, // a new search gets its own window
+      ),
+    );
     try {
       final trip = await _repository.createTrip(
         pickup: s.pickup!,
@@ -967,11 +1036,13 @@ class TripCubit extends Cubit<TripState> {
     );
     // An applied promo stays: its code is re-sent on the next Confirm and
     // the server re-prices the discount against the new fare.
-    emit(state.copyWith(
-      phase: TripPhase.choosingRide,
-      estimate: repriced,
-      error: priceChangedMessage(fare.toDouble()),
-    ));
+    emit(
+      state.copyWith(
+        phase: TripPhase.choosingRide,
+        estimate: repriced,
+        error: priceChangedMessage(fare.toDouble()),
+      ),
+    );
     return true;
   }
 
@@ -979,13 +1050,12 @@ class TripCubit extends Cubit<TripState> {
   /// none), so the UI can tell the rider they were charged.
   /// Phases in which the rider has a live request/assignment to cancel.
   static bool isCancellable(TripPhase phase) => switch (phase) {
-        TripPhase.requesting ||
-        TripPhase.searching ||
-        TripPhase.driverEnRoute ||
-        TripPhase.driverArrived =>
-          true,
-        _ => false,
-      };
+    TripPhase.requesting ||
+    TripPhase.searching ||
+    TripPhase.driverEnRoute ||
+    TripPhase.driverArrived => true,
+    _ => false,
+  };
 
   static DateTime? _sendableSchedule(DateTime? when) {
     if (when == null) return null;
@@ -1041,8 +1111,7 @@ class TripCubit extends Cubit<TripState> {
     if (trip == null || state.phase != TripPhase.onTrip) return false;
     emit(state.copyWith(error: null));
     try {
-      final receipt =
-          await _repository.endTripEarly(trip.id, reason: reason);
+      final receipt = await _repository.endTripEarly(trip.id, reason: reason);
       // The socket's `trip:completed` may already have moved us on.
       if (!isClosed && state.phase == TripPhase.onTrip) _onCompleted(receipt);
       return true;
@@ -1050,8 +1119,11 @@ class TripCubit extends Cubit<TripState> {
       emit(state.copyWith(error: e.message));
       return false;
     } catch (_) {
-      emit(state.copyWith(
-          error: 'Could not end the trip. Check your connection and try again.'));
+      emit(
+        state.copyWith(
+          error: 'Could not end the trip. Check your connection and try again.',
+        ),
+      );
       return false;
     }
   }

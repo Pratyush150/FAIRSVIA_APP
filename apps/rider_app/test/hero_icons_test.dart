@@ -16,32 +16,43 @@ class MockTripCubit extends MockCubit<TripState> implements TripCubit {}
 /// `--dart-define=THEME=daylight` (or `daynight`) it proves the 3D art is
 /// used in a light theme — and still not in a dark one.
 void main() {
-  Future<void> pump(WidgetTester tester, TripState state, ThemeData theme) async {
+  Future<void> pump(
+    WidgetTester tester,
+    TripState state,
+    ThemeData theme,
+  ) async {
     final cubit = MockTripCubit();
     whenListen(cubit, const Stream<TripState>.empty(), initialState: state);
-    await tester.pumpWidget(MaterialApp(
-      theme: theme,
-      home: Scaffold(
-        body: BlocProvider<TripCubit>.value(
-          value: cubit,
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: RideSheetForPhase(
-                state: state, onSearch: () {}, onPickSaved: (_) {}),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: Scaffold(
+          body: BlocProvider<TripCubit>.value(
+            value: cubit,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: RideSheetForPhase(
+                state: state,
+                onSearch: () {},
+                onPickSaved: (_) {},
+              ),
+            ),
           ),
         ),
       ),
-    ));
+    );
     for (var i = 0; i < 20; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
   }
 
-  Finder heroAt(String path) => find.byWidgetPredicate((w) =>
-      w is Image &&
-      w.image is AssetImage &&
-      (w.image as AssetImage).assetName == path &&
-      (w.image as AssetImage).package == 'design_system');
+  Finder heroAt(String path) => find.byWidgetPredicate(
+    (w) =>
+        w is Image &&
+        w.image is AssetImage &&
+        (w.image as AssetImage).assetName == path &&
+        (w.image as AssetImage).package == 'design_system',
+  );
   Finder hero(String name) => heroAt('assets/heroes/daylight/$name.png');
 
   final onTrip = TripState(
@@ -77,30 +88,43 @@ void main() {
   }
 
   testWidgets(
-      light
-          ? 'light Plan B/C: 3D art for Add a stop, Pre-book and Done'
-          : 'default build: Phosphor icons, no 3D art', (tester) async {
-    await pump(tester, onTrip, AppTheme.light);
-    expect(hero('add_stop'), light ? findsOneWidget : findsNothing);
-    expect(hero('prebook'), light ? findsOneWidget : findsNothing);
-    expect(find.byIcon(AppIconBadge.glyphFor(PhosphorIconsRegular.mapPinPlus)),
-        light ? findsNothing : findsOneWidget);
-    expect(find.byIcon(AppIconBadge.glyphFor(PhosphorIconsRegular.calendarCheck)),
-        light ? findsNothing : findsOneWidget);
+    light
+        ? 'light Plan B/C: 3D art for Add a stop, Pre-book and Done'
+        : 'default build: Phosphor icons, no 3D art',
+    (tester) async {
+      await pump(tester, onTrip, AppTheme.light);
+      expect(hero('add_stop'), light ? findsOneWidget : findsNothing);
+      expect(hero('prebook'), light ? findsOneWidget : findsNothing);
+      expect(
+        find.byIcon(AppIconBadge.glyphFor(PhosphorIconsRegular.mapPinPlus)),
+        light ? findsNothing : findsOneWidget,
+      );
+      expect(
+        find.byIcon(AppIconBadge.glyphFor(PhosphorIconsRegular.calendarCheck)),
+        light ? findsNothing : findsOneWidget,
+      );
 
-    await pump(tester, completed, AppTheme.light);
-    expect(hero('done'), light ? findsOneWidget : findsNothing);
-    // Plan D (THEME=local) draws its own check art in place of the glyph.
-    expect(find.byIcon(PhosphorIconsRegular.check),
-        light || AppVariant.local ? findsNothing : findsOneWidget);
-    expect(find.byType(LocalDoneArt),
-        AppVariant.local ? findsOneWidget : findsNothing);
-  });
+      await pump(tester, completed, AppTheme.light);
+      expect(hero('done'), light ? findsOneWidget : findsNothing);
+      // Plan D (THEME=local) draws its own check art in place of the glyph.
+      expect(
+        find.byIcon(PhosphorIconsRegular.check),
+        light || AppVariant.local ? findsNothing : findsOneWidget,
+      );
+      expect(
+        find.byType(LocalDoneArt),
+        AppVariant.local ? findsOneWidget : findsNothing,
+      );
+    },
+  );
 
   testWidgets('a dark theme never gets the light-lit 3D art', (tester) async {
     await pump(tester, onTrip, AppTheme.dark);
     expect(hero('add_stop'), findsNothing);
     expect(hero('prebook'), findsNothing);
-    expect(find.byIcon(AppIconBadge.glyphFor(PhosphorIconsRegular.mapPinPlus)), findsOneWidget);
+    expect(
+      find.byIcon(AppIconBadge.glyphFor(PhosphorIconsRegular.mapPinPlus)),
+      findsOneWidget,
+    );
   });
 }

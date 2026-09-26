@@ -79,9 +79,7 @@ mixin _SheetDrag<T extends StatefulWidget>
   bool _innerDrag = false;
 
   /// Handed to the sheet's scroll view: routes its drags to the sheet first.
-  late final _SheetScrollController _sheetScroll = _SheetScrollController(
-    this,
-  );
+  late final _SheetScrollController _sheetScroll = _SheetScrollController(this);
 
   /// The height to hand [AppSheet.height] (null: the rest sizing).
   double? get sheetHeight => _dragHeight;

@@ -68,8 +68,7 @@ class RideStatusHeader extends StatelessWidget {
                       ? BalancedText(
                           status.displayTitle,
                           key: ValueKey(status.title),
-                          style:
-                              theme.textTheme.headlineSmall?.serifMoment(32),
+                          style: theme.textTheme.headlineSmall?.serifMoment(32),
                         )
                       : _UnbrokenTitle(
                           status.displayTitle,
@@ -86,8 +85,8 @@ class RideStatusHeader extends StatelessWidget {
                     sub,
                     key: ValueKey(sub),
                     style: theme.textTheme.titleMedium?.tabular().copyWith(
-                          color: _toneColor(context, status.tone),
-                        ),
+                      color: _toneColor(context, status.tone),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

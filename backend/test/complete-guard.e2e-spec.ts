@@ -51,6 +51,19 @@ describe('Complete anywhere + early end (e2e)', () => {
     return false;
   };
 
+  // These tests assert the metered / minimum-fare rule itself. The price match
+  // (PRICE_MATCH_ENABLED, default on) would scale it against competitor models,
+  // and in e2e those are USD models against the DB's tier rates — so it is off
+  // here to keep the fare math deterministic. price-match.e2e covers the match.
+  const prevPriceMatch = process.env.PRICE_MATCH_ENABLED;
+  beforeAll(() => {
+    process.env.PRICE_MATCH_ENABLED = 'false';
+  });
+  afterAll(() => {
+    if (prevPriceMatch === undefined) delete process.env.PRICE_MATCH_ENABLED;
+    else process.env.PRICE_MATCH_ENABLED = prevPriceMatch;
+  });
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();

@@ -60,27 +60,33 @@ void main() {
     addTearDown(tester.view.reset);
     final cubit = MockTripCubit();
     whenListen(cubit, const Stream<TripState>.empty(), initialState: state);
-    await tester.pumpWidget(MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      home: MediaQuery(
-        data: MediaQueryData(size: size, textScaler: TextScaler.linear(scale)),
-        child: RepaintBoundary(
-          key: boundary,
-          child: Scaffold(
-            body: BlocProvider<TripCubit>.value(
-              value: cubit,
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                // Unbounded height: the whole sheet, as if pulled fully up.
-                child: SingleChildScrollView(
-                    child: CompletedSheet(state: state)),
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        home: MediaQuery(
+          data: MediaQueryData(
+            size: size,
+            textScaler: TextScaler.linear(scale),
+          ),
+          child: RepaintBoundary(
+            key: boundary,
+            child: Scaffold(
+              body: BlocProvider<TripCubit>.value(
+                value: cubit,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  // Unbounded height: the whole sheet, as if pulled fully up.
+                  child: SingleChildScrollView(
+                    child: CompletedSheet(state: state),
+                  ),
+                ),
               ),
             ),
           ),
         ),
       ),
-    ));
+    );
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
@@ -99,12 +105,14 @@ void main() {
     expect(find.textContaining('Total '), findsOneWidget);
     if (shots != null) {
       await tester.runAsync(() async {
-        final b = boundary.currentContext!.findRenderObject()!
-            as RenderRepaintBoundary;
+        final b =
+            boundary.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
         final img = await b.toImage(pixelRatio: 1.0);
         final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
-        File('$shots/sheet_completed.png')
-            .writeAsBytesSync(bytes!.buffer.asUint8List());
+        File(
+          '$shots/sheet_completed.png',
+        ).writeAsBytesSync(bytes!.buffer.asUint8List());
       });
     }
   });

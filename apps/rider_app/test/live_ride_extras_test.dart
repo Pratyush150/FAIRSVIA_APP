@@ -29,9 +29,13 @@ void main() {
     startOtp: '4827',
     paymentMode: 'cash',
     pickup: const TripEndpoint(
-        point: GeoPoint(18.52, 73.85), address: 'Central Square, Gate 2'),
+      point: GeoPoint(18.52, 73.85),
+      address: 'Central Square, Gate 2',
+    ),
     dropoff: const TripEndpoint(
-        point: GeoPoint(18.53, 73.87), address: 'Railway Station, North Exit'),
+      point: GeoPoint(18.53, 73.87),
+      address: 'Railway Station, North Exit',
+    ),
   );
 
   Future<void> pump(WidgetTester tester, Widget child, TripState state) async {
@@ -40,28 +44,36 @@ void main() {
     addTearDown(tester.view.reset);
     final cubit = MockTripCubit();
     whenListen(cubit, const Stream<TripState>.empty(), initialState: state);
-    await tester.pumpWidget(MaterialApp(
-      home: MediaQuery(
-        data: const MediaQueryData(
-            size: Size(360, 3000), textScaler: TextScaler.linear(1.5)),
-        child: Scaffold(
-          body: BlocProvider<TripCubit>.value(
-            value: cubit,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: child,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(360, 3000),
+            textScaler: TextScaler.linear(1.5),
+          ),
+          child: Scaffold(
+            body: BlocProvider<TripCubit>.value(
+              value: cubit,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: child,
+              ),
             ),
           ),
         ),
       ),
-    ));
+    );
     await tester.pump();
   }
 
-  testWidgets('searching extras: booked ride, route, payment, safety, tips',
-      (tester) async {
+  testWidgets('searching extras: booked ride, route, payment, safety, tips', (
+    tester,
+  ) async {
     final state = TripState(
-        phase: TripPhase.searching, trip: trip, paymentMode: 'cash');
+      phase: TripPhase.searching,
+      trip: trip,
+      paymentMode: 'cash',
+    );
     await pump(tester, LiveRideExtras(state: state, searching: true), state);
     expect(tester.takeException(), isNull);
     expect(find.text('What you booked'), findsOneWidget);
@@ -77,17 +89,22 @@ void main() {
     expect(find.text('Driver arriving'), findsNothing);
   });
 
-  testWidgets('driver sheet extras: ETA with clock time, toolkit, tips',
-      (tester) async {
+  testWidgets('driver sheet extras: ETA with clock time, toolkit, tips', (
+    tester,
+  ) async {
     final state = TripState(
-        phase: TripPhase.driverEnRoute, trip: trip, driver: driver);
-    await pump(
-        tester, DriverInfoSheet(state: state, arrived: false), state);
+      phase: TripPhase.driverEnRoute,
+      trip: trip,
+      driver: driver,
+    );
+    await pump(tester, DriverInfoSheet(state: state, arrived: false), state);
     expect(tester.takeException(), isNull);
     expect(find.text('Driver arriving'), findsOneWidget);
     expect(find.text('4 min away'), findsOneWidget);
-    expect(find.textContaining(RegExp(r'At your pickup by \d{1,2}:\d\d (AM|PM)')),
-        findsOneWidget);
+    expect(
+      find.textContaining(RegExp(r'At your pickup by \d{1,2}:\d\d (AM|PM)')),
+      findsOneWidget,
+    );
     expect(find.text('Going to'), findsOneWidget);
     expect(find.text('SOS & contacts'), findsOneWidget);
     expect(find.text('Meeting your driver'), findsOneWidget);

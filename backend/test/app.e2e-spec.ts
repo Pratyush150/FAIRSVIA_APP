@@ -1004,61 +1004,70 @@ describe('Ride App API (e2e)', () => {
     });
 
     it('surge: admin override raises the fare estimate, then clears', async () => {
-      // A pristine cell (Orlando) inside the Florida OSRM extract that no other
-      // test or simulation sends trips to, so organic surge stays 1 and the admin
-      // override floor is the only multiplier — isolating this assertion from
-      // cross-test/cross-run Redis demand. (Far from the Miami cluster the load
-      // sims exercise, so no residual surge, but still routable for a real fare.)
-      const orlando = {
-        pickupLat: 28.5383,
-        pickupLng: -81.3792,
-        dropoffLat: 28.55,
-        dropoffLng: -81.36,
-      };
-      // Self-heal: clear any override left by a prior failed run so the baseline
-      // is truly organic (surge 1) before we measure the override's effect.
-      await request(server)
-        .patch('/api/v1/admin/surge')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ multiplier: 1 })
-        .expect(200);
-      const base = await request(server)
-        .post('/api/v1/trips/estimate')
-        .set('Authorization', `Bearer ${token}`)
-        .send(orlando);
-      const economyOf = (b: { tiers: { tier: string; fare: number }[] }) =>
-        b.tiers.find((t) => t.tier === 'economy')!.fare;
-      const baseFare = economyOf(base.body);
-      expect(base.body.surge).toBe(1);
+      // Measures surge on our own metered fare: the price match (on by default)
+      // can cap both quotes at the same matched/floor number and hide it.
+      const prevPm = process.env.PRICE_MATCH_ENABLED;
+      process.env.PRICE_MATCH_ENABLED = 'false';
+      try {
+        // A pristine cell (Orlando) inside the Florida OSRM extract that no other
+        // test or simulation sends trips to, so organic surge stays 1 and the admin
+        // override floor is the only multiplier — isolating this assertion from
+        // cross-test/cross-run Redis demand. (Far from the Miami cluster the load
+        // sims exercise, so no residual surge, but still routable for a real fare.)
+        const orlando = {
+          pickupLat: 28.5383,
+          pickupLng: -81.3792,
+          dropoffLat: 28.55,
+          dropoffLng: -81.36,
+        };
+        // Self-heal: clear any override left by a prior failed run so the baseline
+        // is truly organic (surge 1) before we measure the override's effect.
+        await request(server)
+          .patch('/api/v1/admin/surge')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ multiplier: 1 })
+          .expect(200);
+        const base = await request(server)
+          .post('/api/v1/trips/estimate')
+          .set('Authorization', `Bearer ${token}`)
+          .send(orlando);
+        const economyOf = (b: { tiers: { tier: string; fare: number }[] }) =>
+          b.tiers.find((t) => t.tier === 'economy')!.fare;
+        const baseFare = economyOf(base.body);
+        expect(base.body.surge).toBe(1);
 
-      // Admin forces a 1.5x surge floor.
-      const set = await request(server)
-        .patch('/api/v1/admin/surge')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ multiplier: 1.5 });
-      expect(set.status).toBe(200);
-      expect(set.body.override).toBe(1.5);
+        // Admin forces a 1.5x surge floor.
+        const set = await request(server)
+          .patch('/api/v1/admin/surge')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ multiplier: 1.5 });
+        expect(set.status).toBe(200);
+        expect(set.body.override).toBe(1.5);
 
-      const surged = await request(server)
-        .post('/api/v1/trips/estimate')
-        .set('Authorization', `Bearer ${token}`)
-        .send(orlando);
-      expect(surged.body.surge).toBe(1.5);
-      expect(economyOf(surged.body)).toBeGreaterThan(baseFare);
+        const surged = await request(server)
+          .post('/api/v1/trips/estimate')
+          .set('Authorization', `Bearer ${token}`)
+          .send(orlando);
+        expect(surged.body.surge).toBe(1.5);
+        expect(economyOf(surged.body)).toBeGreaterThan(baseFare);
 
-      // Snapshot is visible to admins.
-      const snap = await request(server)
-        .get('/api/v1/admin/surge')
-        .set('Authorization', `Bearer ${adminToken}`);
-      expect(snap.status).toBe(200);
-      expect(snap.body.override).toBe(1.5);
+        // Snapshot is visible to admins.
+        const snap = await request(server)
+          .get('/api/v1/admin/surge')
+          .set('Authorization', `Bearer ${adminToken}`);
+        expect(snap.status).toBe(200);
+        expect(snap.body.override).toBe(1.5);
 
-      // Clear the override so other tests / runs see organic surge.
-      await request(server)
-        .patch('/api/v1/admin/surge')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ multiplier: 1 })
-        .expect(200);
+        // Clear the override so other tests / runs see organic surge.
+        await request(server)
+          .patch('/api/v1/admin/surge')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ multiplier: 1 })
+          .expect(200);
+      } finally {
+        if (prevPm === undefined) delete process.env.PRICE_MATCH_ENABLED;
+        else process.env.PRICE_MATCH_ENABLED = prevPm;
+      }
     });
 
     it('promo: admin creates a code, rider quotes it and rides with a discount', async () => {

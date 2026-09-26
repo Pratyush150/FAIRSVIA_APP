@@ -43,8 +43,12 @@ Future<void> _loadAllFonts() async {
   ]);
   // Phosphor icon fonts (the apps' icon family), under the package-qualified
   // families the IconData constants name.
-  await _loadFont('packages/design_system/PhosphorRegular', ['$_dsFonts/Phosphor-Regular.ttf']);
-  await _loadFont('packages/design_system/PhosphorFill', ['$_dsFonts/Phosphor-Fill.ttf']);
+  await _loadFont('packages/design_system/PhosphorRegular', [
+    '$_dsFonts/Phosphor-Regular.ttf',
+  ]);
+  await _loadFont('packages/design_system/PhosphorFill', [
+    '$_dsFonts/Phosphor-Fill.ttf',
+  ]);
   // The app's real UI face, under the exact package-qualified family the theme
   // asks for.
   await _loadFont('packages/design_system/Inter', [
@@ -171,7 +175,8 @@ void main() {
     test(
       'golden suite',
       () {},
-      skip: 'Goldens are the default build; THEME=${AppColors.variant} '
+      skip:
+          'Goldens are the default build; THEME=${AppColors.variant} '
           'restyles the card by design.',
     );
     return;

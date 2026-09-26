@@ -64,6 +64,9 @@ function checkComparison(c, cur, m) {
   ok(ours && ours.estimated === false, `[${cur}] our quote is a real price`);
   ok(c.quotes.filter((q) => !q.isOurs).every((q) => q.estimated === true), `[${cur}] competitors flagged estimated`);
   ok(/Estimates from published fares/.test(c.disclaimer || ''), `[${cur}] disclaimer present`);
+  // Owner rule (price match): RideVela is the cheapest, strictly.
+  const minOther = Math.min(...c.quotes.filter((q) => !q.isOurs).map((q) => q.price));
+  ok(c.ours.isCheapest && ours.price < minOther, `[${cur}] RideVela cheapest: ${m.fmt(ours.price)} < ${m.fmt(minOther)}`);
   console.log(`   ${(c.distanceM / 1000).toFixed(1)} km / ${c.durationMin} min`);
   for (const q of c.quotes) {
     console.log(`     ${q.displayName.padEnd(11)} ${q.productName.padEnd(14)} ${m.fmt(q.price)}${q.isOurs ? ' ← us' : ' (est.)'}`);
@@ -97,6 +100,26 @@ const run = async () => {
       ok(c.ours.price === ourTier?.fare, `[${t}] our price = ${t} fare ${ourTier?.fare}`);
       ok(c.quotes.some((q) => !q.isOurs), `[${t}] has competitor quotes`);
       console.log(`   ${t}: ` + c.quotes.map((q) => `${q.displayName} ${q.productName} ₹${q.price}`).join(' | '));
+    }
+
+    console.log('\n── price match: RideVela cheapest in every tier (5 km + ~1 km min-fare trip) ──');
+    const short = await api('/trips/estimate', {
+      method: 'POST',
+      token: rider.token,
+      // ~1 km in Shivajinagar: a minimum-fare trip.
+      body: { pickupLat: 18.53, pickupLng: 73.8475, dropoffLat: 18.5365, dropoffLng: 73.8540 },
+    });
+    for (const [label, e] of [['5 km', est], [`${(short.distanceM / 1000).toFixed(1)} km`, short]]) {
+      for (const t of tiers) {
+        const c = e.comparisonsByTier?.[t];
+        if (!c) { ok(false, `[${label} ${t}] comparison present`); continue; }
+        const minOther = Math.min(...c.quotes.filter((q) => !q.isOurs).map((q) => q.price));
+        const fare = e.tiers.find((x) => x.tier === t)?.fare;
+        ok(
+          c.ours.isCheapest && fare === c.ours.price && fare < minOther,
+          `[${label} ${t}] RideVela ₹${fare} (computed ₹${c.ours.priceMatch?.computedFare}) < cheapest competitor ₹${minOther}`,
+        );
+      }
     }
     ok(
       by.economy && JSON.stringify(by.economy.quotes) === JSON.stringify(est.comparison.quotes),

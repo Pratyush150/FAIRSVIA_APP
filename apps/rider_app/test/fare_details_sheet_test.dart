@@ -55,7 +55,8 @@ void main() {
   testWidgets('the lines add up to the total shown', (tester) async {
     await open(tester, tier);
 
-    final sum = breakdown.baseFare +
+    final sum =
+        breakdown.baseFare +
         breakdown.distanceFare +
         breakdown.timeFare +
         breakdown.bookingFee +

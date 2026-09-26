@@ -15,7 +15,11 @@ Future<void> showRideDetailsSheet(BuildContext context, TripState state) {
     builder: (sheetCtx) => SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
         child: RideDetailsContent(state: state),
       ),
     ),
@@ -104,7 +108,10 @@ class RideDetailsContent extends StatelessWidget {
                   Divider(height: AppSpacing.lg, color: theme.dividerColor),
                   FareBreakdownRows(
                     breakdown: breakdown,
-                    currency: state.receipt?.currency ?? trip?.currency ?? Market.current.currency,
+                    currency:
+                        state.receipt?.currency ??
+                        trip?.currency ??
+                        Market.current.currency,
                     showTip: false,
                     style: theme.textTheme.bodyMedium,
                   ),
@@ -131,16 +138,23 @@ class RideDetailsContent extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(driver.name,
-                                style: theme.textTheme.titleMedium),
+                            Text(
+                              driver.name,
+                              style: theme.textTheme.titleMedium,
+                            ),
                             const SizedBox(height: 2),
                             Row(
                               children: [
-                                const Icon(PhosphorIconsFill.star,
-                                    size: 16, color: AppColors.star),
+                                const Icon(
+                                  PhosphorIconsFill.star,
+                                  size: 16,
+                                  color: AppColors.star,
+                                ),
                                 const SizedBox(width: 3),
-                                Text(driver.rating.toStringAsFixed(1),
-                                    style: theme.textTheme.labelLarge),
+                                Text(
+                                  driver.rating.toStringAsFixed(1),
+                                  style: theme.textTheme.labelLarge,
+                                ),
                               ],
                             ),
                           ],
@@ -161,8 +175,9 @@ class RideDetailsContent extends StatelessWidget {
                       label: 'Plate',
                       // Spaced as on the driver card and the map tag.
                       value: Market.current.formatPlate(plate),
-                      spokenValue:
-                          AppA11y.spell(Market.current.formatPlate(plate)),
+                      spokenValue: AppA11y.spell(
+                        Market.current.formatPlate(plate),
+                      ),
                     ),
                 ],
               ),
@@ -257,10 +272,13 @@ class _RideDetailRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Label glyphs, not meaning: neutral, 20 px (audit 2.1 rules 2/4).
-          Icon(icon,
-              size: 20,
-              color: AppColors.iconNeutralFor(
-                  theme.brightness == Brightness.dark)),
+          Icon(
+            icon,
+            size: 20,
+            color: AppColors.iconNeutralFor(
+              theme.brightness == Brightness.dark,
+            ),
+          ),
           const SizedBox(width: AppSpacing.sm),
           Text(label, style: theme.textTheme.bodyMedium),
           const SizedBox(width: AppSpacing.md),
@@ -268,8 +286,9 @@ class _RideDetailRow extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
