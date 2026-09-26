@@ -51,7 +51,7 @@ void main() {
     await tester.tap(find.widgetWithText(PrimaryButton, 'Save contact'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Enter a mobile number'), findsOneWidget);
+    expect(find.text('Enter a valid mobile number'), findsOneWidget);
     verifyNever(() => safety.addContact(any(), any()));
   });
 
@@ -102,5 +102,14 @@ void main() {
 
     expect(find.text('Mum'), findsOneWidget);
     expect(find.text('Server error'), findsOneWidget);
+  });
+
+  testWidgets('India: field starts empty, hints the local format, lists locally',
+      (tester) async {
+    Market.current = Market.india;
+    addTearDown(() => Market.current = Market.unitedStates);
+    expect(localPhone('+919876543210'), '98765 43210');
+    // Another country's number keeps its code.
+    expect(localPhone('+998901234567'), '+998 90 123 45 67');
   });
 }

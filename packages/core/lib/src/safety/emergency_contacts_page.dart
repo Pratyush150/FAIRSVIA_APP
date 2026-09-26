@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_modal_sheet.dart';
 
 import '../network/api_exception.dart';
+import '../account/format.dart';
 import 'safety_remote_data_source.dart';
 import 'package:shared_models/shared_models.dart';
 
@@ -145,7 +146,7 @@ class _EmergencyContactsPageState extends State<EmergencyContactsPage> {
                           horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                       leading: AppAvatar(name: contacts[i].name, size: 44),
                       title: Text(contacts[i].name),
-                      subtitle: Text(contacts[i].phone),
+                      subtitle: Text(localPhone(contacts[i].phone)),
                       trailing: IconButton(
                         tooltip: 'Remove ${contacts[i].name}',
                         icon: const Icon(PhosphorIconsRegular.trash),
@@ -184,7 +185,9 @@ class _AddContactSheet extends StatefulWidget {
 class _AddContactSheetState extends State<_AddContactSheet> {
   final _form = GlobalKey<FormState>();
   final _name = TextEditingController();
-  final _phone = TextEditingController(text: '+998 ');
+  // Empty: the user types the number as they know it (98765 43210); the
+  // market's dial code is added on save. Was pre-filled with '+998 '.
+  final _phone = TextEditingController();
   bool _saving = false;
   String? _error;
 
@@ -245,10 +248,10 @@ class _AddContactSheetState extends State<_AddContactSheet> {
               onFieldSubmitted: (_) => _save(),
               decoration: InputDecoration(
                 labelText: 'Mobile number',
-                helperText: 'e.g. ${Market.current.examplePhone}',
+                hintText: _localExample(),
               ),
               validator: (v) => Market.current.toE164(v ?? '') == null
-                  ? 'Enter a mobile number'
+                  ? 'Enter a valid mobile number'
                   : null,
             ),
             if (_error != null) ...[
@@ -268,4 +271,20 @@ class _AddContactSheetState extends State<_AddContactSheet> {
       ),
     );
   }
+}
+
+/// The market's example number without its dial code ("98765 43210").
+String _localExample() {
+  final m = Market.current;
+  final ex = m.examplePhone;
+  return ex.startsWith(m.dialCode) ? ex.substring(m.dialCode.length).trim() : ex;
+}
+
+/// A stored E.164 number shown the way people write it locally: this
+/// market's numbers without the dial code ("98765 43210"); others in full.
+String localPhone(String e164) {
+  final m = Market.current;
+  final pretty = Fmt.phone(e164);
+  final prefix = '${m.dialCode} ';
+  return pretty.startsWith(prefix) ? pretty.substring(prefix.length) : pretty;
 }
