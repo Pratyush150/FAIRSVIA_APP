@@ -44,8 +44,9 @@ class RideDetailRowsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
-    final muted =
-        dark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final muted = dark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -56,39 +57,79 @@ class RideDetailRowsCard extends StatelessWidget {
           ],
           for (var i = 0; i < rows.length; i++) ...[
             if (i > 0) const SizedBox(height: AppSpacing.sm),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (rows[i].icon != null) ...[
-                  Icon(rows[i].icon, size: 18, color: muted),
-                  const SizedBox(width: AppSpacing.sm),
-                ],
-                Expanded(
-                  child: Text(rows[i].label,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: muted)),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Flexible(
-                  child: Text(
-                    rows[i].value,
-                    textAlign: TextAlign.end,
-                    style: (rows[i].emphasis
-                            ? theme.textTheme.titleSmall
-                            : theme.textTheme.bodyMedium)
-                        ?.copyWith(
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                      color: rows[i].positive ? AppColors.success : null,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            _DetailLine(row: rows[i], muted: muted),
           ],
           if (footnote != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(footnote!, style: theme.textTheme.bodySmall),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One tidy line: icon · label on the left (never squeezed), the value on
+/// the right taking the rest, one line with "…" (two for long values like an
+/// address). A tip line (empty value) lets the label use the full width.
+class _DetailLine extends StatelessWidget {
+  const _DetailLine({required this.row, required this.muted});
+
+  final RideDetailRow row;
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelStyle = theme.textTheme.bodyMedium?.copyWith(color: muted);
+    final icon = row.icon == null
+        ? null
+        : Icon(row.icon, size: 18, color: muted);
+    if (row.value.isEmpty) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null) ...[icon, const SizedBox(width: AppSpacing.sm)],
+          Expanded(child: Text(row.label, style: labelStyle)),
+        ],
+      );
+    }
+    final long = row.value.length > 28;
+    return LayoutBuilder(
+      builder: (context, box) => Row(
+        crossAxisAlignment: long
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
+        children: [
+          if (icon != null) ...[icon, const SizedBox(width: AppSpacing.sm)],
+          // The label keeps its natural width but never more than 45% of the
+          // line, so big text sizes can't push the value off the edge.
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: box.maxWidth * 0.45),
+            child: Text(
+              row.label,
+              style: labelStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              row.value,
+              textAlign: TextAlign.end,
+              maxLines: long ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  (row.emphasis
+                          ? theme.textTheme.titleSmall
+                          : theme.textTheme.bodyMedium)
+                      ?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        color: row.positive ? AppColors.success : null,
+                      ),
+            ),
+          ),
         ],
       ),
     );

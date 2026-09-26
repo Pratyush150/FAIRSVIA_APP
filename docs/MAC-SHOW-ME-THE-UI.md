@@ -1,4 +1,4 @@
-# Mac: show the owner every screen, one by one (updated 2026-09-26, v2.16.0)
+# Mac: show the owner every screen, one by one (updated 2026-09-26, v2.16.2)
 
 **Who this is for:** the Claude session (or person) on the Mac at
 `/Users/parthbhimani/ubernav`. Follow it top to bottom. At every **SHOW** step,
@@ -8,10 +8,10 @@ screenshot, and wait for "next" before moving on.
 Rules: never commit `ios/Flutter/Secrets.xcconfig`; never force-push; this Mac
 only builds iOS — the backend and the fake drivers run on **nova-pc**
 (`ssh nova-pc`, already set up here). Nothing in this file has been run on
-iOS yet: Android 2.16.0 was checked on nova-pc's emulator and the owner's
+iOS yet: Android 2.16.2 was checked on nova-pc's emulator and the owner's
 Realme and vivo. Treat every row as "expected", not "already seen on an iPhone".
 
-**Current version: 2.16.0 (build 7600)** or later for both apps. The look is the final
+**Current version: 2.16.2 (build 7620)** or later for both apps. The look is the final
 **Plan F "Map Glass"**, which is the default build (no THEME flag). Don't
 build other THEME flags.
 
@@ -41,7 +41,7 @@ cd ~/ubernav/apps/rider_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM \
   --dart-define=API_BASE_URL=$URL --dart-define=MARKET=in \
   --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=2.16.0 --build-number=7600
+  --build-name=2.16.2 --build-number=7620
 ```
 If release mode isn't supported on the simulator, use `--profile`. For a
 cabled iPhone, use its id from `flutter devices`.
@@ -71,7 +71,7 @@ On **nova-pc**, run helpers from a second terminal when a step says so:
 | 13 | Drag that sheet fully up | What you booked (car picture, fare, payment), route, "Cancelling now is free", Stay safe tools, while-you-wait tips, posters |
 | 14 | Cancel; nova-pc: `ssh nova-pc "cd $F && $P APPROACH_S=240 WAIT_AT_PICKUP_S=120 node slow-ride.mjs 3"`; book again | **Driver on the way**: plate biggest, car, name + ★, Ride PIN, Call + Message. Pulled up: a **car gliding toward a pickup pin** as the real ETA falls, "At your pickup by h:mm AM/PM", route, payment, safety tools (the **SOS tile pulses red**), meeting tips, posters |
 | 15 | Driver arrives | "has arrived" with an **arrived animation** |
-| 16 | Trip starts | "On the way to …" shown once; Safety, Share and Call. Pulled up: **Trip progress** with a **car sliding along the bar**, arrival time, your driver, safety tiles, trip details (fare, payment, promo), "Plan your ride back" poster |
+| 16 | Trip starts | "On the way to …" shown once; Safety, Share and Call. Pulled up: **Trip progress** with a **car sliding along the bar**, arrival time, your driver, safety tiles, trip details (fare, payment, promo), "Plan your ride back" poster. **Trip details card (2.16.2):** each line is tidy, with icon and label on the left and the value right-aligned on the same line (Pickup, Ride, Promo, Pay by, Fare in bold). A long pickup address wraps to at most 2 lines on the right, and nothing overflows at large text sizes |
 | 17 | For a finished ride: `ssh nova-pc "cd $F && $P node demo-live-ride.mjs"`, then book | **Ride completed** at 75% of the screen: **full confetti burst** (no longer clipped), one "Total ₹…" line with Details, stars, tips (tap an amount = selected, tap again = removed, no extra confirm), **Done pinned**. Pulled higher: Your trip card, **Plan your return / Book this trip again**, Receipt / Get help, posters |
 | 18 | Trips tab → tap a past trip | **Your trip** page: route map snapshot with distance/time pills, car + date + total, pickup→drop timeline, driver + plate, fare breakdown, payment, Share receipt / Get help |
 | 19 | Map anywhere | **Solid pins**: teal pickup with a white dot, dark drop-off with a white square; your location is a **blue dot with a halo** |
@@ -113,7 +113,7 @@ How it works (backend):
 cd ~/ubernav/apps/driver_app && flutter pub get && (cd ios && pod install)
 flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
   --dart-define=MARKET=in --dart-define=ALLOW_SERVER_OVERRIDE=true \
-  --build-name=2.16.0 --build-number=7600
+  --build-name=2.16.2 --build-number=7620
 ```
 | # | SHOW |
 |---|---|
@@ -138,7 +138,7 @@ flutter run --release -d $SIM --dart-define=API_BASE_URL=$URL \
 
 ## 5a. Make sure iOS looks the same as the Android phones
 
-The UI is shared Flutter code, and the same fonts, images, colours and animations are bundled for both platforms. So every screen should match the APKs on the Realme and vivo (2.16.0). Only these native parts differ by platform, and all of them are set to match:
+The UI is shared Flutter code, and the same fonts, images, colours and animations are bundled for both platforms. So every screen should match the APKs on the Realme and vivo (2.16.2). Only these native parts differ by platform, and all of them are set to match:
 - **Launch screen:** `ios/Runner/Base.lproj/LaunchScreen.storyboard` uses the `LaunchBackground` colour (#F7F8F9 light, #0E1114 dark), the same as the Android splash and the first Flutter frame, so there is no white flash before the launch animation.
 - **App icon and name:** the same Road-V icon; the apps are named "RideVela Rider" and "RideVela Driver".
 - **Maps:** these need the Google Maps iOS key in `ios/Flutter/Secrets.xcconfig` on this Mac (never commit it). Without the key the map is blank grey.
@@ -149,7 +149,7 @@ Check: put the iPhone next to one of the Android phones, open the same screens (
 ## 5. Install on the iPhone
 
 Build the same two apps (sections 2 and 4) on the cabled iPhone with
-`--build-name=2.16.0 --build-number=7600`. No THEME flag, no bundle-ID changes.
+`--build-name=2.16.2 --build-number=7620`. No THEME flag, no bundle-ID changes.
 
 ## 6. Report back
 
