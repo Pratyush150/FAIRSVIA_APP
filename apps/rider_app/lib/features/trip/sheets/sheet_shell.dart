@@ -75,6 +75,7 @@ class RideSheetForPhase extends StatelessWidget {
       TripPhase.error => _ErrorCard(
         message: state.error ?? 'Something went wrong',
         onRetry: onSearch,
+        onBack: context.read<TripCubit>().backFromError,
       ),
     };
     final footer =
@@ -485,9 +486,16 @@ class _Busy extends StatelessWidget {
 }
 
 class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({required this.message, required this.onRetry});
+  const _ErrorCard({
+    required this.message,
+    required this.onRetry,
+    required this.onBack,
+  });
   final String message;
   final VoidCallback onRetry;
+
+  /// Out of the dead end: back to the ride options (or home).
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -497,7 +505,24 @@ class _ErrorCard extends StatelessWidget {
       children: [
         Text(message, style: const TextStyle(color: AppColors.error)),
         const SizedBox(height: AppSpacing.md),
-        PrimaryButton(label: 'Try again', onPressed: onRetry),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                key: const Key('error-back'),
+                onPressed: onBack,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                ),
+                child: const Text('Back'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: PrimaryButton(label: 'Try again', onPressed: onRetry),
+            ),
+          ],
+        ),
       ],
     );
   }

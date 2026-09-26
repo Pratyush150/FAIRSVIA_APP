@@ -28,6 +28,29 @@ export 'features/trip/sheets/ride_sheets.dart';
 /// Rider home: full-screen map with a bottom sheet that changes with the
 /// request phase (where-to → choose ride → finding driver).
 
+/// Android back / predictive back on the rider home: steps back one level
+/// of the booking flow ([TripCubit.stepBack]) and lets the route pop (the app
+/// close) only from the idle home. A live ride is never cancelled by back.
+class RiderHomeBackScope extends StatelessWidget {
+  const RiderHomeBackScope({
+    super.key,
+    required this.state,
+    required this.child,
+  });
+  final TripState state;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: state.phase == TripPhase.idle,
+    onPopInvokedWithResult: (didPop, _) {
+      if (didPop) return;
+      context.read<TripCubit>().stepBack();
+    },
+    child: child,
+  );
+}
+
 class RiderHomePage extends StatelessWidget {
   const RiderHomePage({super.key});
 
@@ -854,226 +877,236 @@ class _RiderHomeViewState extends State<_RiderHomeView>
         // bottom tabs); every later phase keeps the ride sheets as they were.
         final idle = state.phase == TripPhase.idle;
         final screenH = MediaQuery.sizeOf(context).height;
-        return RiderTabScaffold(
-          showNav: idle,
-          onTabChanged: (tab) {
-            if (tab == RiderTab.home) {
-              _loadSavedPlaces();
-              _loadHistory();
-              _loadOffers();
-            }
-          },
-          pages: {
-            RiderTab.trips: (tabContext) => TripHistoryPage(
-              trips: sl<TripRemoteDataSource>(),
-              payments: sl<PaymentsRemoteDataSource>(),
-              onBookRide: () => RiderTabScaffold.goHome(tabContext),
-              onRate: (ctx, trip) async {
-                int? given;
-                final ok = await showRatePastRideSheet(
-                  ctx,
-                  trip: trip,
-                  submit: (stars) async {
-                    await sl<RatingsRemoteDataSource>().rate(
-                      trip.id,
-                      stars: stars,
-                    );
-                    given = stars;
-                  },
-                );
-                return ok ? given : null;
-              },
-            ),
-            RiderTab.offers: (_) => BlocBuilder<TripCubit, TripState>(
-              buildWhen: (a, b) => a.offerPromo != b.offerPromo,
-              builder: (context, s) => OffersPage(
-                load: sl<TripRepository>().availablePromos,
-                selectedCode: s.offerPromo?.code,
-                onApply: _pickOffer,
-                onRemove: context.read<TripCubit>().clearOffer,
-              ),
-            ),
-            RiderTab.account: (_) => const AccountMenuPage(isDriver: false),
-          },
-          home: Stack(
-            children: [
-              // Google Maps SDK via the shared AppMap (native on mobile, JS
-              // on web) — the basemap is styled per theme inside AppMap.
-              AppMap(
-                initialCenter: MapUtils.toLatLng(_myLocation),
-                initialZoom: 16, // street level on the rider, like Uber
-                markers: layer.markers,
-                route: layer.route,
-                pulseAt: layer.searchPulse,
-                driverCarAsset: layer.driverCarAsset,
-                // Plan F: the plate hangs under the car on the map too,
-                // written exactly as the driver card writes it.
-                driverPlateTag: AppGlass.enabled && state.driver?.plate != null
-                    ? Market.current.formatPlate(state.driver!.plate!)
-                    : null,
-                fitBounds: layer.cameraFitBounds,
-                recenter: _recenter,
-                recenterSeq: _recenterSeq,
-                // A recenter also restores street-level zoom, so the button
-                // works the same after a pinch, after a route fit and after
-                // the app has been in the background.
-                recenterZoom: RideCamera.recenterZoom,
-                cameraMode: _isLiveTracking(state)
-                    ? MapCameraMode.followDriverEdge
-                    : MapCameraMode.fit,
-                // The map tells us when it stops following (the rider
-                // panned); that is what raises the Recenter pill.
-                onFollowingChanged: (following) {
-                  if (following != _following) {
-                    setState(() => _following = following);
-                  }
+        // Android back / predictive back steps back one level of the booking
+        // flow (error -> options -> home) and only closes the app from the
+        // idle home. A live ride is never cancelled, nor the app exited, by
+        // back — the cubit swallows it there.
+        return RiderHomeBackScope(
+          state: state,
+          child: RiderTabScaffold(
+            showNav: idle,
+            onTabChanged: (tab) {
+              if (tab == RiderTab.home) {
+                _loadSavedPlaces();
+                _loadHistory();
+                _loadOffers();
+              }
+            },
+            pages: {
+              RiderTab.trips: (tabContext) => TripHistoryPage(
+                trips: sl<TripRemoteDataSource>(),
+                payments: sl<PaymentsRemoteDataSource>(),
+                onBookRide: () => RiderTabScaffold.goHome(tabContext),
+                onRate: (ctx, trip) async {
+                  int? given;
+                  final ok = await showRatePastRideSheet(
+                    ctx,
+                    trip: trip,
+                    submit: (stars) async {
+                      await sl<RatingsRemoteDataSource>().rate(
+                        trip.id,
+                        stars: stars,
+                      );
+                      given = stars;
+                    },
+                  );
+                  return ok ? given : null;
                 },
-                // Keep pickup/dropoff/driver markers framed above the bottom
-                // sheet (which covers ~40% of the screen) rather than behind it.
-                // Inset the map by what is actually covering it. Markers stay
-                // framed in the visible strip, and Google's attribution sits
-                // just above the sheet instead of floating mid-map. Falls back
-                // to a proportion of the screen for the first frame, before the
-                // sheet has been measured.
-                // Idle: the map is only the window above the Home sheet, so
-                // the camera centres the rider in that window.
-                boundsPadding: idle
-                    ? EdgeInsets.fromLTRB(
-                        40,
-                        MediaQuery.paddingOf(context).top + 72,
-                        40,
-                        screenH -
-                            IdleHome.headerHeightFor(screenH) +
-                            kHomeSheetOverlap,
-                      )
-                    : EdgeInsets.fromLTRB(
-                        40,
-                        96,
-                        40,
-                        (_sheetHeight > 0
-                                ? _sheetHeight
-                                : MediaQuery.sizeOf(context).height * 0.34) +
-                            AppSpacing.sm,
-                      ),
               ),
-              if (idle) _idleHome(state),
-              // Banner and top controls share one column so the
-              // "Reconnecting…" bar pushes the buttons down instead of being
-              // drawn underneath them. The banner pads for the status bar
-              // itself, so the controls only take the inset while it's hidden.
-              if (!idle)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ConnectionBanner(connected: state.connected),
-                      LocationBanner(
-                        issue: _locationIssue,
-                        reducedAccuracy: _reducedAccuracy,
-                        onAction: _onLocationBannerAction,
-                      ),
-                      SafeArea(
-                        top:
-                            state.connected &&
-                            _locationIssue == null &&
-                            !_reducedAccuracy,
-                        bottom: false,
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          // Menu top-left in every phase, as on Home (audit
-                          // 2026-09-25 #7); recenter sits opposite, top-right.
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              AppCircleButton(
-                                icon: PhosphorIconsRegular.list,
-                                tooltip: 'Account menu',
-                                onPressed: () async {
-                                  await Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const AccountMenuPage(
-                                        isDriver: false,
+              RiderTab.offers: (_) => BlocBuilder<TripCubit, TripState>(
+                buildWhen: (a, b) => a.offerPromo != b.offerPromo,
+                builder: (context, s) => OffersPage(
+                  load: sl<TripRepository>().availablePromos,
+                  selectedCode: s.offerPromo?.code,
+                  onApply: _pickOffer,
+                  onRemove: context.read<TripCubit>().clearOffer,
+                ),
+              ),
+              RiderTab.account: (_) => const AccountMenuPage(isDriver: false),
+            },
+            home: Stack(
+              children: [
+                // Google Maps SDK via the shared AppMap (native on mobile, JS
+                // on web) — the basemap is styled per theme inside AppMap.
+                AppMap(
+                  initialCenter: MapUtils.toLatLng(_myLocation),
+                  initialZoom: 16, // street level on the rider, like Uber
+                  markers: layer.markers,
+                  route: layer.route,
+                  pulseAt: layer.searchPulse,
+                  driverCarAsset: layer.driverCarAsset,
+                  // Plan F: the plate hangs under the car on the map too,
+                  // written exactly as the driver card writes it.
+                  driverPlateTag:
+                      AppGlass.enabled && state.driver?.plate != null
+                      ? Market.current.formatPlate(state.driver!.plate!)
+                      : null,
+                  fitBounds: layer.cameraFitBounds,
+                  recenter: _recenter,
+                  recenterSeq: _recenterSeq,
+                  // A recenter also restores street-level zoom, so the button
+                  // works the same after a pinch, after a route fit and after
+                  // the app has been in the background.
+                  recenterZoom: RideCamera.recenterZoom,
+                  cameraMode: _isLiveTracking(state)
+                      ? MapCameraMode.followDriverEdge
+                      : MapCameraMode.fit,
+                  // The map tells us when it stops following (the rider
+                  // panned); that is what raises the Recenter pill.
+                  onFollowingChanged: (following) {
+                    if (following != _following) {
+                      setState(() => _following = following);
+                    }
+                  },
+                  // Keep pickup/dropoff/driver markers framed above the bottom
+                  // sheet (which covers ~40% of the screen) rather than behind it.
+                  // Inset the map by what is actually covering it. Markers stay
+                  // framed in the visible strip, and Google's attribution sits
+                  // just above the sheet instead of floating mid-map. Falls back
+                  // to a proportion of the screen for the first frame, before the
+                  // sheet has been measured.
+                  // Idle: the map is only the window above the Home sheet, so
+                  // the camera centres the rider in that window.
+                  boundsPadding: idle
+                      ? EdgeInsets.fromLTRB(
+                          40,
+                          MediaQuery.paddingOf(context).top + 72,
+                          40,
+                          screenH -
+                              IdleHome.headerHeightFor(screenH) +
+                              kHomeSheetOverlap,
+                        )
+                      : EdgeInsets.fromLTRB(
+                          40,
+                          96,
+                          40,
+                          (_sheetHeight > 0
+                                  ? _sheetHeight
+                                  : MediaQuery.sizeOf(context).height * 0.34) +
+                              AppSpacing.sm,
+                        ),
+                ),
+                if (idle) _idleHome(state),
+                // Banner and top controls share one column so the
+                // "Reconnecting…" bar pushes the buttons down instead of being
+                // drawn underneath them. The banner pads for the status bar
+                // itself, so the controls only take the inset while it's hidden.
+                if (!idle)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ConnectionBanner(connected: state.connected),
+                        LocationBanner(
+                          issue: _locationIssue,
+                          reducedAccuracy: _reducedAccuracy,
+                          onAction: _onLocationBannerAction,
+                        ),
+                        SafeArea(
+                          top:
+                              state.connected &&
+                              _locationIssue == null &&
+                              !_reducedAccuracy,
+                          bottom: false,
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            // Menu top-left in every phase, as on Home (audit
+                            // 2026-09-25 #7); recenter sits opposite, top-right.
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                AppCircleButton(
+                                  icon: PhosphorIconsRegular.list,
+                                  tooltip: 'Account menu',
+                                  onPressed: () async {
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const AccountMenuPage(
+                                          isDriver: false,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                  // Saved places may have changed in the
-                                  // account pages; refresh the quick-picks.
-                                  _loadSavedPlaces();
-                                },
-                              ),
-                              const Spacer(),
-                              // One control, two meanings — and it says
-                              // which. During a ride it centres the CAR; at
-                              // rest it centres the rider. A button labelled
-                              // "my location" that quietly does neither is
-                              // how riders learned not to trust it.
-                              AppCircleButton(
-                                icon: _isLiveTracking(state)
-                                    ? PhosphorIconsRegular.gpsFix
-                                    : PhosphorIconsRegular.gpsFix,
-                                tooltip: _isLiveTracking(state)
-                                    ? 'Recenter on your driver'
-                                    : 'Recenter on my location',
-                                onPressed: _recenterToMe,
-                              ),
-                            ],
+                                    );
+                                    // Saved places may have changed in the
+                                    // account pages; refresh the quick-picks.
+                                    _loadSavedPlaces();
+                                  },
+                                ),
+                                const Spacer(),
+                                // One control, two meanings — and it says
+                                // which. During a ride it centres the CAR; at
+                                // rest it centres the rider. A button labelled
+                                // "my location" that quietly does neither is
+                                // how riders learned not to trust it.
+                                AppCircleButton(
+                                  icon: _isLiveTracking(state)
+                                      ? PhosphorIconsRegular.gpsFix
+                                      : PhosphorIconsRegular.gpsFix,
+                                  tooltip: _isLiveTracking(state)
+                                      ? 'Recenter on your driver'
+                                      : 'Recenter on my location',
+                                  onPressed: _recenterToMe,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              if (!idle)
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Raised only while the camera is NOT following — the
-                      // rider panned, so the car may now be off screen. It
-                      // takes them back to the live position and resumes
-                      // automatic tracking. Not on the ride-complete page,
-                      // which covers the whole screen.
-                      if (state.phase != TripPhase.completed)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                          child: RecenterPill(
-                            visible: _isLiveTracking(state) && !_following,
-                            onPressed: _recenterToMe,
+                if (!idle)
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Raised only while the camera is NOT following — the
+                        // rider panned, so the car may now be off screen. It
+                        // takes them back to the live position and resumes
+                        // automatic tracking. Not on the ride-complete page,
+                        // which covers the whole screen.
+                        if (state.phase != TripPhase.completed)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
+                            child: RecenterPill(
+                              visible: _isLiveTracking(state) && !_following,
+                              onPressed: _recenterToMe,
+                            ),
+                          ),
+                        // Flexible: the sheet caps itself at the screen height,
+                        // but the pill above takes room too — without this the
+                        // pair overflowed by 14 px whenever the sheet reached its
+                        // cap (seen mid-transition while booking).
+                        Flexible(
+                          child: RideSheetForPhase(
+                            key: _sheetKey,
+                            state: state,
+                            // Dragged to a new size: re-fit the map to what
+                            // is left of it (on settle, not per drag frame).
+                            onSheetSettled: _measureSheet,
+                            onSearch: _openSearch,
+                            savedPlaces: _savedPlaces,
+                            onPickSaved: _pickSaved,
+                            // Booking is gated while we have no real fix: a ride
+                            // requested from the city-centre fallback would send the
+                            // driver to the wrong place.
+                            locationIssue: _hasRealLocation
+                                ? null
+                                : _locationIssue,
+                            onFixLocation: () => _onLocationBannerAction(
+                              _bannerActionFor(_locationIssue),
+                            ),
                           ),
                         ),
-                      // Flexible: the sheet caps itself at the screen height,
-                      // but the pill above takes room too — without this the
-                      // pair overflowed by 14 px whenever the sheet reached its
-                      // cap (seen mid-transition while booking).
-                      Flexible(
-                        child: RideSheetForPhase(
-                          key: _sheetKey,
-                          state: state,
-                          // Dragged to a new size: re-fit the map to what
-                          // is left of it (on settle, not per drag frame).
-                          onSheetSettled: _measureSheet,
-                          onSearch: _openSearch,
-                          savedPlaces: _savedPlaces,
-                          onPickSaved: _pickSaved,
-                          // Booking is gated while we have no real fix: a ride
-                          // requested from the city-centre fallback would send the
-                          // driver to the wrong place.
-                          locationIssue: _hasRealLocation
-                              ? null
-                              : _locationIssue,
-                          onFixLocation: () => _onLocationBannerAction(
-                            _bannerActionFor(_locationIssue),
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },

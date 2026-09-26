@@ -82,11 +82,29 @@ class _RideOptions extends StatelessWidget {
                 Expanded(
                   child: Text(
                     state.error!,
+                    key: const Key('ride-options-error'),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.warningTextOf(context),
                     ),
                   ),
                 ),
+                // The server refused the passenger's number: fix it here
+                // instead of hunting for the passenger row.
+                if (state.error == TripCubit.passengerPhoneInvalid)
+                  TextButton(
+                    key: const Key('edit-passenger'),
+                    onPressed: () async {
+                      final result = await _askPassenger(
+                        context,
+                        state.passenger,
+                      );
+                      if (result != null) {
+                        cubit.setPassenger(result);
+                        cubit.clearError();
+                      }
+                    },
+                    child: const Text('Edit passenger'),
+                  ),
               ],
             ),
           ),
@@ -361,6 +379,32 @@ class _BookForSomeoneElseRow extends StatelessWidget {
   }
 }
 
+/// The inline error under the passenger's number.
+const invalidPassengerPhoneMessage =
+    'Enter a valid mobile number, e.g. 98765 43210';
+
+/// The passenger's number in E.164 if it is a valid mobile for [market]
+/// (India: +91 then 10 digits starting 6-9; Uzbekistan: +998 then 9 digits;
+/// US: +1 then 10 digits, area code not starting 0/1), else null. Mirrors the
+/// server's `@IsPhoneNumber` closely enough that a number passing here is
+/// not bounced at booking time.
+String? validPassengerPhone(String typed, [Market? market]) {
+  final m = market ?? Market.current;
+  final e164 = m.toE164(typed.replaceAll('.', ''));
+  if (e164 == null) return null;
+  final RegExp rule;
+  if (e164.startsWith('+91')) {
+    rule = RegExp(r'^\+91[6-9]\d{9}$');
+  } else if (e164.startsWith('+998')) {
+    rule = RegExp(r'^\+998\d{9}$');
+  } else if (e164.startsWith('+1')) {
+    rule = RegExp(r'^\+1[2-9]\d{9}$');
+  } else {
+    rule = RegExp(r'^\+[1-9]\d{7,14}$');
+  }
+  return rule.hasMatch(e164) ? e164 : null;
+}
+
 /// Collect the passenger's name and number. A number is required — the driver
 /// calls it and the start code is texted to it — so the dialog refuses to
 /// return without one. Returns null if the rider backs out.
@@ -412,7 +456,9 @@ Future<TripPassenger?> _askPassenger(
                     }
                     // Cancelled: leave whatever was typed alone.
                     if (picked == null || !ctx.mounted) return;
-                    final phone = normalizeContactPhone(picked.phone);
+                    final phone = validPassengerPhone(
+                      normalizeContactPhone(picked.phone) ?? '',
+                    );
                     setLocal(() {
                       final name = picked!.name?.trim() ?? '';
                       if (name.isNotEmpty) nameCtrl.text = name;
@@ -427,8 +473,21 @@ Future<TripPassenger?> _askPassenger(
                 ),
               ),
               TextField(
+                key: const Key('passenger-phone'),
                 controller: phoneCtrl,
                 keyboardType: TextInputType.phone,
+                onChanged: (_) => setLocal(() {
+                  // Typing clears a stale error; a finished-length number
+                  // that still is not valid says so as they type.
+                  final digits = phoneCtrl.text.replaceAll(
+                    RegExp(r'[^0-9]'),
+                    '',
+                  );
+                  final ok = validPassengerPhone(phoneCtrl.text) != null;
+                  error = ok || digits.length < 10
+                      ? null
+                      : invalidPassengerPhoneMessage;
+                }),
                 decoration: InputDecoration(
                   labelText: 'Their mobile number',
                   hintText: Market.current.examplePhone,
@@ -449,20 +508,28 @@ Future<TripPassenger?> _askPassenger(
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () {
-                // Texted the start code, so it must be a dialable number;
-                // a local number gets this market's country code.
-                final phone = Market.current.toE164(phoneCtrl.text);
-                if (phone == null) {
-                  setLocal(() => error = 'Enter their mobile number');
-                  return;
-                }
-                final name = nameCtrl.text.trim();
-                Navigator.pop(
-                  dialogCtx,
-                  TripPassenger(phone: phone, name: name.isEmpty ? null : name),
-                );
-              },
+              key: const Key('passenger-done'),
+              // Disabled until the number is a real mobile for this market,
+              // so a bad number never reaches the server.
+              onPressed: validPassengerPhone(phoneCtrl.text) == null
+                  ? null
+                  : () {
+                      // Texted the start code, so it must be a dialable number;
+                      // a local number gets this market's country code.
+                      final phone = validPassengerPhone(phoneCtrl.text);
+                      if (phone == null) {
+                        setLocal(() => error = invalidPassengerPhoneMessage);
+                        return;
+                      }
+                      final name = nameCtrl.text.trim();
+                      Navigator.pop(
+                        dialogCtx,
+                        TripPassenger(
+                          phone: phone,
+                          name: name.isEmpty ? null : name,
+                        ),
+                      );
+                    },
               child: const Text('Done'),
             ),
           ],

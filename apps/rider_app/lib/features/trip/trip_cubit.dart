@@ -961,6 +961,12 @@ class TripCubit extends Cubit<TripState> {
   void setPassenger(TripPassenger? passenger) =>
       emit(state.copyWith(passenger: passenger));
 
+  /// Drop the inline error on the ride options (e.g. after the rider fixed
+  /// the passenger's number).
+  void clearError() {
+    if (state.error != null) emit(state.copyWith(error: null));
+  }
+
   Future<void> confirmRide() async {
     final s = state;
     if (s.pickup == null || s.dropoff == null || s.selectedTier == null) return;
@@ -1008,7 +1014,61 @@ class TripCubit extends Cubit<TripState> {
       if (e.code == priceChangedCode && _applyPriceChange(e, s.selectedTier!)) {
         return;
       }
-      emit(state.copyWith(phase: TripPhase.choosingRide, error: e.message));
+      emit(
+        state.copyWith(
+          phase: TripPhase.choosingRide,
+          error: _isPassengerPhoneError(e) ? passengerPhoneInvalid : e.message,
+        ),
+      );
+    }
+  }
+
+  /// Shown on the ride options when the server refused the passenger's
+  /// number (class-validator: "passengerPhone must be a valid phone number").
+  /// The options sheet matches on it to offer "Edit passenger".
+  static const String passengerPhoneInvalid =
+      "That phone number doesn't look right. Check it and try again.";
+
+  static bool _isPassengerPhoneError(ApiException e) =>
+      e.message.toLowerCase().contains('passengerphone') ||
+      (e.statusCode == 400 && e.message.toLowerCase().contains('phone'));
+
+  /// One step back through the booking flow, for Android back / predictive
+  /// back on the rider home. Returns true when it handled the step; false
+  /// means the rider is on the idle home and the app may close. A live ride
+  /// is never cancelled by back (and the app never exits mid-ride), so those
+  /// phases report handled without changing anything.
+  bool stepBack() {
+    switch (state.phase) {
+      case TripPhase.idle:
+        return false;
+      case TripPhase.error:
+        backFromError();
+        return true;
+      case TripPhase.choosingRide:
+      case TripPhase.loadingEstimate:
+      case TripPhase.scheduled:
+        reset();
+        return true;
+      case TripPhase.completed:
+        unawaited(finishRide());
+        return true;
+      case TripPhase.requesting:
+      case TripPhase.searching:
+      case TripPhase.driverEnRoute:
+      case TripPhase.driverArrived:
+      case TripPhase.onTrip:
+        return true;
+    }
+  }
+
+  /// "Back" on the error card: to the ride options when there is still an
+  /// estimate to choose from, otherwise to the idle home.
+  void backFromError() {
+    if (state.estimate != null && state.dropoff != null) {
+      emit(state.copyWith(phase: TripPhase.choosingRide, error: null));
+    } else {
+      reset();
     }
   }
 
