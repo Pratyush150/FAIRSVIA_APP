@@ -112,6 +112,8 @@ jobs:
       # the per-IP rate limiter would 429 the sims (NODE_ENV=development keeps
       # it live). Off for this job only; the backend job's e2e covers it.
       THROTTLE_DISABLED: 'true'
+      # full-ride.mjs signs in as this phone for the admin refund step.
+      ADMIN_PHONES: '+19900000001'
       # The sims default to the local FAIRSVIA stack (host port 3200); in CI
       # the backend listens on 3000 directly.
       BASE_URL: http://localhost:3000/api/v1

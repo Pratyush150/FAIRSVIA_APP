@@ -303,9 +303,12 @@ void main() {
       expect(find.text('Pickup time'), findsOneWidget);
       expect(find.text('AM'), findsOneWidget);
       expect(find.text('PM'), findsOneWidget);
-      // The dial runs 1–12 only — no 13–23 / 00 ring.
+      // The dial runs 1–12 only — no 13–23 / 00 ring. The header's minutes
+      // can legitimately read "00" (the suggested time is rounded, so on
+      // some clocks it lands on the hour); a 24-hour inner ring would add a
+      // second "00" and the 13–23 labels.
       expect(find.text('13'), findsNothing);
-      expect(find.text('00'), findsNothing);
+      expect(find.text('00').evaluate().length, lessThanOrEqualTo(1));
     },
   );
 }
