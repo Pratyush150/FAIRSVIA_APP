@@ -360,7 +360,7 @@ void main() {
         await shoot(
           t,
           '08_splash',
-          BrandSplash(name: 'RideVela', onDone: () {}),
+          BrandSplash(name: 'FAIRSVIA', onDone: () {}),
           dark: dark,
           then: () async {
             await t.pump(AppBrand.splashTotal);

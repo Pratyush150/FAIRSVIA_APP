@@ -1,6 +1,6 @@
 # Icons and illustration options (research, 2026-09-24)
 
-Scope: where RideVela's three icon tiers could come from, what the licences
+Scope: where FAIRSVIA's three icon tiers could come from, what the licences
 actually say, and a ranked pick for each. It builds on
 `docs/plans/visual-direction-v2.md` (icon tiers, 3D icon brief) and
 `docs/brand/CREDITS-3d-icons.md` (the current Fluent Emoji 3D stand-ins).

@@ -1,4 +1,4 @@
-# RideVela — icons in use and what each one is for
+# FAIRSVIA — icons in use and what each one is for
 
 *2026-09-25, final look (Plan F "Map Glass"). Utility icons are Phosphor
 (MIT), vendored as fonts in `packages/design_system/fonts/`; `autoRickshaw` and
@@ -53,7 +53,7 @@ only to show a state (selected, rated, favourite); colour by meaning; one
 | Icon | Where | Purpose |
 |---|---|---|
 | `car` | R, A | Vehicle / ride type / "Vehicle" row; driver card fallback |
-| `taxi` | R, A | Finding a driver; ride-type chip; comparison card |
+| `taxi` | R, A | Finding a driver; ride-type chip |
 | `autoRickshaw` | — | Auto-rickshaw (built, ride type switched off) |
 | `user` | all | Seats per ride type; profile avatar fallback; name field |
 | `userCircle` | R, D | Rider / passenger |
@@ -68,9 +68,8 @@ only to show a state (selected, rated, favourite); colour by meaning; one
 | `receipt` | all | Ride details; your trips; rate card; receipts |
 | `ticket` | R | Number plate row (ride details) |
 | `trendUp` | R | Surge / high demand |
-| `lightning` | R | "Fastest" badge on the comparison card |
-| `piggyBank` | R | "Cheapest" badge on the comparison card |
-| `question` | R | "Unknown" price in the comparison card |
+| `lightning` | R, D | "More with FAIRSVIA" section (ride options); driver home extras |
+| `question` | R, D | "Get help" (completed ride); "Where are you?" chat quick reply |
 | `circle` | R, A | Neutral status dot |
 | `check` | all | Done / selected / completed |
 | `checkCircle` | R | Ride completed; selected payment; SOS sent |
@@ -88,8 +87,8 @@ only to show a state (selected, rated, favourite); colour by meaning; one
 | `handHeart` | D | Tips received |
 | `coins` | A | Refunds |
 | `tag` | R, A | Promo codes |
-| `sealCheck` | R, D | Verified / guaranteed (payouts, comparison) |
-| `chartLineUp` | A | Record an observed competitor fare |
+| `sealCheck` | R, D | Verified / guaranteed (payouts) |
+| `chartLineUp` | D | Average per trip (driver home extras) |
 | `cards` | A | Promo / content cards |
 
 ## Safety

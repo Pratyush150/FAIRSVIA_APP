@@ -1,4 +1,4 @@
-# RideVela UI — path to 10/10 (plan, 2026-09-24)
+# FAIRSVIA UI — path to 10/10 (plan, 2026-09-24)
 
 Built from the owner's audit "RideVela UI & Icon Audit — Path to 10/10"
 (Sep 24, 2026). Every claim was checked against the code before planning;
@@ -56,9 +56,9 @@ Scores are the audit's; "done" means built, tested and seen on a device.
 | 3.1 | Tokens | bg.base `#0E0F11`, surface.1 `#17181B`, surface.2 `#1F2024`, border `#2A2B30`, text.secondary `#A0A3A8`, icon.neutral `#9A9DA3`, danger `#FF4D4F`, warning `#F5A623`; light-mode equivalents; no raw hex in widgets |
 | 3.2 | Type scale | display 28/34/700, title 22/28/600, body.strong 17/24/600, body 15/22/400, caption 13/18/400, plate 22/28/700 tabular +4 % |
 | 3.3 | Spacing / radius / elevation | 4 pt grid; 16 pt side margin; radius 12 / 20 / pill / 8 (PIN); tonal elevation + one sheet shadow; buttons 56 / 56 / 44 |
-| 3.4 | Brand lockup | Chosen logomark + "RideVela" wordmark on splash (bar animates as loader, ≤ 1.5 s), login (64 px mark top-left, no banner), app icon, favicon, notification icon; "Driver" pill in the driver app |
+| 3.4 | Brand lockup | Chosen logomark + "FAIRSVIA" wordmark on splash (bar animates as loader, ≤ 1.5 s), login (64 px mark top-left, no banner), app icon, favicon, notification icon; "Driver" pill in the driver app |
 | 3.5 ✅ | Login | "IN +91" prefix chip; hint `98765 43210`; tappable Terms / Privacy links; OTP autofill (`AutofillHints.oneTimeCode` + SMS Retriever) |
-| 3.6 ✅ | Driver location priming | RideVela screen before the OS dialog; denied → banner with "Open Settings" |
+| 3.6 ✅ | Driver location priming | FAIRSVIA screen before the OS dialog; denied → banner with "Open Settings" |
 | 3.7 ✅ | Choose ride | Whole-rupee fares; "Pickup in 2 min · Drop 11:41 PM"; info icon per row instead of "Details" links; payment row above Confirm |
 | 3.8 ✅ | Finding driver | Radar at pickup on the map (3 rings, 1.6 s); "Economy · ₹102 · Cash" in the sheet; after 45 s "Still looking…" + other tier |
 | 3.9 ✅ | Place names | Landmark/road name first, plus code only as a caption (pickup, map picker) — server reverse-geocode label |

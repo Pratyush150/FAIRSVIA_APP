@@ -69,7 +69,7 @@ async function bootstrap(): Promise<void> {
 
   const port = config.get<number>('port') ?? 3000;
   await app.listen(port, '0.0.0.0');
-  Logger.log(`RideVela backend listening on http://0.0.0.0:${port}/api/v1`, 'Bootstrap');
+  Logger.log(`FAIRSVIA backend listening on http://0.0.0.0:${port}/api/v1`, 'Bootstrap');
 }
 
 void bootstrap();

@@ -43,10 +43,10 @@ build_and_install() {
 }
 
 case "$WHICH" in
-  rider)  build_and_install rider_app  in.novarobotics.ubernav.riderApp ;;
-  driver) build_and_install driver_app in.novarobotics.ubernav.driverApp ;;
-  both)   build_and_install rider_app  in.novarobotics.ubernav.riderApp
-          build_and_install driver_app in.novarobotics.ubernav.driverApp ;;
+  rider)  build_and_install rider_app  in.novarobotics.fairsvia.rider ;;
+  driver) build_and_install driver_app in.novarobotics.fairsvia.driver ;;
+  both)   build_and_install rider_app  in.novarobotics.fairsvia.rider
+          build_and_install driver_app in.novarobotics.fairsvia.driver ;;
   *) echo "usage: $0 [rider|driver|both]"; exit 1 ;;
 esac
 echo "Installed. First launch on the phone: Settings → General → VPN & Device Management → trust the developer profile if iOS asks."

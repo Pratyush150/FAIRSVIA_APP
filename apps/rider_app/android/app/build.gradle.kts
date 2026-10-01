@@ -27,22 +27,22 @@ val themeVariant: String = (project.findProperty("dart-defines") as String?)
     ?.removePrefix("THEME=")
     ?: ""
 val variantLabel: String? = mapOf(
-    "midnight" to "RideVela A · Midnight",
-    "daylight" to "RideVela B · Daylight",
-    "daynight" to "RideVela C · Day&Night",
-    "local" to "RideVela D · Local",
-    "ink" to "RideVela E · Ink",
-    "glass" to "RideVela F · Glass",
-    "clay3d" to "RideVela G · 3D",
-    "indigo" to "RideVela · Indigo",
-    "lapis" to "RideVela · Lapis",
-    "marigold" to "RideVela · Marigold",
-    "copper" to "RideVela · Copper",
-    "garnet" to "RideVela · Garnet",
+    "midnight" to "FAIRSVIA A · Midnight",
+    "daylight" to "FAIRSVIA B · Daylight",
+    "daynight" to "FAIRSVIA C · Day&Night",
+    "local" to "FAIRSVIA D · Local",
+    "ink" to "FAIRSVIA E · Ink",
+    "glass" to "FAIRSVIA F · Glass",
+    "clay3d" to "FAIRSVIA G · 3D",
+    "indigo" to "FAIRSVIA · Indigo",
+    "lapis" to "FAIRSVIA · Lapis",
+    "marigold" to "FAIRSVIA · Marigold",
+    "copper" to "FAIRSVIA · Copper",
+    "garnet" to "FAIRSVIA · Garnet",
 )[themeVariant]
 
 android {
-    namespace = "in.novarobotics.ubernav.rider_app"
+    namespace = "in.novarobotics.fairsvia.rider"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -53,7 +53,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "in.novarobotics.ubernav.rider_app"
+        applicationId = "in.novarobotics.fairsvia.rider"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = maxOf(flutter.minSdkVersion, 21)
@@ -61,7 +61,7 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
-        manifestPlaceholders["appLabel"] = variantLabel ?: "RideVela Rider"
+        manifestPlaceholders["appLabel"] = variantLabel ?: "FAIRSVIA Rider"
         if (variantLabel != null) applicationIdSuffix = ".$themeVariant"
     }
 

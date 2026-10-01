@@ -1,32 +1,43 @@
-# FairsVia local infrastructure — everything runs on your own machine.
-# Usage: cd infra && docker compose up --build
+# FAIRSVIA local infrastructure — everything runs on your own machine.
+# Usage: cd infra && docker compose up -d --build
+#
+# This stack runs on the same PC as the RideVela stack (compose project
+# `infra`, containers `ubernav_*` / `ridevela_*`) and must never touch it:
+#   - its own compose project name (below), so `up`/`down` here can never
+#     recreate or remove the other project's containers;
+#   - its own container names (`fairsvia_*`), network (`fairsvia_default`) and
+#     volumes (`fairsvia_*`), so the database and Redis are separate;
+#   - its own host ports: backend 3200, Postgres 5532, Redis 6479, Adminer
+#     8180 (3100 is Loki's on this box).
+name: fairsvia
+
 services:
   postgres:
     image: postgis/postgis:16-3.4
-    container_name: ubernav_postgres
+    container_name: fairsvia_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ubernav
-      POSTGRES_PASSWORD: ubernav
-      POSTGRES_DB: ubernav
+      POSTGRES_USER: fairsvia
+      POSTGRES_PASSWORD: fairsvia
+      POSTGRES_DB: fairsvia
     ports:
-      - "5432:5432"
+      - "5532:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ubernav -d ubernav"]
+      test: ["CMD-SHELL", "pg_isready -U fairsvia -d fairsvia"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: ubernav_redis
+    container_name: fairsvia_redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "6479:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -39,15 +50,21 @@ services:
     build:
       context: ../backend
       dockerfile: Dockerfile
-    container_name: ubernav_backend
+    image: fairsvia-backend:dev
+    container_name: fairsvia_backend
     restart: unless-stopped
     env_file:
       - ../backend/.env
     environment:
-      DATABASE_URL: postgresql://ubernav:ubernav@postgres:5432/ubernav?schema=public
+      DATABASE_URL: postgresql://fairsvia:fairsvia@postgres:5432/fairsvia?schema=public
       REDIS_URL: redis://redis:6379
     ports:
-      - "3000:3000"
+      # The server listens on 3000 inside the container; 3200 on the host.
+      - "3200:3000"
+    extra_hosts:
+      # Lets backend/.env reach routing/geocoding published on the host
+      # (OSRM_BASE_URL / NOMINATIM_BASE_URL, see backend/.env.example).
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,37 +77,52 @@ services:
 
   adminer:
     image: adminer:4
-    container_name: ubernav_adminer
+    container_name: fairsvia_adminer
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8180:8080"
     depends_on:
       postgres:
         condition: service_healthy
 
-  # Self-hosted OpenStreetMap routing — road-following routes, no API key.
-  # Preprocess the Florida extract once before first start:
-  #   cd infra/osm-data
-  #   docker run --rm -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend \
-  #     osrm-extract -p /opt/car.lua /data/florida-latest.osm.pbf
-  #   ...osrm-partition /data/bhukum.osrm
-  #   ...osrm-customize /data/bhukum.osrm
+  # Cloudflare quick tunnel: a public https URL for the phones and iOS builds
+  # (iOS blocks plain http in release). The URL changes whenever the tunnel
+  # restarts; read it with:
+  #   docker logs fairsvia_tunnel 2>&1 | grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" | tail -1
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: fairsvia_tunnel
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "--url", "http://backend:3000"]
+    depends_on:
+      - backend
+
+  # Self-hosted OpenStreetMap routing + geocoding. Opt-in (profile
+  # `own-routing`): the extracts are 3.7 GB plus a multi-GB Nominatim import,
+  # more than this disk has free. Until they are enabled, backend/.env points
+  # OSRM_BASE_URL / NOMINATIM_BASE_URL at an existing OSRM / Nominatim over
+  # HTTP (read-only lookups). To run FAIRSVIA's own:
+  #   1. put the extract in infra/osm-data (see the OSRM preprocessing steps
+  #      in README.md), then
+  #   2. docker compose --profile own-routing up -d
+  #   3. set OSRM_BASE_URL=http://osrm:5000 and
+  #      NOMINATIM_BASE_URL=http://nominatim:8080 in backend/.env.
   osrm:
     image: ghcr.io/project-osrm/osrm-backend
-    container_name: ubernav_osrm
+    container_name: fairsvia_osrm
     restart: unless-stopped
+    profiles: ["own-routing"]
     command: ["osrm-routed", "--algorithm", "mld", "/data/bhukum.osrm"]
     volumes:
       - ./osm-data:/data
     ports:
-      - "5000:5000"
+      - "5100:5000"
 
-  # Self-hosted OpenStreetMap geocoding — real place search + reverse geocode.
-  # First start imports the Florida extract (several minutes, one-time).
   nominatim:
     image: mediagis/nominatim:4.4
-    container_name: ubernav_nominatim
+    container_name: fairsvia_nominatim
     restart: unless-stopped
+    profiles: ["own-routing"]
     environment:
       PBF_PATH: /nominatim/data/bhukum.osm.pbf
       NOMINATIM_PASSWORD: nominatim
@@ -100,7 +132,7 @@ services:
       - nominatimdata:/var/lib/postgresql/14/main
     shm_size: 1g
     ports:
-      - "8081:8080"
+      - "8181:8080"
 
 volumes:
   pgdata:

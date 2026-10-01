@@ -10,31 +10,31 @@ void main() {
     test('place, car, plate and driver', () {
       expect(
         tripShareText(
-          brand: 'RideVela',
+          brand: 'FAIRSVIA',
           destination: 'Chorsu Bazaar',
           vehicle: 'White Chevrolet Cobalt',
           plate: '01 A 123 BC',
           driverName: 'Bekzod',
         ),
-        "I'm on a RideVela ride to Chorsu Bazaar. Car: White Chevrolet "
+        "I'm on a FAIRSVIA ride to Chorsu Bazaar. Car: White Chevrolet "
         'Cobalt, plate 01 A 123 BC. Driver: Bekzod.',
       );
     });
 
     test('no invented tracking link; missing pieces are left out', () {
-      final text = tripShareText(brand: 'RideVela');
-      expect(text, "I'm on a RideVela ride to my destination.");
+      final text = tripShareText(brand: 'FAIRSVIA');
+      expect(text, "I'm on a FAIRSVIA ride to my destination.");
       expect(text, isNot(contains('http')));
     });
 
     test('a real tracking link is appended', () {
       expect(
         tripShareText(
-          brand: 'RideVela',
+          brand: 'FAIRSVIA',
           destination: 'Home',
           trackingUrl: 'https://example.test/t/abc',
         ),
-        "I'm on a RideVela ride to Home. Track my ride live: https://example.test/t/abc",
+        "I'm on a FAIRSVIA ride to Home. Track my ride live: https://example.test/t/abc",
       );
     });
   });
@@ -73,9 +73,9 @@ void main() {
         },
       );
 
-      await tapShare(tester, "I'm on a RideVela ride to Home.");
+      await tapShare(tester, "I'm on a FAIRSVIA ride to Home.");
 
-      expect(shared, ["I'm on a RideVela ride to Home."]);
+      expect(shared, ["I'm on a FAIRSVIA ride to Home."]);
       expect(clipboard, isEmpty); // the clipboard is only a fallback
       expect(find.textContaining('copied'), findsNothing);
     });
@@ -120,7 +120,7 @@ void main() {
             builder: (context) => TextButton(
               onPressed: () => shareTripTextWithLink(
                 context,
-                "I'm on a RideVela ride to Home.",
+                "I'm on a FAIRSVIA ride to Home.",
                 fetchLink: fetchLink,
                 timeout: timeout,
               ),
@@ -143,7 +143,7 @@ void main() {
         () async => 'https://ride.example/api/v1/public/t/abcDEF_-',
       );
       expect(shared, [
-        "I'm on a RideVela ride to Home. Track my ride live: "
+        "I'm on a FAIRSVIA ride to Home. Track my ride live: "
             'https://ride.example/api/v1/public/t/abcDEF_-',
       ]);
     });
@@ -153,14 +153,14 @@ void main() {
     ) async {
       final shared =
           await tapShare(tester, () async => throw Exception('offline'));
-      expect(shared, ["I'm on a RideVela ride to Home."]);
+      expect(shared, ["I'm on a FAIRSVIA ride to Home."]);
     });
 
     testWidgets('still shares when the backend has no link (null)', (
       tester,
     ) async {
       final shared = await tapShare(tester, () async => null);
-      expect(shared, ["I'm on a RideVela ride to Home."]);
+      expect(shared, ["I'm on a FAIRSVIA ride to Home."]);
     });
 
     testWidgets('does not wait forever on a slow link request', (tester) async {
@@ -170,7 +170,7 @@ void main() {
         () => never.future,
         timeout: const Duration(seconds: 2),
       );
-      expect(shared, ["I'm on a RideVela ride to Home."]);
+      expect(shared, ["I'm on a FAIRSVIA ride to Home."]);
     });
   });
 

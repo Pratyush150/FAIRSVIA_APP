@@ -39,7 +39,6 @@ describe('classifyRoute', () => {
     ['POST', '/api/v1/auth/otp/request', 'tight'],
     ['POST', '/api/v1/auth/refresh', 'tight'],
     ['POST', '/api/v1/trips/estimate', 'moderate'],
-    ['POST', '/api/v1/comparison/estimate', 'moderate'],
     ['GET', '/api/v1/places/autocomplete', 'moderate'],
     ['GET', '/api/v1/places/details', 'moderate'],
     ['GET', '/api/v1/places/reverse', 'moderate'],

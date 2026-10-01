@@ -24,7 +24,7 @@ These are non-negotiable. If any appears on the site as a live promise, the buil
 1. **Insurance** — absent in code, **legally mandatory** (F.S. 627.748; Period 3 = $1M). Hard launch blocker. **No insurance claim of any kind — not "insured," "$1M coverage," "protected" — until the policy is bound.** (Strategy §14, §20 #1)
 2. **SOS / "emergency" / "we call 911" / "share your trip with a contact"** — the in-app SOS is an **audit-log entry only**: no 911 dispatch, no contact notification, no trip-share delivery. Never market it as emergency response. (Strategy §14)
 3. **Referral / "refer a friend" / "invite bonus"** — **absent in code**; only generic promo codes exist. No referral offer until built. (Strategy §7, §16)
-4. **Live competitor pricing / "cheaper than Uber" as a measured fact** — the in-app "price comparison" is our own **internal self-disclaimed model**, not live Uber/Lyft quotes. Never present competitor prices, and don't lead on "cheaper." (Strategy §1, §7)
+4. **Live competitor pricing / "cheaper than Uber" as a measured fact** — the app shows only our own fares and has no Uber/Lyft price data. Never present competitor prices, and don't lead on "cheaper." (Strategy §1, §7)
 5. **Turn-by-turn navigation / live re-routing / "dynamic route updates"** — absent; OSRM computes the route **once** at booking. Don't imply live re-routing. (Strategy §7, §14)
 6. Softer, still-banned-until-real: **"verified riders" / rider ID check** (absent 🔧), **car seats** (absent), **live per-driver ETA countdown** (absent 🔧), any **specific "average driver earnings" number** (contested — sell the *structure*, "see every dollar on every receipt," not a figure; Strategy §11).
 
@@ -241,7 +241,7 @@ Layout container: max-width 1200px, 24px gutters (16px mobile). One accent (`--a
   - **Body:** `When it's busy, prices can rise — but never past a cap we publish. No $65 rides to the airport.`
   - **CTA:** `See your price`.
 - **Component:** `<FareBar>` — an annotated horizontal fare-anatomy bar: `Base + Time + Distance` segments in neutral, then a **capped surge band highlighted in coral** with a hard "ceiling" stop line labeled *"published cap."* Animated grow-in on scroll-reveal (respect reduced-motion).
-- **Claims gate:** ✅ surge engine + admin ceiling. **Never** cite the internal price-comparison model as a competitor quote (🔮). Don't put a specific dollar cap number unless it's the real configured value.
+- **Claims gate:** ✅ surge engine + admin ceiling. **Never** quote competitor prices. Don't put a specific dollar cap number unless it's the real configured value.
 
 ---
 
@@ -393,7 +393,7 @@ Data-driven from `content/data/cities.ts`. **Doorway-page guardrail (Strategy §
 - **Explain honestly:** base + time + distance + a **surge band with a published ceiling**; `<FareBar>` reused. `When it's busy, prices can rise — but never past a cap we publish.`
 - **Cash or card** section (✅).
 - **"Exact fares live in the app"**: `Your exact fare shows in the app before you confirm — tap "See your price."` (fare estimate ✅). Explain there's no exact number on the web because it depends on the trip.
-- **🚫** Never present the internal price-comparison model as competitor pricing; don't lead on "cheaper" (Strategy §7).
+- **🚫** Never present competitor pricing; don't lead on "cheaper" (Strategy §7).
 
 ### 5g. How It Works (`/how-it-works`)
 Full rider walkthrough (expand §4.3): See your price → choose tier/favorite → match → OTP start → live track → pay (cash/card) → rate + receipt. All ✅. **No re-routing/turn-by-turn.** Add a short "for drivers" cross-link.

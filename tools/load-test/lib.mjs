@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 
-export const BASE = process.env.BASE_URL || 'http://localhost:3000/api/v1';
-export const WS = process.env.WS_URL || 'http://localhost:3000';
+export const BASE = process.env.BASE_URL || 'http://localhost:3200/api/v1';
+export const WS = process.env.WS_URL || 'http://localhost:3200';
 
 /** REST helper. Throws an Error with `.status` on non-2xx; times out cleanly. */
 export async function api(path, { method = 'GET', token, body, timeoutMs = 20000 } = {}) {

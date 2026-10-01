@@ -23,7 +23,7 @@ from fontTools.ttLib import TTFont
 PKG = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(PKG, "fonts", "Inter-SemiBold.ttf")
 DST = os.path.join(PKG, "fonts", "RideVelaCaps-SemiBold.ttf")
-FAMILY = "RideVela Caps"
+FAMILY = "FAIRSVIA Caps"
 
 # Latin, Latin-1, Latin Extended-A/B, spacing modifiers (Uzbek oʻ gʻ need
 # U+02BB), Cyrillic, general punctuation and the currency signs.

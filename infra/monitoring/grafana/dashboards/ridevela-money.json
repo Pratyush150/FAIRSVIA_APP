@@ -50,7 +50,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### Money\nWhat came in, what RideVela kept and what drivers earned, in the chosen period."
+        "content": "### Money\nWhat came in, what FAIRSVIA kept and what drivers earned, in the chosen period."
       }
     },
     {
@@ -121,7 +121,7 @@
       "type": "stat",
       "title": "Money we kept",
       "id": 3,
-      "description": "RideVela's share (commission) of what riders paid.",
+      "description": "FAIRSVIA's share (commission) of what riders paid.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "ridevela-postgres"

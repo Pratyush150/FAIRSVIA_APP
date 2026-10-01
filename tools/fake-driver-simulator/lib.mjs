@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 
-export const BASE = process.env.BASE_URL || 'http://localhost:3000/api/v1';
-export const WS = process.env.WS_URL || 'http://localhost:3000';
+export const BASE = process.env.BASE_URL || 'http://localhost:3200/api/v1';
+export const WS = process.env.WS_URL || 'http://localhost:3200';
 
 /** Minimal REST helper against the backend. When `expectError` is set, a
  * non-2xx response is returned as `{ status }` instead of throwing. */

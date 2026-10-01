@@ -17,7 +17,7 @@ setRegion(['Brickell']); // spawn drivers in the Brickell core
 function otpFromDb(tripId) {
   try {
     const out = execSync(
-      'docker exec ubernav_postgres psql -U ubernav -d ubernav -tAc ' +
+      'docker exec fairsvia_postgres psql -U fairsvia -d fairsvia -tAc ' +
         `"select start_otp from trips where id='${tripId}'"`,
       { encoding: 'utf8', timeout: 5000 },
     ).trim();

@@ -30,11 +30,11 @@ as §5, with `--build-name=1.5.2 --build-number=5015`.
 | In trip | "On the way to <place>" once; "Arriving soon" under 500 m; Safety + Share pills |
 | Completed | One "Total ₹75" line with Details ⌄; tips ₹20/₹50/₹100/Custom; Done pinned at the bottom |
 | Pickup text | Landmark/road first: "Mote Mangal Karyalay Road, Dattwadi, Pune" |
-| Driver app | Before the location prompt, a RideVela screen explains why; deny → "Open Settings" banner. Account shows rating / trips (last 7 days) / plate |
+| Driver app | Before the location prompt, a FAIRSVIA screen explains why; deny → "Open Settings" banner. Account shows rating / trips (last 7 days) / plate |
 
 **Theme variants (owner comparison — Visual Direction v2):** build with
 `--dart-define=THEME=midnight` (Plan A), `daylight` (Plan B) or `daynight`
-(Plan C). On Android each is a separate app ("RideVela A · Midnight" etc.)
+(Plan C). On Android each is a separate app ("FAIRSVIA A · Midnight" etc.)
 so all sit on one phone. **On iOS they are NOT separate apps yet** — the
 bundle ID is the same, so each variant build replaces the last. Put one
 variant per iPhone, or add a bundle-ID suffix per variant in Xcode if you
@@ -113,7 +113,7 @@ The public link is a Cloudflare **quick tunnel**; its address **changes
 whenever the tunnel restarts** (reboot, Docker restart). On the Linux box:
 
 ```sh
-docker logs ridevela_tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
+docker logs fairsvia_tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
 ```
 Today it is `https://interviews-wallace-quality-destination.trycloudflare.com`.
 Check it answers: `curl <address>/api/v1/health` → `{"status":"ok",...}`.
@@ -122,8 +122,8 @@ If it changed after apps were installed, don't rebuild: on each phone
 long-press the logo on the sign-in screen → paste `<address>/api/v1` →
 **Check and save** → close and reopen the app.
 
-(The permanent fix is a *named* tunnel on the RideVela Cloudflare account,
-e.g. `api.ridevela.com` — needs the owner's one-time `cloudflared tunnel login`.
+(The permanent fix is a *named* tunnel on the FAIRSVIA Cloudflare account,
+e.g. `api.fairsvia.com` — needs the owner's one-time `cloudflared tunnel login`.
 Then no address ever changes.)
 
 ---
@@ -182,7 +182,7 @@ anything different in §9 of `remaining-work-plan.md` with a screenshot.
    (grant location "While Using the App"). Map tiles load (if grey, the Maps key — §3.3).
 4. Search "Pune station": results in **km** (e.g. "2.1 km").
 5. Ride options: header **"x.x km · N min"** (never "mi"), fares in **₹**
-   (≈ ₹90–₹100 for ~2.5 km economy), no "price comparison" card.
+   (≈ ₹90–₹100 for ~2.5 km economy).
 6. Payment is **Cash** (no card saved). Confirm.
 7. Driver-arriving screen: **4-digit PIN**, pickup + "Economy" + "Cash" chips,
    driver card with plate, Message, Details, **Add a stop**, **Pre-book**.
@@ -264,7 +264,7 @@ database**. Things done from the Mac are visible to everyone testing.
 | Item | Why | How |
 |---|---|---|
 | **Push the code** | The Linux box can't push (no GitHub credentials cached; the tool refuses to use a token pasted in chat). 20+ commits are local only; CI hasn't run on them | On the Linux box: `cd ~/ubernav && git push origin main`, sign in when asked. Then `git pull` on the Mac |
-| Permanent server address | Quick-tunnel address changes on restart | One-time `cloudflared tunnel login` on the RideVela Cloudflare account; then a named tunnel `api.ridevela.com` |
+| Permanent server address | Quick-tunnel address changes on restart | One-time `cloudflared tunnel login` on the FAIRSVIA Cloudflare account; then a named tunnel `api.fairsvia.com` |
 | TestFlight | Share iPhone builds without a cable | Paid Apple Developer account + App Store Connect app records |
 | Real SMS | Real users can't log in (only demo accounts) | SMS provider account — waiting on company GST / mobile number |
 

@@ -321,7 +321,7 @@ void _shareTrip(BuildContext context, TripState state) {
   );
 }
 
-/// `I'm on a RideVela ride to PLACE. Car: VEHICLE, plate PLATE. Driver: NAME.`
+/// `I'm on a FAIRSVIA ride to PLACE. Car: VEHICLE, plate PLATE. Driver: NAME.`
 /// — shared by the Share pill, the ••• menu and the safety sheet, each of
 /// which appends `Track my ride live: URL` once the backend has issued the
 /// trip's public tracking link (see [shareTripTextWithLink]).

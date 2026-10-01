@@ -25,7 +25,7 @@ log "driver: open chat, reply";     tap $D 358 703; sleep 2; tap $D 170 804; sle
 typ $D "On my way, 2 min"; sleep 0.5; tap $D 370 804; sleep 3
 log "both: back to trip";           tap $D 27 91; sleep 1; tap $R 27 91; sleep 1.5
 log "driver: arrived";              tap $D 201 792; sleep 4
-OTP=$(PGPASSWORD=ubernav psql -h localhost -U ubernav -d ubernav -At -c "select start_otp from trips where rider_id='$RIDER_ID' order by requested_at desc limit 1")
+OTP=$(PGPASSWORD=fairsvia psql -h localhost -U fairsvia -d fairsvia -At -c "select start_otp from trips where rider_id='$RIDER_ID' order by requested_at desc limit 1")
 log "driver: start code $OTP";      tap $D 105 714; sleep 0.6; for c in $(echo $OTP | sed 's/./& /g'); do typ $D "$c"; sleep 0.7; done; sleep 1
 tap $D 201 792; sleep 5
 log "driver: complete trip";        tap $D 201 792; sleep 6

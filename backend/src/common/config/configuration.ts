@@ -236,9 +236,9 @@ export default (): AppConfig => {
   stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? '',
   stripeWebhookSecret,
   stripeConnectReturnUrl:
-    process.env.STRIPE_CONNECT_RETURN_URL ?? 'fairsvia-driver://connect/return',
+    process.env.STRIPE_CONNECT_RETURN_URL ?? 'fairsviaapp-driver://connect/return',
   stripeConnectRefreshUrl:
-    process.env.STRIPE_CONNECT_REFRESH_URL ?? 'fairsvia-driver://connect/refresh',
+    process.env.STRIPE_CONNECT_REFRESH_URL ?? 'fairsviaapp-driver://connect/refresh',
   stripeApiBaseUrl: process.env.STRIPE_API_BASE_URL ?? 'https://api.stripe.com/v1',
   platformFeePercent: parseFloat(process.env.PLATFORM_FEE_PERCENT ?? '0.20'),
   cancellationFee: parseFloat(process.env.CANCELLATION_FEE ?? '5'),

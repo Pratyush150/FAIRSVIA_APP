@@ -7,7 +7,7 @@
 //      (driver:status_changed reason 'fatigue' + driver:fatigue_locked).
 //   3. Going online is refused: 409 DRIVER_REST_REQUIRED with the time left.
 //   4. A third driver at 11h40m gets driver:fatigue_warning.
-// Hours of online time are seeded into Redis (ubernav_redis) — nobody waits
+// Hours of online time are seeded into Redis (fairsvia_redis) — nobody waits
 // 12 h. Run: node fatigue-check.mjs
 import { execSync } from 'node:child_process';
 import { BASE, api, connect, login, once, onboardDriver, phone, wait } from './lib.mjs';
@@ -18,7 +18,7 @@ function assert(cond, msg) {
 }
 const H = 3600;
 const redis = (...args) =>
-  execSync(`docker exec ubernav_redis redis-cli ${args.join(' ')}`).toString().trim();
+  execSync(`docker exec fairsvia_redis redis-cli ${args.join(' ')}`).toString().trim();
 
 // A quiet corner (east Pune) so other simulators' drivers are not in range.
 const pickup = { lat: 18.6331, lng: 73.9012 };

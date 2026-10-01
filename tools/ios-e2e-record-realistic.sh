@@ -11,7 +11,7 @@ DEST="${DEST:-Miami Dade College Wolfson Campus}"
 tap(){ idb ui tap --udid $1 $2 $3 --duration 0.05 >/dev/null 2>&1; }
 typ(){ idb ui text --udid $1 "$2" >/dev/null 2>&1; }
 log(){ echo "[$(date +%H:%M:%S) +$(( $(date +%s) - T0 ))s] $*"; }
-sql(){ PGPASSWORD=ubernav psql -h localhost -U ubernav -d ubernav -At -c "$1"; }
+sql(){ PGPASSWORD=fairsvia psql -h localhost -U fairsvia -d fairsvia -At -c "$1"; }
 # metres from the driver's live Redis position to (lat,lng)
 dist_to(){ python3 - "$1" "$2" <<'PY'
 import sys, math, subprocess

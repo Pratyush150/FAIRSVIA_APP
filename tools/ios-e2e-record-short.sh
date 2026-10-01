@@ -12,7 +12,7 @@ DRAG_PT="${DRAG_PT:-52}"   # points to drag the picker map up (~110 m south)
 tap(){ idb ui tap --udid $1 $2 $3 --duration 0.05 >/dev/null 2>&1; }
 typ(){ idb ui text --udid $1 "$2" >/dev/null 2>&1; }
 log(){ echo "[$(date +%H:%M:%S) +$(( $(date +%s) - T0 ))s] $*"; }
-sql(){ PGPASSWORD=ubernav psql -h localhost -U ubernav -d ubernav -At -c "$1"; }
+sql(){ PGPASSWORD=fairsvia psql -h localhost -U fairsvia -d fairsvia -At -c "$1"; }
 dist_to(){ python3 - "$1" "$2" "$DRIVER_ID" <<'PY'
 import sys, math, subprocess
 lat2, lng2, did = float(sys.argv[1]), float(sys.argv[2]), sys.argv[3]

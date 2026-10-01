@@ -18,7 +18,7 @@ class MockTripCubit extends MockCubit<TripState> implements TripCubit {}
 /// Owner (2026-09-25): "similar upward pulling screens should not be looking
 /// too empty — it should look fully complete". Choosing a ride, dragged
 /// all the way up, carries more than its rest content: the ride-type
-/// comparison, fare notes, safety features and posters. Nothing overflows on a
+/// fare notes, safety features and posters. Nothing overflows on a
 /// small phone or at 1.5x text.
 ///
 /// Screenshots: set SHEET_SHOTS to a directory (only then are PNGs written).
@@ -166,7 +166,7 @@ void main() {
   final choose = base.copyWith(phase: TripPhase.choosingRide);
 
   group('choose ride, expanded', () {
-    testWidgets('carries the comparison, fare notes, safety and posters', (
+    testWidgets('carries the fare notes, safety and posters, and no price check', (
       tester,
     ) async {
       await pump(tester, choose);
@@ -175,9 +175,12 @@ void main() {
       await shootScrolled(tester, 'sheet_choose_ride_expanded');
       // Everything in the extras is real: seats from the tiers, the route's
       // own distance, the product's own safety tools.
-      // "Compare rides" was removed (owner, 2026-09-26): the Price check
-      // card already compares, and the tier list shows seats and pickup.
+      // No price comparison anywhere: fares are our own rate card only.
       expect(find.text('Compare rides', skipOffstage: false), findsNothing);
+      expect(find.text('Price check', skipOffstage: false), findsNothing);
+      expect(find.textContaining('Save ₹', skipOffstage: false), findsNothing);
+      expect(find.textContaining('Rapido', skipOffstage: false), findsNothing);
+      expect(find.textContaining('Uber', skipOffstage: false), findsNothing);
       expect(find.text('About this fare', skipOffstage: false), findsOneWidget);
       expect(
         find.text('Safety on every ride', skipOffstage: false),

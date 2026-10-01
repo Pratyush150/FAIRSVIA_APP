@@ -44,7 +44,7 @@ void main() {
     await pump(tester, serverUp: false);
     await submit(tester, 'https://typo.trycloudflare.com/api/v1');
     expect(store.data, isEmpty);
-    expect(find.textContaining('No RideVela server answered'), findsOneWidget);
+    expect(find.textContaining('No FAIRSVIA server answered'), findsOneWidget);
   });
 
   testWidgets('refuses plain http and half addresses without calling anything',

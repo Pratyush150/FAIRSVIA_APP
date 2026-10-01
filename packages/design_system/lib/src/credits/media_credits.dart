@@ -20,7 +20,7 @@ void registerMediaCredits() {
   _registered = true;
   LicenseRegistry.addLicense(() => Stream.value(
         LicenseEntryWithLineBreaks(
-          const ['RideVela artwork'],
+          const ['FAIRSVIA artwork'],
           mediaCredits.join('\n\n'),
         ),
       ));

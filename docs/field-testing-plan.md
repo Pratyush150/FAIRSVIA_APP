@@ -1,4 +1,4 @@
-# RideVela — Field & Dispatch Testing Plan
+# FAIRSVIA — Field & Dispatch Testing Plan
 
 **Version 1.0** · Rider app, driver app, dispatch, pricing, network resilience
 

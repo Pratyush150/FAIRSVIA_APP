@@ -1,4 +1,4 @@
-# RideVela monitoring stack
+# FAIRSVIA monitoring stack
 
 Prometheus + Grafana + Alertmanager + Loki, plus the Postgres, Redis and host
 exporters. Opt-in and separate from the app stack: bringing it up or down never
@@ -18,7 +18,7 @@ docker compose -f docker-compose.monitoring.yml up -d
 
 ## Dashboards
 
-Provisioned from `grafana/dashboards/*.json`, in the **RideVela** folder.
+Provisioned from `grafana/dashboards/*.json`, in the **FAIRSVIA** folder.
 
 | Dashboard | Answers |
 | --- | --- |
@@ -78,11 +78,11 @@ data while looking perfectly healthy.
 ## Public access to Grafana (pilot, 2026-09-23)
 
 Grafana is reachable from any network through a Cloudflare quick tunnel
-(container `ridevela_grafana_tunnel`, on the monitoring network, pointing at
+(container `fairsvia_grafana_tunnel`, on the monitoring network, pointing at
 `http://grafana:3000`). Its address changes if the container restarts; get the
 current one with:
 
-    docker logs ridevela_grafana_tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
+    docker logs fairsvia_grafana_tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
 
 - Login is required (anonymous access is off). The default `admin/ridevela`
   password was replaced with a strong one before the link was opened;
@@ -91,5 +91,5 @@ current one with:
   change it again before re-opening the link.
 - Team members use the `team` account (Viewer: dashboards only, no editing,
   no ad-hoc queries). Passwords are held by the owner, never in this repo.
-- The permanent version is a named tunnel on the RideVela Cloudflare account
-  (e.g. `grafana.ridevela.com`) with Cloudflare Access in front.
+- The permanent version is a named tunnel on the FAIRSVIA Cloudflare account
+  (e.g. `grafana.fairsvia.com`) with Cloudflare Access in front.

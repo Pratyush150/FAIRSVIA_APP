@@ -149,11 +149,6 @@ class _AdminScaffold extends StatelessWidget {
                     label: Text('Pricing'),
                   ),
                   const NavigationRailDestination(
-                    icon: Icon(PhosphorIconsRegular.arrowsLeftRight),
-                    selectedIcon: Icon(PhosphorIconsRegular.arrowsLeftRight),
-                    label: Text('Compare'),
-                  ),
-                  const NavigationRailDestination(
                     icon: Icon(PhosphorIconsRegular.toggleLeft),
                     selectedIcon: Icon(PhosphorIconsFill.toggleRight),
                     label: Text('Controls'),
@@ -200,7 +195,6 @@ class _AdminScaffold extends StatelessWidget {
         AdminTab.quests => 'Driver quests & incentives',
         AdminTab.content => 'Content — cards under the ride',
         AdminTab.pricing => 'Pricing & surge',
-        AdminTab.comparison => 'Price comparison & calibration',
         AdminTab.controls => 'Operational controls',
       };
 }
@@ -275,8 +269,6 @@ class _Body extends StatelessWidget {
         QuestsView(api: QuestsApi(sl<DioClient>().authenticatedDio)),
       AdminTab.content => _ContentView(cards: state.rideCards),
       AdminTab.pricing => _PricingView(fares: state.fares, surge: state.surge),
-      AdminTab.comparison =>
-        _ComparisonView(models: state.comparisonModels),
       AdminTab.controls => _ControlsView(flags: state.opsFlags),
     };
   }
@@ -1620,203 +1612,6 @@ class _ErrorBanner extends StatelessWidget {
       ),
     );
   }
-}
-
-// --- Price comparison & calibration -----------------------------------------
-
-class _ComparisonView extends StatelessWidget {
-  const _ComparisonView({required this.models});
-  final List<AdminComparisonModel> models;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cubit = context.read<AdminCubit>();
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      children: [
-        Text('Competitor rate cards', style: theme.textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          'Modeled from published fares — not live quotes. Record real observed '
-          'fares below and the model re-fits itself to track them per market.',
-          style: theme.textTheme.bodySmall,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton.icon(
-            onPressed: () => _showRecordSample(context, cubit, models),
-            icon: const Icon(PhosphorIconsRegular.chartLineUp, size: 20),
-            label: const Text('Record observed fare'),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        for (final m in models)
-          Card(
-            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: ListTile(
-              title: Row(
-                children: [
-                  Text('${m.displayName} · ${m.productName}',
-                      style: theme.textTheme.titleSmall),
-                  const SizedBox(width: AppSpacing.sm),
-                  _CalibrationChip(
-                      calibrated: m.calibrated, residualPct: m.residualPct),
-                ],
-              ),
-              subtitle: Text(
-                // Competitor rate cards are US fares (USD, per mile).
-                'base \$${m.baseFare.toStringAsFixed(2)} · '
-                '\$${m.perMile.toStringAsFixed(2)}/mi · '
-                '\$${m.perMin.toStringAsFixed(2)}/min · '
-                'min \$${m.minFare.toStringAsFixed(2)} · '
-                'booking \$${m.bookingFee.toStringAsFixed(2)} (USD)',
-                style: theme.textTheme.bodySmall,
-              ),
-            ),
-          ),
-        if (models.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xl),
-            child: Text('No competitor models loaded.',
-                style: theme.textTheme.bodySmall),
-          ),
-      ],
-    );
-  }
-}
-
-class _CalibrationChip extends StatelessWidget {
-  const _CalibrationChip({required this.calibrated, required this.residualPct});
-  final bool calibrated;
-  final double residualPct;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = calibrated ? AppColors.success : AppColors.warning;
-    final label = calibrated
-        ? 'calibrated · ${(residualPct * 100).toStringAsFixed(1)}% err'
-        : 'seed defaults';
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              color: color, fontSize: 11, fontWeight: FontWeight.w600)),
-    );
-  }
-}
-
-Future<void> _showRecordSample(
-  BuildContext context,
-  AdminCubit cubit,
-  List<AdminComparisonModel> models,
-) async {
-  final providers =
-      models.isEmpty ? ['uber', 'lyft', 'empower'] : models.map((m) => m.provider).toList();
-  var provider = providers.first;
-  final miles = TextEditingController();
-  final minutes = TextEditingController();
-  final fare = TextEditingController();
-  final surge = TextEditingController(text: '1.0');
-  String? error;
-  var saving = false;
-
-  Widget field(String label, TextEditingController c, {String? prefix}) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: TextField(
-          controller: c,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: label, prefixText: prefix),
-        ),
-      );
-
-  await showDialog<void>(
-    context: context,
-    builder: (dialogCtx) => StatefulBuilder(
-      builder: (ctx, setLocal) => AlertDialog(
-        title: const Text('Record observed competitor fare'),
-        content: SizedBox(
-          width: 360,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: provider,
-                decoration: const InputDecoration(labelText: 'Provider'),
-                items: [
-                  for (final p in providers)
-                    DropdownMenuItem(value: p, child: Text(p)),
-                ],
-                onChanged: (v) => setLocal(() => provider = v ?? provider),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              field('Trip distance (miles)', miles),
-              field('Trip duration (minutes)', minutes),
-              field('Observed fare (USD)', fare, prefix: '\$ '),
-              field('Surge at the time (1.0 = none)', surge, prefix: '× '),
-              if (error != null)
-                Text(error!,
-                    style:
-                        const TextStyle(color: AppColors.error, fontSize: 12)),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: saving ? null : () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: saving
-                ? null
-                : () async {
-                    final mi = double.tryParse(miles.text.trim());
-                    final mn = double.tryParse(minutes.text.trim());
-                    final f = double.tryParse(fare.text.trim());
-                    final s = double.tryParse(surge.text.trim()) ?? 1.0;
-                    if (mi == null || mn == null || f == null || mi <= 0) {
-                      setLocal(() => error = 'Enter valid distance, time, fare.');
-                      return;
-                    }
-                    setLocal(() {
-                      saving = true;
-                      error = null;
-                    });
-                    try {
-                      await cubit.recordFareSample({
-                        'provider': provider,
-                        'distanceM': (mi * 1609.34).round(),
-                        'durationS': (mn * 60).round(),
-                        'observedFare': f,
-                        'surgeAtSample': s,
-                        'source': 'admin',
-                      });
-                      if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-                    } catch (e) {
-                      setLocal(() {
-                        saving = false;
-                        error = '$e';
-                      });
-                    }
-                  },
-            child: saving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Save'),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 // --- Operational controls ---------------------------------------------------

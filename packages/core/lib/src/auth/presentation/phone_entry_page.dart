@@ -35,7 +35,7 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
   final _controller = TextEditingController();
   bool _valid = false;
 
-  /// The driver app's login ("RideVela Driver"): driver mark + "Driver" pill.
+  /// The driver app's login ("FAIRSVIA Driver"): driver mark + "Driver" pill.
   bool get _driver => widget.title.toLowerCase().contains('driver');
 
   // Span recognizers must outlive build and be disposed with the state.

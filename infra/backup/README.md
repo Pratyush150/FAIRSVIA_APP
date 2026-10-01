@@ -24,7 +24,7 @@ over 26 hours old. It cannot fire if a backup has *never* succeeded — the
 metric does not exist yet — so after first deploying, confirm one run:
 
 ```bash
-docker compose -p ubernav_prod -f infra/docker-compose.prod.yml logs pg_backup
+docker compose -p fairsvia_prod -f infra/docker-compose.prod.yml logs pg_backup
 ls -l /var/backups/ridevela/daily
 ```
 
@@ -33,8 +33,8 @@ ls -l /var/backups/ridevela/daily
 Always restore into a scratch database first, check it, then swap.
 
 ```bash
-make restore-db DUMP=/var/backups/ridevela/daily/<file>.dump TARGET=ubernav_restore
-# check row counts / recent trips in ubernav_restore, then point
+make restore-db DUMP=/var/backups/ridevela/daily/<file>.dump TARGET=fairsvia_restore
+# check row counts / recent trips in fairsvia_restore, then point
 # DATABASE_URL at it (or rename databases) with the backend stopped.
 ```
 

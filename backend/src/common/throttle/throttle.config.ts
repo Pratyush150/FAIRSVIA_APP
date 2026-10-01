@@ -53,7 +53,6 @@ const TIGHT_ROUTES: RegExp[] = [
 
 const MODERATE_ROUTES: RegExp[] = [
   /^POST \/trips\/estimate$/,
-  /^POST \/comparison\/estimate$/,
   /^GET \/places(\/|$)/,
   /^POST \/trips\/:tripId\/messages$/,
   /^POST \/support\/tickets$/,

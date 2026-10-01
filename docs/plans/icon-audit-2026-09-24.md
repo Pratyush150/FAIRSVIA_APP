@@ -91,7 +91,7 @@ rider_app
 - `sheets/pre_book_page.dart` — row glyphs 22→24; destination Fill square → Regular mapPin.
 - `destination_search_page.dart` — "Set location on the map" and result rows → `AppIconBadge`; saved-place chip Fill star → Regular mapPin (same as Saved places / Where-to); route rail 14/12→16; error + arrow 18→20.
 - `map_picker_page.dart` — centre pin 44→48 (offset −20→−22 so the tip stays on centre).
-- `location_banner.dart` 18→20 · `price_comparison_card.dart` headline 18→20.
+- `location_banner.dart` 18→20.
 
 driver_app
 - `home_page.dart` — online/offline 46 px circles → `AppIconBadge` (brand / neutral); offer pickup 36 px circle → `AppIconBadge`; trip-complete medallion 60/34 → 64/32; banners 18/24 → 20; later-stop flag on neutral token (was light-mode grey in dark); rider star 14→16; distance arrow 16→20.
@@ -104,7 +104,6 @@ Tests / tooling
 - `packages/core/test/account/account_menu_page_test.dart` — chevron now expects `AppColors.iconNeutralDark` (was `textTertiaryDark`, an intended change); rider page asserts Regular star/heart in the menu and the one Fill star on the rating line.
 - `packages/design_system/test/icon_inventory_sheet_test.dart` (new) + `icon_inventory_data.dart` (generated) — rules 2/3/5/7 as tests; sheet render.
 - `docs/brand/research/icon_inventory.py` (new) — the scanner.
-- **Goldens updated:** `apps/rider_app/test/goldens/price_comparison_{cheapest,high_demand,not_cheapest}.png`. Two causes, both reviewed: (a) intended — the headline glyph 18→20; (b) not mine — the Phosphor TTFs in `packages/design_system/fonts/` were rebuilt by the agent adding glyphs (modified 17:54 today), which shifts glyph anti-aliasing; the last diff was icon pixels only (0.3–0.5 %), text identical. If that font rebuild is reverted or changed again, these three goldens need regenerating again. `price_comparison_marketing_debranded.png` did not change.
 
 ## Fixed after looking at the sheet
 
@@ -301,13 +300,6 @@ Colour roles: `default` = on-surface ink via the theme; `neutral` = iconNeutral 
 | apps/rider_app/lib/features/trip/map_picker_page.dart:174 | gpsFix | 24 | default | map button | Regular | ok | ok | ok | ok |  |
 | apps/rider_app/lib/features/trip/map_picker_page.dart:205 | mapPin | 20 | brand | plain | Regular | ok | ok | ok | ok |  |
 | apps/rider_app/lib/features/trip/map_picker_page.dart:278 | mapPin | 48 | brand | plain | Regular | ok | ok | ok | ok |  |
-| apps/rider_app/lib/features/trip/price_comparison_card.dart:25 | piggyBank | 20 | brand | plain | Regular | ok | ok | ok | ok |  |
-| apps/rider_app/lib/features/trip/price_comparison_card.dart:31 | sealCheck | 20 | brand | plain | Fill | ok | ok | ok | ok |  |
-| apps/rider_app/lib/features/trip/price_comparison_card.dart:38 | info | 20 | neutral | plain | Regular | ok | ok | ok | ok |  |
-| apps/rider_app/lib/features/trip/price_comparison_card.dart:64 | question | 16 | neutral | plain | Regular | ok | ok | ok | ok |  |
-| apps/rider_app/lib/features/trip/price_comparison_card.dart:76 | lightning | 20 | warning | plain | Regular | ok | ok | ok | ok |  |
-| apps/rider_app/lib/features/trip/price_comparison_card.dart:136 | taxi | 16 | brand | plain | Regular | ok | ok | ok | ok |  |
-| apps/rider_app/lib/features/trip/price_comparison_card.dart:139 | circle | 16 | neutral | plain | Regular | ok | ok | ok | ok |  |
 | apps/rider_app/lib/features/trip/sheets/completed_sheet.dart:47 | heart | 20 | danger | plain | Fill | ok | ok | ok | ok |  |
 | apps/rider_app/lib/features/trip/sheets/completed_sheet.dart:47 | heart | 20 | danger | plain | Regular | ok | ok | ok | ok |  |
 | apps/rider_app/lib/features/trip/sheets/completed_sheet.dart:130 | check | 32 | brand | medallion | Regular | ok | ok | ok | ok |  |

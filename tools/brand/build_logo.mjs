@@ -1,4 +1,4 @@
-// Builds the RideVela logo pack (Road-V) into docs/brand/ and the app icons
+// Builds the FAIRSVIA logo pack (Road-F) into docs/brand/ and the app icons
 // into apps/*: SVG sources, transparent/white/dark/turquoise PNGs, lockups,
 // Android mipmaps, the iOS AppIcon set and web icons.
 //
@@ -10,16 +10,18 @@ import puppeteer from '../visual-check/node_modules/puppeteer/lib/esm/puppeteer/
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = join(ROOT, 'docs', 'brand');
-const NAVY = '#0B3C49', TURQ = '#2EC4C6', TEAL = '#0FA3A8', WHITE = '#FFFFFF';
+// FAIRSVIA "Ocean Blue": navy, bright blue (TURQ slot), brand blue (TEAL slot).
+const NAVY = '#0B1F49', TURQ = '#5B9DFF', TEAL = '#2F6BFF', WHITE = '#FFFFFF';
 
-// The V as a road: two strokes meeting low, a lane line, a light edge on the
-// far side. Drawn in a 512 box; `s` scales it about the centre (for safe zones).
+// The F as a road: a stem running away from you with a lane line, two arms,
+// a light edge on the far side. Drawn in a 512 box; `s` scales it about the
+// centre (for safe zones).
 function vGlyph(fill, lane, s = 1) {
   const t = `translate(256 256) scale(${s}) translate(-256 -256)`;
   return `<g transform="${t}">
-    <path d="M96 118 L216 118 L256 262 L296 118 L416 118 L300 410 L212 410 Z" fill="${fill}"/>
-    <path d="M256 300 L256 336 M256 356 L256 384" stroke="${lane}" stroke-width="12" stroke-linecap="round"/>
-    <path d="M296 118 L416 118 L300 410 L276 410 Z" fill="#FFFFFF" opacity="0.14"/>
+    <path d="M134 110 L378 110 L378 188 L226 188 L226 236 L332 236 L332 306 L226 306 L226 410 L134 410 Z" fill="${fill}"/>
+    <path d="M180 332 L180 358 M180 378 L180 396" stroke="${lane}" stroke-width="12" stroke-linecap="round"/>
+    <path d="M208 306 L226 306 L226 410 L208 410 Z" fill="#FFFFFF" opacity="0.14"/>
   </g>`;
 }
 const svg = (inner, w = 512, h = 512) =>
@@ -28,14 +30,14 @@ const tile = (bg, v, lane, { rounded = true, s = 1 } = {}) =>
   svg(`<rect width="512" height="512" ${rounded ? 'rx="116"' : ''} fill="${bg}"/>${vGlyph(v, lane, s)}`);
 
 const marks = {
-  'ridevela-mark-rider': tile(TEAL, NAVY, TURQ),
-  'ridevela-mark-driver': tile(NAVY, TURQ, WHITE),
-  'ridevela-glyph-navy': svg(vGlyph(NAVY, TURQ)),
-  'ridevela-glyph-white': svg(vGlyph(WHITE, TURQ)),
-  'ridevela-glyph-turquoise': svg(vGlyph(TURQ, WHITE)),
+  'fairsvia-mark-rider': tile(TEAL, NAVY, TURQ),
+  'fairsvia-mark-driver': tile(NAVY, TURQ, WHITE),
+  'fairsvia-glyph-navy': svg(vGlyph(NAVY, TURQ)),
+  'fairsvia-glyph-white': svg(vGlyph(WHITE, TURQ)),
+  'fairsvia-glyph-turquoise': svg(vGlyph(TURQ, WHITE)),
 };
 // Full-bleed squares for stores and adaptive/maskable icons (the OS masks the
-// corners itself); the V shrinks into the safe zone.
+// corners itself); the F shrinks into the safe zone.
 const fullbleed = {
   rider: tile(TEAL, NAVY, TURQ, { rounded: false, s: 0.78 }),
   driver: tile(NAVY, TURQ, WHITE, { rounded: false, s: 0.78 }),
@@ -48,14 +50,14 @@ function lockup(markSvg, textColor, bg) {
     <style>@font-face{font-family:RVInter;src:url(data:font/ttf;base64,${inter})}</style>
     <g transform="translate(40 40) scale(0.625)">${inner}</g>
     <text x="400" y="262" font-family="RVInter, Inter, Arial, sans-serif" font-weight="800" font-size="196"
-      letter-spacing="-6" fill="${textColor}">RideVela</text>`, 1400, 400);
+      letter-spacing="-6" fill="${textColor}">FAIRSVIA</text>`, 1400, 400);
 }
 
 mkdirSync(join(OUT, 'svg'), { recursive: true });
 mkdirSync(join(OUT, 'png'), { recursive: true });
 for (const [name, s] of Object.entries(marks)) writeFileSync(join(OUT, 'svg', `${name}.svg`), s);
-writeFileSync(join(OUT, 'svg', 'ridevela-lockup-light.svg'), lockup(marks['ridevela-mark-rider'], NAVY));
-writeFileSync(join(OUT, 'svg', 'ridevela-lockup-dark.svg'), lockup(marks['ridevela-mark-rider'], WHITE));
+writeFileSync(join(OUT, 'svg', 'fairsvia-lockup-light.svg'), lockup(marks['fairsvia-mark-rider'], NAVY));
+writeFileSync(join(OUT, 'svg', 'fairsvia-lockup-dark.svg'), lockup(marks['fairsvia-mark-rider'], WHITE));
 
 const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
 const page = await browser.newPage();
@@ -71,13 +73,13 @@ for (const [name, s] of Object.entries(marks)) {
   for (const size of [1024, 512, 256, 128]) await png(s, size, size, P(`${name}-${size}.png`));
 }
 for (const [bgName, bg] of [['white', WHITE], ['dark', '#0E0F11'], ['turquoise', TURQ]]) {
-  const glyph = bgName === 'dark' ? marks['ridevela-glyph-turquoise'] : bgName === 'turquoise' ? marks['ridevela-glyph-navy'] : marks['ridevela-glyph-navy'];
-  await png(glyph.replace('<svg', `<svg style="background:${bg}"`), 1024, 1024, P(`ridevela-glyph-on-${bgName}-1024.png`), bg);
+  const glyph = bgName === 'dark' ? marks['fairsvia-glyph-turquoise'] : bgName === 'turquoise' ? marks['fairsvia-glyph-navy'] : marks['fairsvia-glyph-navy'];
+  await png(glyph.replace('<svg', `<svg style="background:${bg}"`), 1024, 1024, P(`fairsvia-glyph-on-${bgName}-1024.png`), bg);
 }
-await png(readFileSync(join(OUT, 'svg', 'ridevela-lockup-light.svg'), 'utf8'), 1400, 400, P('ridevela-lockup-light-transparent.png'));
-await png(readFileSync(join(OUT, 'svg', 'ridevela-lockup-dark.svg'), 'utf8'), 1400, 400, P('ridevela-lockup-dark-transparent.png'));
-await png(lockup(marks['ridevela-mark-rider'], NAVY, WHITE), 1400, 400, P('ridevela-lockup-on-white.png'), WHITE);
-await png(lockup(marks['ridevela-mark-rider'], WHITE, '#0E0F11'), 1400, 400, P('ridevela-lockup-on-dark.png'), '#0E0F11');
+await png(readFileSync(join(OUT, 'svg', 'fairsvia-lockup-light.svg'), 'utf8'), 1400, 400, P('fairsvia-lockup-light-transparent.png'));
+await png(readFileSync(join(OUT, 'svg', 'fairsvia-lockup-dark.svg'), 'utf8'), 1400, 400, P('fairsvia-lockup-dark-transparent.png'));
+await png(lockup(marks['fairsvia-mark-rider'], NAVY, WHITE), 1400, 400, P('fairsvia-lockup-on-white.png'), WHITE);
+await png(lockup(marks['fairsvia-mark-rider'], WHITE, '#0E0F11'), 1400, 400, P('fairsvia-lockup-on-dark.png'), '#0E0F11');
 
 // App icons.
 const android = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
@@ -85,7 +87,7 @@ const ios = { '20x20@1x': 20, '20x20@2x': 40, '20x20@3x': 60, '29x29@1x': 29, '2
   '40x40@1x': 40, '40x40@2x': 80, '40x40@3x': 120, '60x60@2x': 120, '60x60@3x': 180, '76x76@1x': 76,
   '76x76@2x': 152, '83.5x83.5@2x': 167, '1024x1024@1x': 1024 };
 for (const [app, key] of [['rider_app', 'rider'], ['driver_app', 'driver']]) {
-  const rounded = marks[`ridevela-mark-${key}`];
+  const rounded = marks[`fairsvia-mark-${key}`];
   const square = fullbleed[key];
   const bg = key === 'rider' ? TEAL : NAVY;
   for (const [d, px] of Object.entries(android)) {
@@ -95,7 +97,7 @@ for (const [app, key] of [['rider_app', 'rider'], ['driver_app', 'driver']]) {
     // iOS icons must be opaque; the OS rounds the corners.
     await png(square, px, px, join(ROOT, 'apps', app, 'ios/Runner/Assets.xcassets/AppIcon.appiconset', `Icon-App-${n}.png`), bg);
   }
-  // Android 8+ adaptive icon: a solid background colour + the V on a
+  // Android 8+ adaptive icon: a solid background colour + the F on a
   // transparent 108dp foreground, inside the 72dp safe zone (the launcher
   // crops to a circle, squircle or square). Without it the launcher shrinks
   // the legacy square into a white circle.

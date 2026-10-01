@@ -11,7 +11,7 @@ import '../../theme/app_spacing.dart';
 class BrandFooter extends StatelessWidget {
   const BrandFooter({
     super.key,
-    this.tagline = '#RideVela',
+    this.tagline = '#FAIRSVIA',
     this.subtitle = 'Rides, made simple',
   });
 

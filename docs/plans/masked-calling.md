@@ -122,7 +122,7 @@ Scale rule of thumb [assumed]: pool ≥ max(peak concurrent trips ÷ 50, 5); rev
 - Trips payload: replace `driver.phone` / `rider.phone` with `callNumber` (VN) when
   `CALL_MASKING=on`; keep today's real-number path behind the flag for the pilot.
 - Apps: `dialPhone(callNumber)` — only the field name changes; add "Calls are routed via
-  RideVela and may be recorded" copy if recording is on.
+  FAIRSVIA and may be recorded" copy if recording is on.
 
 ### Failure / fallback
 - Provider down or webhook times out (target < 2 s [assumed]): the call fails. Fallbacks,

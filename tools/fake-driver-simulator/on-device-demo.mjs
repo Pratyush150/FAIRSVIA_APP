@@ -11,7 +11,7 @@ import { api, connect, login, onboardDriver, phone, wait } from './lib.mjs';
 
 function psql(sql) {
   return execSync(
-    `docker exec ubernav_postgres psql -U ubernav -d ubernav -tAc "${sql}"`,
+    `docker exec fairsvia_postgres psql -U fairsvia -d fairsvia -tAc "${sql}"`,
   )
     .toString()
     .trim();

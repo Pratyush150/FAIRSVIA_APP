@@ -28,7 +28,7 @@ carries the current scores, 34 observed inconsistencies and a top-10 fix list.
 
 | Area | What landed |
 |---|---|
-| Market | One market setting (`MARKET` / `MARKET_CURRENCY` / `BUSINESS_TZ`): ₹, km, +91 local-number input stored as E.164, Pune fares, ₹50 cancellation fee, rupee tips; US price comparison off outside the US; place names landmark-first instead of Plus Codes |
+| Market | One market setting (`MARKET` / `MARKET_CURRENCY` / `BUSINESS_TZ`): ₹, km, +91 local-number input stored as E.164, Pune fares, ₹50 cancellation fee, rupee tips; place names landmark-first instead of Plus Codes |
 | Rides | Auto-rickshaw and Bike taxi for Pune end to end (held back by default, switchable by the owner) |
 | UI (ui-10 plan) | Phase 1 audit bugs (Miami map, marker overlap, dead ride types); one icon family (Phosphor); plate-first driver card, four-box PIN, labelled Safety pill; login with +91 chip, Terms/Privacy links, OTP autofill; choose-ride / finding / in-trip / completed screens; radar at the pickup; type scale, tokens, motion, accessibility pass (3.1–3.4, 4.1–4.3) |
 | Look | Several looks built side by side (A Midnight, B Daylight, C Day & Night, D Local, E Ink & Paper, F Map Glass, G 3D Clay); **F chosen as final**; Light / Dark / Same-as-phone applies instantly, even mid-ride |
@@ -71,7 +71,7 @@ carries the current scores, 34 observed inconsistencies and a top-10 fix list.
 | **Promo race (H2)** | Was already fixed (serializable transaction) — the plan was wrong. Found a real bug under it: serialization conflicts in raw SQL surfaced as a 500, not "no discount". One helper now handles both forms | Concurrency test |
 | **In-app account deletion (store blocker §2.1)** | `DELETE /users/me` + shared delete page for rider and driver. Refused during a ride or with a driver balance | 3 e2e + 6 widget tests; on the emulator a throwaway rider was deleted and a driver with a balance was refused |
 | **SOS that reaches people** | Emergency contacts (up to 3) texted with location, car and plate; local numbers from config (Police 102 / Ambulance 103 / Fire 101); `SafetyIncident` lifecycle; `SosRaised` critical alert; admin **Safety tab** with badge + banner on every tab; the false "Safety team alerted. Stay on the line." copy removed | 3 e2e, 11 widget, 4 admin tests; alert went *firing* 10 s after a real SOS; full SOS on the emulator during a live ride; admin acknowledge audited |
-| **Backend still said "FairsVia"** | Login-code SMS, receipt email, passenger SMS, comparison label → one `BRAND_NAME` constant | Unit tests |
+| **Backend still said "FairsVia"** | Login-code SMS, receipt email, passenger SMS → one `BRAND_NAME` constant | Unit tests |
 
 ## Found while testing — fixed or tracked
 
@@ -105,7 +105,7 @@ carries the current scores, 34 observed inconsistencies and a top-10 fix list.
 The live UI roadmap is [plans/ui-10-audit-plan.md](plans/ui-10-audit-plan.md);
 the look is Plan F "Map Glass" (final). The table below is kept as history.
 
-Goal: using RideVela next to Uber, the apps should look and feel the same —
+Goal: using FAIRSVIA next to Uber, the apps should look and feel the same —
 colours, type, spacing, buttons, sheets, map, ride list, flows — on Android
 and iOS (one Flutter codebase, so both change together).
 
@@ -113,7 +113,7 @@ and iOS (one Flutter codebase, so both change together).
 the licensed "Uber Move" font, its car illustrations and icon set. Copying
 those is trade-dress infringement. We match the *style*: free equivalents of
 the same visual weight (Inter for type, Material icons, our own car glyphs),
-and the name stays RideVela.
+and the name stays FAIRSVIA.
 
 | Phase | What | State |
 |---|---|---|
@@ -171,7 +171,7 @@ testing). Before the numbers are shown as real:
 
 | Priority | Item | Exactly what is needed |
 |---|---|---|
-| 🔴 | **Real TLS certificate** | A DNS **A record** for the API hostname (e.g. `api.ridevela.com`) → the production server's public IP, in the Cloudflare account, "DNS only". Then one command — `infra/tls/README.md`. Today neither `api.ridevela.com` nor `api.fairsvia.com` exists in DNS |
+| 🔴 | **Real TLS certificate** | A DNS **A record** for the API hostname (e.g. `api.fairsvia.com`) → the production server's public IP, in the Cloudflare account, "DNS only". Then one command — `infra/tls/README.md`. Today neither `api.fairsvia.com` nor `api.fairsvia.com` exists in DNS |
 | 🔴 | **Production server location** | India's DPDP Act 2023 obligations (and any transfer restrictions the government notifies) — confirm with counsel. Decides where the DB, backups and off-site copies may live. (For Uzbekistan, later: its personal-data law is understood to require in-country storage — confirm then) |
 | 🔴 | **Regulatory / licensing for ride-hailing in Pune / Maharashtra** (and each later market) | Aggregator licence under the Motor Vehicle Aggregator Guidelines and Maharashtra's rules, passenger insurance, driver requirements — confirm with counsel. No code can resolve this; it may add product requirements (licence documents, GST invoices) |
 | 🔴 | **Background-check / KYC provider for India** | Checkr is US-only. Integration layer exists (mock by default); needs an Indian vendor or a manual document-review process |
@@ -228,7 +228,7 @@ merchants).
 | H1 | Refund over-refund race | ✅ **Fixed** — reserve-then-call-provider, idempotency key, reversal on failure |
 | C1 | Capture vs driver earning not atomic | ✅ **Fixed 2026-09-23** (was: partly fixed. Capture is capped at the authorised hold. The payment-status update and the ledger credit are still two statements (`payments.service.ts` ~257–267) — a crash between them leaves a captured fare with no driver credit. Put both in one transaction |
 | H2 | Per-user promo limit bypass under concurrency | ✅ **Already fixed** (serializable txn; the earlier "open" was wrong). Raw-SQL conflict 500 fixed 2026-09-23 |
-| M13 | Money stored as `Float` | 🟡 **Open** — `FareConfig` / competitor tables (`baseFare`, `bookingFee`, `minFare`, `observedFare`). Trip/Payment are correctly `Decimal`. Fix together with 3.2 |
+| M13 | Money stored as `Float` | 🟡 **Open** — `FareConfig` (`baseFare`, `bookingFee`, `minFare`). Trip/Payment are correctly `Decimal`. Fix together with 3.2 |
 | — | **SOS notifies no one** | ✅ **Fixed 2026-09-23** — contacts texted, ops alerted, admin Safety tab. Needs Alertmanager delivery wired before launch (§1). Was: Writes an alert for the admin view only — no SMS, call or emergency contact. Must not be labelled an emergency feature until it alerts someone (trusted contacts, ops on-call). India numbers now: 112 / Police 100 / Ambulance 108 (`EMERGENCY_NUMBERS`) |
 | — | Driver document upload | Open — onboarding is typed text; verification is a manual admin toggle |
 

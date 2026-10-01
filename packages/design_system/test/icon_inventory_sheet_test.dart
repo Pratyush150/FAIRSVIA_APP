@@ -237,7 +237,7 @@ class _Panel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('RideVela icon system · ${dark ? 'dark' : 'light'}',
+            Text('FAIRSVIA icon system · ${dark ? 'dark' : 'light'}',
                 style: TextStyle(fontFamily: AppTypography.fontFamily, 
                     fontSize: 22, fontWeight: FontWeight.w700, color: ink)),
             const SizedBox(height: 4),

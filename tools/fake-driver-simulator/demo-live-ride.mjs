@@ -5,7 +5,7 @@
 //
 // The start OTP is shown only to the rider (your phone). For a hands-off demo
 // this bot reads it straight from the backend DB (we own the box) via
-// `docker exec ubernav_postgres`. Run: node demo-live-ride.mjs
+// `docker exec fairsvia_postgres`. Run: node demo-live-ride.mjs
 import { execSync } from 'node:child_process';
 import { api, connect, login, onboardDriver, phone, wait } from './lib.mjs';
 
@@ -46,7 +46,7 @@ async function drive(sock, from, to, { steps = 14, gap = 850, label }) {
 /** Read the rider's start OTP straight from Postgres (demo shortcut). */
 function readStartOtp(tripId) {
   const out = execSync(
-    `docker exec ubernav_postgres psql -U ubernav -d ubernav -tAc ` +
+    `docker exec fairsvia_postgres psql -U fairsvia -d fairsvia -tAc ` +
       `"SELECT start_otp FROM trips WHERE id='${tripId}'"`,
   )
     .toString()

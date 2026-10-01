@@ -369,7 +369,7 @@ class _DriverRestPageState extends State<DriverRestPage>
               const SizedBox(height: AppSpacing.sm),
               Text(
                 "You've been online ${FatigueStatus.hm(s.onlineSeconds)}. "
-                'For your safety and your riders\', RideVela needs a '
+                'For your safety and your riders\', FAIRSVIA needs a '
                 '${FatigueStatus.hm(s.restBreakSeconds)} break after '
                 '${FatigueStatus.hm(s.limitSeconds)} online.',
                 textAlign: TextAlign.center,

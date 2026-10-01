@@ -1,4 +1,4 @@
-# Handoff — building RideVela on a Mac
+# Handoff — building FAIRSVIA on a Mac
 
 > **2026-09-23: start with [mac-ios-pilot-handoff.md](mac-ios-pilot-handoff.md)** —
 > the Pune pilot build, the exact iPhone checklist, and what changed. Where

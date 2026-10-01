@@ -99,7 +99,7 @@ of the fallback wrapper.
     → secondary used; both throw → error.
 - [ ] **B2. Flip the key — ONLY after you confirm:** billing enabled + Maps/Places/
   Directions/Geocoding APIs enabled + key restricted (Android SHA-1 already provided).
-  Set `GOOGLE_MAPS_API_KEY` in `backend/.env` (gitignored), `docker restart ubernav_backend`,
+  Set `GOOGLE_MAPS_API_KEY` in `backend/.env` (gitignored), `docker restart fairsvia_backend`,
   then verify with one live `/places/autocomplete` + `/places/reverse` call. If anything
   fails, the fallback keeps OSM serving — no outage.
   - **Blocked on: user confirmation of console setup.** Do not flip before B1 + confirmation.
@@ -143,8 +143,8 @@ no regression in markers/route/camera; iOS config committed (unverified).
 ---
 
 ## Global validation gate (run before declaring the whole thing done)
-1. `docker exec ubernav_backend npm test` (jest) — green.
-2. `docker exec ubernav_backend npm run test:e2e` — green.
+1. `docker exec fairsvia_backend npm test` (jest) — green.
+2. `docker exec fairsvia_backend npm run test:e2e` — green.
 3. `flutter analyze` — clean.
 4. `flutter test` across `rider_app`, `driver_app`, `packages/*` — green.
 5. Emulator: boot `pixel_uber`, run a rider+driver match end-to-end, confirm live ETA +

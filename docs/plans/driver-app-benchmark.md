@@ -2,7 +2,7 @@
 
 **Written 2026-09-25.** The owner hasn't used the Ola driver app and asked us
 to borrow the good ideas from the big driver apps. This page lists what
-those apps give drivers, what RideVela's driver app has today (checked in
+those apps give drivers, what FAIRSVIA's driver app has today (checked in
 the code, not assumed), and what each gap is worth.
 
 ## How to read the competitor columns
@@ -25,7 +25,7 @@ turn into Y with more digging.
 
 ## Matrix
 
-| # | Feature | Uber | Ola | Rapido | inDrive | Careem | Yandex Pro | RideVela today (code) | Value / effort |
+| # | Feature | Uber | Ola | Rapido | inDrive | Careem | Yandex Pro | FAIRSVIA today (code) | Value / effort |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | **Earnings dashboard** (today/week, per-trip, online hours) | Y | Y | Y | ? | Y | Y | **Before:** today/week total, trip count and average per trip only (`DriverEarningsPage`). **Now:** online time, earnings per online hour, a 7-day bar chart, the trip list and cancellation-fee income. **Built in this pass.** | High / M |
 | 2 | Acceptance / cancellation rate shown to the driver | Y | Y | ? | ? | ? | Y\* | No. Declines are recorded per trip in Redis for dispatch, but no rate is computed or shown. | Med / M |

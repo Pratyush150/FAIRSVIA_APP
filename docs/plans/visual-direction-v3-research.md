@@ -1,4 +1,4 @@
-# RideVela Visual Direction v3: research and three new plans (D, E, F)
+# FAIRSVIA Visual Direction v3: research and three new plans (D, E, F)
 
 *Research note, 2026-09-24. Adds to `visual-direction-v2.md` (Plans A, B, C) and
 `ui-10-audit-plan.md`; it does not replace them. No code was changed.*
@@ -41,7 +41,7 @@
 **Takeaway** *(inference)*: the pattern is the same everywhere. Destination
 comes first, saved and predicted places come next, and the map stays in the
 background. The apps compete on fewer taps and personalisation, not on how
-the home screen looks. A RideVela direction can therefore make its mark
+the home screen looks. A FAIRSVIA direction can therefore make its mark
 through surfaces and type without touching this flow.
 
 ### 1.2 Choose ride
@@ -56,7 +56,7 @@ through surfaces and type without touching this flow.
 
 **Takeaway** *(inference)*: the tier list works as a comparison table, and the
 leading apps now explain *why* a price is what it is (Yandex's informer,
-Lyft's cap). RideVela already shows "Pickup in 2 min · Drop 11:41 PM" (audit
+Lyft's cap). FAIRSVIA already shows "Pickup in 2 min · Drop 11:41 PM" (audit
 3.7). A demand indicator in the Yandex style is a product decision, not a
 visual one, so none of the plans below adds it. They leave room for it.
 
@@ -73,7 +73,7 @@ visual one, so none of the plans below adds it. They leave room for it.
 | Grab | Selfie verification for passengers and drivers. Design research recognises that users are often on low-end or hand-me-down phones with cracked screens and weak batteries. | [17] |
 
 **Takeaway** *(inference)*: trust rests on the same items everywhere: photo,
-plate, vehicle, PIN, and for bikes the helmet. RideVela's plate-first card
+plate, vehicle, PIN, and for bikes the helmet. FAIRSVIA's plate-first card
 and four PIN boxes already match the strongest pattern. A plan should make
 these items *more legible*, not decorate them. Grab's point about low-end
 phones matters for Plan F.
@@ -100,7 +100,7 @@ so that stays a plan, not a claim.
 | Namma Yatri | SOS button to alert emergency contacts. Live tracking can be shared. | [20] |
 | Uber (US) | Women Preferences: piloted Aug 2025, expanded nationwide in 2026. | [22] |
 
-**Takeaway**: RideVela's labelled **Safety** pill is *more* explicit than an
+**Takeaway**: FAIRSVIA's labelled **Safety** pill is *more* explicit than an
 unlabelled shield. It stays as it is in every plan below.
 
 ### 1.6 What makes Indian apps feel local
@@ -178,7 +178,7 @@ Fonts and would be bundled the same way as Inter.
 
 ### Plan D — "Local Colour" (India-local vivid, swappable per market)
 
-**Mood.** RideVela should feel like it was made in Pune, not dropped in from
+**Mood.** FAIRSVIA should feel like it was made in Pune, not dropped in from
 San Francisco. It uses warm off-white "paper" backgrounds, deep teal for
 anything you tap, and a marigold accent that appears only in illustrations,
 like marigold garlands on a dashboard. Illustrations show real local things: a
@@ -234,7 +234,7 @@ the Tashkent build would use Inter throughout, or *Onest* for headings.
 flat-plus-texture illustration: a 2 % paper grain, slightly offset colour
 "print" registration, 3/4 view. Vehicles are drawn as local vehicles: the four
 car tiers, plus an auto-rickshaw and a bike. Those last two only matter if
-RideVela ever adds those tiers; the product has four car tiers today, so
+FAIRSVIA ever adds those tiers; the product has four car tiers today, so
 **no auto or bike tier is implied**.
 
 **5 signature details**
@@ -375,7 +375,7 @@ serif moments, and test desirability specifically against A.
 translucent panels that let the city show through. Motion uses springs, and
 the sheet feels like a physical object. Pickup and driver pins are soft 3D
 objects that sit *on* the map. It matches where iOS 26 (Liquid Glass [35],
-[36]) and Android (M3 Expressive [37], [38]) are heading, so RideVela would
+[36]) and Android (M3 Expressive [37], [38]) are heading, so FAIRSVIA would
 feel at home on 2026 phones. A glass-free solid fallback is part of the
 design, not something added later, because many riders use low-end phones
 [17].

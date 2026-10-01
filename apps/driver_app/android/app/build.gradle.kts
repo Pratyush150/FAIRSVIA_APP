@@ -15,7 +15,7 @@ val mapsApiKey: String = Properties().apply {
 }.getProperty("MAPS_API_KEY") ?: ""
 
 android {
-    namespace = "in.novarobotics.ubernav.driver_app"
+    namespace = "in.novarobotics.fairsvia.driver"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "in.novarobotics.ubernav.driver_app"
+        applicationId = "in.novarobotics.fairsvia.driver"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = maxOf(flutter.minSdkVersion, 21)

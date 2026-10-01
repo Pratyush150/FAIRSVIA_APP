@@ -10,7 +10,7 @@ import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import 'ridevela_mark.dart';
 
-/// The app's opening sequence: the RideVela wordmark on the brand canvas,
+/// The app's opening sequence: the FAIRSVIA wordmark on the brand canvas,
 /// then a short Uber-style launch beat, then a fade into the app.
 ///
 /// Timeline ([AppBrand.splashTotal] = 1.8 s, hard-capped under 2 s):

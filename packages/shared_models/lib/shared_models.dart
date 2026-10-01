@@ -8,7 +8,6 @@ export 'src/geo_point.dart';
 export 'src/places.dart';
 export 'src/place_label.dart';
 export 'src/fare_tier.dart';
-export 'src/price_comparison.dart';
 export 'src/trip_estimate.dart';
 export 'src/trip.dart';
 export 'src/trip_passenger.dart';

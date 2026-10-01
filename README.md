@@ -1,4 +1,7 @@
-# Ride App — a full Uber-style ride-hailing platform
+# FAIRSVIA — a full Uber-style ride-hailing platform
+
+Repo: https://github.com/Pratyush150/FAIRSVIA_APP. FAIRSVIA is a separate product forked from the
+RideVela codebase; fares come only from FAIRSVIA's own rate card.
 
 This document explains **everything** about the app in plain language: what each part does,
 how a ride flows from tap to receipt, where every feature lives, how to run and test it, and —
@@ -7,7 +10,7 @@ read top to bottom once; after that, use it as a map.
 
 ---
 
-## 1. What is Ride App? (the 30-second version)
+## 1. What is FAIRSVIA? (the 30-second version)
 
 It's a working clone of Uber. There are **three phone apps** and **one server**:
 
@@ -206,8 +209,8 @@ Rule of thumb again: **permanent → Postgres, live/fast/throwaway → Redis.**
 
 **Docker** packages a program plus everything it needs into a "container" that runs the same on any
 machine. Our `infra/docker-compose.yml` starts several containers at once — the backend, Postgres,
-Redis, and the map helpers — so you don't install each by hand. `docker compose up -d` = "start the
-whole kitchen"; `docker logs ubernav_backend` = "watch the server."
+Redis, Adminer and a public tunnel (the self-hosted map helpers are opt-in) — so you don't install each by hand. `docker compose up -d` = "start the
+whole kitchen"; `docker logs fairsvia_backend` = "watch the server."
 
 ### 3.5.7 Putting it together (one sentence)
 
@@ -253,8 +256,6 @@ the component/files listed. "R" = happens in the rider app, "S" = server, "D" = 
 - **Address search** (Google Places autocomplete) and **"set pickup on the map"**.
 - **Price before you book**, across tiers (Economy / Comfort / XL / Premium), with a **surge ceiling**
   (prices can rise when busy but never past a published cap).
-- **Price comparison** card (our fare vs *modeled* Uber/Lyft/Empower estimates — clearly labeled
-  "estimates, not live quotes").
 - **Multi-stop** rides (up to 3 stops), **scheduled rides**, **promo codes**, **cash or card**.
 - **Live tracking**: driver car glides on the map, **"Arriving in N min"** ETA, driver name/photo/plate,
   **OTP start code**, in-trip **chat**, **cancel** (with fee once a driver has committed).
@@ -329,7 +330,7 @@ apps get them from one place:
 ## 7. Project structure (where things live)
 
 ```
-ubernav/
+fairsvia_app/
 ├── backend/                     # the server (NestJS)
 │   ├── src/
 │   │   ├── auth/                # phone-OTP login, JWT tokens
@@ -352,7 +353,7 @@ ubernav/
 │   ├── core/                    # networking, auth, storage, shared screens
 │   ├── design_system/           # shared UI incl. the AppMap widget
 │   └── shared_models/           # data models (Trip, RideOffer, AssignedDriver, ...)
-├── infra/docker-compose.yml     # runs backend + Postgres + Redis + OSRM + Nominatim
+├── infra/docker-compose.yml     # runs backend + Postgres + Redis + Adminer + tunnel (OSRM + Nominatim opt-in)
 ├── tools/fake-driver-simulator/ # scripts to simulate a driver for end-to-end tests
 └── docs/                        # this + strategy, audit, and plan docs
 ```
@@ -364,15 +365,15 @@ ubernav/
 **Backend + databases (Docker):**
 ```bash
 docker compose -f infra/docker-compose.yml up -d          # start everything
-docker logs -f ubernav_backend                            # watch server logs
+docker logs -f fairsvia_backend                            # watch server logs
 # health check:
-curl http://localhost:3000/api/v1/health                  # should return 200
+curl http://localhost:3200/api/v1/health                  # should return 200
 ```
 Secrets live in `backend/.env` (gitignored). To use Google for routing/places, set
 `GOOGLE_MAPS_API_KEY=...` there, then recreate the container so it picks it up:
 ```bash
 docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate backend
-docker logs ubernav_backend | grep "geo provider"         # should say "Using Google Maps geo provider"
+docker logs fairsvia_backend | grep "geo provider"         # should say "Using Google Maps geo provider"
 ```
 
 **A Flutter app (on an emulator or phone):**
@@ -380,7 +381,7 @@ docker logs ubernav_backend | grep "geo provider"         # should say "Using Go
 export PATH="/home/nova-robotics/flutter/bin:$PATH"
 cd apps/rider_app
 # emulator reaches the host backend at 10.0.2.2; a USB/wifi phone uses an adb reverse tunnel (see §9)
-flutter run -d <device> --dart-define=API_BASE_URL=http://10.0.2.2:3000/api/v1
+flutter run -d <device> --dart-define=API_BASE_URL=http://10.0.2.2:3200/api/v1
 ```
 The Google Maps key for the phone must be in `apps/<app>/android/secrets.properties` (gitignored).
 
@@ -391,8 +392,8 @@ The Google Maps key for the phone must be in `apps/<app>/android/secrets.propert
 **Automated:**
 ```bash
 # backend unit tests + integration (e2e) — run inside the container
-docker exec ubernav_backend npm test
-docker exec ubernav_backend npm run test:e2e
+docker exec fairsvia_backend npm test
+docker exec fairsvia_backend npm run test:e2e
 # Flutter static analysis + tests
 export PATH="/home/nova-robotics/flutter/bin:$PATH"
 flutter analyze
@@ -419,9 +420,9 @@ Rider arm64 APK: **36.4 MB**, against 44.5 MB split before this change and
 ```bash
 emulator -avd pixel_uber -no-window -gpu swiftshader_indirect &   # boot headless
 adb devices                                                       # wait for "device"
-cd apps/rider_app && flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:3000/api/v1
+cd apps/rider_app && flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:3200/api/v1
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
-adb shell am start -n in.novarobotics.ubernav.rider_app/.MainActivity
+adb shell am start -n in.novarobotics.fairsvia.rider/.MainActivity
 adb exec-out screencap -p > shot.png                             # screenshot to inspect
 ```
 
@@ -429,9 +430,9 @@ adb exec-out screencap -p > shot.png                             # screenshot to
 ```bash
 adb pair <ip:pairPort> <code>        # from the phone's Wireless debugging screen
 adb connect <ip:connectPort>
-adb -s <serial> reverse tcp:3000 tcp:3000     # so the phone can reach the backend over the cable
+adb -s <serial> reverse tcp:3200 tcp:3200     # so the phone can reach the backend over the cable
 # build with the tunnel URL, then install:
-flutter build apk --debug --dart-define=API_BASE_URL=http://127.0.0.1:3000/api/v1
+flutter build apk --debug --dart-define=API_BASE_URL=http://127.0.0.1:3200/api/v1
 adb -s <serial> install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 > **Xiaomi/MIUI phones:** you must enable Developer options → **"Install via USB"** AND
@@ -469,7 +470,7 @@ cd tools/fake-driver-simulator && node full-ride.mjs
 |---|---|---|
 | Map is blank/grey on the phone | 1 | Google Maps key missing/invalid in `android/secrets.properties`; check the key has "Maps SDK for Android" enabled + correct SHA-1 |
 | Map shows the wrong city (e.g. Miami) | 1 | Location permission denied or not yet resolved → it used the fallback; tap recenter or grant location |
-| No address suggestions when typing | 2 | Backend `geo` / Google **Places API** not enabled on your key; check `docker logs ubernav_backend` |
+| No address suggestions when typing | 2 | Backend `geo` / Google **Places API** not enabled on your key; check `docker logs fairsvia_backend` |
 | Price is $0 or route missing | 3 / 10 | Google **Directions API** off, OR (server on OSM) the region extract doesn't cover those coords |
 | "Finding driver…" forever / no drivers | 5–6 | No online+verified driver near the pickup; check Redis: `redis-cli ZRANGE drivers:geo:economy 0 -1` |
 | Driver can't go online ("docs not verified") | — | New drivers need `docs_verified=true` (admin approves); it's a manual toggle by design |
@@ -479,9 +480,9 @@ cd tools/fake-driver-simulator && node full-ride.mjs
 
 **Handy commands while debugging:**
 ```bash
-docker logs -f ubernav_backend                       # server logs (errors, dispatch, payments)
-docker exec ubernav_redis redis-cli ZRANGE drivers:geo:economy 0 -1   # who's online (economy)
-docker exec ubernav_postgres psql -U ubernav -d ubernav -c "select status from trips order by requested_at desc limit 1;"
+docker logs -f fairsvia_backend                       # server logs (errors, dispatch, payments)
+docker exec fairsvia_redis redis-cli ZRANGE drivers:geo:economy 0 -1   # who's online (economy)
+docker exec fairsvia_postgres psql -U fairsvia -d fairsvia -c "select status from trips order by requested_at desc limit 1;"
 adb -s <serial> logcat | grep -i flutter             # app-side crashes/logs
 ```
 
@@ -495,12 +496,10 @@ adb -s <serial> logcat | grep -i flutter             # app-side crashes/logs
 - **Referrals** are **not built** (only promo codes).
 - **Vendors are "real-when-keyed":** Stripe (payments), Twilio (SMS), Checkr (background checks),
   FCM (push), Google Maps — each is mocked until you add its key.
-- **The in-app "price comparison"** uses **modeled** competitor prices, not live Uber/Lyft quotes —
-  the card says so; keep it that way.
 
 ---
 
-## 12. Every backend service in detail (the 26 modules)
+## 12. Every backend service in detail (the 25 modules)
 
 The server is a **NestJS modular monolith**: one folder per domain under `backend/src/`, each with a
 thin **controller** (HTTP/WS front desk) and a **service** (the real logic). Here is what each does
@@ -527,7 +526,6 @@ and *how* it's built. Files are under `backend/src/<module>/`.
 | **email** | Transactional email | Amazon **SES** provider (real when AWS creds + `SES_FROM` set, else mock). Sends trip **receipts** best-effort. `@Global`. |
 | **chat** | In-trip messages | REST for history + **Socket.IO broadcast** (`trip:message`), de-duplicated by id. Backed by Redis. |
 | **support** | Support tickets | Tickets with threaded messages. |
-| **comparison** | Price comparison card | **Modelled** Uber/Lyft/Empower estimates (NOT live quotes — self-disclaimed). |
 | **safety** | SOS | **Audit-log only today**: writes a `trip_event`, logs a warning, returns a shareable trip summary. **No 911/contact dispatch.** |
 | **drivers** | Driver profile/state | Onboarding, online/offline, presence, vehicle, `docs_verified` (a manual admin toggle / Checkr "clear"). |
 | **users** | Rider profile | Profile edit + **saved places** CRUD. |
@@ -536,7 +534,7 @@ and *how* it's built. Files are under `backend/src/<module>/`.
 | **common** | Shared plumbing | Config loader, guards/interceptors, and a **hand-rolled AWS SigV4 signer** (`common/aws/aws-sigv4.ts`) used by SNS (SMS) + SES (email) — no AWS SDK. |
 
 **Provider modes are decided at boot** from `backend/.env`. Check the live state any time with the
-diagnostics endpoint, or in the logs: `docker logs ubernav_backend | grep -Ei "provider|geo"`.
+diagnostics endpoint, or in the logs: `docker logs fairsvia_backend | grep -Ei "provider|geo"`.
 
 ---
 
@@ -547,16 +545,22 @@ container is an isolated mini-computer with exactly the software it needs; `dock
 several at once and wires them together on a private network where they reach each other **by name**
 (the backend talks to `postgres:5432` and `redis:6379`, not `localhost`).
 
-**The containers (all prefixed `ubernav_`):**
+**The containers (all prefixed `fairsvia_`; compose project `fairsvia`, network `fairsvia_default`):**
 
 | Container | Image | Port (host) | Purpose | Persistent volume |
 |---|---|---|---|---|
-| `ubernav_backend` | built from `backend/Dockerfile` (Node 22) | **3000** | The NestJS server | source bind-mount (hot reload) + `backend_node_modules` |
-| `ubernav_postgres` | `postgis/postgis:16-3.4` | 5432 | Durable database | `pgdata` |
-| `ubernav_redis` | `redis:7-alpine` | 6379 | Live/hot data + queues (append-only persistence on) | `redisdata` |
-| `ubernav_adminer` | `adminer:4` | **8080** | Web UI to browse Postgres (open `http://localhost:8080`) | — |
-| `ubernav_osrm` | `project-osrm/osrm-backend` | 5000 | Self-hosted routing (OSM) fallback | `./osm-data` |
-| `ubernav_nominatim` | `mediagis/nominatim:4.4` | 8081 | Self-hosted geocoding (OSM) fallback | `nominatimdata` |
+| `fairsvia_backend` | built from `backend/Dockerfile` (Node 22) | **3200** (3000 inside) | The NestJS server | source bind-mount (hot reload) + `backend_node_modules` |
+| `fairsvia_postgres` | `postgis/postgis:16-3.4` | 5532 | Durable database (user/db/password `fairsvia`) | `pgdata` |
+| `fairsvia_redis` | `redis:7-alpine` | 6479 | Live/hot data + queues (append-only persistence on) | `redisdata` |
+| `fairsvia_adminer` | `adminer:4` | **8180** | Web UI to browse Postgres (open `http://localhost:8180`) | — |
+| `fairsvia_tunnel` | `cloudflare/cloudflared` | — | Cloudflare quick tunnel: public https URL for phones / iOS | — |
+| `fairsvia_osrm` | `project-osrm/osrm-backend` | 5100 | Self-hosted routing (OSM) — **opt-in**, profile `own-routing` | `./osm-data` |
+| `fairsvia_nominatim` | `mediagis/nominatim:4.4` | 8181 | Self-hosted geocoding (OSM) — **opt-in**, profile `own-routing` | `nominatimdata` |
+
+OSRM and Nominatim are **not started by default**. Until `docker compose --profile own-routing up -d`
+is used, `backend/.env` points `OSRM_BASE_URL` / `NOMINATIM_BASE_URL` at the OSRM (:5000) and
+Nominatim (:8081) already running on this host (plain HTTP, read-only lookups), and Google geo is
+used when `GOOGLE_MAPS_API_KEY` is set.
 
 **The backend image** (`backend/Dockerfile`): starts from `node:22-bookworm-slim`, installs OpenSSL
 (Prisma needs it), runs `npm install`, then `npx prisma generate` (builds the typed DB client), and
@@ -573,7 +577,7 @@ compose down -v` **wipes them** (fresh DB) — use with care.
 cd infra
 docker compose up -d                         # start everything (detached)
 docker compose ps                            # what's running + health
-docker logs -f ubernav_backend               # follow server logs
+docker logs -f fairsvia_backend               # follow server logs
 docker compose up -d --no-deps --force-recreate backend   # reload after editing backend/.env
 docker compose restart backend               # bounce just the server
 docker compose down                          # stop all (data kept)
@@ -582,8 +586,9 @@ docker compose down                          # stop all (data kept)
 **Resource requirements (measured on this box, idle):** the whole stack idles at **~1 GB RAM total**
 (backend ~650 MB, the rest tiny) and near-zero CPU. Postgres + Redis + backend alone are featherweight
 (a **2 GB** VM runs them). The heavy part is **Nominatim's one-time import** of the OSM extract (wants
-~1 GB shared memory + a few GB of disk while importing) — after that it idles at ~200 MB. If you don't
-need self-hosted maps (i.e. you use Google), you can skip `osrm` + `nominatim` entirely.
+~1 GB shared memory + a few GB of disk while importing) — after that it idles at ~200 MB. `osrm` +
+`nominatim` only start with `--profile own-routing`; without it the backend uses Google and the host's
+existing OSRM/Nominatim.
 
 ---
 
@@ -632,12 +637,12 @@ When something's wrong, work **top-down** through the layers and inspect each on
 |---|---|---|---|
 | **Phone app (Flutter)** | Screens + cubits; draws the map | `adb -s <serial> logcat \| grep -iE "flutter\|ride"`; screenshot with `adb exec-out screencap -p > s.png` | Blank map (bad/no Maps key), stuck on default city (no GPS fix) |
 | **Network** | App ↔ backend over HTTP + socket | On the app's backend URL: `curl <BASE>/health`. Real phone on mobile data uses the **public tunnel URL** (carrier DNS resolves it) | Wrong `API_BASE_URL` baked into the APK; tunnel down |
-| **Backend (NestJS)** | All business logic | `docker logs -f ubernav_backend` — every request, dispatch decision, payment, and error prints here | 500s, provider errors, boot refusal (bad prod config) |
-| **Redis (live)** | Online drivers, GPS, locks, queues | `docker exec ubernav_redis redis-cli` → `ZRANGE drivers:geo:economy 0 -1` (who's online), `KEYS trip:*`, `LLEN bull:dispatch:wait` | "No drivers" = the geo set is empty (driver not online/near) |
-| **Postgres (durable)** | Trips, users, payments | `docker exec ubernav_postgres psql -U ubernav -d ubernav` then SQL; or the **Adminer** web UI at `http://localhost:8080` | Wrong fare/status = inspect the `trips` row |
+| **Backend (NestJS)** | All business logic | `docker logs -f fairsvia_backend` — every request, dispatch decision, payment, and error prints here | 500s, provider errors, boot refusal (bad prod config) |
+| **Redis (live)** | Online drivers, GPS, locks, queues | `docker exec fairsvia_redis redis-cli` → `ZRANGE drivers:geo:economy 0 -1` (who's online), `KEYS trip:*`, `LLEN bull:dispatch:wait` | "No drivers" = the geo set is empty (driver not online/near) |
+| **Postgres (durable)** | Trips, users, payments | `docker exec fairsvia_postgres psql -U fairsvia -d fairsvia` then SQL; or the **Adminer** web UI at `http://localhost:8180` | Wrong fare/status = inspect the `trips` row |
 | **Dispatch** | The match loop | Watch the backend log during a booking; check the offer key + lock in Redis | Offer never reaches a driver = no eligible driver, or a stuck lock |
 | **Payments** | Stripe hold/capture/split | Backend log + the **Stripe dashboard** (test mode) → Payments/Connect | Tip/card fails "no payment method" = rider has no card attached (expected for cash/sim riders) |
-| **Geo** | Routes/places | `curl "<BASE>/places/autocomplete?q=Miami"` (needs a token); `docker logs ubernav_backend \| grep -i geo` shows which provider is active | No suggestions/route = Google API not enabled on the key, or OSM extract doesn't cover the coords |
+| **Geo** | Routes/places | `curl "<BASE>/places/autocomplete?q=Miami"` (needs a token); `docker logs fairsvia_backend \| grep -i geo` shows which provider is active | No suggestions/route = Google API not enabled on the key, or OSM extract doesn't cover the coords |
 | **Realtime (socket)** | Live push | `curl "<BASE>/socket.io/?EIO=4&transport=polling"` returns a session id if the socket layer is healthy | Car doesn't move = socket not connected / driver not streaming GPS |
 
 **The fastest triage tool** is the ride-flow table in **§4**: identify *which step* the symptom
@@ -651,8 +656,8 @@ This is how to bring the whole thing up and run a ride on your own. It assumes t
 
 **A. Is the backend up?**
 ```bash
-curl http://localhost:3000/api/v1/health        # {"status":"ok",...} means the server + DBs are fine
-cd /home/nova-robotics/ubernav/infra && docker compose ps   # all ubernav_* "Up"?
+curl http://localhost:3200/api/v1/health        # {"status":"ok",...} means the server + DBs are fine
+cd /home/nova-robotics/fairsvia_app/infra && docker compose ps   # all fairsvia_* "Up"?
 # if not: docker compose up -d
 ```
 

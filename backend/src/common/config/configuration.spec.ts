@@ -142,8 +142,8 @@ describe('configuration defaults', () => {
       { NODE_ENV: 'development', STRIPE_CONNECT_RETURN_URL: undefined, STRIPE_CONNECT_REFRESH_URL: undefined },
       () => {
         const cfg = loadConfig();
-        expect(cfg.stripeConnectReturnUrl).toBe('fairsvia-driver://connect/return');
-        expect(cfg.stripeConnectRefreshUrl).toBe('fairsvia-driver://connect/refresh');
+        expect(cfg.stripeConnectReturnUrl).toBe('fairsviaapp-driver://connect/return');
+        expect(cfg.stripeConnectRefreshUrl).toBe('fairsviaapp-driver://connect/refresh');
       },
     );
   });

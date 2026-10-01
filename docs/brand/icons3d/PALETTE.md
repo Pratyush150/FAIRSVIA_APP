@@ -1,4 +1,4 @@
-# RideVela 3D clay icons — colour system
+# FAIRSVIA 3D clay icons — colour system
 
 Every icon is one soft-clay body in a single **role colour**, with any
 enclosed counter (the tick in `shieldCheck`, the dot in `mapPin`, the X in

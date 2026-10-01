@@ -52,7 +52,7 @@ Severity: 🔴 Critical · 🟠 High · 🟡 Medium · ⚪ Low.
 | M10 | **Multi-step ride mutations not atomic** across DB+Redis+payments (complete/cancel) | `trips.service.ts:305-322, 463-506` | Wrap DB writes in `$transaction`; make Redis release idempotent + reconcile on retry |
 | M11 | **Single Redis = matching SPOF** + 100 ms busy-poll holds a worker slot; `concurrency:100` ceiling | `dispatch.service.ts:335-349`, `dispatch.processor.ts:16`, `realtime.gateway.ts:65` | Replace poll with pub/sub or `BLPOP`; dedicate/replicate Redis for matching |
 | M12 | **GPS ingest unpipelined** (~6 sequential Redis round-trips per ping) | `location.service.ts:59-101` | Pipeline/MULTI; cache `tier`/`riderId` on the socket at go-online |
-| M13 | **Money as `Float`** in rate-card/competitor/sample tables (Trip/Payment use `Decimal`) | `schema.prisma:368-372, 388-397, 413-414` | `Decimal` for all currency config columns |
+| M13 | **Money as `Float`** in rate-card tables (Trip/Payment use `Decimal`) | `schema.prisma` (`FareConfig`) | `Decimal` for all currency config columns |
 | M14 | **Sim-driving via module-level mutable globals in production widget tree** (never resets between trips) | `driver location_stream.dart:55-128` | Encapsulate in an injectable simulator gated on the mock flag; reset per trip |
 | M15 | **`dispatch` reads `process.env` directly**, bypassing validated `ConfigService` | `dispatch.service.ts:26,39,46-47` | Surface tuning knobs through `AppConfig` with bounds |
 | M16 | **God-widgets** with transport/state logic in the view layer (rider home 1.8k lines, admin home 1.9k) | rider/admin `home_page.dart`; `admin_api.dart` not shared | Push transport+state into cubits in `packages/core` |
@@ -87,7 +87,7 @@ Severity: 🔴 Critical · 🟠 High · 🟡 Medium · ⚪ Low.
 ## Cross-app duplication to consolidate (into `packages/core`)
 - `<lat>,<lng>` location/mock parser — 3 copies (`rider location_service.dart:13-28`, `driver location_stream.dart:12-22`, `driver home_page.dart:46-55`).
 - 12-hour AM/PM date formatting — 3 copies (`format.dart:11-17`, rider `home_page.dart:639-649`, `chat_page.dart:217-219`).
-- `$X` money helper — 3 copies (rider `home_page.dart:1801`, `price_comparison_card.dart:13`, `Fmt.money`). One currency-aware formatter fixes the Low money-format items too.
+- `$X` money helper — 2 copies (rider `home_page.dart:1801`, `Fmt.money`). One currency-aware formatter fixes the Low money-format items too.
 
 ---
 

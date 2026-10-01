@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the RideVela analytics pages in grafana/dashboards/:
+"""Builds the FAIRSVIA analytics pages in grafana/dashboards/:
 
     python3 infra/monitoring/grafana/build_dashboards.py
 
@@ -217,13 +217,13 @@ rides.table("Why rides were cancelled", PG,
 
 # ------------------------------------------------------------------ 3. Money
 money = Page()
-money.note("### Money\nWhat came in, what RideVela kept and what drivers earned, in the chosen period.")
+money.note("### Money\nWhat came in, what FAIRSVIA kept and what drivers earned, in the chosen period.")
 money_base = (f"FROM payments p JOIN trips t ON t.id = p.trip_id WHERE p.status IN {SETTLED} "
               f"AND p.currency = '{CUR}' AND $__timeFilter({PAID_AT})")
 money.tile("Money in", PG, f"SELECT COALESCE(sum(p.amount), 0) {money_base}", 0, 6,
            "Everything riders paid: fares and cancellation fees, before refunds.", unit=MONEY_UNIT)
 money.tile("Money we kept", PG, f"SELECT COALESCE(sum(p.platform_fee), 0) {money_base}", 6, 6,
-           "RideVela's share (commission) of what riders paid.", unit=MONEY_UNIT,
+           "FAIRSVIA's share (commission) of what riders paid.", unit=MONEY_UNIT,
            steps=[{"color": GOOD, "value": None}])
 money.tile("Drivers earned", PG, f"SELECT COALESCE(sum(p.driver_payout), 0) {money_base}", 12, 6,
            "The drivers' share, including tips.", unit=MONEY_UNIT)
@@ -251,7 +251,7 @@ money.chart("Money per day", PG, [(
 
 # ------------------------------------------------------------------ 4. People
 people = Page()
-people.note("### People\nWho uses RideVela — riders and drivers.")
+people.note("### People\nWho uses FAIRSVIA — riders and drivers.")
 people.tile("Everyone with an account", PG,
             "SELECT count(*) FROM users WHERE deleted_at IS NULL AND role <> 'admin'", 0, 6,
             "All riders and drivers who have signed up.")
@@ -372,7 +372,7 @@ pages = [
     ("ridevela-analytics", "1. Today", "Today at a glance", today, "now/d"),
     ("ridevela-rides", "2. Rides", "Rides and how well they went", rides, "now-7d"),
     ("ridevela-money", "3. Money", "Money in, money kept, driver earnings", money, "now-7d"),
-    ("ridevela-people", "4. People", "Riders and drivers using RideVela", people, "now-7d"),
+    ("ridevela-people", "4. People", "Riders and drivers using FAIRSVIA", people, "now-7d"),
     ("ridevela-drivers", "5. Drivers", "Driver supply and response", drivers, "now/d"),
     ("ridevela-tech", "6. Tech health", "Servers, speed, errors and alarms", tech, "now-6h"),
 ]

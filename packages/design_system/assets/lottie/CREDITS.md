@@ -2,7 +2,7 @@
 
 | File | Source | Creator | Changes |
 |---|---|---|---|
-| confetti.json | https://lottiefiles.com/free-animation/confetti-c6X3v895ye | LottieFiles user lenzy68cn1ftjn10 | Recoloured to the RideVela palette (teal, gold, coral, mint, rose) |
+| confetti.json | https://lottiefiles.com/free-animation/confetti-c6X3v895ye | LottieFiles user lenzy68cn1ftjn10 | Recoloured to the FAIRSVIA palette (teal, gold, coral, mint, rose) |
 | money.json | https://lottiefiles.com/free-animation/money-5QAsY5qlMO | LottieFiles user wjaviugke1 | none |
 | loading.json | https://lottiefiles.com/free-animation/sandy-loading-o4VygOMtb8 | LottieFiles user panamo | none |
 | searching.json | https://lottiefiles.com/animations/radar-QE34660xBs ("Radar", #77256) | Waqar Ali (/WaqarBhi) | Blue → accent teal #1FA7A8 (fills, strokes, sweep gradient); ring strokes ×5 so they read at 48–64 px |

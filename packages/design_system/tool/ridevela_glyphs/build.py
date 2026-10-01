@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build RideVela's Phosphor-style glyphs into the vendored Phosphor fonts.
+"""Build FAIRSVIA's Phosphor-style glyphs into the vendored Phosphor fonts.
 
 Phosphor Icons is MIT (fonts/Phosphor-LICENSE.txt). The glyphs defined in
-glyphs.py are RideVela's own paths drawn on Phosphor's 256-unit grid.
+glyphs.py are FAIRSVIA's own paths drawn on Phosphor's 256-unit grid.
 
 Each glyph is a list of drawing ops in 256-grid SVG coordinates (y down):
   ("stroke", d)      add the outline of `d` stroked 16 wide, round cap/join

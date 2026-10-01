@@ -7,7 +7,7 @@
 //      earnings dashboard includes it (bonuses = 150).
 //   4. GET /drivers/me/stats: accepted 3, declined 1 → acceptance 75%.
 //   5. Whole-unit split (INR/UZS market): every driverPayout is whole.
-// Run: node quests-check.mjs   (needs the backend + ubernav_postgres).
+// Run: node quests-check.mjs   (needs the backend + fairsvia_postgres).
 import { execSync } from 'node:child_process';
 import { api, connect, login, once, onboardDriver, phone, wait } from './lib.mjs';
 
@@ -15,7 +15,7 @@ function assert(cond, msg) {
   if (!cond) throw new Error('ASSERT FAILED: ' + msg);
 }
 const psql = (sql) =>
-  execSync(`docker exec ubernav_postgres psql -U ubernav -d ubernav -tAc "${sql}"`).toString().trim();
+  execSync(`docker exec fairsvia_postgres psql -U fairsvia -d fairsvia -tAc "${sql}"`).toString().trim();
 
 // A quiet corner of Pune (away from the demo drivers) so only our driver is near.
 const pickup = { lat: 18.6012, lng: 73.7188 };

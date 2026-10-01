@@ -39,7 +39,7 @@ All the app code lives in **one repository** with three runnable apps and three 
 - `packages/core` — the **engine room** shared by all apps: talking to the server, holding your login, the live socket, screen routing, and whole ready-made screens (chat, history, account).
 - `packages/design_system` — the **look and feel**: colors, fonts, buttons, the map widget. So all three apps look like one product.
 
-**Why this matters for you:** login, the map, the API connection, and the data shapes are written **once** and reused. A fix or a rebrand (the app was renamed UberNav → RideVela → Ride App) happens in one place, not three.
+**Why this matters for you:** login, the map, the API connection, and the data shapes are written **once** and reused. A fix or a rebrand (the app was renamed UberNav → RideVela → Ride App, and this fork is FAIRSVIA) happens in one place, not three.
 
 ### 1.2 The backend (a NestJS "modular monolith")
 The backend is **one program divided into ~30 modules, one per topic** — `auth`, `trips`, `dispatch`, `payments`, `chat`, and so on. Each module owns its feature. This is deliberate: it's simple to run (one program) but cleanly separated inside (so the "hot path" — matching — can be split out later as you grow).
@@ -109,7 +109,7 @@ When the socket delivers `trip:accepted`, the cubit flips the phase to `driverEn
 
 | # | What happens | Which piece does it | How, in one line |
 |---|---|---|---|
-| 1 | **Estimate** — rider sees prices | `trips` + `pricing` + `surge` + `geo` + `comparison` | Route the trip, price every tier, add surge, show competitor estimates. No trip saved yet. |
+| 1 | **Estimate** — rider sees prices | `trips` + `pricing` + `surge` + `geo` | Route the trip, price every tier, add surge. No trip saved yet. |
 | 2 | **Request** — rider books | `trips` (createTrip) | Saves a `Trip` row (status `requested`), makes the 4-digit start code, applies promo, kicks off matching. |
 | 3 | **Matching** — find a driver | `dispatch` (a durable queue job) | Expanding-ring search over Redis for nearby free drivers. |
 | 4 | **Offer** — ask a driver | `dispatch` → WebSocket | Locks the driver, pushes `trip:offer` to their app, waits ~10s for an answer. |
@@ -138,7 +138,7 @@ Every step is written to an **append-only audit log** (`TripEvent`), so a disput
 ## Part 5 — What's REAL vs MOCK vs NOT BUILT (the status you asked for)
 
 ### ✅ Built and working today (has automated tests)
-Full ride lifecycle · dispatch/matching · live tracking · OTP-verified start · odometer fare · pricing + surge · promo codes · two-way ratings · driver earnings ledger · in-trip chat · support tickets · notifications inbox · favourite drivers · scheduled rides · price-comparison (Ride App) · admin dashboard · auth/OTP/JWT.
+Full ride lifecycle · dispatch/matching · live tracking · OTP-verified start · odometer fare · pricing + surge · promo codes · two-way ratings · driver earnings ledger · in-trip chat · support tickets · notifications inbox · favourite drivers · scheduled rides · admin dashboard · auth/OTP/JWT.
 **Test coverage:** ~30 backend test files, ~49 end-to-end tests, ~15 Flutter tests — currently **167 unit + 48 end-to-end passing**.
 
 ### 🟡 Real, but only when you add the API key (mock by default)
@@ -209,7 +209,7 @@ When something's wrong, ask **"which of the four layers is it?"**:
 
 - **Phase 1 — one-city MVP:** ✅ **essentially done.** Rider app, driver app, dispatch, trip lifecycle, wallet/ledger, cash + card, admin console, and localization scaffolding are built and tested end-to-end (validated on a real phone + emulator).
 - **Phase 2 — commercial hardening:** 🟡 **partial.** Payments/SMS/email/push/background-checks/maps are all **coded and ready**, waiting only on API keys. Still to do for real launch: harden the three real-money paths (Part 6), build **real SOS**, **referrals**, **driver document upload**, and turn on the keyed providers.
-- **Phase 3 — second market + Ride App scale:** 🔜 the price-comparison feature exists (as honest *estimates*); the global "market pack" multi-country design from the investor doc is **not** built (and is a much larger, different project — see the investor-questions notes).
+- **Phase 3 — second market + Ride App scale:** 🔜 the global "market pack" multi-country design from the investor doc is **not** built (and is a much larger, different project — see the investor-questions notes).
 
 ---
 

@@ -76,7 +76,10 @@ async function main() {
     driven += haversine(prev, cur);
     prev = cur;
     dSock.emit('driver:location', { lat: cur.lat, lng: cur.lng, heading: 270, speed: 30 });
-    await wait(25); // let the server process each ping
+    // Real pace: each ~122 m step every 2.2 s (~55 m/s). Faster pings imply a
+    // speed over the server's MAX_PLAUSIBLE_SPEED_MPS (60) and are rejected as
+    // spoofed, so the odometer would never engage.
+    await wait(2200);
   }
   await wait(400); // drain
   console.log(`• streamed ${N} pings, client-side driven ≈ ${Math.round(driven)} m`);

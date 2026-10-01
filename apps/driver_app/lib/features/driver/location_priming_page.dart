@@ -8,7 +8,7 @@ import 'location_stream.dart';
 /// Opens the OS page that fixes a given [LocationAccess] problem.
 typedef LocationFixOpener = Future<bool> Function(LocationAccess access);
 
-/// RideVela's own explanation, shown BEFORE the OS location dialog (audit
+/// FAIRSVIA's own explanation, shown BEFORE the OS location dialog (audit
 /// 3.6). A driver who meets the bare system prompt cold is more likely to
 /// refuse it — and a driver without location never gets a ride offer.
 ///
@@ -125,7 +125,7 @@ class _LocationPrimingPageState extends State<LocationPrimingPage>
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'RideVela needs your location while you are online. '
+                    'FAIRSVIA needs your location while you are online. '
                     'On the next screen, choose "While using the app" and '
                     'keep Precise location on.',
                     style: theme.textTheme.bodyLarge,
@@ -158,7 +158,7 @@ class _LocationPrimingPageState extends State<LocationPrimingPage>
                     icon: PhosphorIconsRegular.shieldCheck,
                     title: 'Only while you are online',
                     body:
-                        'When you go offline, RideVela stops sending your '
+                        'When you go offline, FAIRSVIA stops sending your '
                         'location.',
                   ),
                 ],
@@ -263,7 +263,7 @@ class LocationAccessBanner extends StatelessWidget {
       case LocationAccess.deniedForever:
       case LocationAccess.denied:
       case LocationAccess.granted:
-        return 'Location is not allowed for RideVela';
+        return 'Location is not allowed for FAIRSVIA';
     }
   }
 
@@ -273,7 +273,7 @@ class LocationAccessBanner extends StatelessWidget {
         return 'Turn on location in Settings to go online and get ride '
             'offers.';
       case LocationAccess.reduced:
-        return 'Turn on Precise location for RideVela in Settings, so riders '
+        return 'Turn on Precise location for FAIRSVIA in Settings, so riders '
             'can find you and trips are measured correctly.';
       case LocationAccess.deniedForever:
         return 'Your phone will not ask again. Open Settings, tap Location '

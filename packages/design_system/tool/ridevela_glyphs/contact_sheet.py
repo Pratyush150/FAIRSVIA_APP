@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contact sheet: RideVela glyphs (*) next to Phosphor's own, from the real fonts.
+"""Contact sheet: FAIRSVIA glyphs (*) next to Phosphor's own, from the real fonts.
 
 Small sizes are rendered at their true pixel size, then the sheet is scaled
 up with nearest-neighbour so each device pixel stays visible (no smoothing

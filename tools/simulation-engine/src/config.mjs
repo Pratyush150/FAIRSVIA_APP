@@ -1,8 +1,8 @@
 // Central config. Everything is env-overridable so the engine can target the
 // local dev stack (default) or a remote/prod-like host.
 
-export const BASE = process.env.BASE_URL || 'http://localhost:3000/api/v1';
-export const WS = process.env.WS_URL || 'http://localhost:3000';
+export const BASE = process.env.BASE_URL || 'http://localhost:3200/api/v1';
+export const WS = process.env.WS_URL || 'http://localhost:3200';
 
 // OSRM routing (self-hosted). Used to drive road-following actor motion and to
 // pick realistic pickup/dropoff routes. Empty string => fall back to

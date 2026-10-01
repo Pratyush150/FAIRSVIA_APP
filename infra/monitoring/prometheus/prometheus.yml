@@ -1,4 +1,4 @@
-# Scrape config for the RideVela stack.
+# Scrape config for the FAIRSVIA stack.
 #
 # Every backend replica is scraped DIRECTLY, never through nginx: nginx uses
 # ip_hash for Socket.IO session affinity, which would pin the scraper to one

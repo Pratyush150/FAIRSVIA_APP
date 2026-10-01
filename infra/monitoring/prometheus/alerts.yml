@@ -12,7 +12,7 @@ groups:
           summary: 'Backend replica {{ $labels.instance }} is not scrapeable'
           description: >-
             Prometheus cannot reach /metrics. Either the process is down or it
-            is wedged. Check `docker logs ubernav_backend` and the readiness
+            is wedged. Check `docker logs fairsvia_backend` and the readiness
             probe at /api/v1/health/ready.
 
       - alert: HighErrorRate
@@ -35,8 +35,8 @@ groups:
         annotations:
           summary: 'Postgres is unreachable'
           description: >-
-            No trip can be booked or paid. Check `docker ps` for ubernav_postgres
-            and `docker logs ubernav_postgres`; disk full is the usual cause here.
+            No trip can be booked or paid. Check `docker ps` for fairsvia_postgres
+            and `docker logs fairsvia_postgres`; disk full is the usual cause here.
 
       - alert: RedisDown
         # Redis holds live driver positions, dispatch offers and the queues.
@@ -48,7 +48,7 @@ groups:
           summary: 'Redis is unreachable'
           description: >-
             Dispatch, live locations and background jobs are down. Check
-            `docker logs ubernav_redis`.
+            `docker logs fairsvia_redis`.
 
       - alert: HighApiLatency
         # p95 across our own routes above 600 ms — the load-test SLO
@@ -78,7 +78,7 @@ groups:
         annotations:
           summary: 'Backend restarted more than twice in 15 minutes'
           description: >-
-            Crash loop. `docker logs --tail 200 ubernav_backend` shows the
+            Crash loop. `docker logs --tail 200 fairsvia_backend` shows the
             error before each restart; Sentry has the stack once SENTRY_DSN is set.
 
   - name: ridevela-safety

@@ -3,7 +3,7 @@
 /// so a rename is a single edit rather than a grep across three apps.
 abstract final class AppBrand {
   /// The product name as it is written to riders and drivers.
-  static const String name = 'RideVela';
+  static const String name = 'FAIRSVIA';
 
   /// Per-app window/task titles.
   static const String riderTitle = '$name Rider';

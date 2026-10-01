@@ -3,7 +3,7 @@
  * trips today → bonus 150" in the market currency, all tiers. Idempotent:
  * keyed on title + start, so re-running refreshes it instead of adding one.
  *
- *   docker exec ubernav_backend npx ts-node scripts/seed-quest.ts
+ *   docker exec fairsvia_backend npx ts-node scripts/seed-quest.ts
  */
 import { PrismaClient } from '@prisma/client';
 import { startOfBusinessDay } from '../src/common/time/business-day';

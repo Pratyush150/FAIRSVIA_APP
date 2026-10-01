@@ -140,7 +140,7 @@ The odd one out: **credentials are set, the switches are off.**
 | `AWS_ACCESS_KEY_ID` | SET |
 | `AWS_SECRET_ACCESS_KEY` | SET |
 | `AWS_REGION` | `us-east-1` |
-| `SES_FROM` | `noreply@ridevela.com` |
+| `SES_FROM` | `noreply@fairsvia.com` |
 | `SMS_PROVIDER` | `mock` ← flip to `sns` |
 | `EMAIL_PROVIDER` | `mock` ← flip to `ses` |
 
@@ -152,7 +152,7 @@ There is a hand-rolled SigV4 signer at `common/aws/aws-sigv4.ts` used by both
 **Before flipping:**
 - **SES starts in sandbox**: you can only send to verified addresses, and you
   must request production access (can take ~24h). Do this early.
-- Verify the `ridevela.com` domain in SES; add SPF/DKIM or mail lands in spam.
+- Verify the `fairsvia.com` domain in SES; add SPF/DKIM or mail lands in spam.
 - **SNS SMS needs a spend limit raise** and, for US traffic, an origination
   number or toll-free registration — this has lead time and is a common
   launch surprise.

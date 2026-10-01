@@ -20,18 +20,18 @@ The only thing that cannot be automated from here is DNS, because it lives in
 the owner's Cloudflare account:
 
 1. In Cloudflare, add an **A record** for the API hostname (e.g.
-   `api.ridevela.com`) → the production server's public IP. Set it to
+   `api.fairsvia.com`) → the production server's public IP. Set it to
    **DNS only (grey cloud)** for issuance.
-2. On that server, in `infra/.env`: `TLS_DOMAIN=api.ridevela.com`,
+2. On that server, in `infra/.env`: `TLS_DOMAIN=api.fairsvia.com`,
    `HTTP_PORT=80`, `HTTPS_PORT=443`. Make sure ports 80 and 443 are open.
 3. Start the stack, then:
    ```bash
-   infra/tls/issue-cert.sh api.ridevela.com ops@ridevela.com --staging   # dry run
-   infra/tls/issue-cert.sh api.ridevela.com ops@ridevela.com             # real
+   infra/tls/issue-cert.sh api.fairsvia.com ops@fairsvia.com --staging   # dry run
+   infra/tls/issue-cert.sh api.fairsvia.com ops@fairsvia.com             # real
    ```
 4. Build the apps against it:
-   `--dart-define=API_BASE_URL=https://api.ridevela.com/api/v1`, and set the
-   Stripe webhook endpoint to `https://api.ridevela.com/api/v1/payments/webhook`.
+   `--dart-define=API_BASE_URL=https://api.fairsvia.com/api/v1`, and set the
+   Stripe webhook endpoint to `https://api.fairsvia.com/api/v1/payments/webhook`.
 
 Renewal after that is automatic.
 

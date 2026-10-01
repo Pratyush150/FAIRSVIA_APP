@@ -42,7 +42,7 @@ Deployment target confirmed **iOS 15.0** in both Podfiles and both pbxproj files
 | 2 | `9000000001` → "code to **+919000000001**", orange Dev pill | **PASS (seen)** | "We sent a 6-digit code to +919000000001." + "Dev code: 158325" |
 | 3 | Home map shows real Pune location, tiles load | **PASS (seen)** | Mutha River, Laxmi Rd, Ganesh Rd, Tapkir Galli, Jijamata Chowk; blue dot on the set fix. Maps key works |
 | 4 | Search results in km | **PASS (test)** | `market_test.dart` — metric markets read m/km |
-| 5 | Header "x.x km · N min", fares in ₹, no comparison card | **PASS (test + API)** | `market_test.dart` asserts `4.2 km · 15 min`; live estimate returns `currency: INR`, Economy **₹97.54 / 3.06 km**, `comparison: null` |
+| 5 | Header "x.x km · N min", fares in ₹ | **PASS (test + API)** | `market_test.dart` asserts `4.2 km · 15 min`; live estimate returns `currency: INR`, Economy **₹97.54 / 3.06 km** |
 | 6 | Payment is Cash with no card saved | **PASS (seen)** | "Cash" chip on the ride card |
 | 7 | Arriving screen: PIN, chips, driver card, Message, Details, Add a stop, Pre-book | **PASS (seen)** | All nine elements present: Ride PIN 8044, Economy, Cash, plate FL301383, Message, Details, Add a stop, Pre-book, Safety, More options |
 | 8 | Cancel dialog says "a ₹50 cancellation fee" | **PARTIAL** | Server returns `{"status":"cancelled","fee":50}` — the amount is right. **The dialog text itself was not seen** |
@@ -215,7 +215,7 @@ against the old code.
 |---|---|---|
 | 1–3 | +91 hint, local number → +919000000001, Pune map | **PASS (seen)** |
 | 4 | Search results | **PASS (seen)** — real Pune names ("Pune station, Agarkar Nagar…"), no plus-codes |
-| 5 | "2.6 km · 12 min", ₹ fares, no comparison card | **PASS (seen)** — Economy ₹93.10, Comfort ₹126.71, XL ₹175.63 |
+| 5 | "2.6 km · 12 min", ₹ fares | **PASS (seen)** — Economy ₹93.10, Comfort ₹126.71, XL ₹175.63 |
 | 6 | Cash by default | **PASS (seen)** |
 | 7 | Arriving screen elements | **PASS (seen)** |
 | 8 | Cancel dialog says "₹50 cancellation fee" | **NOT VERIFIED** — the ••• menu would not open under synthetic taps. The *amount* is right (server returns `{"fee":50}`), the *wording* is unseen |
@@ -317,7 +317,7 @@ into the background in either mode.
 ## Fares and market (unchanged, re-confirmed)
 
 "2.6 km · 12 min" header; Economy ₹93.11, Comfort ₹126.72, XL ₹175.65. No "$",
-no "mi", no comparison card.
+no "mi".
 
 ## Regression state
 

@@ -4,7 +4,7 @@
 #   pg-restore.sh <dump-file> <target-db>
 #
 # The target is DROPPED and recreated. Restore into a scratch name first
-# (e.g. ubernav_restore), check it, and only then swap it in — never restore
+# (e.g. fairsvia_restore), check it, and only then swap it in — never restore
 # straight over the live database. Uses the standard libpq env vars.
 set -eu
 

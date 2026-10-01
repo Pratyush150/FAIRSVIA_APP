@@ -129,7 +129,7 @@ abstract final class PhosphorIconsRegular {
   /// tried and turns to a blob at 20-24 px).
   static const IconData motorcycle = IconData(0xe80a, fontFamily: _regularFamily, fontPackage: 'design_system');
 
-  // RideVela additions — not part of Phosphor. Our own paths on Phosphor's
+  // FAIRSVIA additions — not part of Phosphor. Our own paths on Phosphor's
   // 256 grid and 16-unit stroke (the font itself is MIT), added to the
   // vendored fonts at private-use code points by tool/ridevela_glyphs/build.py.
   /// Indian auto-rickshaw, side-on (Phosphor has none).
@@ -151,7 +151,7 @@ abstract final class PhosphorIconsFill {
   static const IconData toggleRight = IconData(0xe676, fontFamily: _fillFamily, fontPackage: 'design_system');
   static const IconData motorcycle = IconData(0xe80a, fontFamily: _fillFamily, fontPackage: 'design_system');
 
-  // RideVela additions (see PhosphorIconsRegular) — Fill weights of our paths.
+  // FAIRSVIA additions (see PhosphorIconsRegular) — Fill weights of our paths.
   static const IconData autoRickshaw = IconData(0xf8f0, fontFamily: _fillFamily, fontPackage: 'design_system');
   static const IconData cashRupee = IconData(0xf8f2, fontFamily: _fillFamily, fontPackage: 'design_system');
 }
@@ -159,7 +159,7 @@ abstract final class PhosphorIconsFill {
 /// Phosphor Light (MIT, fonts/Phosphor-LICENSE.txt; vendored from
 /// @phosphor-icons/web 2.1.1, src/light/Phosphor-Light.ttf): the line-art
 /// weight of Plan E "Ink & Paper". Same code points as Regular (checked
-/// glyph by glyph against both fonts' cmaps), plus the RideVela additions
+/// glyph by glyph against both fonts' cmaps), plus the FAIRSVIA additions
 /// built into it by `tool/ridevela_glyphs/build.py light`. Under THEME=ink
 /// [PhosphorIconsRegular] already resolves to this font; use this class
 /// directly for a glyph that must be Light in every build.

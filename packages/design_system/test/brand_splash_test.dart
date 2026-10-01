@@ -77,7 +77,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byType(RideVelaDriverPill), findsOneWidget);
-    expect(find.bySemanticsLabel('RideVela Driver'), findsOneWidget);
+    expect(find.bySemanticsLabel('FAIRSVIA Driver'), findsOneWidget);
     await tester.pumpAndSettle();
 
     await tester.pumpWidget(MaterialApp(home: BrandSplash(onDone: () {})));

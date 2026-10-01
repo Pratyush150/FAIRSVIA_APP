@@ -12,7 +12,6 @@ import '../../layout/rider_sheet_heights.dart';
 import '../contact_picker.dart';
 import '../destination_search_page.dart';
 import '../location_service.dart';
-import '../price_comparison_card.dart';
 import '../ride_status.dart';
 import '../ride_status_header.dart';
 import '../trip_cubit.dart';

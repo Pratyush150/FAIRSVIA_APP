@@ -27,7 +27,7 @@ changes: OTP request/verify/burn, refresh rotation + reuse detection, logout,
 per-IP throttle (exactly 5 then 429), every DTO validation shape, users/places
 CRUD + ownership, favorites, inbox/unread/read-all, device register (409 on
 another account's token), support tickets + threads, Google autocomplete /
-details / reverse, estimate (single + stops) + comparison, promo
+details / reverse, estimate (single + stops), promo
 quote/redeem/release, mock card add/list/sync, receipts (cash + card), tip once
 then 409, ratings both ways with running averages, history, earnings, ledger,
 Connect onboard/status/payout (mock), the full trip socket lifecycle

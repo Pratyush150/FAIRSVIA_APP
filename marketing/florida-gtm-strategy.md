@@ -18,7 +18,7 @@ This is the single source of truth for launching a new Florida ride-hailing bran
 > **The three hardest honesty rules, stated once, up front:**
 > 1. **Insurance is absent in code and is LEGALLY MANDATORY under Florida TNC law (F.S. 627.748). It is a hard launch blocker. NEVER put an insurance claim on the website until it is real.** (🔧)
 > 2. **The in-app "SOS/emergency" feature is an audit-log entry only** — no 911 dispatch, no emergency-contact notification, no trip-share delivery. **Do not market "SOS," "emergency button," or "we call 911."** (🔧)
-> 3. **The in-app "price comparison" is our own internal fare *model*, self-disclaimed — not live Uber/Lyft quotes. Never present it as real competitor pricing.** (🔮)
+> 3. **The app shows only our own fares, from our own rate card — it has no Uber/Lyft price data. Never quote competitor prices or claim we are cheaper.**
 
 **2. Priority ranking** — for recommendations:
 - 🔴 **Critical** — launch-blocking or legally required. Do first.
@@ -250,10 +250,10 @@ Compact template per persona: **Problem · Uses now · Why switch · Winning mes
 **9. Price-sensitive**
 - Problem: surge, opaque fees.
 - Uses now: whoever's cheapest that minute; Empower/inDrive in FL.
-- Why switch: surge ceiling (✅), transparent fare model (🔮 — internal estimate, self-disclaimed; never present as competitor quotes).
+- Why switch: surge ceiling (✅), upfront fare from a published rate card (✅).
 - Message: *"See the price. No surge games."*
 - Features: surge ceiling (✅), promos (✅), cash (✅).
-- Objection: "Are you actually cheaper?" → **do not claim to undercut Uber/Lyft with the internal price model**; compete on *certainty*, not a cheapness claim.
+- Objection: "Are you actually cheaper?" → **do not claim to undercut Uber/Lyft**; compete on *certainty*, not a cheapness claim.
 
 **10. Safety-conscious**
 - Problem: stranger-danger, incident-response doubt.
@@ -339,7 +339,7 @@ Defensible, tied to real capability where possible. **Not "cheaper."**
 
 **Secondary support:** OTP ride-start (✅), bidirectional ratings (✅), real-time tracking via Socket.IO multi-node fan-out (✅), scheduled rides (✅) for snowbirds/commuters.
 
-**Explicitly NOT differentiators (honesty):** "SOS/emergency" (🔧 audit-log only), "verified riders" (🔧 absent), live re-routing / turn-by-turn (🔧 absent — route computed once at booking via OSRM), and the internal "price comparison" (🔮 — a self-disclaimed model, never "real Uber/Lyft pricing"). **Referral** (a growth lever, §16) is **absent — 🔧.**
+**Explicitly NOT differentiators (honesty):** "SOS/emergency" (🔧 audit-log only), "verified riders" (🔧 absent), live re-routing / turn-by-turn (🔧 absent — route computed once at booking via OSRM), and any "cheaper than Uber/Lyft" claim (the app has no competitor price data). **Referral** (a growth lever, §16) is **absent — 🔧.**
 
 ---
 
@@ -390,7 +390,7 @@ Real copy, not placeholders. Brand = **Vamos** (placeholder).
 - Objective: make "no surprises" concrete.
 - Content: a simple fare-anatomy graphic — base + time + distance, with a **capped** surge band highlighted in coral.
 - Headline: **"Surge with a ceiling — not a blank check."**
-- Supporting copy: *"When it's busy, prices can rise — but never past a cap we publish. No $65 rides to the airport."* *(Do NOT cite the internal price-comparison model as competitor quotes — 🔮.)*
+- Supporting copy: *"When it's busy, prices can rise — but never past a cap we publish. No $65 rides to the airport."* *(Never quote competitor prices.)*
 - CTA: *See your price.*
 - Visual: annotated fare bar.
 - Conversion purpose: neutralize the surge-shock objection.
@@ -504,7 +504,6 @@ Lead with the **structural** claim, not a disputable average: *"See every dollar
 - **City (core commercial):** `Tampa rideshare`, `Miami rideshare`, `Orlando rideshare`, `book a ride {city}`, `taxi {city}`.
 - **Airport (highest intent):** `TPA airport ride`, `MCO airport ride`, `MIA airport taxi`, `{code} rideshare pickup terminal`, `Orlando airport to Disney rideshare`.
 - **Tourist/route:** `Miami airport to South Beach taxi`, `MCO to Disney Springs Uber cost`, `FLL to Port Everglades ride`, `Tampa airport to Busch Gardens`.
-- **Competitor-alternative (BOFU):** `Uber alternative Miami`, `cheaper than Uber Orlando`, `apps like Uber Florida` (name inDrive/Curb/Empower honestly).
 - **Long-tail (easy wins):** `how much is an Uber from MCO to Disney World 2026`, `how to avoid surge pricing Fort Lauderdale airport`, `Uber driver requirements Florida`, `wheelchair accessible ride Orlando airport`.
 - **Category (long-term authority):** `rideshare app Florida`, `Uber vs Lyft Florida`.
 
@@ -856,4 +855,4 @@ Single ranked list. Owner-type: **LEG** legal, **INS** insurance, **ENG** engine
 
 ---
 
-*End of master strategy. Honesty caveats preserved throughout: no Florida TAM exists (only an ESTIMATE); insurance and real SOS are build-first and unmarketable until real; only MCO's $7 airport fee is verified; the in-app price comparison is an internal model, never a competitor quote; referral is unbuilt. Update the fare figures, driver payout amounts, and airport fees against live/primary sources before any of them appear in published copy.*
+*End of master strategy. Honesty caveats preserved throughout: no Florida TAM exists (only an ESTIMATE); insurance and real SOS are build-first and unmarketable until real; only MCO's $7 airport fee is verified; the app has no competitor price data, so never quote competitor prices; referral is unbuilt. Update the fare figures, driver payout amounts, and airport fees against live/primary sources before any of them appear in published copy.*

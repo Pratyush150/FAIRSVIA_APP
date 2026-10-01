@@ -1,6 +1,6 @@
 {
   "uid": "ridevela-business",
-  "title": "RideVela \u2014 Business",
+  "title": "FAIRSVIA \u2014 Business",
   "description": "Is the business working. Answered from Postgres, not Prometheus: these are ledger questions, and the metrics store only keeps 30 days of samples.",
   "tags": [
     "ridevela",

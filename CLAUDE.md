@@ -1,4 +1,4 @@
-# Ride App — Working Rules
+# FAIRSVIA — Working Rules
 
 These are binding operating rules for any AI/engineering work in this repo. They
 override default behavior. Established by the project owner (Sai Kishore).
@@ -50,6 +50,14 @@ override default behavior. Established by the project owner (Sai Kishore).
 - The production profile is a separate, opt-in stack that must never touch the
   running dev stack. The real `backend/.env.prod` stays gitignored, never committed.
 
+## 8. Separation from RideVela (standing)
+- FAIRSVIA (this repo, `/home/nova-robotics/fairsvia_app`) is forked from RideVela
+  (`/home/nova-robotics/ubernav`), which runs on the same box. Never modify
+  `/home/nova-robotics/ubernav` or its containers (`ubernav_*`, `ridevela_*`,
+  compose project `infra`), and never point FAIRSVIA at its database.
+- No `docker system prune` (with or without `-a`).
+- Never use a Prisma shadow DB (`prisma migrate dev`) against a live database.
+
 ## Picking this up fresh
 - **Read `docs/session-handoff.md` first.** It carries the current state, the
   environment traps that fail in misleading ways (the `NODE_ENV` test-gate trap,
@@ -62,13 +70,33 @@ override default behavior. Established by the project owner (Sai Kishore).
   `docs/field-testing-plan.md` for on-road verification.
 
 ## Environment quick-reference
+- Repo: https://github.com/Pratyush150/FAIRSVIA_APP.
+- Brand: FAIRSVIA (written exactly so). "Road-F" logo; "Ocean Blue" accent
+  (`#1B4FD8` ink, `#2F6BFF`, `#5B9DFF`) replaces the teal/mint accent in the
+  shipped glass look. No competitor price comparison: fares come only from
+  FAIRSVIA's own rate card.
 - Flutter: `/home/nova-robotics/flutter/bin`. Backend runs in Docker
-  (`docker exec ubernav_backend ...`). Backend API: `<LAN_IP>:3000/api/v1` —
+  (`docker exec fairsvia_backend ...`), compose project `fairsvia`, network
+  `fairsvia_default`; containers `fairsvia_backend`, `fairsvia_postgres`,
+  `fairsvia_redis`, `fairsvia_adminer`, `fairsvia_tunnel`. Host ports: Postgres
+  5532, Redis 6479, Adminer 8180 (DB user/name/password `fairsvia`).
+- Routing/geocoding: OSRM/Nominatim are NOT run by this stack by default (opt-in
+  compose profile `own-routing`, ports 5100/8181). `backend/.env` points at the
+  host's existing OSRM :5000 and Nominatim :8081 over HTTP, and uses Google geo
+  via `GOOGLE_MAPS_API_KEY`.
+- App IDs: rider `in.novarobotics.fairsvia.rider`, driver
+  `in.novarobotics.fairsvia.driver` (Android + iOS), admin (Android)
+  `in.novarobotics.fairsvia.admin`. Deep-link schemes `fairsviaapp-rider://` and
+  `fairsviaapp-driver://` (not `fairsvia-*`, so they don't collide with the
+  RideVela apps on the same phones). Launcher names "FAIRSVIA Rider" /
+  "FAIRSVIA Driver".
+- Backend API: `<LAN_IP>:3200/api/v1` —
   the box's address is DHCP and has changed (was `192.168.1.48`, now
   `192.168.1.69`). Resolve it with `hostname -I` rather than hardcoding;
   `make build-web` and the visual-check tools now do this themselves.
 - Android SDK: `/home/nova-robotics/Android/Sdk`; JDK 17 at `/home/nova-robotics/jdks`.
 - Headless emulator AVD: `pixel_uber` (android-35 google_apis x86_64, KVM).
-- Web serve: `tools/webserve.py PORT dir` (admin 9090, rider 9091, driver 9092).
+- Web serve: `tools/webserve.py PORT dir` (admin 9190, rider 9191, driver 9192).
 - Monitoring: `infra/monitoring/` — Grafana :3001, Prometheus :9099,
-  Alertmanager :9093. Opt-in; never touches the dev app stack.
+  Alertmanager :9093. Opt-in (compose project `fairsvia-monitoring`, containers
+  `fairsvia_*`); never touches the dev app stack.

@@ -19,7 +19,7 @@ fi
 echo "arrived on trip $TRIP — pausing so the rider sees 'driver arrived'" >> "$LOG"
 sleep 4
 
-OTP=$(docker exec ubernav_postgres psql -U ubernav -d ubernav -tAc \
+OTP=$(docker exec fairsvia_postgres psql -U fairsvia -d fairsvia -tAc \
   "SELECT start_otp FROM trips WHERE id='$TRIP';" 2>/dev/null | tr -d '[:space:]')
 echo "start code = $OTP" >> "$LOG"
 

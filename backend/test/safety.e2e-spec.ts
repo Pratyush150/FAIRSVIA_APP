@@ -136,7 +136,7 @@ describe('Safety / SOS (e2e)', () => {
     expect(res.body.emergencyNumbers[0]).toEqual({ label: 'Police', number: '102' });
     expect(sent.map((s) => s.phone).sort()).toEqual(['+998901110001', '+998901110002']);
     const msg = sent[0].message;
-    expect(msg).toContain('RideVela SOS: Aziza pressed the emergency button');
+    expect(msg).toContain('FAIRSVIA SOS: Aziza pressed the emergency button');
     expect(msg).toContain('https://maps.google.com/?q=41.32650,69.22850');
     expect(msg).toContain('White Chevrolet Cobalt, plate 01A123BC');
     expect(msg).toContain('Driver: Bekzod');

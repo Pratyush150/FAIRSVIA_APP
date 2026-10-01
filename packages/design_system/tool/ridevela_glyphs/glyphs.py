@@ -1,4 +1,4 @@
-"""RideVela glyph sources — Phosphor 256 grid, y down. See build.py."""
+"""FAIRSVIA glyph sources — Phosphor 256 grid, y down. See build.py."""
 
 
 def circle(cx, cy, r):

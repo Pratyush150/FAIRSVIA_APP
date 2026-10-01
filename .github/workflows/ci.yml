@@ -27,12 +27,12 @@ jobs:
       postgres:
         image: postgis/postgis:16-3.4
         env:
-          POSTGRES_USER: ubernav
-          POSTGRES_PASSWORD: ubernav
-          POSTGRES_DB: ubernav
+          POSTGRES_USER: fairsvia
+          POSTGRES_PASSWORD: fairsvia
+          POSTGRES_DB: fairsvia
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U ubernav"
+          --health-cmd "pg_isready -U fairsvia"
           --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
         image: redis:7-alpine
@@ -41,7 +41,7 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 10s --health-timeout 5s --health-retries 5
     env:
-      DATABASE_URL: postgresql://ubernav:ubernav@localhost:5432/ubernav?schema=public
+      DATABASE_URL: postgresql://fairsvia:fairsvia@localhost:5432/fairsvia?schema=public
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
@@ -79,12 +79,12 @@ jobs:
       postgres:
         image: postgis/postgis:16-3.4
         env:
-          POSTGRES_USER: ubernav
-          POSTGRES_PASSWORD: ubernav
-          POSTGRES_DB: ubernav
+          POSTGRES_USER: fairsvia
+          POSTGRES_PASSWORD: fairsvia
+          POSTGRES_DB: fairsvia
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U ubernav"
+          --health-cmd "pg_isready -U fairsvia"
           --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
         image: redis:7-alpine
@@ -93,7 +93,7 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 10s --health-timeout 5s --health-retries 5
     env:
-      DATABASE_URL: postgresql://ubernav:ubernav@localhost:5432/ubernav?schema=public
+      DATABASE_URL: postgresql://fairsvia:fairsvia@localhost:5432/fairsvia?schema=public
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
@@ -105,6 +105,10 @@ jobs:
       STOPPED_AFTER_S: '4'
       OFF_ROUTE_PINGS: '2'
       REROUTE_MIN_GAP_S: '1'
+      # The sims default to the local FAIRSVIA stack (host port 3200); in CI
+      # the backend listens on 3000 directly.
+      BASE_URL: http://localhost:3000/api/v1
+      WS_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -146,17 +150,6 @@ jobs:
       - name: Field-test regressions (offers, advisories, fare, ratings)
         working-directory: tools/fake-driver-simulator
         run: node field-issues-check.mjs
-      - name: Price comparison (multi-provider + minimum)
-        working-directory: tools/fake-driver-simulator
-        run: node comparison-check.mjs
-      - name: Seed admin for calibration loop
-        working-directory: tools/fake-driver-simulator
-        run: |
-          node -e "import('./lib.mjs').then(m => m.login('+13050000001')).then(() => console.log('admin user created'))"
-          psql "$DATABASE_URL" -c "UPDATE users SET role='admin' WHERE phone='+13050000001';"
-      - name: Price comparison calibration loop
-        working-directory: tools/fake-driver-simulator
-        run: node calibration-check.mjs
       - name: Marketplace simulation — smoke (dispatch + SLO gate)
         working-directory: tools/simulation-engine
         # No OSRM in CI → straight-line actor motion (still exercises the full
@@ -183,18 +176,18 @@ jobs:
       postgres:
         image: postgis/postgis:16-3.4
         env:
-          POSTGRES_USER: ubernav
-          POSTGRES_PASSWORD: ubernav
-          POSTGRES_DB: ubernav
+          POSTGRES_USER: fairsvia
+          POSTGRES_PASSWORD: fairsvia
+          POSTGRES_DB: fairsvia
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U ubernav"
+          --health-cmd "pg_isready -U fairsvia"
           --health-interval 10s --health-timeout 5s --health-retries 5
     env:
       PGHOST: localhost
-      PGUSER: ubernav
-      PGPASSWORD: ubernav
-      PGDATABASE: ubernav
+      PGUSER: fairsvia
+      PGPASSWORD: fairsvia
+      PGDATABASE: fairsvia
     steps:
       - uses: actions/checkout@v4
       - name: Alert rules parse
@@ -284,9 +277,7 @@ jobs:
       - name: Plan E "Ink & Paper" build (THEME=ink)
         # Plan E changes drawing, not just tokens (Light icons, serif moments,
         # ruled sheets, the ticket receipt), so its widgets and the rider
-        # sheets that use them are tested in the ink build itself. (The
-        # price-comparison goldens are palette-specific and only match the
-        # default build, so the rider suite is not run whole here.)
+        # sheets that use them are tested in the ink build itself.
         run: |
           set -e
           (cd packages/design_system && flutter test --dart-define=THEME=ink)
@@ -301,8 +292,7 @@ jobs:
         # Plan G swaps every Phosphor icon for the Phosphor3D colour-bitmap
         # font (CBDT/CBLC + sbix) and adds 3D hero art, so the whole suites
         # run in that build — including clay3d_icons_test, which renders the
-        # real font and asserts coloured pixels. (Price-comparison goldens
-        # skip themselves under any THEME.)
+        # real font and asserts coloured pixels.
         run: |
           set -e
           for d in packages/design_system packages/core apps/rider_app apps/driver_app; do

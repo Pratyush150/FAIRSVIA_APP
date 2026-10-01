@@ -22,7 +22,7 @@ pass() { printf "  \033[32m✓ %s\033[0m\n" "$1"; }
 fail() { printf "  \033[31m✗ %s\033[0m\n" "$1"; FAILED+=("$1"); }
 stage() { printf "\n\033[1m▶ %s\033[0m\n" "$1"; }
 
-BACKEND_CTR=ubernav_backend
+BACKEND_CTR=fairsvia_backend
 
 stage "Backend — type-check (nest build)"
 if docker exec "$BACKEND_CTR" npm run build >/tmp/ci-be-build.log 2>&1; then

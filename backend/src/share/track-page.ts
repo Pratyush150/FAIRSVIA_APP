@@ -134,7 +134,7 @@ function shell(body: string, token = ''): string {
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#0FA3A8">
-<title>RideVela · Live trip</title>
+<title>FAIRSVIA · Live trip</title>
 <link rel="stylesheet" href="${LEAFLET}/leaflet.css" crossorigin="anonymous">
 <style>${STYLE}</style>
 </head><body data-token="${token}">${body}</body></html>`;
@@ -145,13 +145,13 @@ function shell(body: string, token = ''): string {
 export function trackPageHtml(token: string): string {
   return shell(
     `<div id="map"></div>
-<div class="top"><div class="brand"><span class="dot"></span>RideVela</div><div class="live" id="live">Live</div></div>
+<div class="top"><div class="brand"><span class="dot"></span>FAIRSVIA</div><div class="live" id="live">Live</div></div>
 <div class="card">
   <p class="status" id="status">Loading trip…</p>
   <p class="sub"><span class="eta" id="eta"></span></p>
   <div class="car"><div><div id="driver" style="font-weight:600"></div><div class="sub" id="vehicle"></div></div><span class="plate" id="plate" style="display:none"></span></div>
   <div class="route"><div><span class="pin" style="background:#0FA3A8"></span><span id="from"></span></div><div><span class="pin" style="background:#0B3C49"></span><span id="to"></span></div></div>
-  <div class="foot">Shared by a RideVela rider. Updates every few seconds.</div>
+  <div class="foot">Shared by a FAIRSVIA rider. Updates every few seconds.</div>
 </div>
 <script src="${LEAFLET}/leaflet.js" crossorigin="anonymous"></script>
 <script>${SCRIPT}</script>`,
@@ -161,7 +161,7 @@ export function trackPageHtml(token: string): string {
 
 export function expiredPageHtml(): string {
   return shell(
-    `<div class="top"><div class="brand"><span class="dot"></span>RideVela</div></div>
+    `<div class="top"><div class="brand"><span class="dot"></span>FAIRSVIA</div></div>
 <div class="card"><p class="status">This link has expired</p>
 <p class="sub">Live trip links stop working an hour after the trip ends.</p></div>`,
   );

@@ -19,10 +19,10 @@ ci-fast: ## Local CI gate without e2e (quick inner loop)
 # fails the suites on 429s that have nothing to do with the code. Setting the
 # flag explicitly makes the local gate agree with CI.
 test-backend: ## Backend unit tests (in container)
-	docker exec -e THROTTLE_DISABLED=true ubernav_backend npx jest --ci
+	docker exec -e THROTTLE_DISABLED=true fairsvia_backend npx jest --ci
 
 test-e2e: ## Backend e2e tests (in container)
-	docker exec -e THROTTLE_DISABLED=true ubernav_backend npm run test:e2e
+	docker exec -e THROTTLE_DISABLED=true fairsvia_backend npm run test:e2e
 
 test-flutter: ## Flutter widget/bloc tests
 	@for d in packages/* apps/*; do [ -d "$$d/test" ] && (cd "$$d" && flutter test) || true; done
@@ -70,14 +70,14 @@ down: ## Stop the Docker stack
 	cd infra && docker compose down
 
 logs: ## Tail backend logs
-	docker logs -f ubernav_backend
+	docker logs -f fairsvia_backend
 
 migrate: ## Create/apply a Prisma migration (NAME=your_migration)
-	docker exec ubernav_backend npx prisma migrate dev --name $(NAME)
+	docker exec fairsvia_backend npx prisma migrate dev --name $(NAME)
 
 BACKUP_DIR ?= /var/backups/ridevela
-DB_PG = docker run --rm --network infra_default -e PGHOST=postgres -e PGUSER=ubernav \
-	-e PGPASSWORD=$${PGPASSWORD:-ubernav} -e PGDATABASE=ubernav \
+DB_PG = docker run --rm --network fairsvia_default -e PGHOST=postgres -e PGUSER=fairsvia \
+	-e PGPASSWORD=$${PGPASSWORD:-fairsvia} -e PGDATABASE=fairsvia \
 	-v $(CURDIR)/infra/backup:/scripts:ro -v $(BACKUP_DIR):/backups postgis/postgis:16-3.4
 
 backup-db: ## One verified Postgres backup of the dev DB into BACKUP_DIR (see infra/backup/README.md)

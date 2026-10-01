@@ -13,7 +13,7 @@ BACKUP_DIR="${BACKUP_DIR:-/backups}"
 KEEP_DAILY="${KEEP_DAILY:-7}"
 KEEP_WEEKLY="${KEEP_WEEKLY:-4}"
 KEEP_MONTHLY="${KEEP_MONTHLY:-6}"
-DB="${PGDATABASE:-ubernav}"
+DB="${PGDATABASE:-fairsvia}"
 
 mkdir -p "$BACKUP_DIR/daily" "$BACKUP_DIR/weekly" "$BACKUP_DIR/monthly"
 

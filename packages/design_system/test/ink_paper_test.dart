@@ -91,7 +91,7 @@ void main() {
 
     test('Phosphor Light maps every icon the apps use, with an outline', () {
       final ttf = File('fonts/Phosphor-Light.ttf').readAsBytesSync();
-      // A spread of the constants, plus both RideVela additions.
+      // A spread of the constants, plus both FAIRSVIA additions.
       for (final icon in [
         PhosphorIconsLight.car,
         PhosphorIconsLight.x,

@@ -105,7 +105,7 @@ void main() {
 
     expect(find.byType(LocationPrimingPage), findsOneWidget);
     expect(find.byType(LocationAccessBanner), findsOneWidget);
-    expect(find.text('Location is not allowed for RideVela'), findsOneWidget);
+    expect(find.text('Location is not allowed for FAIRSVIA'), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
 
     await tester.tap(find.text('Open Settings'));

@@ -72,7 +72,7 @@ class _ServerAddressPageState extends State<ServerAddressPage> {
     if (!ok) {
       setState(() {
         _busy = false;
-        _error = 'No RideVela server answered at that address. Check it and '
+        _error = 'No FAIRSVIA server answered at that address. Check it and '
             'try again.';
       });
       return;

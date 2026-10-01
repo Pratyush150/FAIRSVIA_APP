@@ -15,7 +15,7 @@ EMAIL="${2:?usage: issue-cert.sh <domain> <email> [--staging]}"
 STAGING=""
 [ "${3:-}" = "--staging" ] && STAGING="--staging"
 
-COMPOSE="docker compose -p ubernav_prod -f $(dirname "$0")/../docker-compose.prod.yml"
+COMPOSE="docker compose -p fairsvia_prod -f $(dirname "$0")/../docker-compose.prod.yml"
 
 $COMPOSE exec certbot certbot certonly $STAGING --non-interactive --agree-tos \
   --email "$EMAIL" --webroot -w /var/www/certbot -d "$DOMAIN" \

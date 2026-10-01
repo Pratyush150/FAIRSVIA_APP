@@ -1,7 +1,7 @@
 {
   "uid": "ridevela-people",
   "title": "4. People",
-  "description": "Riders and drivers using RideVela",
+  "description": "Riders and drivers using FAIRSVIA",
   "tags": [
     "ridevela-pages"
   ],
@@ -50,7 +50,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### People\nWho uses RideVela — riders and drivers."
+        "content": "### People\nWho uses FAIRSVIA — riders and drivers."
       }
     },
     {

@@ -2,7 +2,7 @@
 // listed offers, books with one, gets the discount, no longer sees a
 // one-use offer, and gets it back when the ride is cancelled.
 // Run: node offers-check.mjs   (needs the seeded offers:
-//   docker exec ubernav_backend npx ts-node scripts/seed-offers.ts)
+//   docker exec fairsvia_backend npx ts-node scripts/seed-offers.ts)
 import { api, login, phone } from './lib.mjs';
 
 function assert(cond, msg) {

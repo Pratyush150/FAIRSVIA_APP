@@ -173,7 +173,7 @@ Future<void> showSafetySheet(
 }
 
 /// In-trip safety: call local emergency services, send an SOS to the user's
-/// emergency contacts and to RideVela safety, share the trip. Every line of
+/// emergency contacts and to FAIRSVIA safety, share the trip. Every line of
 /// copy states only what actually happened.
 class SafetySheet extends StatefulWidget {
   const SafetySheet({

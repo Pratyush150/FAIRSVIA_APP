@@ -7,7 +7,7 @@
 //   2. Busy areas: ride requests in one ~1 km cell show up on
 //      GET /drivers/me/demand as a shaded cell; nothing reveals a lone pickup.
 //   3. Earnings dashboard: 7 daily buckets, online time from the session.
-// Requires the backend running (and the ubernav_postgres / ubernav_redis
+// Requires the backend running (and the fairsvia_postgres / fairsvia_redis
 // containers for the backdate + cache flush). Run: node driver-tools-check.mjs
 import { execSync } from 'node:child_process';
 import { BASE, api, connect, login, once, onboardDriver, phone, wait } from './lib.mjs';
@@ -21,7 +21,7 @@ const pickup = { lat: 18.5602, lng: 73.7769 }; // mid-cell, so the +-0.002 offse
 const dropoff = { lat: 18.5204, lng: 73.8567 };
 
 const psql = (sql) =>
-  execSync(`docker exec ubernav_postgres psql -U ubernav -d ubernav -tAc "${sql}"`).toString().trim();
+  execSync(`docker exec fairsvia_postgres psql -U fairsvia -d fairsvia -tAc "${sql}"`).toString().trim();
 
 async function main() {
   const driver = await login(phone('93'));
@@ -115,7 +115,7 @@ async function main() {
     }
     assert(cancelled, `demand request ${t.id.slice(0, 8)} cancelled`);
   }
-  execSync(`docker exec ubernav_redis sh -c "redis-cli --scan --pattern 'demand:map:*' | xargs -r redis-cli del"`);
+  execSync(`docker exec fairsvia_redis sh -c "redis-cli --scan --pattern 'demand:map:*' | xargs -r redis-cli del"`);
   const demand = await api(`/drivers/me/demand?lat=${pickup.lat}&lng=${pickup.lng}`, { token: driver.token });
   const cell = demand.cells.find(
     (c) => Math.abs(c.lat - Math.round(pickup.lat / 0.01) * 0.01) < 1e-6 &&

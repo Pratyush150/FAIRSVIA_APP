@@ -456,7 +456,7 @@ void main() {
     testWidgets('default copy, painter, one semantic node', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_app(const BrandFooter()));
-      expect(find.text('#RideVela'), findsOneWidget);
+      expect(find.text('#FAIRSVIA'), findsOneWidget);
       expect(find.text('Rides, made simple'), findsOneWidget);
       expect(
         find.descendant(
@@ -468,7 +468,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.bySemanticsLabel('#RideVela. Rides, made simple'),
+        find.bySemanticsLabel('#FAIRSVIA. Rides, made simple'),
         findsOneWidget,
       );
       handle.dispose();

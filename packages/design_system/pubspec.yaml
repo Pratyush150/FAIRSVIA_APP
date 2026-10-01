@@ -125,7 +125,7 @@ flutter:
           weight: 800
     # @end-variant
     # Plan E "Ink & Paper" (THEME=ink) only. Phosphor Light (MIT, same
-    # licence file) with the RideVela glyphs at the same private-use code
+    # licence file) with the FAIRSVIA glyphs at the same private-use code
     # points (tool/ridevela_glyphs/build.py light). Instrument Serif (SIL OFL
     # 1.1, fonts/InstrumentSerif-LICENSE.txt): the three serif moments; one
     # weight, never below 22 pt. RideVelaCaps: Inter SemiBold with lowercase

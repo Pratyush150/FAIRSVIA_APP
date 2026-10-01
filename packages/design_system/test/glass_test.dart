@@ -62,9 +62,9 @@ void main() {
     expect(AppGlass.sheetRadius, 28);
   });
 
-  test('brand text on light glass is the deeper teal; elsewhere the ink', () {
+  test('brand text on light glass is the deeper blue; elsewhere the ink', () {
     if (AppColors.glass) {
-      expect(AppColors.accentTextFor(false), const Color(0xFF00665E));
+      expect(AppColors.accentTextFor(false), const Color(0xFF1740B0));
     } else {
       expect(AppColors.accentTextFor(false), AppColors.inkFor(false));
     }

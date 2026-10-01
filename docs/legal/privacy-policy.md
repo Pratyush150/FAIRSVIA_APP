@@ -1,6 +1,6 @@
-# RideVela Privacy Policy
+# FAIRSVIA Privacy Policy
 
-> **DRAFT — not yet in force.** Written 2026-09-23 from what the RideVela apps
+> **DRAFT — not yet in force.** Written 2026-09-23 from what the FAIRSVIA apps
 > and backend actually collect (checked against the data model, not a
 > template). Before publishing:
 > - fill every `[BRACKETED]` placeholder (legal entity, address, contacts —
@@ -16,12 +16,12 @@
 
 **Last updated:** [DATE OF PUBLICATION]
 
-This policy explains what personal data RideVela collects when you use the
-RideVela rider app, driver app or website, why, who we share it with, and the
+This policy explains what personal data FAIRSVIA collects when you use the
+FAIRSVIA rider app, driver app or website, why, who we share it with, and the
 choices you have.
 
-**Who we are.** RideVela is operated by [COMPANY LEGAL NAME], registered at
-[REGISTERED ADDRESS] ("RideVela", "we", "us"). Questions about this policy:
+**Who we are.** FAIRSVIA is operated by [COMPANY LEGAL NAME], registered at
+[REGISTERED ADDRESS] ("FAIRSVIA", "we", "us"). Questions about this policy:
 [PRIVACY CONTACT EMAIL].
 
 ---
@@ -60,7 +60,7 @@ choices you have.
 | Payout account (held by our payment processor) | Sending your earnings |
 
 **Payments.** Card details are entered into and held by our payment processor
-(Stripe). RideVela never receives or stores your full card number — we keep
+(Stripe). FAIRSVIA never receives or stores your full card number — we keep
 only a reference, the card brand and the last four digits.
 
 **Location precision.** Trip routes are stored with trip records. Live
@@ -100,7 +100,7 @@ We do not sell your personal data.
   - error monitoring — Sentry
   - hosting — [HOSTING PROVIDER AND COUNTRY]
 - **Authorities**, when required by law or to protect someone's safety.
-- **A successor**, if RideVela is merged or sold, under this policy.
+- **A successor**, if FAIRSVIA is merged or sold, under this policy.
 
 Some of these providers process data outside your country. Where the law of
 your country restricts this, we [DESCRIBE SAFEGUARD / LOCAL STORAGE — TO BE
@@ -144,7 +144,7 @@ data, we will notify you and the authorities as the law requires.
 
 ## 7. Children
 
-RideVela is not for people under 18. Riders must be 18 or older to hold an
+FAIRSVIA is not for people under 18. Riders must be 18 or older to hold an
 account. We do not knowingly collect data from children.
 
 ## 8. Changes

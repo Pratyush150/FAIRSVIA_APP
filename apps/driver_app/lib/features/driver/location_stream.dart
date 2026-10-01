@@ -75,7 +75,7 @@ Future<LocationAccess> checkLocationAccess() async {
 
 /// Whether asking for location now would put the OS permission dialog on
 /// screen: access is undecided (iOS "not determined"), or on Android it was
-/// refused once and may be asked again. The RideVela priming screen goes in
+/// refused once and may be asked again. The FAIRSVIA priming screen goes in
 /// front of exactly that dialog, so the driver knows why before the OS asks.
 /// Never true in mock-location or web builds (no OS dialog there).
 Future<bool> locationPromptPending() async {

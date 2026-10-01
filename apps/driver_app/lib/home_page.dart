@@ -158,7 +158,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
     if (kIsWeb) return;
     try {
       // First run (or an Android "deny" that may be asked again): explain
-      // why on RideVela's own screen before the OS dialog appears.
+      // why on FAIRSVIA's own screen before the OS dialog appears.
       if (await locationPromptPending()) {
         if (!mounted) return;
         final cubit = context.read<DriverCubit>();
@@ -830,7 +830,7 @@ class _DriverHomeViewState extends State<_DriverHomeView>
   }
 }
 
-/// "Go online": when the OS would show its location dialog, RideVela's
+/// "Go online": when the OS would show its location dialog, FAIRSVIA's
 /// priming screen goes first; the cubit's own check then finds access
 /// already decided. Anything else goes straight to [DriverCubit.goOnline].
 Future<void> _goOnline(BuildContext context, DriverCubit cubit) async {

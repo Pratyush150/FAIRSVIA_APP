@@ -12,7 +12,7 @@
 //   node slow-ride.mjs [minutes]     (default 6)
 //
 // Ctrl-C when done; the trip is left in_progress and can be cleaned up with
-//   docker exec ubernav_postgres psql -U ubernav -d ubernav \
+//   docker exec fairsvia_postgres psql -U fairsvia -d fairsvia \
 //     -c "UPDATE trips SET status='cancelled' WHERE status='in_progress'"
 import { execSync } from 'node:child_process';
 import { api, connect, login, onboardDriver, phone, wait } from './lib.mjs';
@@ -31,7 +31,7 @@ const START = {
 
 function readStartOtp(tripId) {
   return execSync(
-    `docker exec ubernav_postgres psql -U ubernav -d ubernav -tAc ` +
+    `docker exec fairsvia_postgres psql -U fairsvia -d fairsvia -tAc ` +
       `"SELECT start_otp FROM trips WHERE id='${tripId}'"`,
   )
     .toString()

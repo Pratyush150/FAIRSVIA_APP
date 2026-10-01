@@ -1,4 +1,4 @@
-# RideVela colour palette options (beyond Samarkand Turquoise)
+# FAIRSVIA colour palette options (beyond Samarkand Turquoise)
 
 *Prepared 2026-09-24 for the owner. This is a design proposal only: **no code or existing files were changed.** Every contrast number here was computed by a script (WCAG 2.x relative luminance), not estimated; the scripts sit next to the mocks (see "Reproduce"). The mock PNGs and scripts are in docs/brand/research/.*
 

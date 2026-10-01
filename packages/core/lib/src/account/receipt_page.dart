@@ -743,12 +743,6 @@ class FareBreakdownRows extends StatelessWidget {
                   : '−${Fmt.money(-b.fareAdjustment, currency)}',
               textStyle),
         if (b.hasSurge) _line('Surge', Fmt.surge(b.surgeMultiplier), textStyle),
-        if (b.hasPriceMatch)
-          _line(
-            '${AppBrand.name} price match',
-            '−${Fmt.money(b.priceMatchDiscount, currency)}',
-            textStyle,
-          ),
         if (b.hasPromo)
           _line('Promo', '−${Fmt.money(b.promoDiscount, currency)}', textStyle),
         if (showTip && b.hasTip) _line('Tip', Fmt.money(b.tip, currency), textStyle),

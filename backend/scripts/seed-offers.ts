@@ -4,7 +4,7 @@
  * redemptions. Amounts are in the market currency (MARKET_CURRENCY); the copy
  * says "off" without a symbol so it reads right in any market.
  *
- *   docker exec ubernav_backend npx ts-node scripts/seed-offers.ts
+ *   docker exec fairsvia_backend npx ts-node scripts/seed-offers.ts
  */
 import { PrismaClient } from '@prisma/client';
 

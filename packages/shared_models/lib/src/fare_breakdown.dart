@@ -17,7 +17,6 @@ class FareBreakdown extends Equatable {
     this.tip = 0,
     this.minimumFareAdjustment = 0,
     this.fareAdjustment = 0,
-    this.priceMatchDiscount = 0,
     this.fareBasis,
     this.endedEarly = false,
     this.endReason,
@@ -40,10 +39,6 @@ class FareBreakdown extends Equatable {
   /// Signed move from the metered parts to the charged fare when the
   /// up-front quote bounded it (not a minimum-fare top-up).
   final double fareAdjustment;
-
-  /// How much the up-front quote was lowered to undercut the cheapest
-  /// competitor estimate (RideVela price match); 0 when it didn't apply.
-  final double priceMatchDiscount;
 
   /// How the headline was reached: `metered` (distance + time driven),
   /// `minimum` (the tier's minimum fare) or `estimate` (bounded by / fell back
@@ -78,7 +73,6 @@ class FareBreakdown extends Equatable {
   /// Surge worth calling out (a 1.0× line would only add noise).
   bool get hasSurge => surgeMultiplier > 1.0 + 1e-9;
   bool get hasPromo => promoDiscount > 0;
-  bool get hasPriceMatch => priceMatchDiscount >= 0.005;
   bool get hasTip => tip > 0;
 
   /// Parses the wire shape; returns null when [json] is null (older trips).
@@ -96,8 +90,6 @@ class FareBreakdown extends Equatable {
     minimumFareAdjustment:
         (json['minimumFareAdjustment'] as num?)?.toDouble() ?? 0,
     fareAdjustment: (json['fareAdjustment'] as num?)?.toDouble() ?? 0,
-    priceMatchDiscount:
-        (json['priceMatchDiscount'] as num?)?.toDouble() ?? 0,
     fareBasis: json['fareBasis'] as String?,
     endedEarly: json['endedEarly'] == true,
     endReason: json['endReason'] as String?,
@@ -113,7 +105,6 @@ class FareBreakdown extends Equatable {
     tip: tip ?? this.tip,
     minimumFareAdjustment: minimumFareAdjustment,
     fareAdjustment: fareAdjustment,
-    priceMatchDiscount: priceMatchDiscount,
     fareBasis: fareBasis,
     endedEarly: endedEarly,
     endReason: endReason,
@@ -130,7 +121,6 @@ class FareBreakdown extends Equatable {
     tip,
     minimumFareAdjustment,
     fareAdjustment,
-    priceMatchDiscount,
     fareBasis,
     endedEarly,
     endReason,

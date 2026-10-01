@@ -243,9 +243,7 @@ function scaledFromEconomy(
 
 /**
  * PROVISIONAL seed fares for the final market (Tashkent, UZS; Dubai, AED).
- * Economy is set a little under the local economy competitors modeled in
- * comparison/competitor-config.ts (Yandex Go Start: 4,600 + 2,500 so'm/km;
- * Dubai RTA taxi: AED 5 + 2.19/km, AED 12 minimum). These are a starting
+ * These are a starting
  * point for the owner to tune (live values live in the fare_config table),
  * not a signed-off price list. Before these existed a UZS market silently
  * seeded the USD numbers labelled as so'm.

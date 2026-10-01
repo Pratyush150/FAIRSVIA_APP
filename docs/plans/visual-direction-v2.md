@@ -1,4 +1,4 @@
-# RideVela Visual Direction v2 — three 10/10 plans
+# FAIRSVIA Visual Direction v2 — three 10/10 plans
 
 *Owner's document, Sep 24, 2026 (@pratyush). Saved verbatim in substance;
 build notes for this repo at the end.*

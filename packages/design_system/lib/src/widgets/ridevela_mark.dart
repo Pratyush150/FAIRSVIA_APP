@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_brand.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 
-/// The RideVela logomark ("Road-V"): a V drawn as a road running away from
-/// you, with a lane line — V for Vela, a road for the ride. The same drawing
+/// The FAIRSVIA logomark ("Road-F"): an F whose stem is a road running away
+/// from you, with a lane line — F for FAIRSVIA, a road for the ride. The same drawing
 /// as the app icon and `docs/brand/`, painted here so it stays sharp at any
 /// size with no image assets.
 ///
-/// [driver] swaps to the driver app's colourway (navy tile, turquoise V) so
+/// [driver] swaps to the driver app's colourway (navy tile, bright-blue F) so
 /// the two apps never look alike.
 class RideVelaMark extends StatelessWidget {
   const RideVelaMark({super.key, this.size = 64, this.driver = false});
@@ -20,7 +21,7 @@ class RideVelaMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: driver ? 'RideVela Driver' : 'RideVela',
+      label: driver ? AppBrand.driverTitle : AppBrand.name,
       image: true,
       child: CustomPaint(size: Size.square(size), painter: _MarkPainter(driver)),
     );
@@ -32,9 +33,9 @@ class _MarkPainter extends CustomPainter {
 
   final bool driver;
 
-  static const _navy = Color(0xFF0B3C49);
-  static const _teal = Color(0xFF0FA3A8);
-  static const _turq = Color(0xFF2EC4C6);
+  static const _navy = Color(0xFF0B1F49);
+  static const _teal = Color(0xFF2F6BFF);
+  static const _turq = Color(0xFF5B9DFF);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -44,27 +45,30 @@ class _MarkPainter extends CustomPainter {
       Paint()..color = driver ? _navy : _teal,
     );
     final v = Path()
-      ..moveTo(96, 118)
-      ..lineTo(216, 118)
-      ..lineTo(256, 262)
-      ..lineTo(296, 118)
-      ..lineTo(416, 118)
-      ..lineTo(300, 410)
-      ..lineTo(212, 410)
+      ..moveTo(134, 110)
+      ..lineTo(378, 110)
+      ..lineTo(378, 188)
+      ..lineTo(226, 188)
+      ..lineTo(226, 236)
+      ..lineTo(332, 236)
+      ..lineTo(332, 306)
+      ..lineTo(226, 306)
+      ..lineTo(226, 410)
+      ..lineTo(134, 410)
       ..close();
     canvas.drawPath(v, Paint()..color = driver ? _turq : _navy);
     final lane = Paint()
       ..color = driver ? Colors.white : _turq
       ..strokeWidth = 12
       ..strokeCap = StrokeCap.round;
-    canvas.drawLine(const Offset(256, 300), const Offset(256, 336), lane);
-    canvas.drawLine(const Offset(256, 356), const Offset(256, 384), lane);
+    canvas.drawLine(const Offset(180, 332), const Offset(180, 358), lane);
+    canvas.drawLine(const Offset(180, 378), const Offset(180, 396), lane);
     canvas.drawPath(
       Path()
-        ..moveTo(296, 118)
-        ..lineTo(416, 118)
-        ..lineTo(300, 410)
-        ..lineTo(276, 410)
+        ..moveTo(208, 306)
+        ..lineTo(226, 306)
+        ..lineTo(226, 410)
+        ..lineTo(208, 410)
         ..close(),
       Paint()..color = Colors.white.withValues(alpha: 0.14),
     );
@@ -74,7 +78,7 @@ class _MarkPainter extends CustomPainter {
   bool shouldRepaint(_MarkPainter old) => old.driver != driver;
 }
 
-/// The "Driver" pill set beside the RideVela mark or wordmark in the driver
+/// The "Driver" pill set beside the FAIRSVIA mark or wordmark in the driver
 /// app (splash lockup, login header), so a driver never mistakes it for the
 /// rider app — the audit's brand lockup item 3.4.
 ///

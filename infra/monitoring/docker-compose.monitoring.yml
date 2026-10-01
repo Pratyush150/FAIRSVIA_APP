@@ -1,4 +1,4 @@
-# RideVela observability stack.
+# FAIRSVIA observability stack.
 #
 # Opt-in and separate from the app stack, per the standing dev/prod separation
 # rule: bringing this up or down must never touch a running backend.
@@ -6,7 +6,7 @@
 #   cd infra/monitoring
 #   docker compose -f docker-compose.monitoring.yml up -d
 #
-# It joins the app's existing network (`infra_default`) read-only, so
+# It joins the app's existing network (`fairsvia_default`) read-only, so
 # Prometheus can scrape `backend:3000` by service name without the app stack
 # needing to know this exists.
 #
@@ -16,11 +16,11 @@
 # `docker system prune` (with or without -a): this host also carries the owner's
 # robotics images and the live OSRM/OSM map data.
 
-name: ridevela-monitoring
+name: fairsvia-monitoring
 
 networks:
   app:
-    name: infra_default
+    name: fairsvia_default
     external: true
   monitoring:
     driver: bridge
@@ -34,7 +34,7 @@ volumes:
 services:
   prometheus:
     image: prom/prometheus:v2.54.1
-    container_name: ridevela_prometheus
+    container_name: fairsvia_prometheus
     restart: unless-stopped
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -54,7 +54,7 @@ services:
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
-    container_name: ridevela_alertmanager
+    container_name: fairsvia_alertmanager
     restart: unless-stopped
     volumes:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
@@ -65,7 +65,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.2.0
-    container_name: ridevela_grafana
+    container_name: fairsvia_grafana
     restart: unless-stopped
     environment:
       # Change the password on first login. Kept explicit rather than left at
@@ -76,9 +76,9 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: 'false'
       GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
       # Read by the provisioned Postgres datasource.
-      RIDEVELA_DB_USER: ${POSTGRES_USER:-ubernav}
-      RIDEVELA_DB_PASSWORD: ${POSTGRES_PASSWORD:-ubernav}
-      RIDEVELA_DB_NAME: ${POSTGRES_DB:-ubernav}
+      RIDEVELA_DB_USER: ${POSTGRES_USER:-fairsvia}
+      RIDEVELA_DB_PASSWORD: ${POSTGRES_PASSWORD:-fairsvia}
+      RIDEVELA_DB_NAME: ${POSTGRES_DB:-fairsvia}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -90,7 +90,7 @@ services:
 
   loki:
     image: grafana/loki:3.1.1
-    container_name: ridevela_loki
+    container_name: fairsvia_loki
     restart: unless-stopped
     command: ['-config.file=/etc/loki/loki-config.yml']
     volumes:
@@ -102,7 +102,7 @@ services:
 
   promtail:
     image: grafana/promtail:3.1.1
-    container_name: ridevela_promtail
+    container_name: fairsvia_promtail
     restart: unless-stopped
     command: ['-config.file=/etc/promtail/promtail-config.yml']
     volumes:
@@ -116,16 +116,16 @@ services:
 
   postgres_exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: ridevela_postgres_exporter
+    container_name: fairsvia_postgres_exporter
     restart: unless-stopped
     environment:
       DATA_SOURCE_NAME: >-
-        postgresql://${POSTGRES_USER:-ubernav}:${POSTGRES_PASSWORD:-ubernav}@postgres:5432/${POSTGRES_DB:-ubernav}?sslmode=disable
+        postgresql://${POSTGRES_USER:-fairsvia}:${POSTGRES_PASSWORD:-fairsvia}@postgres:5432/${POSTGRES_DB:-fairsvia}?sslmode=disable
     networks: [app, monitoring]
 
   redis_exporter:
     image: oliver006/redis_exporter:v1.62.0
-    container_name: ridevela_redis_exporter
+    container_name: fairsvia_redis_exporter
     restart: unless-stopped
     environment:
       REDIS_ADDR: redis://redis:6379
@@ -133,7 +133,7 @@ services:
 
   node_exporter:
     image: prom/node-exporter:v1.8.2
-    container_name: ridevela_node_exporter
+    container_name: fairsvia_node_exporter
     restart: unless-stopped
     command:
       - '--path.rootfs=/rootfs'

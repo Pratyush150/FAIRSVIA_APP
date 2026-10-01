@@ -37,7 +37,6 @@ Flutter tests 56 core / 21 design_system / 16 shared_models / 20 rider /
 | Saved-place quick-picks refresh after the account pages | `apps/rider_app/lib/home_page.dart` |
 | Scheduled rides: 6-minute clamp in the picker and at send time (backend 5-min lead rule) | `apps/rider_app/lib/home_page.dart`, `trip_cubit.dart` (`_sendableSchedule`) |
 | Reconnecting banner stacked above the top map buttons | `apps/rider_app/lib/home_page.dart` |
-| Golden test no longer hardcodes Linux paths; pixel goldens skip off-Linux | `apps/rider_app/test/price_comparison_golden_test.dart` |
 
 ## 4. Driver app
 | What | Where |

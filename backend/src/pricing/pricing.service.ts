@@ -27,10 +27,6 @@ export interface FareBreakdown {
   /** Top-up applied when the metered components fell short of the tier's
    *  minimum fare (0 when they didn't), so the lines still sum to the fare. */
   minimumFareAdjustment: number;
-  /** Amount the price match took off (our fare undercut to stay below the
-   *  cheapest modelled competitor). Absent/0 when no match applied; the
-   *  lines minus this still sum to the fare. */
-  priceMatchDiscount?: number;
 }
 
 export interface FareEstimate {
@@ -168,30 +164,6 @@ export class PricingService implements OnModuleInit {
       throw new BadRequestException(`Unknown tier: ${tier}`);
     }
     return this.compute(cfg, distanceM, durationS, surge);
-  }
-
-  /**
-   * Our fare for a tier in a given currency. The market's own currency uses the
-   * live (DB-tuned) config; any other currency uses that currency's seed
-   * defaults. Used only by the price comparison's verification path so a UZS
-   * or AED comparison can be checked without switching the live market — our
-   * price is then always in the same currency as the competitors'.
-   */
-  estimateForTierInCurrency(
-    tier: string,
-    distanceM: number,
-    durationS: number,
-    surge: number,
-    currency: string,
-  ): FareEstimate {
-    if (currency.toUpperCase() === CURRENCY) {
-      return this.estimateForTier(tier, distanceM, durationS, surge);
-    }
-    const cfg = defaultFareConfig(currency)[tier];
-    if (!cfg) {
-      throw new BadRequestException(`Unknown tier: ${tier}`);
-    }
-    return this.compute(cfg, distanceM, durationS, surge, currency.toUpperCase());
   }
 
   /** The configured minimum fare for a tier (the floor every fare respects). */

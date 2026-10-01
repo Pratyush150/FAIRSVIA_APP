@@ -5,7 +5,26 @@ especially a fresh Claude Code session that has none of the previous session's
 context. Everything here is in git; nothing depends on local machine memory.
 
 The binding working rules are in `CLAUDE.md` at the repo root. Read those too —
-particularly rule 1 (absolute honesty) and rule 2 (never quietly reduce a goal).
+particularly rule 1 (absolute honesty), rule 2 (never quietly reduce a goal) and
+rule 8 (separation from RideVela).
+
+**This repo is FAIRSVIA** (https://github.com/Pratyush150/FAIRSVIA_APP), a
+separate product forked from RideVela (`/home/nova-robotics/ubernav`) with the
+price-comparison feature removed: fares come only from FAIRSVIA's own rate card.
+Both stacks run on the same box. Never touch RideVela's checkout, containers
+(`ubernav_*`, `ridevela_*`, compose project `infra`) or database.
+
+| Item | FAIRSVIA value |
+|---|---|
+| Compose project / network | `fairsvia` / `fairsvia_default` |
+| Containers | `fairsvia_backend`, `fairsvia_postgres`, `fairsvia_redis`, `fairsvia_adminer`, `fairsvia_tunnel` |
+| Host ports | backend 3200 (API `http://<LAN_IP>:3200/api/v1`), Postgres 5532, Redis 6479, Adminer 8180; web serve admin 9190 / rider 9191 / driver 9192 |
+| Database | user / name / password `fairsvia` |
+| Routing / geocoding | OSRM + Nominatim not run by default (opt-in profile `own-routing`, ports 5100/8181). `backend/.env` uses the host's existing OSRM :5000 and Nominatim :8081 over HTTP, plus Google geo via `GOOGLE_MAPS_API_KEY` |
+| App IDs | rider `in.novarobotics.fairsvia.rider`, driver `in.novarobotics.fairsvia.driver` (Android + iOS); admin (Android) `in.novarobotics.fairsvia.admin` |
+| Launcher names | "FAIRSVIA Rider" / "FAIRSVIA Driver" |
+| Look | "Road-F" logo; "Ocean Blue" accent (`#1B4FD8` ink, `#2F6BFF`, `#5B9DFF`) replaces the teal/mint accent of the shipped glass look |
+| Monitoring (opt-in) | project `fairsvia-monitoring`, containers `fairsvia_*` |
 
 ---
 
@@ -13,8 +32,8 @@ particularly rule 1 (absolute honesty) and rule 2 (never quietly reduce a goal).
 
 | Area | State |
 |---|---|
-| **Backend** | 436 unit tests / 42 suites, 48 e2e. All green. |
-| **Flutter** | 417 tests, analyzer clean across all six packages. |
+| **Backend** | Unit + e2e test counts: see the latest commit message. |
+| **Flutter** | Test counts and analyzer status: see the latest commit message. |
 | **Android** | Continuously validated on the headless emulator (`pixel_uber`). Many end-to-end rides driven this session. |
 | **iOS** | Builds and ran on a Mac (Xcode 26.6, simulators) on 2026-09-10/14. **Never on a physical iPhone. Not rebuilt since 09-14.** See `handoff-for-mac.md`. |
 | **Monitoring** | Prometheus + Grafana + Alertmanager + Loki live in `infra/monitoring/`. Grafana :3001, Prometheus :9099. |
@@ -62,8 +81,8 @@ this way and looked like real regressions.
 run jest by hand, do the same:
 
 ```bash
-docker exec -e THROTTLE_DISABLED=true ubernav_backend npx jest --ci
-docker exec -e THROTTLE_DISABLED=true ubernav_backend npm run test:e2e
+docker exec -e THROTTLE_DISABLED=true fairsvia_backend npx jest --ci
+docker exec -e THROTTLE_DISABLED=true fairsvia_backend npm run test:e2e
 ```
 
 ### 2. A second, separate OTP rate limit
@@ -73,7 +92,7 @@ phone** in Redis, 5 per TTL window. Scripted testing burns through it fast and
 the failure is a bare 429. `THROTTLE_DISABLED` does **not** affect it. Clear it:
 
 ```bash
-docker exec ubernav_redis sh -c "redis-cli --scan --pattern 'otp:rate:*' | xargs -r redis-cli del"
+docker exec fairsvia_redis sh -c "redis-cli --scan --pattern 'otp:rate:*' | xargs -r redis-cli del"
 ```
 
 ### 3. The box's LAN IP moves
@@ -90,7 +109,7 @@ hostname -I
 
 `AppConfig` throws on a release build with no `API_BASE_URL`, and rejects
 `localhost`. Pass the LAN IP:
-`--dart-define=API_BASE_URL=http://<ip>:3000/api/v1`
+`--dart-define=API_BASE_URL=http://<ip>:3200/api/v1`
 
 ### 5. The demo driver finishes a ride in ~90 seconds
 
@@ -104,7 +123,7 @@ node tools/fake-driver-simulator/slow-ride.mjs 10   # crawls for 10 min, never c
 It holds the rider app in `onTrip` with a genuinely moving car. Clean up after:
 
 ```bash
-docker exec ubernav_postgres psql -U ubernav -d ubernav \
+docker exec fairsvia_postgres psql -U fairsvia -d fairsvia \
   -c "UPDATE trips SET status='cancelled' WHERE status='in_progress'"
 ```
 
@@ -128,8 +147,9 @@ The box runs near full (96%). Safe to delete: Flutter `build/` and `.dart_tool/`
 (13 GB reclaimed this session; `flutter pub get` restores them).
 
 **Do not delete:**
-- `infra/osm-data` (3.7 GB) — mounted live into the OSRM container. Routing and
-  ETAs come from it.
+- The host's existing OSRM / Nominatim and their OSM data — FAIRSVIA's
+  routing and ETAs come from them (`backend/.env`). `infra/osm-data` here is
+  only used by the opt-in `own-routing` profile.
 - The ~52 GB of unused Docker images (`hailo8_ai_sw_suite`, `opendronemap/odm`,
   `colmap`) — those belong to the owner's **robotics/drone work**, not this
   project. A blanket `docker system prune -a` would destroy them.
@@ -147,8 +167,10 @@ The box runs near full (96%). Safe to delete: Flutter `build/` and `.dart_tool/`
   `google_maps_flutter`. iOS needs a Maps API key in a gitignored
   `ios/Flutter/Secrets.xcconfig`, or the map renders **blank grey with no
   error**.
-- **URL schemes are still `fairsvia-*://`.** Registered identifiers tied to the
-  Stripe Connect return URLs, not branding. Renaming them breaks Connect.
+- **URL schemes are `fairsviaapp-rider://` / `fairsviaapp-driver://`.** Changed
+  from `fairsvia-*` so they don't collide with the RideVela apps installed on the
+  same phones. The driver scheme is also the Stripe Connect return/refresh URL
+  (`STRIPE_CONNECT_RETURN_URL`), so app and backend must change together.
 
 ---
 
@@ -187,7 +209,7 @@ make test-backend && make test-e2e
 for d in packages/* apps/*; do (cd $d && flutter analyze && flutter test); done
 
 # Stacks
-cd infra && docker compose up -d                                  # app
+cd infra && docker compose up -d                                  # app (project fairsvia)
 cd infra/monitoring && docker compose -f docker-compose.monitoring.yml up -d
 
 # Android emulator

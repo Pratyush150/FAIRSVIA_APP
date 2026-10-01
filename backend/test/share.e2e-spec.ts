@@ -138,7 +138,7 @@ describe('Share / live tracking link (e2e)', () => {
     const page = await request(server).get(`/api/v1/public/t/${token}`).expect(200);
     expect(page.headers['content-type']).toMatch(/text\/html/);
     expect(page.headers['content-security-policy']).toContain("connect-src 'self'");
-    expect(page.text).toContain('RideVela');
+    expect(page.text).toContain('FAIRSVIA');
     expect(page.text).toContain('leaflet');
     expect(page.text).not.toMatch(/maps\.googleapis|key=AIza/);
 
