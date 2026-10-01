@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 // Direct import: keeps this test independent of the rest of the barrel.
+import 'package:design_system/src/theme/app_colors.dart';
 import 'package:design_system/src/widgets/map_marker_art.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,7 +56,12 @@ void main() {
       // opaque fill, not transparent like the old ring.
       final body = await _pixel(pickup, const Offset(17, 8), r);
       expect(body.a, 1.0);
-      expect(body.b, greaterThan(body.r)); // teal ink, not white/black
+      if (AppColors.variant == 'ink') {
+        // Plan E pins are the near-black ink itself.
+        expect(body.r, lessThan(0.3));
+      } else {
+        expect(body.b, greaterThan(body.r)); // brand ink, not white/black
+      }
       // White centre dot / square.
       expect(await _pixel(pickup, const Offset(17, 16), r),
           const Color(0xFFFFFFFF));

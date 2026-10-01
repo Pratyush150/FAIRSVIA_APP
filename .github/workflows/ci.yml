@@ -105,6 +105,10 @@ jobs:
       STOPPED_AFTER_S: '4'
       OFF_ROUTE_PINGS: '2'
       REROUTE_MIN_GAP_S: '1'
+      # Every simulated rider and driver signs in from this one runner IP, so
+      # the per-IP rate limiter would 429 the sims (NODE_ENV=development keeps
+      # it live). Off for this job only; the backend job's e2e covers it.
+      THROTTLE_DISABLED: 'true'
       # The sims default to the local FAIRSVIA stack (host port 3200); in CI
       # the backend listens on 3000 directly.
       BASE_URL: http://localhost:3000/api/v1
@@ -195,8 +199,13 @@ jobs:
           docker run --rm -v "$PWD/infra/monitoring/prometheus:/p:ro" \
             --entrypoint promtool prom/prometheus:v2.54.1 check rules /p/alerts.yml
       - name: Compose files are valid
+        # The prod stack loads backend/.env.prod, which is gitignored and only
+        # exists on a real server; validate against the tracked example.
         run: |
+          cp backend/.env.prod.example backend/.env.prod
           POSTGRES_PASSWORD=ci REDIS_PASSWORD=ci docker compose -f infra/docker-compose.prod.yml config -q
+          touch backend/.env
+          docker compose -f infra/docker-compose.yml config -q
           docker compose -f infra/monitoring/docker-compose.monitoring.yml config -q
       - name: nginx accepts the TLS config
         run: |

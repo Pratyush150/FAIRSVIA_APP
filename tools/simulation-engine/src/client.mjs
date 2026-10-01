@@ -73,6 +73,8 @@ export const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Onboard a driver (US vehicle + FL plate). Returns the driver profile. */
 export async function onboardDriver(token, tier = 'economy') {
+  // Drivers need a name before they can go online (NAME_REQUIRED).
+  await api('/users/me', { method: 'PATCH', token, body: { fullName: `Sim Driver ${Date.now() % 10000}` } });
   return api('/drivers/onboarding', {
     method: 'POST',
     token,
@@ -80,7 +82,8 @@ export async function onboardDriver(token, tier = 'economy') {
       vehicleMake: 'Toyota',
       vehicleModel: 'Camry',
       vehicleColor: 'White',
-      plateNumber: 'FL' + Math.floor(100000 + Math.random() * 899999),
+      // Indian format: valid in every market (INR checks the format; others accept any 2–12 letters/digits).
+      plateNumber: 'MH12SM' + Math.floor(1000 + Math.random() * 8999),
       vehicleTier: tier,
       licenseNo: 'FL-' + Math.floor(Math.random() * 1e6),
     },

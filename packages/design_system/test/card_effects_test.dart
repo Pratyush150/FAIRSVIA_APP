@@ -2,6 +2,7 @@
 // light round the "Where to?" bar, and AppListSkeleton inside a list.
 // Direct imports (not the barrel) keep this suite independent of unrelated
 // widgets exported alongside.
+import 'package:design_system/src/theme/app_colors.dart';
 import 'package:design_system/src/widgets/app_card.dart';
 import 'package:design_system/src/widgets/app_skeleton.dart';
 import 'package:design_system/src/widgets/home/press_scale.dart';
@@ -128,7 +129,12 @@ void main() {
       await tester.pumpWidget(
         _app(AppCard(onTap: () => taps++, child: const Text('Card'))),
       );
-      expect(find.byType(PressScale), findsOneWidget);
+      // Plan E (THEME=ink) draws no card, only a ruled section, so there is
+      // no press halo there; every other look has one.
+      expect(
+        find.byType(PressScale),
+        AppColors.variant == 'ink' ? findsNothing : findsOneWidget,
+      );
       await tester.tap(find.text('Card'));
       await tester.pumpAndSettle();
       expect(taps, 1);

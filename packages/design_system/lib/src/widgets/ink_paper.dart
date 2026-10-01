@@ -60,14 +60,38 @@ class LeaderLine extends StatelessWidget {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final s = style ?? theme.textTheme.bodyMedium;
-    final size =
-        (s?.fontSize ?? 15) * MediaQuery.textScalerOf(context).scale(1);
+    final scaler = MediaQuery.textScalerOf(context);
+    final size = (s?.fontSize ?? 15) * scaler.scale(1);
+    final vs = valueStyle ?? s?.tabular();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
+      child: LayoutBuilder(builder: (context, c) {
+        // The label keeps its natural width when the row fits; on a narrow
+        // phone at large text it wraps instead of pushing the amount off the
+        // edge (the amount always stays whole on its line).
+        double widthOf(String t, TextStyle? st) => (TextPainter(
+              text: TextSpan(text: t, style: st),
+              textScaler: scaler,
+              textDirection: Directionality.of(context),
+              maxLines: 1,
+            )..layout())
+                .width;
+        final valueW =
+            math.min(widthOf(value, vs).ceilToDouble() + 1, c.maxWidth * 0.6);
+        final room = (c.maxWidth - valueW - 2 * AppSpacing.sm).floorToDouble();
+        final labelW =
+            math.max(0.0, math.min(widthOf(label, s).ceilToDouble(), room));
+        return _row(context, dark, s, vs, size, labelW, valueW);
+      }),
+    );
+  }
+
+  Widget _row(BuildContext context, bool dark, TextStyle? s, TextStyle? vs,
+      double size, double labelW, double valueW) {
+    return Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Flexible(flex: 0, child: Text(label, style: s)),
+          SizedBox(width: labelW, child: Text(label, style: s)),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: ExcludeSemantics(
@@ -86,10 +110,12 @@ class LeaderLine extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          Text(value, style: valueStyle ?? s?.tabular()),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: valueW),
+            child: Text(value, style: vs, textAlign: TextAlign.end),
+          ),
         ],
-      ),
-    );
+      );
   }
 }
 

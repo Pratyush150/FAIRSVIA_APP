@@ -683,8 +683,15 @@ Widget _inkRow(BuildContext context, String label, String value,
         Expanded(
             child: Text(label, style: inkSectionLabel(context, null)
                 ?.copyWith(fontSize: 13))),
-        Text.rich(inkAmountSpan(value,
-            size: 44, color: theme.colorScheme.onSurface)),
+        // Scales down rather than overflowing on a narrow phone at large text.
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text.rich(inkAmountSpan(value,
+                size: 44, color: theme.colorScheme.onSurface)),
+          ),
+        ),
       ],
     ),
   );

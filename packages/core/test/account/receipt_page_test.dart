@@ -347,7 +347,10 @@ void main() {
       expect(find.text('Comfort · Completed'), findsOneWidget);
       expect(find.text('Aziz Karimov'), findsOneWidget);
       expect(find.text('Silver Chevrolet Cobalt'), findsOneWidget);
-      expect(find.byIcon(PhosphorIconsFill.star), findsNWidgets(4));
+      // 4 lit stars. Counted by colour: in THEME=clay3d the filled and the
+      // empty star share one 3D glyph, so the unlit fifth matches the icon too.
+      final stars = tester.widgetList<Icon>(find.byIcon(PhosphorIconsFill.star));
+      expect(stars.where((i) => i.color == stars.first.color), hasLength(4));
       expect(find.text('\$26.50'), findsOneWidget); // the summary total
       await tester.scrollUntilVisible(find.text('Paid with Visa •4242'), 200);
       expect(find.text('Fare breakdown'), findsOneWidget);

@@ -105,6 +105,11 @@ export class Driver {
     });
     if (aborted()) return; // rider cancelled — driver is already back in the pool
 
+    // The backend only accepts "arrived" from a fresh fix within 150 m of the
+    // pickup, and pings are ingested asynchronously: send the fix at the
+    // pickup and let it land before the HTTP call (a phone does the same).
+    this.pos = pickup;
+    await this.settleAt(pickup);
     await api(`/trips/${tripId}/arrived`, { method: 'POST', token: this.token });
     this.m.incr('trips.arrived');
 
@@ -135,9 +140,16 @@ export class Driver {
       onTick: async (p) => { this.pos = p; this.emitLocation({ heading: p.heading, speed: DRIVE_SPEED_MPS }); },
     });
     this.pos = dropoff;
+    await this.settleAt(dropoff);
 
     await api(`/trips/${offer.tripId}/complete`, { method: 'POST', token: this.token });
     this.m.incr('trips.completed');
+  }
+
+  /** One last fix at [p], then a short pause so the server ingests it. */
+  async settleAt(p) {
+    this.emitLocation({ lat: p.lat, lng: p.lng, speed: 0 });
+    await wait(400);
   }
 
   async waitForOtp(tripId, tries = 30) {
