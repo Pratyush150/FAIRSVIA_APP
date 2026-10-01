@@ -156,7 +156,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           textStyle: text.labelLarge?.copyWith(fontSize: 16, fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSpacing.radius),
+            borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
           ),
         ),
       ),
@@ -170,7 +170,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           textStyle: text.labelLarge,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSpacing.radius),
+            borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
           ),
         ),
       ),

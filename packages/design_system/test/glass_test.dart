@@ -59,7 +59,7 @@ void main() {
     expect(AppGlass.fillStrong(true), const Color(0xD112161A)); // 82 %
     expect(AppGlass.blurSigma, 24);
     expect(AppGlass.sheetInset, 12);
-    expect(AppGlass.sheetRadius, 28);
+    expect(AppGlass.sheetRadius, 32); // FAIRSVIA (RideVela: 28)
   });
 
   test('brand text on light glass is the deeper blue; elsewhere the ink', () {

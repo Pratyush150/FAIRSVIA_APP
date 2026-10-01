@@ -45,6 +45,9 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: ci-access-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
+      # The admin e2e suite signs in as this phone; it is promoted to admin
+      # on login (the local backend/.env sets the same).
+      ADMIN_PHONES: '+19900000001'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

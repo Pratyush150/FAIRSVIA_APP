@@ -84,7 +84,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
             foregroundColor: onFill,
             elevation: 0,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radius),
+              borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
             ),
             textStyle: const TextStyle(
               fontFamily: AppTypography.fontFamily,

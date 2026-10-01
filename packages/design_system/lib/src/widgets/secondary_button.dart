@@ -45,7 +45,7 @@ class SecondaryButton extends StatelessWidget {
           backgroundColor: fill,
           disabledForegroundColor: fg.withValues(alpha: 0.4),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSpacing.radius),
+            borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
             side: InkPaper.on
                 ? BorderSide(
                     color: danger ? fg : InkPaper.outline(isDark), width: 1)

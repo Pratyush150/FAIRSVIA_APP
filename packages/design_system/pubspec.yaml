@@ -108,9 +108,10 @@ flutter:
         - asset: fonts/Phosphor-Fill.ttf
     # --- Fonts for looks that do not ship (see the assets note above) -----
     # Anek Latin (Ek Type, SIL OFL 1.1, fonts/AnekLatin-LICENSE.txt): Plan D's
-    # (THEME=local) UI face. Static instances at wdth=100 cut from the
-    # variable font in google/fonts with fontTools' instancer.
-    # @variant: local
+    # (THEME=local) UI face, and FAIRSVIA's shipped look (glass). Static
+    # instances at wdth=100 cut from the variable font in google/fonts with
+    # fontTools' instancer.
+    # @variant: local glass
     - family: AnekLatin
       fonts:
         - asset: fonts/AnekLatin-Regular.ttf

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_colors.dart';
 import 'app_variant.dart';
 
 /// Type scale on Inter (bundled in this package): a neutral grotesk. The
@@ -31,10 +32,15 @@ class AppTypography {
   /// and heading face, drawn to sit with Anek Devanagari.
   static const String anekFamily = 'packages/design_system/AnekLatin';
 
+  /// Whether this build sets its UI text in Anek Latin: Plan D
+  /// (`THEME=local`) and the shipped FAIRSVIA look (glass, the default build).
+  /// FAIRSVIA's rounder Anek face is part of what sets it apart from RideVela,
+  /// which shares this codebase and stays on Inter.
+  static const bool anekUi = AppVariant.local || AppColors.glass;
+
   /// The UI face of this build. Package-qualified so apps pick it up without
-  /// re-declaring. Inter, except Plan D (`THEME=local`), which sets headings
-  /// and body in Anek Latin.
-  static const String fontFamily = AppVariant.local ? anekFamily : interFamily;
+  /// re-declaring. Anek Latin where [anekUi], Inter elsewhere.
+  static const String fontFamily = anekUi ? anekFamily : interFamily;
 
   /// The face for numbers: Inter in every build, so fares and plates keep
   /// their tabular figures even where [fontFamily] is Anek.
@@ -103,8 +109,8 @@ class AppTypography {
 /// Ergonomic tabular-figures application: `theme.textTheme.titleMedium?.tabular()`.
 extension NumericTextStyle on TextStyle {
   /// This style with tabular (monospaced) figures — for fares, ETAs, ratings.
-  /// In Plan D the figures are also set in Inter (the UI face is Anek).
-  TextStyle tabular() => AppVariant.local
+  /// Where the UI face is Anek, the figures are set in Inter.
+  TextStyle tabular() => AppTypography.anekUi
       ? copyWith(
           fontFamily: AppTypography.numericFamily,
           fontFeatures: AppTypography.tabularFigures,

@@ -72,8 +72,12 @@ override default behavior. Established by the project owner (Sai Kishore).
 ## Environment quick-reference
 - Repo: https://github.com/Pratyush150/FAIRSVIA_APP.
 - Brand: FAIRSVIA (written exactly so). "Road-F" logo; "Ocean Blue" accent
-  (`#1B4FD8` ink, `#2F6BFF`, `#5B9DFF`) replaces the teal/mint accent in the
-  shipped glass look. No competitor price comparison: fares come only from
+  (`#1B4FD8` ink, `#2F6BFF`, `#5B9DFF`) with a coral warm accent replaces the
+  teal/mint/gold of RideVela in the shipped glass look; UI text in Anek Latin
+  (numbers stay Inter); rounder corners (10/16/22/28, sheets 32) and pill
+  buttons. Animations and Home tile art were recoloured with
+  `tools/brand/recolor_lottie.py` / `recolor_png.py` (re-run after importing
+  new art). No competitor price comparison: fares come only from
   FAIRSVIA's own rate card.
 - Flutter: `/home/nova-robotics/flutter/bin`. Backend runs in Docker
   (`docker exec fairsvia_backend ...`), compose project `fairsvia`, network

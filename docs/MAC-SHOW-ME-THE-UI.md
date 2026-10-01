@@ -4,6 +4,13 @@
 to bottom. At every **SHOW** step, stop, tell the owner what they're looking at
 and what to check, save a screenshot, and wait for "next" before moving on.
 
+**How it should look (different from RideVela on purpose):** Ocean Blue
+accent with coral highlights (no teal anywhere), UI text in the rounder **Anek
+Latin** face (fares and plates stay Inter), rounder cards and sheets, and
+**pill-shaped** main buttons. The animated icons (bottom bar, Offers gift, ticks,
+loaders) and the Home tile pictures are blue/coral; trophy and coins stay gold.
+Report any leftover teal as a finding.
+
 **What FAIRSVIA is:** a separate product built from the RideVela codebase. It is
 the same app with **no price comparison anywhere**: no "Save ₹X vs …" line, no
 Price check card, no competitor prices, no price match. Fares come only from
@@ -134,7 +141,5 @@ Commit only notes. For each step, write ✅ or ❌ plus the screenshot name into
 from the SHOW column is a finding: describe it, don't fix it on the Mac.
 
 **Known open items (not bugs):**
-- The bottom-nav and Offers Lottie animations still use the inherited teal +
-  gold artwork. Only the token colours moved to Ocean Blue.
 - Payments run on the mock provider until FAIRSVIA has its own Stripe keys.
 - Terms and Privacy are draft pages. Lottie licences are not yet confirmed.

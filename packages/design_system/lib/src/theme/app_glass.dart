@@ -18,7 +18,7 @@ abstract final class AppGlass {
 
   /// Floating sheets: inset from the screen edges, and their corner radius.
   static const double sheetInset = 12;
-  static const double sheetRadius = 28;
+  static const double sheetRadius = 32; // FAIRSVIA: rounder than RideVela's 28
 
   /// glass.fill — floating pills and map buttons (#FFFFFF @ 72 % /
   /// #12161A @ 70 %).

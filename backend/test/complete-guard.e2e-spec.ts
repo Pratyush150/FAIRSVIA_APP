@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/common/prisma/prisma.service';
+import { roundFare } from '../src/common/money';
 import { RedisKeys } from '../src/common/redis/redis.keys';
 import { RedisService } from '../src/common/redis/redis.service';
 import { PricingService } from '../src/pricing/pricing.service';
@@ -214,7 +215,10 @@ describe('Complete anywhere + early end (e2e)', () => {
         .set(rider.auth).send({}).expect(200);
       const trip = (await prisma.trip.findUnique({ where: { id: tripId } }))!;
       expect(trip.status).toBe('completed');
-      expect(Number(trip.fareFinal)).toBe(Math.round(pricing.minFareFor('economy')));
+      // Rounded the way the market rounds fares (whole rupees; cents in USD).
+      expect(Number(trip.fareFinal)).toBe(
+        roundFare(pricing.minFareFor('economy'), trip.currency ?? 'USD'),
+      );
       expect(done.body.breakdown).toMatchObject({
         fareBasis: 'minimum', endedEarly: true, endReason: 'Rider ended the trip',
       });
