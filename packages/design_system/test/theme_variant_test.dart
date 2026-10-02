@@ -128,7 +128,7 @@ void main() {
     for (final theme in [AppTheme.light, AppTheme.dark]) {
       await tester.pumpWidget(MaterialApp(
         theme: theme,
-        home: const Scaffold(body: Center(child: RideVelaDriverPill())),
+        home: const Scaffold(body: Center(child: FairsviaDriverPill())),
       ));
       await tester.pumpAndSettle(); // MaterialApp animates theme changes
       final dark = theme.brightness == Brightness.dark;

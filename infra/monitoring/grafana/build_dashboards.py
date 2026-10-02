@@ -14,8 +14,8 @@ every page, and currency + time zone are fixed and hidden.
 import json
 import pathlib
 
-PG = {"type": "grafana-postgresql-datasource", "uid": "ridevela-postgres"}
-PROM = {"type": "prometheus", "uid": "ridevela-prometheus"}
+PG = {"type": "grafana-postgresql-datasource", "uid": "fairsvia-postgres"}
+PROM = {"type": "prometheus", "uid": "fairsvia-prometheus"}
 OUT = pathlib.Path(__file__).parent / "dashboards"
 
 TZ = "Asia/Kolkata"
@@ -118,12 +118,12 @@ class Page:
 def dashboard(uid, title, description, page, time_from="now/d"):
     return {
         "uid": uid, "title": title, "description": description,
-        "tags": ["ridevela-pages"], "timezone": TZ, "editable": True,
+        "tags": ["fairsvia-pages"], "timezone": TZ, "editable": True,
         "graphTooltip": 1, "schemaVersion": 39, "version": 1, "refresh": "30s",
         "time": {"from": time_from, "to": "now"}, "timepicker": {"hidden": False},
         "templating": {"list": []}, "annotations": {"list": []},
         # The same page buttons on every page, in page order (titles start 1…6).
-        "links": [{"title": "Pages", "type": "dashboards", "tags": ["ridevela-pages"],
+        "links": [{"title": "Pages", "type": "dashboards", "tags": ["fairsvia-pages"],
                    "asDropdown": False, "includeVars": False, "keepTime": True,
                    "targetBlank": False}],
         "panels": page.panels,
@@ -369,12 +369,12 @@ tech.chart("App speed over time", PROM, [
     12, 12, "Response time of app requests.", unit="s")
 
 pages = [
-    ("ridevela-analytics", "1. Today", "Today at a glance", today, "now/d"),
-    ("ridevela-rides", "2. Rides", "Rides and how well they went", rides, "now-7d"),
-    ("ridevela-money", "3. Money", "Money in, money kept, driver earnings", money, "now-7d"),
-    ("ridevela-people", "4. People", "Riders and drivers using FAIRSVIA", people, "now-7d"),
-    ("ridevela-drivers", "5. Drivers", "Driver supply and response", drivers, "now/d"),
-    ("ridevela-tech", "6. Tech health", "Servers, speed, errors and alarms", tech, "now-6h"),
+    ("fairsvia-analytics", "1. Today", "Today at a glance", today, "now/d"),
+    ("fairsvia-rides", "2. Rides", "Rides and how well they went", rides, "now-7d"),
+    ("fairsvia-money", "3. Money", "Money in, money kept, driver earnings", money, "now-7d"),
+    ("fairsvia-people", "4. People", "Riders and drivers using FAIRSVIA", people, "now-7d"),
+    ("fairsvia-drivers", "5. Drivers", "Driver supply and response", drivers, "now/d"),
+    ("fairsvia-tech", "6. Tech health", "Servers, speed, errors and alarms", tech, "now-6h"),
 ]
 for uid, title, desc, page, t in pages:
     (OUT / f"{uid}.json").write_text(

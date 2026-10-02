@@ -104,11 +104,11 @@ class _PhoneEntryPageState extends State<PhoneEntryPage> {
                                 : null,
                             child: Row(
                               children: [
-                                RideVelaMark(size: 64, driver: _driver),
+                                FairsviaMark(size: 64, driver: _driver),
                                 // The driver app says so beside the mark.
                                 if (_driver) ...[
                                   const SizedBox(width: AppSpacing.md),
-                                  const RideVelaDriverPill(),
+                                  const FairsviaDriverPill(),
                                 ],
                               ],
                             ),

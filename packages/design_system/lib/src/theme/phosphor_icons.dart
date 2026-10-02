@@ -131,7 +131,7 @@ abstract final class PhosphorIconsRegular {
 
   // FAIRSVIA additions — not part of Phosphor. Our own paths on Phosphor's
   // 256 grid and 16-unit stroke (the font itself is MIT), added to the
-  // vendored fonts at private-use code points by tool/ridevela_glyphs/build.py.
+  // vendored fonts at private-use code points by tool/fairsvia_glyphs/build.py.
   /// Indian auto-rickshaw, side-on (Phosphor has none).
   static const IconData autoRickshaw = IconData(0xf8f0, fontFamily: _regularFamily, fontPackage: 'design_system');
   /// Banknote with ₹ — cash payment (Phosphor `money` has no currency mark).
@@ -160,7 +160,7 @@ abstract final class PhosphorIconsFill {
 /// @phosphor-icons/web 2.1.1, src/light/Phosphor-Light.ttf): the line-art
 /// weight of Plan E "Ink & Paper". Same code points as Regular (checked
 /// glyph by glyph against both fonts' cmaps), plus the FAIRSVIA additions
-/// built into it by `tool/ridevela_glyphs/build.py light`. Under THEME=ink
+/// built into it by `tool/fairsvia_glyphs/build.py light`. Under THEME=ink
 /// [PhosphorIconsRegular] already resolves to this font; use this class
 /// directly for a glyph that must be Light in every build.
 abstract final class PhosphorIconsLight {

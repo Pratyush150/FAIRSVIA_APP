@@ -2,7 +2,7 @@
 # 2026-09-17/18 (tools/load-test/README.md), not from a blog post — an alert
 # tuned to someone else's system is noise, and noise gets muted.
 groups:
-  - name: ridevela-availability
+  - name: fairsvia-availability
     rules:
       - alert: BackendDown
         expr: up{job="backend"} == 0
@@ -81,7 +81,7 @@ groups:
             Crash loop. `docker logs --tail 200 fairsvia_backend` shows the
             error before each restart; Sentry has the stack once SENTRY_DSN is set.
 
-  - name: ridevela-safety
+  - name: fairsvia-safety
     rules:
       - alert: SosRaised
         # No `for:` — a person pressed SOS during a ride; every minute counts.
@@ -94,7 +94,7 @@ groups:
             both people, the plate and a map link. Acknowledge it there so the
             team knows someone is on it, then resolve it with a note.
 
-  - name: ridevela-marketplace
+  - name: fairsvia-marketplace
     rules:
       - alert: MatchLatencySlow
         # Measured p95 at the 300-ride ceiling was 2.46s. Alerting at 2.5s
@@ -175,7 +175,7 @@ groups:
             Check fares against local rates, pickup distances on offers, and
             whether some drivers are online but not responding (expired).
 
-  - name: ridevela-vendors
+  - name: fairsvia-vendors
     rules:
       - alert: VendorErrorRate
         # The failure that actually happened: 20,370 Google OVER_QUERY_LIMIT
@@ -200,13 +200,13 @@ groups:
         annotations:
           summary: 'A fare capture exhausted its retries — revenue lost'
 
-  - name: ridevela-infrastructure
+  - name: fairsvia-infrastructure
     rules:
       - alert: PgBackupStale
         # Nightly job; 26h allows one late run. Only fires once a backup has
         # ever succeeded — before that the series does not exist, so a stack
         # where backups never ran is NOT caught here (check the README).
-        expr: time() - ridevela_pg_backup_last_success_timestamp_seconds > 26 * 3600
+        expr: time() - fairsvia_pg_backup_last_success_timestamp_seconds > 26 * 3600
         for: 15m
         labels: { severity: critical }
         annotations:

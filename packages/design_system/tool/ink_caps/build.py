@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build fonts/RideVelaCaps-SemiBold.ttf: Inter SemiBold with every lowercase
+"""Build fonts/FairsviaCaps-SemiBold.ttf: Inter SemiBold with every lowercase
 letter mapped to its capital, for the small-caps section labels of Plan E
 ("Ink & Paper", THEME=ink).
 
@@ -22,7 +22,7 @@ from fontTools.ttLib import TTFont
 
 PKG = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = os.path.join(PKG, "fonts", "Inter-SemiBold.ttf")
-DST = os.path.join(PKG, "fonts", "RideVelaCaps-SemiBold.ttf")
+DST = os.path.join(PKG, "fonts", "FairsviaCaps-SemiBold.ttf")
 FAMILY = "FAIRSVIA Caps"
 
 # Latin, Latin-1, Latin Extended-A/B, spacing modifiers (Uzbek oʻ gʻ need
@@ -61,9 +61,9 @@ def main():
         elif rec.nameID == 4:
             rec.string = FAMILY + " SemiBold"
         elif rec.nameID == 6:
-            rec.string = "RideVelaCaps-SemiBold"
+            rec.string = "FairsviaCaps-SemiBold"
         elif rec.nameID == 3:
-            rec.string = "RideVelaCaps-SemiBold; derived from Inter 4.001"
+            rec.string = "FairsviaCaps-SemiBold; derived from Inter 4.001"
     font.save(DST)
     print("wrote", DST, "remapped", len(remap))
 

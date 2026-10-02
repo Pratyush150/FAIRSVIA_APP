@@ -85,7 +85,7 @@ void main() {
           body: 'x',
           ctaType: 'url',
           ctaLabel: 'Read',
-          ctaValue: 'https://ridevela.com/news',
+          ctaValue: 'https://fairsvia.com/news',
         ),
       ],
       openUrl: (u) async {
@@ -95,7 +95,7 @@ void main() {
     );
     await tester.tap(find.text('Read'));
     await tester.pump();
-    expect(opened, ['https://ridevela.com/news']);
+    expect(opened, ['https://fairsvia.com/news']);
   });
 
   testWidgets('if content cannot load, the section is simply absent', (

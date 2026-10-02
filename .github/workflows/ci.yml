@@ -218,8 +218,8 @@ jobs:
           openssl req -x509 -nodes -newkey rsa:2048 -days 1 -subj "/CN=ci" \
             -keyout /tmp/certs/privkey.pem -out /tmp/certs/fullchain.pem
           docker run --rm --add-host backend1:127.0.0.1 --add-host backend2:127.0.0.1 \
-            -v "$PWD/infra/nginx:/etc/nginx/ridevela:ro" -v /tmp/certs:/etc/nginx/certs:ro \
-            nginx:1.27-alpine nginx -t -c /etc/nginx/ridevela/nginx.conf
+            -v "$PWD/infra/nginx:/etc/nginx/fairsvia:ro" -v /tmp/certs:/etc/nginx/certs:ro \
+            nginx:1.27-alpine nginx -t -c /etc/nginx/fairsvia/nginx.conf
       - name: Backup → restore round-trip
         run: |
           psql -v ON_ERROR_STOP=1 -c "CREATE TABLE drill(id int PRIMARY KEY, note text);

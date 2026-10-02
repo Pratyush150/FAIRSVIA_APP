@@ -20,5 +20,5 @@ COMPOSE="docker compose -p fairsvia_prod -f $(dirname "$0")/../docker-compose.pr
 $COMPOSE exec certbot certbot certonly $STAGING --non-interactive --agree-tos \
   --email "$EMAIL" --webroot -w /var/www/certbot -d "$DOMAIN" \
   --deploy-hook /scripts/deploy-hook.sh
-$COMPOSE exec nginx nginx -c /etc/nginx/ridevela/nginx.conf -s reload
+$COMPOSE exec nginx nginx -c /etc/nginx/fairsvia/nginx.conf -s reload
 echo "done — verify: curl -sI https://$DOMAIN/api/v1/health"

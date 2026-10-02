@@ -1,5 +1,5 @@
 // FAIRSVIA's own glyphs added to the vendored Phosphor fonts
-// (tool/ridevela_glyphs/build.py). Checks that each code point is really in
+// (tool/fairsvia_glyphs/build.py). Checks that each code point is really in
 // both font files with an outline, and that it paints with roughly the same
 // ink as the Phosphor icon it sits beside (so it isn't a hairline or a blob).
 import 'dart:io';

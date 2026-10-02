@@ -12,8 +12,8 @@ import '../theme/app_typography.dart';
 ///
 /// [driver] swaps to the driver app's colourway (navy tile, bright-blue F) so
 /// the two apps never look alike.
-class RideVelaMark extends StatelessWidget {
-  const RideVelaMark({super.key, this.size = 64, this.driver = false});
+class FairsviaMark extends StatelessWidget {
+  const FairsviaMark({super.key, this.size = 64, this.driver = false});
 
   final double size;
   final bool driver;
@@ -85,8 +85,8 @@ class _MarkPainter extends CustomPainter {
 /// Brand ink on its soft tint, in the current theme's brightness: readable in
 /// light and dark and in every `THEME=` variant (the ink/soft pair is the one
 /// used for selected rows).
-class RideVelaDriverPill extends StatelessWidget {
-  const RideVelaDriverPill({super.key, this.label = 'Driver'});
+class FairsviaDriverPill extends StatelessWidget {
+  const FairsviaDriverPill({super.key, this.label = 'Driver'});
 
   final String label;
 

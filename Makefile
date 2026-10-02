@@ -75,7 +75,7 @@ logs: ## Tail backend logs
 migrate: ## Create/apply a Prisma migration (NAME=your_migration)
 	docker exec fairsvia_backend npx prisma migrate dev --name $(NAME)
 
-BACKUP_DIR ?= /var/backups/ridevela
+BACKUP_DIR ?= /var/backups/fairsvia
 DB_PG = docker run --rm --network fairsvia_default -e PGHOST=postgres -e PGUSER=fairsvia \
 	-e PGPASSWORD=$${PGPASSWORD:-fairsvia} -e PGDATABASE=fairsvia \
 	-v $(CURDIR)/infra/backup:/scripts:ro -v $(BACKUP_DIR):/backups postgis/postgis:16-3.4

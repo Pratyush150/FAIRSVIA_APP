@@ -1,9 +1,9 @@
 {
-  "uid": "ridevela-rides",
-  "title": "2. Rides",
-  "description": "Rides and how well they went",
+  "uid": "fairsvia-money",
+  "title": "3. Money",
+  "description": "Money in, money kept, driver earnings",
   "tags": [
-    "ridevela-pages"
+    "fairsvia-pages"
   ],
   "timezone": "Asia/Kolkata",
   "editable": true,
@@ -29,7 +29,7 @@
       "title": "Pages",
       "type": "dashboards",
       "tags": [
-        "ridevela-pages"
+        "fairsvia-pages"
       ],
       "asDropdown": false,
       "includeVars": false,
@@ -50,17 +50,17 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### Rides\nHow many rides happened in the chosen period (top right), and how well they went."
+        "content": "### Money\nWhat came in, what FAIRSVIA kept and what drivers earned, in the chosen period."
       }
     },
     {
       "type": "stat",
-      "title": "Completed",
+      "title": "Money in",
       "id": 2,
-      "description": "Rides that reached the destination.",
+      "description": "Everything riders paid: fares and cancellation fees, before refunds.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 5,
@@ -72,18 +72,82 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "refId": "A",
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT count(*) FROM trips WHERE status = 'completed' AND $__timeFilter(completed_at)"
+          "rawSql": "SELECT COALESCE(sum(p.amount), 0) FROM payments p JOIN trips t ON t.id = p.trip_id WHERE p.status IN ('captured','collected','partial','refunded') AND p.currency = 'INR' AND $__timeFilter(COALESCE(t.completed_at, p.updated_at))"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "currencyINR",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0FA3A8",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Money we kept",
+      "id": 3,
+      "description": "FAIRSVIA's share (commission) of what riders paid.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "fairsvia-postgres"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 2
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "fairsvia-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(sum(p.platform_fee), 0) FROM payments p JOIN trips t ON t.id = p.trip_id WHERE p.status IN ('captured','collected','partial','refunded') AND p.currency = 'INR' AND $__timeFilter(COALESCE(t.completed_at, p.updated_at))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyINR",
           "decimals": 0,
           "noValue": "0",
           "color": {
@@ -119,35 +183,99 @@
     },
     {
       "type": "stat",
-      "title": "Cancelled",
-      "id": 3,
-      "description": "Rides cancelled by the rider or the driver.",
+      "title": "Drivers earned",
+      "id": 4,
+      "description": "The drivers' share, including tips.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 5,
         "w": 6,
-        "x": 6,
+        "x": 12,
         "y": 2
       },
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "refId": "A",
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT count(*) FROM trips WHERE status = 'cancelled' AND $__timeFilter(requested_at)"
+          "rawSql": "SELECT COALESCE(sum(p.driver_payout), 0) FROM payments p JOIN trips t ON t.id = p.trip_id WHERE p.status IN ('captured','collected','partial','refunded') AND p.currency = 'INR' AND $__timeFilter(COALESCE(t.completed_at, p.updated_at))"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "currencyINR",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0FA3A8",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Refunded",
+      "id": 5,
+      "description": "Money given back to riders.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "fairsvia-postgres"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 2
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "fairsvia-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(sum(r.amount), 0) FROM payment_refunds r JOIN payments p ON p.id = r.payment_id WHERE r.status = 'succeeded' AND p.currency = 'INR' AND $__timeFilter(r.created_at)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyINR",
           "decimals": 0,
           "noValue": "0",
           "color": {
@@ -162,7 +290,7 @@
               },
               {
                 "color": "orange",
-                "value": 10
+                "value": 1
               }
             ]
           }
@@ -187,30 +315,158 @@
     },
     {
       "type": "stat",
-      "title": "No driver found",
-      "id": 4,
-      "description": "Riders who asked for a ride and nobody was available — lost rides.",
+      "title": "Paid in cash",
+      "id": 6,
+      "description": "Share of paid rides settled in cash.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 12,
-        "y": 2
+        "w": 8,
+        "x": 0,
+        "y": 7
       },
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "refId": "A",
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT count(*) FROM trips WHERE status IN ('no_drivers','expired') AND $__timeFilter(requested_at)"
+          "rawSql": "SELECT count(*) FILTER (WHERE p.method = 'cash')::float / NULLIF(count(*), 0) FROM payments p JOIN trips t ON t.id = p.trip_id WHERE p.status IN ('captured','collected','partial','refunded') AND p.currency = 'INR' AND $__timeFilter(COALESCE(t.completed_at, p.updated_at))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0FA3A8",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tips",
+      "id": 7,
+      "description": "Tips riders added for drivers.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "fairsvia-postgres"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "fairsvia-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(sum(p.tip), 0) FROM payments p JOIN trips t ON t.id = p.trip_id WHERE p.status IN ('captured','collected','partial','refunded') AND p.currency = 'INR' AND $__timeFilter(COALESCE(t.completed_at, p.updated_at))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyINR",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0FA3A8",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Payments that failed",
+      "id": 8,
+      "description": "Rides where collecting the money failed. Anything above 0 needs a look.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "fairsvia-postgres"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "fairsvia-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) FROM payments WHERE status = 'failed' AND $__timeFilter(created_at)"
         }
       ],
       "fieldConfig": {
@@ -254,297 +510,17 @@
       }
     },
     {
-      "type": "stat",
-      "title": "Success rate",
-      "id": 5,
-      "description": "Of the rides that have ended, how many were completed.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 2
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
-          },
-          "refId": "A",
-          "rawQuery": true,
-          "editorMode": "code",
-          "format": "table",
-          "rawSql": "SELECT count(*) FILTER (WHERE status = 'completed')::float / NULLIF(count(*) FILTER (WHERE status IN ('completed','cancelled','no_drivers','expired')), 0) FROM trips WHERE $__timeFilter(requested_at)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "decimals": 0,
-          "noValue": "0",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.6
-              },
-              {
-                "color": "green",
-                "value": 0.8
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "textMode": "value",
-        "orientation": "auto",
-        "wideLayout": true
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Average fare",
-      "id": 6,
-      "description": "What a completed ride cost on average.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 0,
-        "y": 7
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
-          },
-          "refId": "A",
-          "rawQuery": true,
-          "editorMode": "code",
-          "format": "table",
-          "rawSql": "SELECT avg(fare_final) FROM trips WHERE status = 'completed' AND currency = 'INR' AND $__timeFilter(completed_at)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "currencyINR",
-          "decimals": 0,
-          "noValue": "0",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#0FA3A8",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "textMode": "value",
-        "orientation": "auto",
-        "wideLayout": true
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Average wait for the car",
-      "id": 7,
-      "description": "From a driver accepting to arriving at the pickup.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 8,
-        "y": 7
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
-          },
-          "refId": "A",
-          "rawQuery": true,
-          "editorMode": "code",
-          "format": "table",
-          "rawSql": "SELECT avg(extract(epoch FROM arrived_at - accepted_at)) FROM trips WHERE arrived_at IS NOT NULL AND $__timeFilter(accepted_at)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "decimals": 0,
-          "noValue": "0",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 480
-              },
-              {
-                "color": "red",
-                "value": 900
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "textMode": "value",
-        "orientation": "auto",
-        "wideLayout": true
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Time to find a driver",
-      "id": 8,
-      "description": "How long the slowest 5% of riders waited for a driver to accept.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ridevela-prometheus"
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 16,
-        "y": 7
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ridevela-prometheus"
-          },
-          "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(trip_match_duration_seconds_bucket[$__range])) by (le))",
-          "instant": true,
-          "range": false,
-          "editorMode": "code"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "decimals": 1,
-          "noValue": "0",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 30
-              },
-              {
-                "color": "red",
-                "value": 60
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "textMode": "value",
-        "orientation": "auto",
-        "wideLayout": true
-      }
-    },
-    {
       "type": "timeseries",
-      "title": "Rides per day",
+      "title": "Money per day",
       "id": 9,
-      "description": "Last 30 days, by outcome.",
+      "description": "Last 30 days.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 8,
-        "w": 14,
+        "w": 24,
         "x": 0,
         "y": 12
       },
@@ -552,18 +528,18 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "refId": "A",
           "rawQuery": true,
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT $__timeGroupAlias(requested_at, 1d, 0), CASE status WHEN 'completed' THEN 'Completed' WHEN 'cancelled' THEN 'Cancelled' WHEN 'no_drivers' THEN 'No driver found' WHEN 'expired' THEN 'No driver found' ELSE 'Other' END AS metric, count(*) AS value FROM trips WHERE $__timeFilter(requested_at) AND status <> 'scheduled' GROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(paid_at, 1d, 0), sum(amount) AS \"Money in\", sum(platform_fee) AS \"We kept\" FROM (SELECT COALESCE(t.completed_at, p.updated_at) AS paid_at, p.amount, p.platform_fee FROM payments p JOIN trips t ON t.id = p.trip_id WHERE p.status IN ('captured','collected','partial','refunded') AND p.currency = 'INR') s WHERE $__timeFilter(paid_at) GROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "currencyINR",
           "color": {
             "mode": "palette-classic"
           },
@@ -574,7 +550,7 @@
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
-              "mode": "normal",
+              "mode": "none",
               "group": "A"
             }
           }
@@ -594,43 +570,6 @@
       },
       "timeFrom": "30d",
       "hideTimeOverride": false
-    },
-    {
-      "type": "table",
-      "title": "Why rides were cancelled",
-      "id": 10,
-      "description": "The most common reasons, in the chosen period.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 10,
-        "x": 14,
-        "y": 12
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
-          },
-          "refId": "A",
-          "rawQuery": true,
-          "editorMode": "code",
-          "format": "table",
-          "rawSql": "SELECT COALESCE(cancel_reason, 'No reason given') AS \"Reason\", COALESCE(cancelled_by, 'system') AS \"By\", count(*) AS \"Rides\" FROM trips WHERE status = 'cancelled' AND $__timeFilter(requested_at) GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 10"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "md"
-      }
     }
   ]
 }

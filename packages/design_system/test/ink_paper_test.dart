@@ -10,7 +10,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'ridevela_glyphs_test.dart' show glyphOutlineBytes;
+import 'fairsvia_glyphs_test.dart' show glyphOutlineBytes;
 
 double _contrast(Color a, Color b) {
   final la = a.computeLuminance(), lb = b.computeLuminance();
@@ -112,13 +112,13 @@ void main() {
         'fonts/InstrumentSerif-Regular.ttf',
         'fonts/InstrumentSerif-Italic.ttf',
         'fonts/InstrumentSerif-LICENSE.txt',
-        'fonts/RideVelaCaps-SemiBold.ttf',
+        'fonts/FairsviaCaps-SemiBold.ttf',
         'fonts/Phosphor-Light.ttf',
       ]) {
         expect(File(f).existsSync(), isTrue, reason: f);
       }
       // The caps font draws "a" with the glyph of "A".
-      final caps = File('fonts/RideVelaCaps-SemiBold.ttf').readAsBytesSync();
+      final caps = File('fonts/FairsviaCaps-SemiBold.ttf').readAsBytesSync();
       expect(glyphOutlineBytes(caps, 0x61), glyphOutlineBytes(caps, 0x41));
     });
   });

@@ -51,7 +51,7 @@ Future<void> _loadFonts() async {
   await _font('$ds/PhosphorFill', ['$_dsFonts/Phosphor-Fill.ttf']);
   await _font('$ds/PhosphorLight', ['$_dsFonts/Phosphor-Light.ttf']);
   await _font('$ds/InstrumentSerif', ['$_dsFonts/InstrumentSerif-Regular.ttf']);
-  await _font('$ds/RideVelaCaps', ['$_dsFonts/RideVelaCaps-SemiBold.ttf']);
+  await _font('$ds/FairsviaCaps', ['$_dsFonts/FairsviaCaps-SemiBold.ttf']);
   await _font('$ds/Inter', [
     for (final w in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold'])
       '$_dsFonts/Inter-$w.ttf',

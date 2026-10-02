@@ -3,7 +3,7 @@
 # placeholder on first boot), then run nginx, reloading every 6h so renewed
 # certificates are picked up without a restart.
 set -eu
-CONF=/etc/nginx/ridevela/nginx.conf
+CONF=/etc/nginx/fairsvia/nginx.conf
 i=0
 until [ -s /etc/nginx/certs/fullchain.pem ] && [ -s /etc/nginx/certs/privkey.pem ]; do
   i=$((i + 1))

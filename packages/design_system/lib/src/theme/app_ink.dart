@@ -26,7 +26,7 @@ abstract final class InkPaper {
   /// Inter SemiBold drawing lowercase as capitals (tool/ink_caps/build.py):
   /// small-caps labels whose text stays as written, so screen readers and
   /// tests see "Add a tip", not "ADD A TIP".
-  static const String capsFamily = 'packages/design_system/RideVelaCaps';
+  static const String capsFamily = 'packages/design_system/FairsviaCaps';
 
   // --- Tokens (Plan E table) -------------------------------------------------
   /// Decorative 1 px rules only (1.4:1 on white — never the only edge of a

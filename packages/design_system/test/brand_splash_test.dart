@@ -76,13 +76,13 @@ void main() {
       MaterialApp(home: BrandSplash(onDone: () {}, driver: true)),
     );
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byType(RideVelaDriverPill), findsOneWidget);
+    expect(find.byType(FairsviaDriverPill), findsOneWidget);
     expect(find.bySemanticsLabel('FAIRSVIA Driver'), findsOneWidget);
     await tester.pumpAndSettle();
 
     await tester.pumpWidget(MaterialApp(home: BrandSplash(onDone: () {})));
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byType(RideVelaDriverPill), findsNothing);
+    expect(find.byType(FairsviaDriverPill), findsNothing);
     await tester.pumpAndSettle();
   });
 
@@ -125,7 +125,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text(AppBrand.name), findsOneWidget);
-    expect(find.byType(RideVelaDriverPill), findsOneWidget);
+    expect(find.byType(FairsviaDriverPill), findsOneWidget);
     expect(tester.hasRunningAnimations, isTrue);
     await tester.pumpWidget(const SizedBox());
   });

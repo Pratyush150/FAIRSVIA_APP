@@ -1,9 +1,9 @@
 {
-  "uid": "ridevela-ops",
+  "uid": "fairsvia-ops",
   "title": "FAIRSVIA \u2014 Ops",
   "description": "Is the marketplace working right now. Start here during an incident: the four tiles at the top say whether riders can get a car, and dispatch backlog moves before anything else does.",
   "tags": [
-    "ridevela",
+    "fairsvia",
     "ops"
   ],
   "timezone": "browser",
@@ -35,7 +35,7 @@
       "description": "Trips in flight (requested through in_progress). The measured ceiling on the dev stack was ~300.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -48,7 +48,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "sum(active_trips)",
           "instant": true
@@ -105,7 +105,7 @@
       "description": "Every online driver, idle or on a trip. Zero means the marketplace has no supply, however healthy the servers look.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -118,7 +118,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "sum(drivers_online)",
           "instant": true
@@ -171,7 +171,7 @@
       "description": "Jobs waiting to be dispatched. The earliest warning in the whole system \u2014 backlog builds here before any rider sees a failure.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -184,7 +184,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "dispatch_queue_depth{queue=\"dispatch\",state=\"waiting\"}",
           "instant": true
@@ -241,7 +241,7 @@
       "description": "Time from a trip being requested to a driver accepting. The SLO is 4s; 2.46s was the measured p95 at the 300-ride ceiling.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 4,
@@ -254,7 +254,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "histogram_quantile(0.95, sum(rate(trip_match_duration_seconds_bucket[5m])) by (le))",
           "instant": true
@@ -323,7 +323,7 @@
       "description": "The 4s SLO measured live. The dashed line marks 2.5s, where the alert fires.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -336,7 +336,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "histogram_quantile(0.50, sum(rate(trip_match_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p50"
@@ -345,7 +345,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "histogram_quantile(0.95, sum(rate(trip_match_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95"
@@ -354,7 +354,7 @@
           "refId": "C",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "histogram_quantile(0.99, sum(rate(trip_match_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p99"
@@ -466,7 +466,7 @@
       "description": "Waiting is the number that matters; the others are context for why it is climbing.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -479,7 +479,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "dispatch_queue_depth{queue=\"dispatch\",state=\"waiting\"}",
           "legendFormat": "waiting"
@@ -488,7 +488,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "dispatch_queue_depth{queue=\"dispatch\",state=\"active\"}",
           "legendFormat": "active"
@@ -497,7 +497,7 @@
           "refId": "C",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "dispatch_queue_depth{queue=\"dispatch\",state=\"delayed\"}",
           "legendFormat": "delayed"
@@ -506,7 +506,7 @@
           "refId": "D",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "dispatch_queue_depth{queue=\"dispatch\",state=\"failed\"}",
           "legendFormat": "failed"
@@ -625,7 +625,7 @@
       "description": "Supply by vehicle tier. A tier at zero cannot be booked, however many drivers are online overall.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -638,7 +638,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "drivers_online",
           "legendFormat": "{{tier}}"
@@ -760,7 +760,7 @@
       "description": "Rates, not totals: a collapse in matching shows up as a gap opening between two lines instead of needing a query.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -773,7 +773,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "rate(trips_total{status=\"matching\"}[5m]) * 60",
           "legendFormat": "matching"
@@ -782,7 +782,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "rate(trips_total{status=\"accepted\"}[5m]) * 60",
           "legendFormat": "accepted"
@@ -791,7 +791,7 @@
           "refId": "C",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "rate(trips_total{status=\"completed\"}[5m]) * 60",
           "legendFormat": "completed"
@@ -800,7 +800,7 @@
           "refId": "D",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "rate(trips_total{status=\"cancelled\"}[5m]) * 60",
           "legendFormat": "cancelled"
@@ -809,7 +809,7 @@
           "refId": "E",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "rate(trips_total{status=\"no_drivers\"}[5m]) * 60",
           "legendFormat": "no_drivers"
@@ -943,7 +943,7 @@
       "description": "",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -956,7 +956,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "sum(rate(http_requests_total{status=~\"2..\"}[5m]))",
           "legendFormat": "2xx"
@@ -965,7 +965,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "sum(rate(http_requests_total{status=~\"4..\"}[5m]))",
           "legendFormat": "4xx"
@@ -974,7 +974,7 @@
           "refId": "C",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m]))",
           "legendFormat": "5xx"
@@ -1066,7 +1066,7 @@
       "description": "",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -1079,7 +1079,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p50"
@@ -1088,7 +1088,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95"
@@ -1097,7 +1097,7 @@
           "refId": "C",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p99"
@@ -1189,7 +1189,7 @@
       "description": "Google against OSM. A quota wall looks like google climbing while osm picks up the traffic \u2014 the shape that went unnoticed for hours during the load sweep.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -1202,7 +1202,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "expr": "sum by (vendor) (rate(vendor_request_duration_seconds_count{status=\"error\"}[5m])) / clamp_min(sum by (vendor) (rate(vendor_request_duration_seconds_count[5m])), 0.001)",
           "legendFormat": "{{vendor}}"

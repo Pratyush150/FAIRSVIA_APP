@@ -29,13 +29,13 @@ receivers:
     # --- Pick one and fill it in -------------------------------------------
     # slack_configs:
     #   - api_url: https://hooks.slack.com/services/XXX/YYY/ZZZ
-    #     channel: '#ridevela-alerts'
+    #     channel: '#fairsvia-alerts'
     #     title: '{{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})'
     #     text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}'
     #
     # email_configs:
-    #   - to: ops@ridevela.com
-    #     from: alerts@ridevela.com
+    #   - to: ops@fairsvia.com
+    #     from: alerts@fairsvia.com
     #     smarthost: email-smtp.us-east-1.amazonaws.com:587
     #     auth_username: <SES SMTP user>
     #     auth_password: <SES SMTP password>

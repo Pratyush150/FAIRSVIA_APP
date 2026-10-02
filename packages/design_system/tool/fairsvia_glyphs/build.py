@@ -18,8 +18,8 @@ whose SVG spans y 32..216 and whose glyph spans 832..96), converted to
 quadratics and written into both fonts at private-use code points.
 
   pip install --user fonttools skia-pathops
-  python3 tool/ridevela_glyphs/build.py            # from packages/design_system
-  python3 tool/ridevela_glyphs/build.py light      # just the named weight(s)
+  python3 tool/fairsvia_glyphs/build.py            # from packages/design_system
+  python3 tool/fairsvia_glyphs/build.py light      # just the named weight(s)
 """
 import os
 import sys

@@ -1,9 +1,9 @@
 {
-  "uid": "ridevela-people",
-  "title": "4. People",
-  "description": "Riders and drivers using FAIRSVIA",
+  "uid": "fairsvia-analytics",
+  "title": "1. Today",
+  "description": "Today at a glance",
   "tags": [
-    "ridevela-pages"
+    "fairsvia-pages"
   ],
   "timezone": "Asia/Kolkata",
   "editable": true,
@@ -12,7 +12,7 @@
   "version": 1,
   "refresh": "30s",
   "time": {
-    "from": "now-7d",
+    "from": "now/d",
     "to": "now"
   },
   "timepicker": {
@@ -29,7 +29,7 @@
       "title": "Pages",
       "type": "dashboards",
       "tags": [
-        "ridevela-pages"
+        "fairsvia-pages"
       ],
       "asDropdown": false,
       "includeVars": false,
@@ -43,42 +43,42 @@
       "id": 1,
       "title": "",
       "gridPos": {
-        "h": 2,
+        "h": 3,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "options": {
         "mode": "markdown",
-        "content": "### People\nWho uses FAIRSVIA — riders and drivers."
+        "content": "### Today at a glance\nLive — updates every 30 seconds. Tap a page button above (**Rides, Money, People, Drivers, Tech health**) for the detail behind any number. **Green** = fine, **orange** = keep an eye on it, **red** = needs someone now."
       }
     },
     {
       "type": "stat",
-      "title": "Everyone with an account",
+      "title": "Rides completed today",
       "id": 2,
-      "description": "All riders and drivers who have signed up.",
+      "description": "Rides that finished today (since midnight, India time).",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
+        "w": 8,
         "x": 0,
-        "y": 2
+        "y": 3
       },
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "refId": "A",
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT count(*) FROM users WHERE deleted_at IS NULL AND role <> 'admin'"
+          "rawSql": "SELECT count(*) FROM trips WHERE status = 'completed' AND (completed_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date"
         }
       ],
       "fieldConfig": {
@@ -119,35 +119,35 @@
     },
     {
       "type": "stat",
-      "title": "New sign-ups",
+      "title": "Money in today",
       "id": 3,
-      "description": "People who created an account in the chosen period.",
+      "description": "Everything riders paid today — fares and cancellation fees, before refunds.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 2
+        "w": 8,
+        "x": 8,
+        "y": 3
       },
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "refId": "A",
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT count(*) FROM users WHERE role <> 'admin' AND $__timeFilter(created_at)"
+          "rawSql": "SELECT COALESCE(sum(p.amount), 0) FROM payments p JOIN trips t ON t.id = p.trip_id WHERE p.status IN ('captured','collected','partial','refunded') AND p.currency = 'INR' AND (COALESCE(t.completed_at, p.updated_at) AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "currencyINR",
           "decimals": 0,
           "noValue": "0",
           "color": {
@@ -183,24 +183,24 @@
     },
     {
       "type": "stat",
-      "title": "Used the app today",
+      "title": "People using the app today",
       "id": 4,
-      "description": "People who opened the app today, each counted once.",
+      "description": "Riders and drivers who opened the app today, each counted once.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 12,
-        "y": 2
+        "w": 8,
+        "x": 16,
+        "y": 3
       },
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "refId": "A",
           "rawQuery": true,
@@ -247,30 +247,30 @@
     },
     {
       "type": "stat",
-      "title": "Used it this month",
+      "title": "Drivers online now",
       "id": 5,
-      "description": "Different people who opened the app in the last 30 days.",
+      "description": "Drivers with the app on and ready, including those on a ride.",
       "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
+        "type": "prometheus",
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 2
+        "w": 8,
+        "x": 0,
+        "y": 8
       },
       "targets": [
         {
           "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
+            "type": "prometheus",
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
-          "rawQuery": true,
-          "editorMode": "code",
-          "format": "table",
-          "rawSql": "SELECT count(DISTINCT user_id) FROM user_active_days WHERE day > (now() AT TIME ZONE 'Asia/Kolkata')::date - 30"
+          "expr": "sum(drivers_online) or vector(0)",
+          "instant": true,
+          "range": false,
+          "editorMode": "code"
         }
       ],
       "fieldConfig": {
@@ -285,8 +285,152 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#0FA3A8",
+                "color": "red",
                 "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Riders waiting for a car now",
+      "id": 6,
+      "description": "Riders searching for a driver at this moment. More than a few means not enough drivers.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "fairsvia-postgres"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "fairsvia-postgres"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) FROM trips WHERE status IN ('requested','matching')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 3
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "wideLayout": true
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Problems right now",
+      "id": 7,
+      "description": "Automatic alarms that are going off. 0 is good. Tech health shows which ones.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fairsvia-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fairsvia-prometheus"
+          },
+          "refId": "A",
+          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "instant": true,
+          "range": false,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
               }
             ]
           }
@@ -311,30 +455,30 @@
     },
     {
       "type": "timeseries",
-      "title": "People using the app each day",
-      "id": 6,
-      "description": "Last 30 days.",
+      "title": "Rides today, hour by hour",
+      "id": 8,
+      "description": "Every ride requested today, by what happened to it.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 9,
+        "w": 24,
         "x": 0,
-        "y": 7
+        "y": 13
       },
       "targets": [
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "refId": "A",
           "rawQuery": true,
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT a.day::timestamptz AS time, count(*) FILTER (WHERE dp.user_id IS NULL) AS \"Riders\", count(*) FILTER (WHERE dp.user_id IS NOT NULL) AS \"Drivers\" FROM user_active_days a LEFT JOIN driver_profiles dp ON dp.user_id = a.user_id WHERE a.day >= $__timeFrom()::date GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(requested_at, 1h, 0), CASE status WHEN 'completed' THEN 'Completed' WHEN 'cancelled' THEN 'Cancelled' WHEN 'no_drivers' THEN 'No driver found' WHEN 'expired' THEN 'No driver found' ELSE 'In progress' END AS metric, count(*) AS value FROM trips WHERE $__timeFilter(requested_at) AND status <> 'scheduled' GROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -367,71 +511,7 @@
           "mode": "multi",
           "sort": "desc"
         }
-      },
-      "timeFrom": "30d",
-      "hideTimeOverride": false
-    },
-    {
-      "type": "timeseries",
-      "title": "Total accounts over time",
-      "id": 7,
-      "description": "Last 30 days.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "ridevela-postgres"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 7
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "ridevela-postgres"
-          },
-          "refId": "A",
-          "rawQuery": true,
-          "editorMode": "code",
-          "format": "time_series",
-          "rawSql": "SELECT d AS time, (SELECT count(*) FROM users u WHERE u.role <> 'admin' AND u.deleted_at IS NULL AND u.created_at < d + interval '1 day') AS \"All accounts\", (SELECT count(*) FROM driver_profiles dp WHERE dp.created_at < d + interval '1 day') AS \"Drivers\" FROM generate_series(date_trunc('day', $__timeFrom()::timestamptz), date_trunc('day', $__timeTo()::timestamptz), interval '1 day') d ORDER BY 1"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 15,
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            }
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "timeFrom": "30d",
-      "hideTimeOverride": false
+      }
     }
   ]
 }

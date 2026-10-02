@@ -1,9 +1,9 @@
 {
-  "uid": "ridevela-tech",
+  "uid": "fairsvia-tech",
   "title": "6. Tech health",
   "description": "Servers, speed, errors and alarms",
   "tags": [
-    "ridevela-pages"
+    "fairsvia-pages"
   ],
   "timezone": "Asia/Kolkata",
   "editable": true,
@@ -29,7 +29,7 @@
       "title": "Pages",
       "type": "dashboards",
       "tags": [
-        "ridevela-pages"
+        "fairsvia-pages"
       ],
       "asDropdown": false,
       "includeVars": false,
@@ -60,7 +60,7 @@
       "description": "Every automatic alarm currently firing. Rules: infra/monitoring/prometheus/alerts.yml.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 6,
@@ -72,7 +72,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "ALERTS{alertstate=\"firing\"}",
@@ -98,7 +98,7 @@
       "description": "1 = the server is answering.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -110,7 +110,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "max(up{job=\"backend\"}) or vector(0)",
@@ -166,7 +166,7 @@
       "description": "1 = the database is reachable.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -178,7 +178,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "max(pg_up) or vector(0)",
@@ -234,7 +234,7 @@
       "description": "1 = the live cache is reachable.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -246,7 +246,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "max(redis_up) or vector(0)",
@@ -302,7 +302,7 @@
       "description": "How long the slowest 5% of app requests take.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -314,7 +314,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
@@ -374,7 +374,7 @@
       "description": "Share of app requests that failed on the server.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -386,7 +386,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "(sum(rate(http_requests_total{status=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_requests_total[5m]))",
@@ -446,7 +446,7 @@
       "description": "Apps holding a live connection for ride updates.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -458,7 +458,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "sum(websocket_connections) or vector(0)",
@@ -510,7 +510,7 @@
       "description": "How busy the server's processor is.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -522,7 +522,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))",
@@ -582,7 +582,7 @@
       "description": "How full the server's memory is.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -594,7 +594,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)",
@@ -654,7 +654,7 @@
       "description": "How full the server's disk is.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -666,7 +666,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}",
@@ -726,7 +726,7 @@
       "description": "Time since the server last restarted.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 5,
@@ -738,7 +738,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "time() - max(node_boot_time_seconds)",
@@ -790,7 +790,7 @@
       "description": "Traffic to the app server.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -802,7 +802,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "sum(rate(http_requests_total{status!~\"5..\"}[5m]))",
@@ -813,7 +813,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "B",
           "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) or vector(0)",
@@ -861,7 +861,7 @@
       "description": "Response time of app requests.",
       "datasource": {
         "type": "prometheus",
-        "uid": "ridevela-prometheus"
+        "uid": "fairsvia-prometheus"
       },
       "gridPos": {
         "h": 8,
@@ -873,7 +873,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "A",
           "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
@@ -884,7 +884,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ridevela-prometheus"
+            "uid": "fairsvia-prometheus"
           },
           "refId": "B",
           "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",

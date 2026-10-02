@@ -85,7 +85,7 @@ services:
       BACKUP_HOUR_UTC: ${BACKUP_HOUR_UTC:-21}
     volumes:
       - ./backup:/scripts:ro
-      - ${BACKUP_HOST_DIR:-/var/backups/ridevela}:/backups
+      - ${BACKUP_HOST_DIR:-/var/backups/fairsvia}:/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,7 +113,7 @@ services:
     volumes:
       # The directory, not the single file: a file bind mount pins the old
       # inode, so after a `git pull` a reload would keep serving the old config.
-      - ./nginx:/etc/nginx/ridevela:ro
+      - ./nginx:/etc/nginx/fairsvia:ro
       - ./tls:/tls:ro
       - tls_certs:/etc/nginx/certs:ro
       - acme_webroot:/var/www/certbot:ro

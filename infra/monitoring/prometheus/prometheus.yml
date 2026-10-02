@@ -7,7 +7,7 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    stack: ridevela
+    stack: fairsvia
 
 rule_files:
   - /etc/prometheus/alerts.yml

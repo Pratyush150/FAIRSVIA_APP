@@ -50,7 +50,7 @@ void main() {
       // The chip is decoration, not text the user can edit.
       expect(field.controller?.text, isEmpty);
       // The 64 px logomark sits in the header.
-      expect(tester.widget<RideVelaMark>(find.byType(RideVelaMark)).size, 64);
+      expect(tester.widget<FairsviaMark>(find.byType(FairsviaMark)).size, 64);
     });
 
     testWidgets('prefix follows the build market', (tester) async {

@@ -71,14 +71,14 @@ services:
       # Change the password on first login. Kept explicit rather than left at
       # admin/admin so it is obvious this is a credential someone owns.
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-ridevela}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-fairsvia}
       GF_USERS_ALLOW_SIGN_UP: 'false'
       GF_ANALYTICS_REPORTING_ENABLED: 'false'
       GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
       # Read by the provisioned Postgres datasource.
-      RIDEVELA_DB_USER: ${POSTGRES_USER:-fairsvia}
-      RIDEVELA_DB_PASSWORD: ${POSTGRES_PASSWORD:-fairsvia}
-      RIDEVELA_DB_NAME: ${POSTGRES_DB:-fairsvia}
+      FAIRSVIA_DB_USER: ${POSTGRES_USER:-fairsvia}
+      FAIRSVIA_DB_PASSWORD: ${POSTGRES_PASSWORD:-fairsvia}
+      FAIRSVIA_DB_NAME: ${POSTGRES_DB:-fairsvia}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -139,7 +139,7 @@ services:
       - '--path.rootfs=/rootfs'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|run|var/lib/docker/.+)($$|/)'
       # Postgres backup freshness, written by infra/backup/pg-backup.sh.
-      - '--collector.textfile.directory=/rootfs/var/backups/ridevela/metrics'
+      - '--collector.textfile.directory=/rootfs/var/backups/fairsvia/metrics'
     pid: host
     volumes:
       - /:/rootfs:ro,rslave

@@ -1,9 +1,9 @@
 {
-  "uid": "ridevela-business",
+  "uid": "fairsvia-business",
   "title": "FAIRSVIA \u2014 Business",
   "description": "Is the business working. Answered from Postgres, not Prometheus: these are ledger questions, and the metrics store only keeps 30 days of samples.",
   "tags": [
-    "ridevela",
+    "fairsvia",
     "business"
   ],
   "timezone": "browser",
@@ -35,7 +35,7 @@
       "description": "",
       "datasource": {
         "type": "postgres",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 4,
@@ -48,7 +48,7 @@
           "refId": "A",
           "datasource": {
             "type": "postgres",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "rawSql": "SELECT count(*) AS value FROM trips WHERE status = 'completed' AND completed_at >= date_trunc('day', now());",
           "format": "table",
@@ -98,7 +98,7 @@
       "description": "Captured ride payments only \u2014 excludes tips, which are charged separately, and refunds.",
       "datasource": {
         "type": "postgres",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 4,
@@ -111,7 +111,7 @@
           "refId": "A",
           "datasource": {
             "type": "postgres",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "rawSql": "SELECT COALESCE(sum(amount), 0) AS value FROM payments WHERE status IN ('captured','collected') AND kind = 'ride' AND created_at >= date_trunc('day', now());",
           "format": "table",
@@ -161,7 +161,7 @@
       "description": "",
       "datasource": {
         "type": "postgres",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 4,
@@ -174,7 +174,7 @@
           "refId": "A",
           "datasource": {
             "type": "postgres",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "rawSql": "SELECT COALESCE(sum(platform_fee), 0) AS value FROM payments WHERE status IN ('captured','collected') AND kind = 'ride' AND created_at >= date_trunc('day', now());",
           "format": "table",
@@ -224,7 +224,7 @@
       "description": "Completed as a share of every trip that reached dispatch. Cancellations and no-driver timeouts both count against it.",
       "datasource": {
         "type": "postgres",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 4,
@@ -237,7 +237,7 @@
           "refId": "A",
           "datasource": {
             "type": "postgres",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "rawSql": "SELECT COALESCE(count(*) FILTER (WHERE status = 'completed')::float / NULLIF(count(*), 0), 0) AS value FROM trips WHERE requested_at >= now() - interval '7 days';",
           "format": "table",
@@ -307,7 +307,7 @@
       "description": "The funnel over time, from the trips table rather than the metrics store \u2014 so it survives longer than Prometheus retention.",
       "datasource": {
         "type": "postgres",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 9,
@@ -320,7 +320,7 @@
           "refId": "A",
           "datasource": {
             "type": "postgres",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "rawSql": "SELECT date_trunc('hour', requested_at) AS time, status AS metric, count(*) AS value FROM trips WHERE $__timeFilter(requested_at) GROUP BY 1, 2 ORDER BY 1;",
           "format": "time_series",
@@ -459,7 +459,7 @@
       "description": "Both lines are dollars, so they share one axis honestly.",
       "datasource": {
         "type": "postgres",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 9,
@@ -472,7 +472,7 @@
           "refId": "A",
           "datasource": {
             "type": "postgres",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "rawSql": "SELECT date_trunc('hour', created_at) AS time, sum(amount) AS \"gross\", sum(platform_fee) AS \"platform fee\" FROM payments WHERE $__timeFilter(created_at) AND status IN ('captured','collected') AND kind = 'ride' GROUP BY 1 ORDER BY 1;",
           "format": "time_series",
@@ -562,7 +562,7 @@
       "description": "Ops signal, not a vanity metric: a spike in one reason is usually a bug or a pricing problem, not riders changing their minds.",
       "datasource": {
         "type": "postgres",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 9,
@@ -575,7 +575,7 @@
           "refId": "A",
           "datasource": {
             "type": "postgres",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "rawSql": "SELECT COALESCE(cancel_reason, '(none given)') AS reason, count(*) AS trips FROM trips WHERE status = 'cancelled' AND requested_at >= now() - interval '7 days' GROUP BY 1 ORDER BY trips DESC LIMIT 20;",
           "format": "table",
@@ -606,7 +606,7 @@
       "description": "Every privileged write: refunds, fare and surge edits, driver verification, user deactivation. Failed attempts included \u2014 those are often the interesting ones.",
       "datasource": {
         "type": "postgres",
-        "uid": "ridevela-postgres"
+        "uid": "fairsvia-postgres"
       },
       "gridPos": {
         "h": 9,
@@ -619,7 +619,7 @@
           "refId": "A",
           "datasource": {
             "type": "postgres",
-            "uid": "ridevela-postgres"
+            "uid": "fairsvia-postgres"
           },
           "rawSql": "SELECT a.created_at AS \"when\", u.full_name AS \"who\", a.action, a.target_id AS target, a.status_code AS status FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id ORDER BY a.created_at DESC LIMIT 50;",
           "format": "table",

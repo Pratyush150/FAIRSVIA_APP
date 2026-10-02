@@ -8,7 +8,7 @@ import '../theme/app_ink.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
-import 'ridevela_mark.dart';
+import 'fairsvia_mark.dart';
 
 /// The app's opening sequence: the FAIRSVIA wordmark on the brand canvas,
 /// then a short Uber-style launch beat, then a fade into the app.
@@ -244,7 +244,7 @@ class _LaunchFrame extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    RideVelaMark(size: 48, driver: driver),
+                    FairsviaMark(size: 48, driver: driver),
                     const SizedBox(width: AppSpacing.md),
                     Text(
                       name,
@@ -260,7 +260,7 @@ class _LaunchFrame extends StatelessWidget {
                     ),
                     if (driver) ...[
                       const SizedBox(width: AppSpacing.sm),
-                      const RideVelaDriverPill(),
+                      const FairsviaDriverPill(),
                     ],
                   ],
                 ),

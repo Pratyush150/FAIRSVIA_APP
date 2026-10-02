@@ -49,11 +49,11 @@ echo "backup OK: $out ($size)"
 # via rename so a scrape never sees a half-written file.
 mkdir -p "$BACKUP_DIR/metrics"
 cat > "$BACKUP_DIR/metrics/pg_backup.prom.tmp" <<EOF
-# HELP ridevela_pg_backup_last_success_timestamp_seconds Unix time of the last verified Postgres backup.
-# TYPE ridevela_pg_backup_last_success_timestamp_seconds gauge
-ridevela_pg_backup_last_success_timestamp_seconds $(date -u +%s)
-# HELP ridevela_pg_backup_last_size_bytes Size of the last verified Postgres backup.
-# TYPE ridevela_pg_backup_last_size_bytes gauge
-ridevela_pg_backup_last_size_bytes $(wc -c < "$out")
+# HELP fairsvia_pg_backup_last_success_timestamp_seconds Unix time of the last verified Postgres backup.
+# TYPE fairsvia_pg_backup_last_success_timestamp_seconds gauge
+fairsvia_pg_backup_last_success_timestamp_seconds $(date -u +%s)
+# HELP fairsvia_pg_backup_last_size_bytes Size of the last verified Postgres backup.
+# TYPE fairsvia_pg_backup_last_size_bytes gauge
+fairsvia_pg_backup_last_size_bytes $(wc -c < "$out")
 EOF
 mv "$BACKUP_DIR/metrics/pg_backup.prom.tmp" "$BACKUP_DIR/metrics/pg_backup.prom"

@@ -31,7 +31,7 @@
              location-service notification sets it in code. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/ic_stat_ridevela" />
+            android:resource="@drawable/ic_stat_fairsvia" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

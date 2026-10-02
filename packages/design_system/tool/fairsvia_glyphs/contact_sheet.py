@@ -5,7 +5,7 @@ Small sizes are rendered at their true pixel size, then the sheet is scaled
 up with nearest-neighbour so each device pixel stays visible (no smoothing
 added by the enlargement).
 
-  python3 tool/ridevela_glyphs/contact_sheet.py OUT.png
+  python3 tool/fairsvia_glyphs/contact_sheet.py OUT.png
 """
 import os
 import sys

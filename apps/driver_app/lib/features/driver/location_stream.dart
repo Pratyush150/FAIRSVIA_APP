@@ -315,10 +315,10 @@ LocationSettings _platformLocationSettings() {
         notificationText: 'Sharing your location so riders can track the ride.',
         enableWakeLock: true,
         setOngoing: true,
-        // The Road-V as a white silhouette (res/drawable/ic_stat_ridevela.xml).
+        // The Road-V as a white silhouette (res/drawable/ic_stat_fairsvia.xml).
         // The default, the colour launcher icon, shows as a grey blob.
         notificationIcon: AndroidResource(
-          name: 'ic_stat_ridevela',
+          name: 'ic_stat_fairsvia',
           defType: 'drawable',
         ),
       ),

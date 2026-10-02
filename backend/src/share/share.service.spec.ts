@@ -60,9 +60,9 @@ describe('ShareService', () => {
   });
 
   it('PUBLIC_BASE_URL wins over the request origin', async () => {
-    config.get.mockReturnValue('https://track.ridevela.app/');
+    config.get.mockReturnValue('https://track.fairsvia.app/');
     const res = await svc.createLink('r1', 't1', 'http://192.168.1.69:3000');
-    expect(res.url.startsWith('https://track.ridevela.app/api/v1/public/t/')).toBe(true);
+    expect(res.url.startsWith('https://track.fairsvia.app/api/v1/public/t/')).toBe(true);
   });
 
   it('refuses anyone but the rider, and ended trips', async () => {

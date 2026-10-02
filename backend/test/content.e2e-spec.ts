@@ -116,7 +116,7 @@ describe('Ride cards (e2e)', () => {
     expect(http.status).toBe(400);
     expect(http.body.message).toMatch(/https/);
 
-    await post({ ctaType: 'url', ctaValue: 'https://ridevela.com' }).expect(400);
+    await post({ ctaType: 'url', ctaValue: 'https://fairsvia.com' }).expect(400);
 
     const ok = await post({
       ctaType: 'promo_code',

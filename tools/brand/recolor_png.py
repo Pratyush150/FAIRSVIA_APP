@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Recolour the rider Home tile pictures from RideVela teal to FAIRSVIA blue.
+"""Recolour the rider Home tile pictures and the map car markers from
+RideVela teal to FAIRSVIA blue.
 
 Same hue rule as recolor_lottie.py, teal / cyan / mint (hue 140–200°) ->
 blue (200–232°), applied per pixel with saturation, lightness and alpha kept,
@@ -20,7 +21,8 @@ import numpy as np
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2] / "packages/design_system/assets"
-DIRS = ["home", "home/2.0x", "home_dark", "home_dark/2.0x"]
+DIRS = ["home", "home/2.0x", "home_dark", "home_dark/2.0x",
+        "vehicles/top", "vehicles/top/2.0x"]  # + the map car markers
 
 
 def recolor(img: Image.Image) -> tuple[Image.Image, int]:

@@ -116,7 +116,7 @@ class _LocationPrimingPageState extends State<LocationPrimingPage>
                 children: [
                   const Align(
                     alignment: Alignment.centerLeft,
-                    child: RideVelaMark(size: 56, driver: true),
+                    child: FairsviaMark(size: 56, driver: true),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   Text(

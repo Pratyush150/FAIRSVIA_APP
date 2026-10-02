@@ -3,4 +3,4 @@
      foreground-service notification, FCM's default icon), so the release
      resource shrinker cannot see a reference to it. Keep it. -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@drawable/ic_stat_ridevela" />
+    tools:keep="@drawable/ic_stat_fairsvia" />
