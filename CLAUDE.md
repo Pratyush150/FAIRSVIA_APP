@@ -76,7 +76,12 @@ override default behavior. Established by the project owner (Sai Kishore).
   teal/mint/gold of RideVela in the shipped glass look; UI text in Anek Latin
   (numbers stay Inter); rounder corners (10/16/22/28, sheets 32) and pill
   buttons; Home services as a 2x2 grid of wide tiles and a floating pill
-  bottom bar (RideVela: one scrolling row, flush bar). Owner's direction
+  bottom bar (RideVela: one scrolling row, flush bar); its own launch
+  animation (mark pops with a ripple, wordmark wipes in, blue->coral route
+  draws, coral pin drops; brand_splash.dart `_FairsviaLaunch`); Home tiles
+  rise in staggered; illustrated posters drawn in-house
+  (`tools/brand/build_posters.mjs` -> assets/promo_fairsvia/) instead of
+  RideVela's stock photos, which are left out of FAIRSVIA's APK. Owner's direction
   (2026-10-05): both apps launch together, so FAIRSVIA must look clearly
   different from RideVela with the same polish. Animations and Home tile art were recoloured with
   `tools/brand/recolor_lottie.py` / `recolor_png.py` (re-run after importing

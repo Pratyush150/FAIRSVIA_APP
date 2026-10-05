@@ -138,4 +138,54 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpAndSettle();
   });
+
+  group('FAIRSVIA launch motion (glass build)', () {
+    // Collects every CustomPaint painter in the tree (the route painter is
+    // private, so it is found by its type name).
+    List<String> painters(WidgetTester tester) => tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .map((c) => c.painter.runtimeType.toString())
+        .toList();
+
+    testWidgets('pops the mark, wipes the wordmark, draws the route, hands over',
+        (tester) async {
+      var done = 0;
+      await tester.pumpWidget(
+        MaterialApp(home: BrandSplash(onDone: () => done++)),
+      );
+      expect(painters(tester), contains('_RoutePainter'));
+      expect(find.byType(FairsviaMark), findsOneWidget);
+      // Mid-way: the wordmark is on screen (one Text, readable), the route is
+      // drawing.
+      await tester.pump(AppBrand.splashFadeIn + AppBrand.splashSettle ~/ 2);
+      expect(find.text(AppBrand.name), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pump(AppBrand.splashTotal);
+      expect(done, 1);
+    }, skip: !AppColors.glass);
+
+    testWidgets('Reduce Motion: the finished frame, still hands over',
+        (tester) async {
+      var done = 0;
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: MaterialApp(home: BrandSplash(onDone: () => done++)),
+        ),
+      );
+      expect(painters(tester), contains('_RoutePainter'));
+      expect(tester.hasRunningAnimations, isFalse);
+      await tester.pump(AppBrand.splashTotal);
+      expect(done, 1);
+    }, skip: !AppColors.glass);
+
+    testWidgets('the hold frame runs a light along the finished route',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: BrandLaunchHold()));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(painters(tester), contains('_RoutePainter'));
+      expect(tester.hasRunningAnimations, isTrue);
+      await tester.pumpWidget(const SizedBox());
+    }, skip: !AppColors.glass);
+  });
 }

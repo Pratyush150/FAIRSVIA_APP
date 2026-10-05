@@ -245,14 +245,17 @@ class ServicesRow extends StatelessWidget {
               spacing: AppSpacing.md,
               runSpacing: AppSpacing.md,
               children: [
-                for (final it in items)
-                  ServiceTile(
-                    label: it.label,
-                    art: it.art,
-                    onTap: it.onTap,
-                    badge: it.badge,
-                    width: w,
-                    wide: true,
+                for (final (i, it) in items.indexed)
+                  _RiseIn(
+                    delay: Duration(milliseconds: 70 * i),
+                    child: ServiceTile(
+                      label: it.label,
+                      art: it.art,
+                      onTap: it.onTap,
+                      badge: it.badge,
+                      width: w,
+                      wide: true,
+                    ),
                   ),
               ],
             );
@@ -279,4 +282,65 @@ class ServicesRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// FAIRSVIA's Home entrance: the child fades in and rises 14 dp after
+/// [delay], once per mount (the grid staggers its tiles by 70 ms each).
+/// Static under Reduce Motion.
+class _RiseIn extends StatefulWidget {
+  const _RiseIn({required this.child, this.delay = Duration.zero});
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  State<_RiseIn> createState() => _RiseInState();
+}
+
+class _RiseInState extends State<_RiseIn> with SingleTickerProviderStateMixin {
+  static const Duration _run = Duration(milliseconds: 420);
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: _run + widget.delay,
+  );
+  late final Animation<double> _t = CurvedAnimation(
+    parent: _c,
+    curve: Interval(
+      widget.delay.inMilliseconds / (_run + widget.delay).inMilliseconds,
+      1,
+      curve: Curves.easeOutCubic,
+    ),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      _c.value = 1;
+    } else {
+      _c.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _t,
+    child: widget.child,
+    builder: (context, child) => Opacity(
+      opacity: _t.value,
+      child: Transform.translate(
+        offset: Offset(0, 14 * (1 - _t.value)),
+        child: child,
+      ),
+    ),
+  );
 }

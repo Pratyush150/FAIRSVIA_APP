@@ -219,7 +219,7 @@ List<DriverPoster> driverTipPosters(
           "Hit a quest's trip target and the bonus is added to your earnings.",
       cta: 'See quests',
       icon: PhosphorIconsRegular.star,
-      image: 'packages/design_system/assets/promo/city_night.jpg',
+      image: PromoPhoto.cityNight,
       tint: const Color(0xFF123A5A),
       onTap: onQuests,
     ),
@@ -229,7 +229,7 @@ List<DriverPoster> driverTipPosters(
           'At your online-time limit, new requests pause so you can rest.',
       cta: 'How breaks work',
       icon: PhosphorIconsRegular.moonStars,
-      image: 'packages/design_system/assets/promo/safety_ride.webp',
+      image: PromoPhoto.safetyRide,
       tint: const Color(0xFF1D4A3A),
       onTap: () => showDriverExplainer(
         context,
@@ -249,7 +249,7 @@ List<DriverPoster> driverTipPosters(
           'Set a destination and get only trips heading your way.',
       cta: 'How it works',
       icon: PhosphorIconsRegular.house,
-      image: 'packages/design_system/assets/promo/city_day.jpg',
+      image: PromoPhoto.cityDay,
       tint: const Color(0xFF4A2E12),
       onTap: () => showDriverExplainer(
         context,

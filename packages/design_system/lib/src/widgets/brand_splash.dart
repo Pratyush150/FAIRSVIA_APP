@@ -122,6 +122,26 @@ class _BrandSplashState extends State<BrandSplash>
     final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final driver =
         widget.driver || widget.name.toLowerCase().contains('driver');
+    if (AppColors.glass) {
+      // FAIRSVIA's own launch motion (see [_FairsviaLaunch]); same timing and
+      // hand-over as the classic splash.
+      if (still) return _FairsviaLaunch(name: widget.name, driver: driver, t: 1);
+      final total = AppBrand.splashTotal.inMilliseconds;
+      final playEnd =
+          (AppBrand.splashFadeIn + AppBrand.splashSettle).inMilliseconds /
+          total;
+      return AnimatedBuilder(
+        animation: _c,
+        builder: (context, _) => Opacity(
+          opacity: _out.value,
+          child: _FairsviaLaunch(
+            name: widget.name,
+            driver: driver,
+            t: (_c.value / playEnd).clamp(0.0, 1.0),
+          ),
+        ),
+      );
+    }
     if (still) {
       // Reduce Motion: the finished frame, no movement; it still hands over
       // on the same timer.
@@ -187,6 +207,18 @@ class _BrandLaunchHoldState extends State<BrandLaunchHold>
     final driver =
         widget.driver ?? widget.name.toLowerCase().contains('driver');
     final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (AppColors.glass) {
+      if (still) return _FairsviaLaunch(name: widget.name, driver: driver, t: 1);
+      return AnimatedBuilder(
+        animation: _c,
+        builder: (context, _) => _FairsviaLaunch(
+          name: widget.name,
+          driver: driver,
+          t: 1,
+          shimmer: _c.value,
+        ),
+      );
+    }
     if (still) {
       return _LaunchFrame(name: widget.name, driver: driver, road: 1);
     }
@@ -402,6 +434,252 @@ class _RoadPainter extends CustomPainter {
       old.track != track ||
       old.accent != accent ||
       old.ink != ink;
+}
+
+/// FAIRSVIA's launch motion (the shipped glass build), one frame at [t]
+/// (0..1 over the play window; 1 is the finished frame):
+///  - 0.00–0.35  the Road-F mark pops in (overshoot) while a ripple in the
+///    brand blue expands behind it;
+///  - 0.20–0.60  the wordmark wipes in left to right;
+///  - 0.40–0.85  a curved route draws itself in a blue -> coral gradient;
+///  - 0.82–1.00  a coral pin drops onto the end of the route with a bounce.
+/// [shimmer] (0..1, looping) runs a soft light along the finished route while
+/// start-up work outlives the splash. RideVela's splash (a car on a straight
+/// road) stays for every other build.
+class _FairsviaLaunch extends StatelessWidget {
+  const _FairsviaLaunch({
+    required this.name,
+    required this.driver,
+    required this.t,
+    this.shimmer,
+  });
+
+  final String name;
+  final bool driver;
+  final double t;
+  final double? shimmer;
+
+  /// The warm second colour of FAIRSVIA's palette (the animations' coral).
+  static const Color coral = Color(0xFFFF6B4A);
+
+  static const double _markSize = 52;
+
+  static double _iv(double t, double a, double b, [Curve c = Curves.linear]) =>
+      c.transform(((t - a) / (b - a)).clamp(0.0, 1.0));
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final blue = AppColors.highlightFor(dark);
+    final mark = _iv(t, 0, 0.35, Curves.easeOutBack);
+    final ripple = _iv(t, 0.05, 0.6, Curves.easeOutCubic);
+    final word = _iv(t, 0.2, 0.6, Curves.easeOutCubic);
+    final route = _iv(t, 0.4, 0.85, Curves.easeInOutCubic);
+    final pin = _iv(t, 0.82, 1, Curves.elasticOut);
+    final pinIn = _iv(t, 0.82, 0.9);
+    return Scaffold(
+      backgroundColor:
+          dark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: _markSize,
+                  height: _markSize,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      // The ripple: a ring growing out of the mark and fading.
+                      if (ripple > 0 && ripple < 1)
+                        IgnorePointer(
+                          child: Container(
+                            width: _markSize * (1 + 1.4 * ripple),
+                            height: _markSize * (1 + 1.4 * ripple),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: blue.withValues(
+                                  alpha: 0.45 * (1 - ripple),
+                                ),
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      Opacity(
+                        opacity: mark.clamp(0.0, 1.0),
+                        child: Transform.scale(
+                          scale: 0.6 + 0.4 * mark,
+                          child: FairsviaMark(size: _markSize, driver: driver),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                // Left-to-right wipe: one Text (stays findable and readable by
+                // screen readers), revealed by a moving gradient mask.
+                Transform.translate(
+                  offset: Offset(-10 * (1 - word), 0),
+                  child: ShaderMask(
+                    blendMode: BlendMode.dstIn,
+                    shaderCallback: (r) => LinearGradient(
+                      colors: const [Colors.white, Colors.transparent],
+                      stops: [word, (word + 0.18).clamp(0.0, 1.0)],
+                    ).createShader(r),
+                    child: Text(
+                      name,
+                      style: TextStyle(
+                        fontFamily: AppTypography.fontFamily,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.6,
+                        color: ink,
+                      ),
+                    ),
+                  ),
+                ),
+                if (driver) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Opacity(
+                    opacity: word,
+                    child: const FairsviaDriverPill(),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            ExcludeSemantics(
+              child: SizedBox(
+                width: 220,
+                height: 56,
+                child: CustomPaint(
+                  painter: _RoutePainter(
+                    progress: route,
+                    pin: pin,
+                    pinIn: pinIn,
+                    from: blue,
+                    to: coral,
+                    track: dark ? AppColors.borderDark : AppColors.borderLight,
+                    shimmer: shimmer,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoutePainter extends CustomPainter {
+  _RoutePainter({
+    required this.progress,
+    required this.pin,
+    required this.pinIn,
+    required this.from,
+    required this.to,
+    required this.track,
+    this.shimmer,
+  });
+
+  final double progress;
+  final double pin;
+  final double pinIn;
+  final Color from;
+  final Color to;
+  final Color track;
+  final double? shimmer;
+
+  Path _route(Size s) => Path()
+    ..moveTo(10, s.height - 12)
+    ..cubicTo(
+      s.width * 0.32, s.height - 12,
+      s.width * 0.30, 14,
+      s.width * 0.55, 18,
+    )
+    ..cubicTo(
+      s.width * 0.78, 22,
+      s.width * 0.80, s.height - 14,
+      s.width - 18, s.height - 30,
+    );
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _route(size);
+    final metric = path.computeMetrics().first;
+    final len = metric.length;
+    final base = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 4;
+    // Faint full track, so the route has somewhere to go.
+    canvas.drawPath(
+      path,
+      base..color = track.withValues(alpha: track.a * (progress > 0 ? 1 : 0)),
+    );
+    if (progress > 0) {
+      final drawn = metric.extractPath(0, len * progress);
+      canvas.drawPath(
+        drawn,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 4
+          ..shader = LinearGradient(colors: [from, to])
+              .createShader(Offset.zero & size),
+      );
+      // The start dot.
+      final start = metric.getTangentForOffset(0)!.position;
+      canvas.drawCircle(start, 5, Paint()..color = from);
+    }
+    final s = shimmer;
+    if (s != null) {
+      final p = metric.getTangentForOffset(len * s)!.position;
+      canvas.drawCircle(
+        p,
+        7,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.6)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+    }
+    if (pinIn > 0) {
+      final end = metric.getTangentForOffset(len)!.position;
+      // Drops from above and settles (elastic), scaled by [pin].
+      final drop = (1 - pinIn) * -18;
+      canvas.save();
+      canvas.translate(end.dx, end.dy + drop);
+      canvas.scale(0.4 + 0.6 * pin.clamp(0.0, 1.2));
+      final pinPaint = Paint()..color = to;
+      final head = Path()
+        ..addOval(Rect.fromCircle(center: const Offset(0, -16), radius: 9))
+        ..moveTo(-7, -11)
+        ..lineTo(0, 0)
+        ..lineTo(7, -11)
+        ..close();
+      canvas.drawPath(head, pinPaint);
+      canvas.drawCircle(const Offset(0, -16), 3.5, Paint()..color = Colors.white);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RoutePainter old) =>
+      old.progress != progress ||
+      old.pin != pin ||
+      old.pinIn != pinIn ||
+      old.shimmer != shimmer ||
+      old.from != from ||
+      old.to != to ||
+      old.track != track;
 }
 
 /// Shows [BrandSplash] over [child] for one launch, then cross-fades the app

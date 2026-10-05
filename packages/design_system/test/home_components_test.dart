@@ -250,6 +250,40 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byType(ServiceTile), findsNWidgets(_services.length));
     }, skip: !ServicesRow.grid); // the strip scrolls; only the grid lays all out
+
+    testWidgets('grid tiles rise in one after another, then sit still', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_app(const ServicesRow(items: _services)));
+      double opacityOf(int i) => tester
+          .widget<Opacity>(
+            find
+                .ancestor(
+                  of: find.byType(ServiceTile).at(i),
+                  matching: find.byType(Opacity),
+                )
+                .first,
+          )
+          .opacity;
+      await tester.pump(const Duration(milliseconds: 150));
+      // Staggered: the first tile is further in than the last.
+      expect(opacityOf(0), greaterThan(opacityOf(3)));
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 4; i++) {
+        expect(opacityOf(i), 1);
+      }
+    }, skip: !ServicesRow.grid);
+
+    testWidgets('Reduce Motion: grid tiles are there at once', (tester) async {
+      await tester.pumpWidget(
+        _app(const ServicesRow(items: _services), reduceMotion: true),
+      );
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(find.byType(ServiceTile), findsNWidgets(4));
+    }, skip: !ServicesRow.grid);
   });
 
   group('PromoBanner', () {

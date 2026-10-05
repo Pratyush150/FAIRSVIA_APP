@@ -50,9 +50,16 @@ flutter:
     # from the clay renders (vehicles/clay, docs/brand/icons3d), light + dark.
     - assets/home/
     - assets/home_dark/
-    # Rider Home promo banner photos (every build, incl. the default Glass
-    # look; Unsplash License, see assets/promo/CREDITS.md).
+    # Rider Home promo banner photos for every build except FAIRSVIA's glass
+    # look (Unsplash License, see assets/promo/CREDITS.md).
+    # @variant: midnight daylight daynight mono turquoise indigo lapis marigold copper garnet local ink clay3d
     - assets/promo/
+    # @end-variant
+    # FAIRSVIA's own illustrated posters (the glass build), drawn in-house by
+    # tools/brand/build_posters.mjs: no third-party licence.
+    # @variant: glass
+    - assets/promo_fairsvia/
+    # @end-variant
     # Lottie moments: confetti, money, loading, searching, arrived, no cars,
     # success, thanks, location, offline, SOS (assets/lottie/CREDITS.md).
     - assets/lottie/

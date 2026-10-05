@@ -516,11 +516,17 @@ class PromoBannerData {
   );
 }
 
-/// Bundled promo photos (Unsplash License; assets/promo/CREDITS.md).
-/// Generic city and airport scenes — no city names, landmarks, logos or
-/// legible number plates, so they suit any launch market.
+/// Bundled promo pictures. FAIRSVIA's shipped look (the glass build) uses its
+/// own flat illustrations in the brand blue + coral (assets/promo_fairsvia/,
+/// drawn by tools/brand/build_posters.mjs); every other build keeps the
+/// photos (Unsplash License; assets/promo/CREDITS.md). Same file names and
+/// 1200x750 size, so callers do not change. Generic scenes — no city names,
+/// landmarks, logos or legible number plates, so they suit any launch market.
+/// The per-image notes below describe the photos.
 abstract final class PromoPhoto {
-  static const String _dir = 'packages/design_system/assets/promo';
+  static const String _dir = AppColors.glass
+      ? 'packages/design_system/assets/promo_fairsvia'
+      : 'packages/design_system/assets/promo';
 
   /// A taxi moving through the city at night (motion blur).
   static const String cityNight = '$_dir/city_night.jpg';

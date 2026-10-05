@@ -86,10 +86,10 @@ simulator scripts already default to the FAIRSVIA backend (`localhost:3200`):
 
 | # | Do | SHOW: what the owner should see |
 |---|---|---|
-| 01 | App opens | Splash: the **FAIRSVIA** wordmark with the blue **Road-F** mark, and a car gliding along a road line. Gone in ≤1.8 s |
+| 01 | App opens | FAIRSVIA's launch animation (≤1.8 s): the blue **Road-F** mark pops in with a ripple, **FAIRSVIA** wipes in left to right, a **blue→coral curved route** draws itself and a **coral pin drops** onto its end. If start-up takes longer, a soft light runs along the route |
 | 02 | Sign in: any 10-digit number → Continue → type the **"Dev code: 123456"** shown on screen → name → allow location | Home |
 | 03 | Home | Floating frosted **"Where to?"** bar with a **blue→cyan→violet ring that keeps turning** and a soft glow. The leading icon is an animated location pin. "Later ⌄" is on the right |
-| 04 | Scroll Home | Recent places, then the **Ride / Pre-book / For others / Saved places** tiles in a 2×2 grid, a swipeable poster strip (dots, shimmer every ~6 s), and promo banners. Selected and accent items are **Ocean Blue**, not teal |
+| 04 | Scroll Home | Recent places, then the **Ride / Pre-book / For others / Saved places** tiles in a 2×2 grid, a swipeable poster strip of FAIRSVIA's own **illustrations** (calendar at dusk, gift, safety shield, phone with a live route; no stock photos), and illustrated promo banners. The four tiles **rise in one after another** when Home first opens. Selected and accent items are **Ocean Blue**, not teal |
 | 05 | Press and hold a tile or poster | It shrinks slightly and glows |
 | 06 | Bottom nav → **Offers** | Animated gift icon. Real codes: WELCOME50, AIRPORT100, WEEKEND20 |
 | 07 | Account → Appearance | Light / Dark / Same as phone. It recolours instantly at any time, including mid-ride, without resetting the ride. In dark mode buttons are bright blue |
