@@ -10,8 +10,8 @@ import puppeteer from '../visual-check/node_modules/puppeteer/lib/esm/puppeteer/
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = join(ROOT, 'docs', 'brand');
-// FAIRSVIA "Samarkand Turquoise": teal-navy, bright turquoise, turquoise.
-const NAVY = '#0B3C49', TURQ = '#2EC4C6', TEAL = '#0FA3A8', WHITE = '#FFFFFF';
+// FAIRSVIA "Ocean Blue": navy, bright blue (TURQ slot), brand blue (TEAL slot).
+const NAVY = '#0B1F49', TURQ = '#5B9DFF', TEAL = '#2F6BFF', WHITE = '#FFFFFF';
 
 // The F as a road: a stem running away from you with a lane line, two arms,
 // a light edge on the far side. Drawn in a 512 box; `s` scales it about the

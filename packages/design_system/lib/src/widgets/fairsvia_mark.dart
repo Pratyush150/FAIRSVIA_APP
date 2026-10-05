@@ -10,7 +10,7 @@ import '../theme/app_typography.dart';
 /// as the app icon and `docs/brand/`, painted here so it stays sharp at any
 /// size with no image assets.
 ///
-/// [driver] swaps to the driver app's colourway (navy tile, turquoise F) so
+/// [driver] swaps to the driver app's colourway (navy tile, bright-blue F) so
 /// the two apps never look alike.
 class FairsviaMark extends StatelessWidget {
   const FairsviaMark({super.key, this.size = 64, this.driver = false});
@@ -33,9 +33,9 @@ class _MarkPainter extends CustomPainter {
 
   final bool driver;
 
-  static const _navy = Color(0xFF0B3C49);
-  static const _teal = Color(0xFF0FA3A8);
-  static const _turq = Color(0xFF2EC4C6);
+  static const _navy = Color(0xFF0B1F49);
+  static const _teal = Color(0xFF2F6BFF);
+  static const _turq = Color(0xFF5B9DFF);
 
   @override
   void paint(Canvas canvas, Size size) {

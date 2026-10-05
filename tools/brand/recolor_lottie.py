@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""NOT APPLIED to the shipped look (FAIRSVIA ships turquoise since
-2026-10-05; the art is the original teal). Kept to re-create the Ocean Blue
-alternative.
-
-Recolour the bundled Lottie animations into the FAIRSVIA palette.
+"""Recolour the bundled Lottie animations into the FAIRSVIA palette.
 
 The animations came from RideVela in its teal + gold style. FAIRSVIA's look is
 "Ocean Blue" with a coral warm accent, so this moves every colour by hue:

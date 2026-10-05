@@ -71,14 +71,16 @@ override default behavior. Established by the project owner (Sai Kishore).
 
 ## Environment quick-reference
 - Repo: https://github.com/Pratyush150/FAIRSVIA_APP.
-- Brand: FAIRSVIA (written exactly so). "Road-F" logo. Shipped look = Plan F
-  "Map Glass" layout in the "Samarkand Turquoise" colours (`#0B3C49` teal-navy
-  ink, `#0FA3A8` turquoise, `#2EC4C6` bright; owner's choice 2026-10-05) with
-  the original teal + gold animations and art; UI text in Anek Latin (numbers
-  stay Inter); rounder corners (10/16/22/28, sheets 32) and pill buttons.
-  An "Ocean Blue" alternative was built and dropped; re-applying it is the
-  tokens in app_colors.dart plus `tools/brand/recolor_lottie.py` /
-  `recolor_png.py`. No competitor price comparison: fares come only from
+- Brand: FAIRSVIA (written exactly so). "Road-F" logo; "Ocean Blue" accent
+  (`#1B4FD8` ink, `#2F6BFF`, `#5B9DFF`) with a coral warm accent replaces the
+  teal/mint/gold of RideVela in the shipped glass look; UI text in Anek Latin
+  (numbers stay Inter); rounder corners (10/16/22/28, sheets 32) and pill
+  buttons; Home services as a 2x2 grid of wide tiles and a floating pill
+  bottom bar (RideVela: one scrolling row, flush bar). Owner's direction
+  (2026-10-05): both apps launch together, so FAIRSVIA must look clearly
+  different from RideVela with the same polish. Animations and Home tile art were recoloured with
+  `tools/brand/recolor_lottie.py` / `recolor_png.py` (re-run after importing
+  new art). No competitor price comparison: fares come only from
   FAIRSVIA's own rate card.
 - Flutter: `/home/nova-robotics/flutter/bin`. Backend runs in Docker
   (`docker exec fairsvia_backend ...`), compose project `fairsvia`, network

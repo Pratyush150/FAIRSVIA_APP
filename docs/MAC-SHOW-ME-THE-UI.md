@@ -4,18 +4,20 @@
 to bottom. At every **SHOW** step, stop, tell the owner what they're looking at
 and what to check, save a screenshot, and wait for "next" before moving on.
 
-**How it should look:** the Map Glass layout in **turquoise** (teal-navy
-buttons on light screens, bright turquoise in dark mode, turquoise route and
-selection), with the original teal + gold animations. What sets it apart from
-RideVela: the **Road-F** logo and the FAIRSVIA name, UI text in the rounder
-**Anek Latin** face (fares and plates stay Inter), rounder cards and sheets,
-and **pill-shaped** main buttons.
+**How it should look (different from RideVela on purpose):** Ocean Blue
+accent with coral highlights (no teal anywhere), UI text in the rounder **Anek
+Latin** face (fares and plates stay Inter), rounder cards and sheets, and
+**pill-shaped** main buttons. The animated icons (bottom bar, Offers gift, ticks,
+loaders) and the Home tile pictures are blue/coral; trophy and coins stay gold.
+On Home the four services are a **2×2 grid of wide tiles** (art left,
+label right) and the bottom bar **floats as a rounded pill** inset from the
+screen edges. Report any leftover teal as a finding.
 
 **What FAIRSVIA is:** a separate product built from the RideVela codebase. It is
 the same app with **no price comparison anywhere**: no "Save ₹X vs …" line, no
 Price check card, no competitor prices, no price match. Fares come only from
 FAIRSVIA's own rate card. It has its own name, its own "Road-F" icon, its own
-turquoise colours with its own font and rounder shapes, and its own app IDs, so both apps can
+**Ocean Blue** accent (RideVela is teal), and its own app IDs, so both apps can
 be installed on the same iPhone side by side.
 
 Rules: never commit `ios/Flutter/Secrets.xcconfig`. Never force-push. Never
@@ -84,13 +86,13 @@ simulator scripts already default to the FAIRSVIA backend (`localhost:3200`):
 
 | # | Do | SHOW: what the owner should see |
 |---|---|---|
-| 01 | App opens | Splash: the **FAIRSVIA** wordmark with the turquoise **Road-F** mark, and a car gliding along a road line. Gone in ≤1.8 s |
+| 01 | App opens | Splash: the **FAIRSVIA** wordmark with the blue **Road-F** mark, and a car gliding along a road line. Gone in ≤1.8 s |
 | 02 | Sign in: any 10-digit number → Continue → type the **"Dev code: 123456"** shown on screen → name → allow location | Home |
-| 03 | Home | Floating frosted **"Where to?"** bar with a **turquoise→cyan→mint ring that keeps turning** and a soft glow. The leading icon is an animated location pin. "Later ⌄" is on the right |
-| 04 | Scroll Home | Recent places, then the **Ride / Pre-book / For others / Saved places** tiles, a swipeable poster strip (dots, shimmer every ~6 s), and promo banners. Selected and accent items are turquoise |
+| 03 | Home | Floating frosted **"Where to?"** bar with a **blue→cyan→violet ring that keeps turning** and a soft glow. The leading icon is an animated location pin. "Later ⌄" is on the right |
+| 04 | Scroll Home | Recent places, then the **Ride / Pre-book / For others / Saved places** tiles in a 2×2 grid, a swipeable poster strip (dots, shimmer every ~6 s), and promo banners. Selected and accent items are **Ocean Blue**, not teal |
 | 05 | Press and hold a tile or poster | It shrinks slightly and glows |
 | 06 | Bottom nav → **Offers** | Animated gift icon. Real codes: WELCOME50, AIRPORT100, WEEKEND20 |
-| 07 | Account → Appearance | Light / Dark / Same as phone. It recolours instantly at any time, including mid-ride, without resetting the ride. In dark mode buttons are bright turquoise |
+| 07 | Account → Appearance | Light / Dark / Same as phone. It recolours instantly at any time, including mid-ride, without resetting the ride. In dark mode buttons are bright blue |
 | 08 | Where to? → type a place | Each result shows its distance under the pin. Type nonsense to get an animated "No places found" |
 | 09 | Pick "Shivajinagar District Court" | **Choose a ride**: Economy, Comfort, XL and Premium, with whole white cars. Picking one plays an animated tick. Cash / Card sits above Confirm. **There is no "Save ₹X vs …" line and no competitor name anywhere** |
 | 10 | Drag the Choose-ride sheet fully up | Ride now / Schedule, promo code, **About this fare** (distance, minutes, surge line), **Safety on every ride** tiles, posters. **No "Price check" section and no "Compare rides" section** |
@@ -130,7 +132,7 @@ Build both apps (sections 2 and 4) on the cabled iPhone with
 `--build-name=1.0.0 --build-number=1`. Don't add a THEME flag and don't change
 the bundle IDs. Signing needs a team that can register
 `in.novarobotics.fairsvia.rider` / `.driver`. **Check:** the home screen shows
-FAIRSVIA Rider and FAIRSVIA Driver (turquoise F icons) **next to** RideVela Rider and
+FAIRSVIA Rider and FAIRSVIA Driver (blue F icons) **next to** RideVela Rider and
 RideVela Driver (teal V icons), and both pairs open and work independently.
 
 ## 6. Report back

@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""NOT APPLIED to the shipped look (FAIRSVIA ships turquoise since
-2026-10-05; the art is the original teal). Kept to re-create the Ocean Blue
-alternative.
-
-Recolour the rider Home tile pictures and the map car markers from
+"""Recolour the rider Home tile pictures and the map car markers from
 RideVela teal to FAIRSVIA blue.
 
 Same hue rule as recolor_lottie.py, teal / cyan / mint (hue 140–200°) ->

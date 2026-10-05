@@ -56,7 +56,7 @@ class RiderBottomNav extends StatelessWidget {
       selectedIcon: pop(name, 'selected', icon(ValueKey('nav-$name-selected'))),
       label: label,
     );
-    return NavigationBarTheme(
+    final bar = NavigationBarTheme(
       data: NavigationBarThemeData(
         backgroundColor: dark ? AppColors.surfaceDark : AppColors.surfaceLight,
         indicatorColor: AppColors.softFor(dark),
@@ -80,7 +80,37 @@ class RiderBottomNav extends StatelessWidget {
         ],
       ),
     );
+    if (!floating) return bar;
+    // FAIRSVIA's shipped look: the bar floats as a rounded pill inset from
+    // the screen edges, over the page, instead of sitting flush at the
+    // bottom (RideVela's). The system inset is applied outside the pill.
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.xs,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+          boxShadow: AppElevation.sm,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+          child: MediaQuery.removePadding(
+            context: context,
+            removeBottom: true,
+            child: bar,
+          ),
+        ),
+      ),
+    );
   }
+
+  /// FAIRSVIA's floating pill bar (the glass build); flush elsewhere.
+  static const bool floating = AppColors.glass;
 }
 
 /// A one-shot entrance for a nav icon: it pops (0.55 -> 1.18 -> 1.0) with

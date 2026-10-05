@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
@@ -21,6 +23,7 @@ class ServiceTile extends StatelessWidget {
     this.badge,
     this.width = defaultWidth,
     this.semanticLabel,
+    this.wide = false,
   });
 
   final String label;
@@ -33,6 +36,21 @@ class ServiceTile extends StatelessWidget {
 
   /// Overrides the spoken label (defaults to "[label], [badge]").
   final String? semanticLabel;
+
+  /// FAIRSVIA's grid tile: the art on the left and the label beside it, in a
+  /// short, wide card (see [ServicesRow.grid]). The square tile otherwise.
+  final bool wide;
+
+  static const double wideArtSize = 44;
+
+  /// The wide tile's height: 64 at 1.0 text scale, taller as the label grows.
+  static double wideHeightFor(BuildContext context) {
+    final style = Theme.of(context).textTheme.labelLarge;
+    final size = style?.fontSize ?? 14;
+    final line = size * (style?.height ?? 20 / 14);
+    final scaled = MediaQuery.textScalerOf(context).scale(size) / size * line;
+    return math.max(64, (scaled + 2 * AppSpacing.md).ceilToDouble());
+  }
 
   static const double defaultWidth = 100;
   static const double artSize = 56;
@@ -55,9 +73,28 @@ class ServiceTile extends StatelessWidget {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
     final radius = BorderRadius.circular(HomeSurface.radius);
-    final height = heightFor(context);
+    final height = wide ? wideHeightFor(context) : heightFor(context);
 
-    final body = Padding(
+    final body = wide
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Row(
+              children: [
+                HomeArtImage(art, size: wideArtSize),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          )
+        : Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.sm,
         _padTop,
@@ -177,10 +214,12 @@ class ServiceItem {
   final String? badge;
 }
 
-/// The Home services strip: [ServiceTile]s in a horizontal list, 16 dp side
-/// padding and 12 dp gaps. Scrolls sideways when the tiles outgrow the
-/// screen (a 360 dp phone shows three and a half — the cue that there is
-/// more).
+/// The Home services: [ServiceTile]s with 16 dp side padding and 12 dp gaps.
+/// FAIRSVIA's shipped look ([grid], the glass build) lays them out as a
+/// two-column grid of wide tiles, so its Home is recognisably its own next
+/// to RideVela's. Other builds keep the horizontal strip, which scrolls
+/// sideways when the tiles outgrow the screen (a 360 dp phone shows three and
+/// a half — the cue that there is more).
 class ServicesRow extends StatelessWidget {
   const ServicesRow({
     super.key,
@@ -191,8 +230,36 @@ class ServicesRow extends StatelessWidget {
   final List<ServiceItem> items;
   final EdgeInsets padding;
 
+  /// Two-column grid of wide tiles instead of the scrolling strip.
+  static const bool grid = AppColors.glass;
+
   @override
   Widget build(BuildContext context) {
+    if (grid) {
+      return Padding(
+        padding: padding,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final w = ((c.maxWidth - AppSpacing.md) / 2).floorToDouble();
+            return Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.md,
+              children: [
+                for (final it in items)
+                  ServiceTile(
+                    label: it.label,
+                    art: it.art,
+                    onTap: it.onTap,
+                    badge: it.badge,
+                    width: w,
+                    wide: true,
+                  ),
+              ],
+            );
+          },
+        ),
+      );
+    }
     return SizedBox(
       height: ServiceTile.heightFor(context),
       child: ListView.separated(

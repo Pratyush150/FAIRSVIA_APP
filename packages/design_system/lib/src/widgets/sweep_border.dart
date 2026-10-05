@@ -59,13 +59,14 @@ class SweepBorder extends StatefulWidget {
   /// tests' `pumpAndSettle` settles. Set in `flutter_test_config.dart`.
   static bool debugDisableLoops = false;
 
-  /// Mint highlight used in the brand sweep.
-  static const Color mint = Color(0xFF7CF2D2);
+  /// Violet highlight used in the FAIRSVIA brand sweep (the variable keeps
+  /// its old name so callers are unchanged).
+  static const Color mint = Color(0xFF9B8CFF);
 
   /// Aqua-cyan partner that makes the ring read brighter than a pure teal.
   static const Color cyan = Color(0xFF3DD9F5);
 
-  /// Bright turquoise → cyan → mint → turquoise, closing on itself so the rotation has
+  /// Bright blue → cyan → violet → blue, closing on itself so the rotation has
   /// no seam. Uses the vivid brand highlight (not the deeper button ink) so
   /// the ring reads bright; one arc dips to the ink so it keeps an edge on
   /// white.

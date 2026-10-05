@@ -207,7 +207,7 @@ void main() {
   });
 
   group('ServicesRow', () {
-    testWidgets('16 dp side padding, 12 dp gaps, scrolls sideways', (
+    testWidgets('16 dp side padding, 12 dp gaps; grid (glass) or sideways strip', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(360, 640);
@@ -217,13 +217,39 @@ void main() {
       final first = tester.getTopLeft(find.byType(ServiceTile).at(0));
       final second = tester.getTopLeft(find.byType(ServiceTile).at(1));
       expect(first.dx, 16);
-      expect(second.dx - first.dx, 100 + 12);
-      expect(find.byType(ListView), findsOneWidget);
-      expect(
-        tester.widget<ListView>(find.byType(ListView)).scrollDirection,
-        Axis.horizontal,
-      );
+      if (ServicesRow.grid) {
+        // FAIRSVIA's glass build: a two-column grid of wide tiles, no
+        // sideways scrolling; the third tile starts the second row.
+        final third = tester.getTopLeft(find.byType(ServiceTile).at(2));
+        final w = ((360 - 32 - 12) / 2).floorToDouble();
+        expect(second.dx - first.dx, w + 12);
+        expect(second.dy, first.dy);
+        expect(third.dx, 16);
+        expect(third.dy, greaterThan(first.dy));
+        expect(find.byType(ListView), findsNothing);
+        expect(tester.takeException(), isNull);
+      } else {
+        expect(second.dx - first.dx, 100 + 12);
+        expect(find.byType(ListView), findsOneWidget);
+        expect(
+          tester.widget<ListView>(find.byType(ListView)).scrollDirection,
+          Axis.horizontal,
+        );
+      }
     });
+
+    testWidgets('grid tiles never overflow at 2x text on a 320 dp phone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _app(const ServicesRow(items: _services), textScale: 2.0),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ServiceTile), findsNWidgets(_services.length));
+    }, skip: !ServicesRow.grid); // the strip scrolls; only the grid lays all out
   });
 
   group('PromoBanner', () {
