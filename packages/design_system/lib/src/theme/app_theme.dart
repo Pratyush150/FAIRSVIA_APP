@@ -178,7 +178,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           // Plan F: text buttons sit on glass, so they take the deeper
-          // brand-text blue (AppColors.accentTextFor); the ink elsewhere.
+          // brand-text teal-navy (AppColors.accentTextFor); the ink elsewhere.
           foregroundColor: AppColors.accentTextFor(isDark),
           // Tertiary actions: at least the 44 pt touch target.
           minimumSize: const Size(AppSpacing.buttonHeightTertiary,

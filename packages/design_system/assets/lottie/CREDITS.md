@@ -52,9 +52,3 @@ Colourful filled illustrations in the same style as `gift.json`, recoloured to t
 - `nav_home.json` — "house" by Sheraz Khan, https://lottiefiles.com/animations/house-5kDRkbZKF6 (orange roof -> teal, brown door -> gold)
 - `nav_trips.json` — "vehicle" by Mistry Yash, https://lottiefiles.com/animations/vehicle-eJKunc2QU5 (purple body -> teal, red light -> gold)
 - `nav_account.json` — "Unauthenticated User" by Saam Mohamed, https://lottiefiles.com/animations/unauthenticated-user-0mLs0yHws5 (orange -> teal)
-
-## FAIRSVIA recolour (2026-10-01)
-
-All animations were recoloured for FAIRSVIA with `tools/brand/recolor_lottie.py`:
-teal/mint -> blue, gold -> coral (trophy and money keep their gold). Shapes and
-motion are unchanged; licence terms above still apply to the modified files.

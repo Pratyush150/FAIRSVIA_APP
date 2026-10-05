@@ -303,12 +303,18 @@ void main() {
       expect(find.text('Pickup time'), findsOneWidget);
       expect(find.text('AM'), findsOneWidget);
       expect(find.text('PM'), findsOneWidget);
-      // The dial runs 1–12 only — no 13–23 / 00 ring. The header's minutes
-      // can legitimately read "00" (the suggested time is rounded, so on
-      // some clocks it lands on the hour); a 24-hour inner ring would add a
-      // second "00" and the 13–23 labels.
-      expect(find.text('13'), findsNothing);
-      expect(find.text('00').evaluate().length, lessThanOrEqualTo(1));
+      // The dial runs 1–12 only — no 13–23 / 00 ring. The header shows the
+      // suggested time's minutes (now + 1 h), which can themselves read "13"
+      // or "00"; allow exactly that one, so the test can't flake on the
+      // clock (it did, at 12:13 and on the hour).
+      String mm(DateTime t) => t.minute.toString().padLeft(2, '0');
+      final soon = DateTime.now().add(const Duration(hours: 1));
+      final headerMinutes = {mm(soon), mm(soon.subtract(const Duration(minutes: 1)))};
+      for (final label in ['13', '00']) {
+        final allowed = headerMinutes.contains(label) ? 1 : 0;
+        expect(find.text(label).evaluate().length, lessThanOrEqualTo(allowed),
+            reason: '"$label" is a 24-hour dial label');
+      }
     },
   );
 }

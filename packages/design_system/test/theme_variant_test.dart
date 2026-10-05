@@ -70,7 +70,13 @@ void main() {
           // Option palettes: tokens come from colour-palette-options.md /
           // visual-direction-v3-research.md; contrast is checked below.
           expect(AppColors.v2, isTrue);
-          expect(AppColors.inkFor(false), isNot(const Color(0xFF0B3C49)));
+          if (AppColors.glass) {
+            // FAIRSVIA's shipped glass build uses the Samarkand Turquoise
+            // teal-navy ink on purpose (owner's choice, 2026-10-05).
+            expect(AppColors.inkFor(false), const Color(0xFF0B3C49));
+          } else {
+            expect(AppColors.inkFor(false), isNot(const Color(0xFF0B3C49)));
+          }
           break;
         }
         // The shipped palette is untouched by the variants.

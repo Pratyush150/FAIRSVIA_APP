@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'app_clay3d.dart';
 
-/// FAIRSVIA palette. The shipped build (Plan F "Map Glass" layout) uses
-/// FAIRSVIA's own "Ocean Blue" accent (#1B4FD8 ink / #2F6BFF / #5B9DFF), so it
-/// never reads as the RideVela app it shares its layout with. The palette
-/// history below is the inherited "Samarkand Turquoise": the calm white / black canvases
+/// FAIRSVIA palette. The shipped build (Plan F "Map Glass" layout) uses the
+/// "Samarkand Turquoise" colours (#0B3C49 teal-navy ink / #0FA3A8 turquoise /
+/// #2EC4C6 bright turquoise; owner's choice 2026-10-05, replacing the earlier
+/// Ocean Blue). The history below is the inherited "Samarkand Turquoise": the calm white / black canvases
 /// and tight grey ramp of the best ride-hailing apps, with the primary action
 /// in the brand "ink" (deep teal-navy on light, turquoise on dark) and
 /// turquoise highlights for the route and selection.
@@ -93,7 +93,7 @@ class AppColors {
       : variant == 'ink'
       ? Color(0xFF0B0B0C)
       : variant == 'glass'
-      ? Color(0xFF1B4FD8)
+      ? Color(0xFF0B3C49)
       : variant == 'clay3d'
       ? Color(0xFF0B7A7B)
       : planLight ? Color(0xFF0A7C7C) : Color(0xFF0B3C49);
@@ -113,7 +113,7 @@ class AppColors {
       : variant == 'ink'
       ? Color(0xFF0A7C7C)
       : variant == 'glass'
-      ? Color(0xFF2F6BFF)
+      ? Color(0xFF0FA3A8)
       : variant == 'clay3d'
       ? Color(0xFF1FA7A8)
       : planLight ? Color(0xFF2BC4C4) : Color(0xFF0FA3A8);
@@ -133,7 +133,7 @@ class AppColors {
       : variant == 'ink'
       ? Color(0xFF3FC9C9)
       : variant == 'glass'
-      ? Color(0xFF5B9DFF)
+      ? Color(0xFF2EC4C6)
       : variant == 'clay3d'
       ? Color(0xFF4FD6D2)
       : planDark ? Color(0xFF2BC4C4) : Color(0xFF2EC4C6);
@@ -175,7 +175,7 @@ class AppColors {
       : variant == 'ink'
       ? Color(0xFFF4F3EE)
       : variant == 'glass'
-      ? Color(0xFF5B9DFF)
+      ? Color(0xFF2EC4C6)
       : variant == 'clay3d'
       ? Color(0xFF3CC6C6)
       : _turquoiseBright;
@@ -219,7 +219,7 @@ class AppColors {
   /// deeper #00665E (6.9:1 on white) while buttons keep the ink.
   static Color get accentText => accentTextFor(_dark);
   static Color accentTextFor(bool dark) =>
-      glass && !dark ? const Color(0xFF1740B0) : inkFor(dark);
+      glass && !dark ? const Color(0xFF0B3C49) : inkFor(dark);
   static Color get accentInkPressed => accentPressed;
 
   /// Quiet fill for selected rows, chips, highlights.
@@ -271,7 +271,7 @@ class AppColors {
       : variant == 'ink'
       ? const Color(0xFF16302F)
       : variant == 'glass'
-      ? const Color(0xFF132447)
+      ? const Color(0xFF0E2E31)
       : variant == 'clay3d'
       ? const Color(0xFF143130)
       : (planDark ? const Color(0xFF12302F) : const Color(0xFF0E2E31))
@@ -290,7 +290,7 @@ class AppColors {
       : variant == 'ink'
       ? const Color(0xFFE6F2F1)
       : variant == 'glass'
-      ? const Color(0xFFE8EFFF)
+      ? const Color(0xFFE6F6F6)
       : variant == 'clay3d'
       ? const Color(0xFFE6F4F3)
       : const Color(0xFFE6F6F6))
