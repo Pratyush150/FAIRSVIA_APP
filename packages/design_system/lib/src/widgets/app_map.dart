@@ -207,7 +207,33 @@ class AppMap extends StatefulWidget {
   /// frame rate, positioned from the camera the map reports on every move —
   /// not as Google Maps circles re-sent over the platform channel ~12 times a
   /// second, which is what made the old radar flicker.
+  ///
+  /// That overlay cannot keep exact pace with a fast fling: the camera
+  /// callbacks arrive a frame or two behind the native map, so the rings
+  /// slid across the screen while the map moved (owner report 2026-10-06).
+  /// So the part that must stay put is drawn by the map itself: a static
+  /// native circle ([pulseAnchorM]) anchored on the pickup, sent once, which
+  /// moves in lockstep with the map at any speed. The spreading rings fade
+  /// out while the camera moves ([ringsFade]) and back in when it settles.
   final LatLng? pulseAt;
+
+  /// Radius of the native, map-anchored circle under the rings before the
+  /// camera has settled (metres). Once it settles the radius is re-sized to
+  /// [pulseAnchorPx] on screen for that zoom ([anchorRadiusM]); between
+  /// settles it scales with the map like any map shape.
+  static const double pulseAnchorM = 120;
+
+  /// The anchored circle's on-screen radius after each settle (logical px).
+  static const double pulseAnchorPx = 52;
+
+  /// The anchored circle's radius in metres that draws [pulseAnchorPx] at
+  /// [lat] and [zoom].
+  static double anchorRadiusM(double lat, double zoom) =>
+      pulseAnchorPx / pixelsPerMetre(lat, zoom);
+
+  /// How fast the overlay rings fade out when the camera starts moving and
+  /// back in when it settles.
+  static const Duration ringsFade = Duration(milliseconds: 120);
 
   static const Duration pulsePeriod = CalmPulse.period;
 
@@ -735,6 +761,7 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
     _pulseTimer?.cancel();
     _camera.dispose();
     _pulseCorrection.dispose();
+    _cameraMoving.dispose();
     _cameraTrack.dispose();
     _driverAnim.dispose();
     super.dispose();
@@ -752,6 +779,26 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
   // Re-measured when the camera settles, while it moves (throttled), and
   // after the padding or the pickup changes.
   final ValueNotifier<Offset> _pulseCorrection = ValueNotifier(Offset.zero);
+
+  // True between onCameraMoveStarted and onCameraIdle: the overlay rings are
+  // faded out then, since they cannot track a fast pan frame-exactly.
+  final ValueNotifier<bool> _cameraMoving = ValueNotifier(false);
+
+  // The anchored circle's radius for the last settled zoom (null until the
+  // camera first settles). Re-sent only on a settle that changes it by >10%,
+  // never per frame.
+  double? _anchorM;
+
+  void _resizeAnchor() {
+    final at = widget.pulseAt;
+    final z = _lastCameraZoom;
+    if (at == null || z == null || AppVariant.local) return;
+    final m = AppMap.anchorRadiusM(at.latitude, z);
+    final old = _anchorM;
+    if (old == null || (m - old).abs() / old > 0.1) {
+      setState(() => _anchorM = m);
+    }
+  }
   Size? _mapSize;
   // Every camera position the map reports, with its arrival time, so the
   // rings can be projected from the latest one and carried forward by the
@@ -841,8 +888,24 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
 
   Set<gmaps.Circle> _buildPulse(bool reduceMotion) {
     final at = widget.pulseAt;
-    // Rings are the overlay's job; only Plan D's kolam is drawn as circles.
-    if (at == null || !AppVariant.local) return const {};
+    if (at == null) return const {};
+    if (!AppVariant.local) {
+      // The animated rings are the overlay's job; the map itself draws one
+      // static, anchored circle on the pickup so the search reads as pinned
+      // to it even while the overlay is faded out during a fast pan.
+      final c = AppColors.highlight;
+      return {
+        gmaps.Circle(
+          circleId: const gmaps.CircleId('pulse-anchor'),
+          center: _g(at),
+          radius: _anchorM ?? AppMap.pulseAnchorM,
+          strokeWidth: 2,
+          strokeColor: c.withValues(alpha: 0.55),
+          fillColor: c.withValues(alpha: 0.12),
+          zIndex: 0,
+        ),
+      };
+    }
     final period = AppVariant.local
         ? Kolam.period.inMilliseconds
         : AppMap.pulsePeriod.inMilliseconds;
@@ -984,14 +1047,25 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         });
       });
     } else if (!_sameBounds(old.fitBounds, widget.fitBounds)) {
+      // Bounds cleared (the rider's Recenter clears them for one frame and
+      // restores them): forget the last fit, so the restored bounds re-frame
+      // even though they equal it. Without this the sub-20 m throttle in
+      // [_fit] swallowed the re-fit and Recenter did nothing during "Finding
+      // your driver" after a pan (owner test 2026-10-06).
+      if (widget.fitBounds == null) _lastFittedBounds = null;
       _fit();
     }
     if (old.boundsPadding != widget.boundsPadding ||
         old.pulseAt != widget.pulseAt) {
       if (widget.pulseAt == null) {
         _pulseCorrection.value = Offset.zero;
+        _anchorM = null;
       } else {
         _measurePulseSoon();
+        // Size the anchored circle for the current zoom straight away.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _resizeAnchor();
+        });
       }
     }
     if (AppMap.recenterChanged(old, widget)) {
@@ -1717,10 +1791,12 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         // Without this the first gesture has no "before" position to compare
         // against and cannot be classified as a pan.
         _lastCameraTarget ??= _g(widget.initialCenter);
+        _lastCameraZoom ??= widget.initialZoom;
         _fit();
         widget.onMapReady?.call();
       },
       onCameraMoveStarted: () {
+        _cameraMoving.value = true;
         // Don't decide yet: a pinch and a drag both land here. Remember where
         // the centre was and classify once the gesture settles.
         if (!_isProgrammatic && widget.cameraMode != MapCameraMode.fit) {
@@ -1739,6 +1815,8 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         _cameraTrack.add(pos, DateTime.now().microsecondsSinceEpoch);
       },
       onCameraIdle: () {
+        _cameraMoving.value = false;
+        _resizeAnchor();
         final start = _gestureStartTarget;
         final startZoom = _gestureStartZoom;
         _gestureStartTarget = null;
@@ -1756,7 +1834,12 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
           final zoomed = startZoom != null &&
               _lastCameraZoom != null &&
               (_lastCameraZoom! - startZoom).abs() > AppMap.zoomThreshold;
-          if (AppMap.isUserGesture(moved, zoomed)) _setFollowing(false);
+          if (AppMap.isUserGesture(moved, zoomed)) {
+            _setFollowing(false);
+            // The user moved the camera off the last fit: the next fit of
+            // the same bounds must run, not be throttled as "already there".
+            _lastFittedBounds = null;
+          }
         }
         _programmaticUntil = null;
         // The slow correction: re-measured only once the camera settles.
@@ -1780,12 +1863,21 @@ class _AppMapState extends State<AppMap> with SingleTickerProviderStateMixin {
         // Never takes touches: pans and taps go straight to the map.
         if (pulseAt != null && !AppVariant.local)
           IgnorePointer(
-            child: _PickupPulse(
-              at: pulseAt,
-              camera: _cameraTrack,
-              correction: _pulseCorrection,
-              padding: widget.boundsPadding,
-              still: reduceMotion,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _cameraMoving,
+              builder: (context, moving, child) => AnimatedOpacity(
+                key: const ValueKey('pulse-rings-fade'),
+                opacity: moving ? 0 : 1,
+                duration: reduceMotion ? Duration.zero : AppMap.ringsFade,
+                child: child,
+              ),
+              child: _PickupPulse(
+                at: pulseAt,
+                camera: _cameraTrack,
+                correction: _pulseCorrection,
+                padding: widget.boundsPadding,
+                still: reduceMotion,
+              ),
             ),
           ),
       ],

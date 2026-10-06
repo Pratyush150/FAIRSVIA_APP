@@ -142,9 +142,14 @@ void main() {
       expect(map.polylines.map((p) => p.polylineId.value),
           contains('kolam_line'));
     } else {
-      // The rings are a Flutter layer over the map now (smooth, 60 fps), not
-      // map circles re-sent over the platform channel.
-      expect(ids.where((i) => i.startsWith('pulse')), isEmpty);
+      // The spreading rings are a Flutter layer over the map (smooth,
+      // 60 fps), not map circles re-sent over the platform channel. The map
+      // itself draws exactly one static circle anchored on the pickup, so the
+      // search stays pinned to it even during a fast fling.
+      expect(ids.where((i) => i.startsWith('pulse')), ['pulse-anchor']);
+      final anchor = map.circles.single;
+      expect(anchor.center, const gmaps.LatLng(18.519, 73.855));
+      expect(anchor.radius, AppMap.pulseAnchorM); // until the camera settles
       expect(
           find.descendant(
               of: find.byType(AppMap),
@@ -154,6 +159,54 @@ void main() {
       expect(map.polylines.map((p) => p.polylineId.value),
           isNot(contains('kolam_line')));
     }
+  });
+
+  test('the anchored circle is ~52 px whatever the zoom', () {
+    for (final z in [11.0, 13.0, 15.0, 17.0]) {
+      final m = AppMap.anchorRadiusM(18.519, z);
+      expect(m * AppMap.pixelsPerMetre(18.519, z), closeTo(AppMap.pulseAnchorPx, 1e-6));
+    }
+    // Zooming out one level doubles the metres for the same pixels.
+    expect(AppMap.anchorRadiusM(18.5, 12) / AppMap.anchorRadiusM(18.5, 13),
+        closeTo(2, 1e-9));
+  });
+
+  testWidgets('a fast pan fades the overlay rings; they return when the map '
+      'settles (the anchored circle stays)', (tester) async {
+    if (AppVariant.local) return; // Plan D draws its kolam as map circles.
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.light,
+      home: const SizedBox(
+        width: 400,
+        height: 600,
+        child: AppMap(
+          initialCenter: LatLng(18.519, 73.855),
+          pulseAt: LatLng(18.519, 73.855),
+        ),
+      ),
+    ));
+    await tester.pump();
+    double ringsOpacity() => tester
+        .widget<AnimatedOpacity>(find.byKey(const ValueKey('pulse-rings-fade')))
+        .opacity;
+    gmaps.GoogleMap map() =>
+        tester.widget<gmaps.GoogleMap>(find.byType(gmaps.GoogleMap));
+    expect(ringsOpacity(), 1);
+    // The user starts dragging/flinging the map; the map reports the moves.
+    map().onCameraMoveStarted!();
+    map().onCameraMove!(const gmaps.CameraPosition(
+        target: gmaps.LatLng(18.52, 73.86), zoom: 13));
+    await tester.pump();
+    expect(ringsOpacity(), 0);
+    expect(map().circles.map((c) => c.circleId.value), ['pulse-anchor']);
+    // The camera settles.
+    map().onCameraIdle!();
+    await tester.pump();
+    expect(ringsOpacity(), 1);
+    // After a settle the anchored circle is sized to the zoom (~52 px).
+    expect(map().circles.single.radius,
+        closeTo(AppMap.anchorRadiusM(18.519, 13), 0.01));
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('the live pickup radar animates without rebuilding the map',
